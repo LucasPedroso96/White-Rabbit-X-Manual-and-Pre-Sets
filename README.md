@@ -1,131 +1,125 @@
-# White Rabbit X — Manuais e biblioteca de sets
+# White Rabbit X — Manuals and Set Library
 
-[English below](#english)
-
-Material público do **White Rabbit X**, Expert Advisor para MetaTrader 5.
-Aqui ficam os manuais em 11 idiomas e a biblioteca completa de **3.738 sets**
-de otimização.
-
-> **Os sets são pontos de partida, não estratégias prontas.** Cada arquivo abre
-> um sistema completo com todos os eixos marcados para otimização. Os valores
-> que vêm neles são o começo da busca — não rode um set direto em conta real
-> esperando resultado. O caminho é otimizar, travar o que já resolveu, e validar
-> fora da amostra.
-
-- **Expert Advisor**: [MQL5 Market](https://www.mql5.com/pt/market/product/187173)
-- **Comunidade e suporte**: [Telegram](https://t.me/MrRabbit_MT5)
-
----
-
-## Como usar a biblioteca
-
-```
-Sets/<classe>/<ATIVO>/<NN_SISTEMA>/<LADO>_<VARIANTE>.set
-Sets/01_Forex/EURUSD/01_SLTP/BUY_MULTI.set
-```
-
-Copie a pasta `Sets/` para `MQL5\Profiles\Tester\` do seu terminal. No Strategy
-Tester: aba **Inputs → Load**.
-
-- **LADO**: `BUY` ou `SELL` em dez dos onze sistemas. O `08_GRID_UNIFIED` usa
-  **`BOTH`**, porque a cesta unificada tem um alvo só cobrindo os dois lados.
-- **MULTI**: o indicador de entrada é um eixo de otimização (MACD, EMA,
-  Momentum, Stochastic, TRIX...).
-- **ICHIMOKU**: indicador fixo, porque ele exige Tenkan < Kijun < SenkouB e não
-  cabe na mesma faixa de períodos dos outros.
-
-## Os 11 sistemas
-
-| Sistema | Gestão de saída | Dimensionamento |
-|---|---|---|
-| `01_SLTP` | SL + TP em múltiplos de ATR | Fixed-R |
-| `02_SLTP_ORGANIC` | TP ancorado no último trade | Fixed-R |
-| `03_TRAIL_ONLY` | Só trailing, sem TP | Fixed-R |
-| `04_SLTP_TRAIL` | SL + TP + trailing | Fixed-R |
-| `05_BE_TRAIL` | Breakeven + trailing | Fixed-R |
-| `06_REVERSAL_EXIT` | Fecha no sinal contrário | Fixed-R |
-| `07_GRID_SEPARATE` | Grid, alvo por lado | Lote fixo |
-| `08_GRID_UNIFIED` | Grid, alvo único da cesta | Lote fixo |
-| `09_MARTINGALE` | Lote cresce após perda | Lote fixo |
-| `10_DALEMBERT` | Incremento aritmético | Lote fixo |
-| `11_SIGNAL_ONLY` | Sem SL/TP — mede o sinal cru | Lote fixo |
-
-Os sistemas **01 a 06 usam Fixed-R**: o lote sai do orçamento de risco, então
-eles se adaptam sozinhos ao tamanho da conta. Os **07 a 11 usam lote fixo** — o
-risco deles é o que o lote mínimo custa naquele instrumento, independente do seu
-saldo. Comece pelos Fixed-R.
-
----
-
-## Duas coisas que mudam o seu resultado
-
-### 1. Modo de modelagem do Strategy Tester
-
-Na aba **Settings**, campo **Modeling**:
-
-```
-Every tick based on real ticks   <- use este
-OHLC 1 minute                    <- só para 01_SLTP e 02_SLTP_ORGANIC
-```
-
-Medindo o mesmo set nos dois modos ao longo de 3 anos, o modo OHLC **subestimou
-a perda em 3,3× nos sistemas de trailing e em 23× no grid** — sempre para o lado
-otimista. Só SL/TP fixo ficou dentro de 3%.
-
-O motivo é estrutural: trailing e grid dependem de **quando** o preço tocou cada
-nível dentro da barra. O modo OHLC interpola isso e suaviza justamente as
-excursões adversas que derrubariam a posição.
-
-### 2. Trave o que já descobriu
-
-Cada set abre milhões de combinações — o maior deles passa de 22 trilhões. O
-caminho é iterativo: rode, descubra, e mude o `Y` do parâmetro para `N` deixando
-o valor vencedor. O espaço de busca cai em ordens de magnitude e a rodada
-seguinte fica muito mais precisa.
-
-Trave primeiro as **chaves**, não a geometria: `EntryIndicator` sozinho decide se
-quatro outros parâmetros significam alguma coisa. Parâmetro atrás de uma chave
-desligada é tempo de otimização gasto à toa.
-
----
-
-## Manuais
-
-`Manuais/<idioma>/` — cada um em `.md`, `.pdf` e `.docx`:
-
-| Arquivo | Conteúdo |
-|---|---|
-| `01_User_Manual` | Manual completo |
-| `02_MQL5_Market_Description` | Descrição do produto |
-| `03_WFO_Optimization_Guide` | Guia de walk-forward |
-| `04_FAQ_and_Support` | Perguntas frequentes |
-| `07_Set_Ecosystem_Tutorial` | Tutorial da biblioteca de sets |
-| `08_Technical_Compatibility` | Compatibilidade técnica |
-
-Português, English, Русский, 中文, Español, 日本語, Deutsch, 한국어, Français,
-Italiano, Türkçe.
-
----
-
-<a name="english"></a>
-
-# White Rabbit X — Manuals and set library
-
-Public material for **White Rabbit X**, a MetaTrader 5 Expert Advisor: manuals
-in 11 languages and the full library of **3,738 optimization sets**.
+Public material for **White Rabbit X**, an Expert Advisor for MetaTrader 5:
+manuals in 11 languages and the complete library of **3,738 optimization sets**.
 
 > **The sets are starting points, not finished strategies.** Each file opens a
-> complete system with every axis marked for optimization. The values shipped in
-> them are where the search begins — do not run a set as-is on a live account.
-> Optimize, lock what you have settled, and validate out of sample.
+> complete trading system with every axis marked for optimization. The values
+> they ship with are where the search begins — do not run a set as-is on a live
+> account. Optimize, lock what you have settled, validate out of sample.
 
 - **Expert Advisor**: [MQL5 Market](https://www.mql5.com/en/market/product/187173)
 - **Community and support**: [Telegram](https://t.me/MrRabbit_MT5)
 
-Copy `Sets/` into your terminal's `MQL5\Profiles\Tester\`, then load a file from
-**Inputs → Load** in the Strategy Tester.
+---
 
-**Set the modeling mode to "Every tick based on real ticks".** Measured across 3
-years on the same set, the OHLC mode understated losses by 3.3× on trailing
-systems and 23× on grid — always in the optimistic direction. Only fixed SL/TP
-stayed within 3%.
+## Using the library
+
+```
+Sets/<class>/<SYMBOL>/<NN_SYSTEM>/<SIDE>_<VARIANT>.set
+Sets/01_Forex/EURUSD/01_SLTP/BUY_MULTI.set
+```
+
+Copy the `Sets/` folder into your terminal's `MQL5\Profiles\Tester\`. In the
+Strategy Tester: **Inputs → Load**.
+
+- **SIDE** — `BUY` or `SELL` in ten of the eleven systems. `08_GRID_UNIFIED`
+  uses **`BOTH`**, because a unified basket has a single target covering both
+  directions at once.
+- **MULTI** — the entry indicator is an optimization axis (MACD, EMA, Momentum,
+  Stochastic, TRIX, RSI, CCI, Williams %R, DeMarker, MFI, OsMA).
+- **ICHIMOKU** — indicator fixed, because it requires Tenkan < Kijun < SenkouB
+  and does not fit in the same period ranges as the others.
+
+## The eleven systems
+
+| System | Exit management | Position sizing |
+|---|---|---|
+| `01_SLTP` | Stop and target as ATR multiples | Fixed-R |
+| `02_SLTP_ORGANIC` | Target anchored to the previous trade | Fixed-R |
+| `03_TRAIL_ONLY` | Trailing only, no target | Fixed-R |
+| `04_SLTP_TRAIL` | Stop, target and trailing behind | Fixed-R |
+| `05_BE_TRAIL` | Breakeven then trailing | Fixed-R |
+| `06_REVERSAL_EXIT` | Closes on the opposite signal | Fixed-R |
+| `07_GRID_SEPARATE` | Grid, one target per side | Fixed lot |
+| `08_GRID_UNIFIED` | Grid, single basket target | Fixed lot |
+| `09_MARTINGALE` | Lot grows after a loss | Fixed lot |
+| `10_DALEMBERT` | Arithmetic lot progression | Fixed lot |
+| `11_SIGNAL_ONLY` | No stop, no target — measures the raw signal | Fixed lot |
+
+Systems **01 through 06 use Fixed-R**: the lot is derived from the risk budget,
+so they adapt themselves to any account size. Systems **07 through 11 use a
+fixed lot** — their risk is whatever the minimum lot costs on that instrument,
+regardless of your balance. Start with the Fixed-R ones.
+
+---
+
+## Two things that change your results
+
+### 1. Strategy Tester modeling mode
+
+Under the **Settings** tab, **Modeling** field:
+
+```
+Every tick based on real ticks   <- use this
+OHLC 1 minute                    <- only for 01_SLTP and 02_SLTP_ORGANIC
+```
+
+Measuring the same set in both modes across 3 years, the OHLC mode
+**understated losses by 3.3× on trailing systems and by 23× on grid** — always
+in the optimistic direction. Only fixed SL/TP stayed within 3%.
+
+The reason is structural: trailing and grid depend on **when** price touched
+each level inside the bar. OHLC mode interpolates that and smooths away exactly
+the adverse excursions that would have taken the position out.
+
+### 2. Lock what you have already found
+
+Each set opens millions of combinations — the largest one exceeds 22 trillion.
+The workflow is iterative: run it, learn something, then flip that parameter's
+`Y` to `N` and keep the winning value. The search space collapses by orders of
+magnitude and the next round is far sharper.
+
+Lock the **switches** before the geometry: `EntryIndicator` alone decides
+whether four other parameters mean anything at all. A parameter sitting behind a
+disabled switch is optimization time spent on nothing.
+
+### Fixed-R and percentage sizing are complementary
+
+Optimize in **Fixed-R**: with the base capital frozen, passes stay comparable to
+each other and across symbols — +40R on gold and +40R on EURUSD mean the same
+thing, while "+3,200 USD" means nothing without knowing the lot and the balance.
+
+Live, **percentage of balance** usually makes more sense: it tracks the account,
+compounds as it grows and cuts exposure as it shrinks — protection Fixed-R
+cannot give, because it deliberately ignores the running balance. Both modes
+report in R, so the record stays readable after the switch.
+
+---
+
+## Manuals
+
+`Manuals/<language>/` — each in `.md`, `.pdf` and `.docx`:
+
+| File | Contents |
+|---|---|
+| `01_User_Manual` | Complete manual |
+| `02_MQL5_Market_Description` | Product description |
+| `03_WFO_Optimization_Guide` | Walk-forward guide |
+| `04_FAQ_and_Support` | Frequently asked questions |
+| `07_Set_Ecosystem_Tutorial` | Set library tutorial |
+| `08_Technical_Compatibility` | Technical compatibility |
+
+Português · English · Русский · 中文 · Español · 日本語 · Deutsch · 한국어 ·
+Français · Italiano · Türkçe
+
+---
+
+## Requirements and honest limits
+
+- MetaTrader 5. Systems `07` and `08` (grid) require a **hedging** account — on
+  a netting account the legs cancel each other out.
+- This is a research framework, not a signal to switch on and forget. Every set
+  is a hypothesis: it needs optimization, out-of-sample validation and
+  forward-demo testing before real money.
+- No Expert Advisor, preset or historical result guarantees future performance.
