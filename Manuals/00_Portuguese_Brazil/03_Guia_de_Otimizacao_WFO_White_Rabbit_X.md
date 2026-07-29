@@ -53,6 +53,52 @@ O status exato do manifesto é preservado e também recebe uma decisão conserva
 | `10_DALEMBERT` | Lote cresce em passo aritmetico apos perda | 356 |
 | `11_SIGNAL_ONLY` | Sem SL e sem TP: mede o sinal cru | 356 |
 
+## Modo de modelagem: use ticks reais
+
+Na aba **Settings** do Strategy Tester, campo **Modeling**:
+
+```
+Every tick based on real ticks   <- use este
+OHLC 1 minute                    <- apenas 01_SLTP e 02_SLTP_ORGANIC
+```
+
+Isto nao e preferencia. Medindo o mesmo set nos dois modos ao longo de tres
+anos, o modo OHLC **subestimou a perda em 3,3x nos sistemas com trailing e em
+23x no grid** — sempre para o lado otimista. Apenas SL/TP fixo ficou dentro de
+3%.
+
+A causa e estrutural: trailing e grid dependem de **quando** o preco tocou cada
+nivel dentro da barra. O modo OHLC interpola isso a partir de quatro precos por
+minuto e suaviza justamente as excursoes adversas que teriam encerrado a
+posicao. Otimizar trailing sobre barras interpoladas seleciona parametros que
+sobreviveram a um caminho de preco que nao existiu.
+
+Ticks reais custam cerca de 20x mais tempo por passe. Vale: e a diferenca entre
+um resultado e um numero.
+
+### Se precisar economizar tempo, economize no lugar certo
+
+Os sinais sao avaliados no FECHAMENTO da barra, entao escolher indicador,
+metodo ou timeframe da o mesmo instante de entrada nos dois modos. Ja stop,
+alvo e trailing dependem do caminho intrabar.
+
+Entao use cada modelo onde ele e confiavel: OHLC para reduzir as chaves
+(indicador, metodo, timeframe, periodos) e ticks reais para a geometria de
+saida. Com o sinal travado o espaco de busca cai ordens de magnitude, e os
+ticks reais deixam de ser proibitivos.
+
+## Fixed-R para pesquisar, percentual para operar
+
+Otimize em **Fixed-R**: com o capital-base congelado, os passes ficam
+comparaveis entre si e entre simbolos. +40R no ouro e +40R no EURUSD significam
+a mesma coisa, enquanto "+3.200 USD" nao significa nada sem saber o lote e o
+saldo.
+
+Ao vivo, o modo **Percentagem** costuma fazer mais sentido: ele acompanha a
+conta, compoe quando ela cresce e reduz a exposicao quando ela encolhe —
+protecao que o R fixo nao da, porque ignora o saldo corrente de proposito. Os
+dois modos reportam em R, entao o historico continua legivel depois da troca.
+
 ## Aviso de risco
 
 Nenhuma EA, set, indicador, otimização ou resultado histórico garante desempenho futuro. Valide símbolo, custos, execução, amostra fora do período e forward demo antes de assumir risco.
