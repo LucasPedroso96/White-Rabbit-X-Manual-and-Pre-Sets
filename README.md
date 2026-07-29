@@ -13,15 +13,30 @@ manuals in 11 languages and the complete library of **3,738 optimization sets**.
 
 ---
 
+## Getting the files
+
+Click the green **Code** button above, then **Download ZIP** — you do not need a
+GitHub account or any Git knowledge to use this library.
+
+If any part of this is unfamiliar, ask an AI assistant such as Claude or
+ChatGPT: paste the link to this page and describe what you are trying to do.
+They walk through downloading, unzipping and locating your MetaTrader data
+folder step by step, in your own language. There is no shame in it — the
+interesting part of this project is the trading research, not the file
+management.
+
 ## Using the library
 
-```
+```text
 Sets/<class>/<SYMBOL>/<NN_SYSTEM>/<SIDE>_<VARIANT>.set
 Sets/01_Forex/EURUSD/01_SLTP/BUY_MULTI.set
 ```
 
 Copy the `Sets/` folder into your terminal's `MQL5\Profiles\Tester\`. In the
 Strategy Tester: **Inputs → Load**.
+
+To find that folder: in MetaTrader, **File → Open Data Folder**, then go into
+`MQL5\Profiles\Tester`.
 
 - **SIDE** — `BUY` or `SELL` in ten of the eleven systems. `08_GRID_UNIFIED`
   uses **`BOTH`**, because a unified basket has a single target covering both
