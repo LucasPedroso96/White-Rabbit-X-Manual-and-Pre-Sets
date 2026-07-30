@@ -30,17 +30,17 @@ hand (`Y` -> `N`) what you have already settled before the next round.
 
 | System | Management skeleton | Own exit axes | Typical space |
 |---|---|---|---:|
-| `01_SLTP` | SL + TP as ATR multiples | Stop, Take, Breakeven on/off, BE distance | 7.98e+11 |
-| `02_SLTP_ORGANIC` | SL + organic TP (anchored to the last trade) | Stop, Take, Breakeven on/off, BE distance | 7.98e+11 |
-| `03_TRAIL_ONLY` | SL + trailing, no TP: lets it run | Stop, trailing source, Trail, BE | 2.40e+12 |
-| `04_SLTP_TRAIL` | SL + TP with trailing behind | Stop, Take, Trail, BE | 1.20e+13 |
-| `05_BE_TRAIL` | Mandatory breakeven + trailing, no TP | Stop, BE distance, trailing source, Trail | 1.20e+12 |
-| `06_REVERSAL_EXIT` | Closes on the indicator's opposite signal | Stop, trailing on/off, Trail, BE, exit filters | 1.92e+12 |
-| `07_GRID_SEPARATE` | Grid, one target per side | Take, Multiplier, MinimumDistance, number of legs | 3.59e+12 |
-| `08_GRID_UNIFIED` | Grid, single basket target, both sides open | Take, Multiplier, MinimumDistance, legs per side | 1.80e+13 |
-| `09_MARTINGALE` | Lot grows after a loss, 1 position per side | Stop, Take, Multiplier, maximum steps, BE | 2.24e+13 |
-| `10_DALEMBERT` | Lot grows in arithmetic steps after a loss | Stop, Take, lot step, maximum steps, BE | 1.60e+13 |
-| `11_SIGNAL_ONLY` | No SL and no TP: measures the raw signal | entry and filters only (negative coverage) | 3.55e+08 |
+| `01_SLTP` | SL + TP as ATR multiples | Stop, Take, Breakeven on/off, BE distance | 2.08e+09 |
+| `02_SLTP_ORGANIC` | SL + organic TP (anchored to the last trade) | Stop, Take, Breakeven on/off, BE distance | 2.08e+09 |
+| `03_TRAIL_ONLY` | SL + trailing, no TP: lets it run | Stop, trailing source, Trail, BE | 6.24e+09 |
+| `04_SLTP_TRAIL` | SL + TP with trailing behind | Stop, Take, Trail, BE | 3.12e+10 |
+| `05_BE_TRAIL` | Mandatory breakeven + trailing, no TP | Stop, BE distance, trailing source, Trail | 3.12e+09 |
+| `06_REVERSAL_EXIT` | Closes on the indicator's opposite signal | Stop, trailing on/off, Trail, BE, exit filters | 4.99e+09 |
+| `07_GRID_SEPARATE` | Grid, one target per side | Take, Multiplier, MinimumDistance, number of legs | 9.36e+09 |
+| `08_GRID_UNIFIED` | Grid, single basket target, both sides open | Take, Multiplier, MinimumDistance, legs per side | 4.68e+10 |
+| `09_MARTINGALE` | Lot grows after a loss, 1 position per side | Stop, Take, Multiplier, maximum steps, BE | 5.82e+10 |
+| `10_DALEMBERT` | Lot grows in arithmetic steps after a loss | Stop, Take, lot step, maximum steps, BE | 4.16e+10 |
+| `11_SIGNAL_ONLY` | No SL and no TP: measures the raw signal | entry and filters only (negative coverage) | 9.24e+05 |
 
 Systems **01 to 06 use Fixed-R**: the lot is derived from the risk budget,
 so the same file adapts itself to any account size. Systems **07 to 11 use
@@ -92,6 +92,46 @@ parameters that survived a price path which never happened.
 
 Real ticks cost roughly 20x more time per pass. Budget for it: it is the
 difference between a result and a number.
+
+## The optimization circuit
+
+These files ship configured for **phase 1**. The library is not a set of
+finished presets; it is the first step of a repeatable circuit, and each
+phase narrows what the next one has to search.
+
+| Phase | What you decide | Model | What is open |
+|---|---|---|---|
+| **1 (shipped)** | signal and exit geometry | OHLC | indicator, method, timeframe, periods, ATR, stop, target, breakeven |
+| 2 | filters | OHLC | MTF, moving average, ADX — ranges already calibrated, flip `N` to `Y` |
+| 3 | session | OHLC | spread ceiling, hours, weekdays |
+| 4 | confirmation | **real ticks** | nothing new — re-run the winner and compare |
+
+Phase 1 ships with the filters **off on purpose**. A filter means nothing
+until the signal is settled, and leaving them open costs real money in time:
+the six filter axes multiply the phase-1 space by **384x** (398 billion
+against 1.04 billion without them) while contributing no information. In one
+measured run, 818 of 3,435 distinct results came back duplicated because the
+genetic algorithm was varying parameters sitting behind a disabled switch —
+each duplicate a full backtest spent on nothing.
+
+Their ranges are already written in the file, flagged `N`. Phase 2 is just
+flipping those to `Y`; you do not have to invent the range.
+
+**Between phases, lock what you found**: put the winning value in all four
+fields and set the flag to `N`. Each lock collapses the space by orders of
+magnitude, which is what makes the next phase sharper rather than longer.
+
+**Order matters more than most people expect.** Lock the switches before the
+geometry: `EntryIndicator` alone decides whether four other parameters mean
+anything at all.
+
+### About phase 4
+
+For fixed SL/TP the real-tick pass is a confirmation: measured across three
+years, OHLC and real ticks differed by 1.2%. For **trailing and grid it is
+not** — there the divergence was 3.3x and 23x, always optimistic, so real
+ticks belong BEFORE you tune the exit geometry, not after. Signals are
+evaluated at bar close and are unaffected either way; only the management is.
 
 ## How to run
 
