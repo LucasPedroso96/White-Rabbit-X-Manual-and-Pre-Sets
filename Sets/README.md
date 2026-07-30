@@ -99,12 +99,35 @@ These files ship configured for **phase 1**. The library is not a set of
 finished presets; it is the first step of a repeatable circuit, and each
 phase narrows what the next one has to search.
 
-| Phase | What you decide | Model | What is open |
-|---|---|---|---|
-| **1 (shipped)** | signal and exit geometry | OHLC | indicator, method, timeframe, periods, ATR, stop, target, breakeven |
-| 2 | filters | OHLC | MTF, moving average, ADX — ranges already calibrated, flip `N` to `Y` |
-| 3 | session | OHLC | spread ceiling, hours, weekdays |
-| 4 | confirmation | **real ticks** | nothing new — re-run the winner and compare |
+| Phase | What you decide | Model | Criterion | What is open |
+|---|---|---|---|---|
+| **1 (shipped)** | signal and exit geometry | OHLC | Pessimistic Average Profit | indicator, method, timeframe, periods, ATR, stop, target, breakeven |
+| 2 | filters | OHLC | Drawdown-Adjusted Profit per Trade | MTF, moving average, ADX — ranges already calibrated, flip `N` to `Y` |
+| 3 | session | OHLC | Return Uniformity | spread ceiling, hours, weekdays |
+| 4 | confirmation | **real ticks** | — | nothing new — re-run the winner and compare |
+
+**The criterion changes with the phase, and using one criterion throughout
+actively works against you.** A filter REDUCES the number of trades, so
+optimizing phase 2 on total profit punishes the very filter that cuts bad
+entries, even when it improves the quality of every remaining one. Phase 2
+asks about quality *per trade*; phase 3 asks whether returns became more
+even, which is exactly what a session filter is for.
+
+Phase 1 uses Pessimistic Average Profit because it answers the only question
+that phase has: does this signal have an edge, or did the gains come from a
+handful of lucky trades? It discounts reliance on outlier wins, so
+concentrated luck does not climb the ranking.
+
+`configure_wfo.py --fase 1|2|3` switches criterion and walk-forward mode
+together, and writes the end date — which the next section explains you
+cannot afford to get wrong.
+
+A note on the shipped Levain Composite score: it works as a quality **gate**
+but poorly as a **ranking** criterion. Its four components are capped and the
+weights sum to 1, so every pass that meets the benchmarks returns exactly
+1.0 — the genetic algorithm loses its gradient precisely where the champion
+is chosen. Measured: six passes tied at 1.0, with profit-42 passes ranking
+below profit-23 ones.
 
 Phase 1 ships with the filters **off on purpose**. A filter means nothing
 until the signal is settled, and leaving them open costs real money in time:
@@ -220,10 +243,34 @@ every axis across all files: if any `.set` could produce
 
 Full manifest (symbol, system, combinations, magic, SHA-256):
 `MANIFESTO_SISTEMAS.csv`.
-## Walk-forward, and how to read it
+## Out-of-sample validation, and what it is not
 
-The EA runs its own walk-forward — this is not the tester's Forward tab. Enable
-`AtivarWFO` and the period is sliced into In-Sample and Out-of-Sample windows.
+**This is not walk-forward, and the distinction matters.** A real walk-forward
+re-optimizes at every window: the parameters tested on period N+1 come from an
+optimization run only on period N, and the final curve concatenates the
+out-of-sample segments, each from a different optimization. That needs N
+separate tester passes.
+
+The MetaTrader tester runs one continuous pass and cannot go back in time. So
+what the EA does inside a single run is one parameter set evaluated over
+interleaved In-Sample and Out-of-Sample segments — an **interleaved holdout**.
+It is genuinely useful (alternating segments sample more regimes than one
+contiguous split) but it does not answer walk-forward's actual question, which
+is how long a set of parameters stays valid before it needs refitting.
+
+**It only means something if the optimization ran in In-Sample mode.** With
+`MetodoDeEntradawfo = 0` the EA closes positions and does not trade outside the
+IS windows, so the genetic algorithm never profits from out-of-sample data.
+Optimize with `AtivarWFO` off and the algorithm has already seen the whole
+period — the retention number that follows proves nothing.
+
+Real walk-forward here means driving several tester passes from outside, which
+is what `wfo_matrix.py` does.
+
+## How the internal windows work
+
+Enable `AtivarWFO` and the period is sliced into In-Sample and Out-of-Sample
+windows.
 
   `MetodoDeEntradawfo = 0` (In-Sample) trades ONLY the in-sample windows. This
   is the optimization mode: the genetic algorithm never sees the data it will
