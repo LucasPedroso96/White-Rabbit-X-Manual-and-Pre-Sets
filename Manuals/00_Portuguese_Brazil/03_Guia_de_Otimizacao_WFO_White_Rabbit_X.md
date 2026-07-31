@@ -23,12 +23,12 @@ Altere uma matriz por vez e retenha evidências completas para cada promoção.
 1. Confirme que o EX5, a fonte auditada, o esquema dos sets e o manifesto pertencem à mesma versão.
 2. Copie a biblioteca para MQL5\Profiles\Tester ou selecione-a diretamente ao carregar Inputs no Strategy Tester.
 3. Mapeie o ativo ao símbolo exato do broker, incluindo sufixo, sessão, moeda de lucro e tamanho de contrato.
-4. Comece pelas pastas 01–05: carregue o baseline do ativo e teste BUY e SELL separadamente.
-5. Use a pasta 06 para pesquisa controlada de um único eixo; não misture mudanças antes de medir o efeito.
-6. Use a pasta 07 para comparar indicador, método de entrada e arquétipo de gestão.
-7. Use a pasta 08 para empilhar filtros; confirme que ainda existe amostra estatística suficiente.
-8. Use a pasta 09 para comparar motores de risco apenas em combinações declaradas como compatíveis.
-9. Use a pasta 10 para testar saídas sobre uma entrada já congelada.
+4. Navegue por classe e ativo: cada ativo traz os 11 tipos de sistema (01_SLTP a 11_SIGNAL_ONLY), um set por lado (BUY/SELL; BOTH no grid unificado) e duas variantes de entrada — MULTI disputa os indicadores 0–10 num eixo só e ICHIMOKU tem arquivo próprio.
+5. A fase 1 é descoberta de regiões: rode o genético com o set como está — entradas completas (indicador, método, timeframe, applied price, períodos), saídas do sistema e chaves de filtro, tudo de uma vez.
+6. Das rodadas seguintes em diante, trave (Y→N) os inputs de escrita — enums e booleanos — decididos na fase anterior e deixe abertos só os numéricos; o ajuste de cada filtro só entra se a chave sobreviveu ligada.
+7. O filtro ATR de entrada (EntradaATR) existe apenas nos sistemas de grid; nos demais permanece desligado por construção.
+8. Valide o vencedor em ticks reais: decidem a divergência contra o OHLC e a retenção out-of-sample, nunca o lucro in-sample.
+9. Depois do tick real, troque o dimensionamento para Percentagem e rode de novo: só promova se passar também — e é nesse modo que o set deve operar.
 10. Execute in-sample, out-of-sample e forward demo cronológicos, com custos e execução realistas.
 11. Se usar notícias, gere WhiteRabbit_News.csv para todo o período e moedas antes de iniciar o tester.
 12. Execute WhiteRabbit Filters SelfTest e só prossiga se a última linha informar zero falhas.
@@ -98,6 +98,8 @@ Ao vivo, o modo **Percentagem** costuma fazer mais sentido: ele acompanha a
 conta, compoe quando ela cresce e reduz a exposicao quando ela encolhe —
 protecao que o R fixo nao da, porque ignora o saldo corrente de proposito. Os
 dois modos reportam em R, entao o historico continua legivel depois da troca.
+
+Por isso o circuito so grava um set aprovado depois de repetir o passe final em Percentagem: se o resultado nao se sustenta sob juros compostos, ele nao estava pronto — e o set validado ja sai gravado nesse modo.
 
 ## Aviso de risco
 

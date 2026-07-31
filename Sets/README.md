@@ -30,17 +30,17 @@ hand (`Y` -> `N`) what you have already settled before the next round.
 
 | System | Management skeleton | Own exit axes | Typical space |
 |---|---|---|---:|
-| `01_SLTP` | SL + TP as ATR multiples | Stop, Take, Breakeven on/off, BE distance | 2.08e+09 |
-| `02_SLTP_ORGANIC` | SL + organic TP (anchored to the last trade) | Stop, Take, Breakeven on/off, BE distance | 2.08e+09 |
-| `03_TRAIL_ONLY` | SL + trailing, no TP: lets it run | Stop, trailing source, Trail, BE | 6.24e+09 |
-| `04_SLTP_TRAIL` | SL + TP with trailing behind | Stop, Take, Trail, BE | 3.12e+10 |
-| `05_BE_TRAIL` | Mandatory breakeven + trailing, no TP | Stop, BE distance, trailing source, Trail | 3.12e+09 |
-| `06_REVERSAL_EXIT` | Closes on the indicator's opposite signal | Stop, trailing on/off, Trail, BE, exit filters | 4.99e+09 |
-| `07_GRID_SEPARATE` | Grid, one target per side | Take, Multiplier, MinimumDistance, number of legs | 9.36e+09 |
-| `08_GRID_UNIFIED` | Grid, single basket target, both sides open | Take, Multiplier, MinimumDistance, legs per side | 4.68e+10 |
-| `09_MARTINGALE` | Lot grows after a loss, 1 position per side | Stop, Take, Multiplier, maximum steps, BE | 5.82e+10 |
-| `10_DALEMBERT` | Lot grows in arithmetic steps after a loss | Stop, Take, lot step, maximum steps, BE | 4.16e+10 |
-| `11_SIGNAL_ONLY` | No SL and no TP: measures the raw signal | entry and filters only (negative coverage) | 9.24e+05 |
+| `01_SLTP` | SL + TP as ATR multiples | Stop, Take, Breakeven on/off, BE distance | 1.15e+20 |
+| `02_SLTP_ORGANIC` | SL + organic TP (anchored to the last trade) | Stop, Take, Breakeven on/off, BE distance | 1.15e+20 |
+| `03_TRAIL_ONLY` | SL + trailing, no TP: lets it run | Stop, trailing source, Trail, BE | 2.88e+19 |
+| `04_SLTP_TRAIL` | SL + TP with trailing behind | Stop, Take, Trail, BE | 3.46e+22 |
+| `05_BE_TRAIL` | Mandatory breakeven + trailing, no TP | Stop, BE distance, trailing source, Trail | 1.73e+20 |
+| `06_REVERSAL_EXIT` | Closes on the indicator's opposite signal | Stop, trailing on/off, Trail, BE, exit filters | 1.38e+21 |
+| `07_GRID_SEPARATE` | Grid, one target per side | Take, Multiplier, MinimumDistance, number of legs | 5.77e+19 |
+| `08_GRID_UNIFIED` | Grid, single basket target, both sides open | Take, Multiplier, MinimumDistance, legs per side | 5.77e+20 |
+| `09_MARTINGALE` | Lot grows after a loss, 1 position per side | Stop, Take, Multiplier, maximum steps, BE | 4.61e+20 |
+| `10_DALEMBERT` | Lot grows in arithmetic steps after a loss | Stop, Take, lot step, maximum steps, BE | 2.31e+21 |
+| `11_SIGNAL_ONLY` | No SL and no TP: measures the raw signal | entry and filters only (negative coverage) | 3.20e+15 |
 
 Systems **01 to 06 use Fixed-R**: the lot is derived from the risk budget,
 so the same file adapts itself to any account size. Systems **07 to 11 use

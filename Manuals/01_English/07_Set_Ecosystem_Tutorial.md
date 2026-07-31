@@ -56,12 +56,12 @@ Change one matrix at a time and retain complete evidence for each promotion deci
 1. Confirm that the EX5, audited source, set schema and manifest belong to the same release.
 2. Copy the library to MQL5\Profiles\Tester or select it when loading Strategy Tester Inputs.
 3. Map each asset to the broker's exact symbol, suffix, session, profit currency and contract size.
-4. Start with folders 01–05: load the asset baseline and test BUY and SELL separately.
-5. Use folder 06 for controlled one-axis research; do not mix changes before measuring their effect.
-6. Use folder 07 to compare indicator, entry method and management archetype.
-7. Use folder 08 for filter stacks and verify that the statistical sample remains adequate.
-8. Use folder 09 to compare risk engines only in documented compatible combinations.
-9. Use folder 10 to test exit stacks while keeping the entry system frozen.
+4. Browse by class and asset: each asset carries the 11 system types (01_SLTP to 11_SIGNAL_ONLY), one set per side (BUY/SELL; BOTH for the unified grid) and two entry variants — MULTI contests indicators 0–10 on a single axis, ICHIMOKU has its own file.
+5. Phase 1 is region discovery: run the genetic optimizer on the set as shipped — the full entry group (indicator, method, timeframe, applied price, periods), the system's exits and the filter switches, all at once.
+6. From the following rounds on, lock (Y→N) the written inputs — enums and booleans — decided by the previous phase and keep only the numeric ones open; each filter's tuning only enters if its switch survived enabled.
+7. The ATR entry filter (EntradaATR) exists only in the grid systems; everywhere else it stays off by design.
+8. Validate the winner on real ticks: the divergence against OHLC and the out-of-sample retention decide, never in-sample profit.
+9. After the real-tick pass, switch position sizing to Percentage and run again: only promote if it passes too — and that is the mode the set should trade in.
 10. Run chronological in-sample, out-of-sample and forward-demo phases with realistic costs.
 11. For news tests, generate WhiteRabbit_News.csv for the full date range and every required currency.
 12. Run WhiteRabbit Filters SelfTest and proceed only when its final line reports zero failures.

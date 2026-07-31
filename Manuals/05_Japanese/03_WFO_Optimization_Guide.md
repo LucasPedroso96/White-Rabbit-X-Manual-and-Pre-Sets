@@ -23,12 +23,12 @@ EA SHA-256: D85A30A0836A9BE75F6DFC55868BDC664EE1FC7F5DD0840C029DEB0EF8AC8973. Ma
 1. EX5、ソース、set schema、マニフェストの版を一致させます。
 2. Strategy Tester Inputs からライブラリを読み込みます。
 3. 正確な銘柄と suffix を対応させます。
-4. 01–05 baseline から BUY/SELL を別々に試します。
-5. 06 は単一軸研究です。
-6. 07 entry、08 filter、09 risk、10 exit の順に検証します。
-7. IS、OOS、forward demo を時系列で行います。
-8. Status、RelativePath、SHA256 を確認します。
-9. 明示的 USE のみが定義環境での使用候補です。
+4. クラスと銘柄で辿ります。各銘柄には 11 のシステムタイプ（01_SLTP〜11_SIGNAL_ONLY）があり、方向ごとに 1 つの set（BUY/SELL、統合グリッドは BOTH）、エントリーは 2 変種 — MULTI は単一軸でインジケーター 0–10 を競わせ、ICHIMOKU は専用ファイルです。
+5. フェーズ 1 は領域探索です。set をそのまま遺伝的最適化にかけます — エントリー群一式（インジケーター、メソッド、タイムフレーム、applied price、期間）、システムの決済、フィルターのスイッチを一度にすべて開きます。
+6. 次のラウンド以降は、前フェーズで決まった「文字型」入力（enum と bool）を Y→N で固定し、数値型だけを開けたままにします。フィルターの調整は、そのスイッチが ON で生き残った場合にのみ入ります。
+7. ATR エントリーフィルター（EntradaATR)はグリッド系のみに存在し、他では設計上オフのままです。
+8. 勝者はリアルティックで検証します。OHLC との乖離とアウトオブサンプル保持率が決め手であり、インサンプル利益ではありません。
+9. リアルティックの後、ロット計算を Percentage に切り替えて再実行し、これも通過した場合のみ昇格させます — set が運用されるべきモードもこれです。
 
 ## 状態とリリース判断
 
@@ -94,6 +94,8 @@ Live, **Percentage** usually makes more sense: it tracks the account, compounds
 as it grows and cuts exposure as it shrinks — protection Fixed-R cannot give,
 because it deliberately ignores the running balance. Both modes report in R, so
 the record stays readable after the switch.
+
+そのため本フローでは、最終パスを Percentage モードで再実行して初めて承認済み set を保存します。複利の下で結果が維持できなければ、それはまだ完成ではありません — 検証済み set はそのモードで出荷されます。
 
 ## リスク警告
 

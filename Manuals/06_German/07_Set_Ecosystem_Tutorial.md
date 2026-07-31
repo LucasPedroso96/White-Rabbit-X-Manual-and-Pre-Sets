@@ -56,12 +56,12 @@ Pro Stufe nur eine Matrix ändern und Nachweise aufbewahren.
 1. Version von EX5, Quelle, Set-Schema und Manifest abgleichen.
 2. Bibliothek über Strategy Tester Inputs laden.
 3. Exaktes Brokersymbol und Suffix zuordnen.
-4. Mit Baseline 01–05 beginnen und BUY/SELL trennen.
-5. 06 dient Ein-Achsen-Forschung.
-6. 07 Einstieg, 08 Filter, 09 Risiko, 10 Ausstieg.
-7. IS, OOS und Forward Demo chronologisch durchführen.
-8. Status, RelativePath und SHA256 prüfen.
-9. Nur explizites USE gilt für die definierte Umgebung.
+4. Navigieren Sie nach Klasse und Asset: Jedes Asset umfasst die 11 Systemtypen (01_SLTP bis 11_SIGNAL_ONLY), einen Set pro Seite (BUY/SELL; BOTH beim vereinigten Grid) und zwei Einstiegsvarianten — MULTI lässt die Indikatoren 0–10 auf einer Achse antreten, ICHIMOKU hat eine eigene Datei.
+5. Phase 1 ist Regionssuche: Starten Sie die genetische Optimierung mit dem Set wie geliefert — komplette Einstiegsgruppe (Indikator, Methode, Timeframe, applied price, Perioden), die Ausstiege des Systems und die Filterschalter, alles auf einmal.
+6. Ab den folgenden Runden sperren Sie (Y→N) die »Schrift«-Inputs — Enums und Booleans — aus der Vorphase und lassen nur die numerischen offen; die Feinabstimmung eines Filters kommt nur hinein, wenn sein Schalter eingeschaltet überlebt hat.
+7. Der ATR-Einstiegsfilter (EntradaATR) existiert nur in den Grid-Systemen; überall sonst bleibt er konstruktionsbedingt aus.
+8. Validieren Sie den Gewinner mit echten Ticks: Es entscheiden die Divergenz gegen OHLC und die Out-of-Sample-Retention, nie der In-Sample-Gewinn.
+9. Nach dem Echt-Tick-Lauf stellen Sie die Positionsgröße auf Percentage um und testen erneut: Nur bei Bestehen befördern — und genau in diesem Modus soll der Set handeln.
 
 ## Zyklus-Telemetrie im Dashboard
 

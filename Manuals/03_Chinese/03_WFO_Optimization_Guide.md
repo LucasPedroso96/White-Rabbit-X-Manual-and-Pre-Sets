@@ -23,12 +23,12 @@ EA SHA-256: D85A30A0836A9BE75F6DFC55868BDC664EE1FC7F5DD0840C029DEB0EF8AC8973. Ma
 1. 确认 EX5、源码、set schema 与清单属于同一版本。
 2. 通过 Strategy Tester Inputs 加载 set 库。
 3. 映射经纪商的精确品种与 suffix。
-4. 先用 01–05 baseline，分别测试 BUY/SELL。
-5. 06 用于单轴研究。
-6. 07 入场、08 过滤、09 风险、10 出场。
-7. 依次执行 IS、OOS 与 forward demo。
-8. 检查 Status、RelativePath 与 SHA256。
-9. 只有明确 USE 才代表指定环境可用。
+4. 按类别和品种浏览：每个品种包含 11 种系统类型（01_SLTP 至 11_SIGNAL_ONLY），每个方向一个 set（BUY/SELL；统一网格为 BOTH），入场有两种变体——MULTI 在单一轴上竞争指标 0–10，ICHIMOKU 有独立文件。
+5. 第 1 阶段是区域发现：直接用原样的 set 运行遗传优化——完整的入场组（指标、方法、时间框架、applied price、周期）、系统的出场以及过滤器开关，一次全部打开。
+6. 从后续轮次起，锁定（Y→N）上一阶段已决定的“文字型”输入——枚举和布尔值——只保留数值型开放；过滤器的细调只有在其开关存活为开启时才进入。
+7. ATR 入场过滤器（EntradaATR）只存在于网格系统；其他系统中它按设计保持关闭。
+8. 用真实 tick 验证胜出者：由与 OHLC 的偏差和样本外保持率决定，绝不是样本内利润。
+9. 真实 tick 之后，把仓位模式切换为 Percentage 再跑一次：只有同样通过才晋级——set 最终也应以该模式交易。
 
 ## 清单状态与发布决策
 
@@ -94,6 +94,8 @@ Live, **Percentage** usually makes more sense: it tracks the account, compounds
 as it grows and cuts exposure as it shrinks — protection Fixed-R cannot give,
 because it deliberately ignores the running balance. Both modes report in R, so
 the record stays readable after the switch.
+
+因此，只有在以 Percentage 模式重复最终回测之后，流程才会保存已通过的 set：若结果在复利下无法维持，说明它尚未准备好——通过验证的 set 也以该模式交付。
 
 ## 风险警告
 

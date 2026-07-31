@@ -56,12 +56,12 @@ Cambie una sola matriz por etapa y conserve la evidencia.
 1. Confirme que EX5, fuente, esquema y manifiesto son de la misma versión.
 2. Cargue la biblioteca mediante Strategy Tester Inputs.
 3. Mapee el símbolo y suffix exactos del bróker.
-4. Empiece por baseline 01–05 y separe BUY/SELL.
-5. Use 06 para una sola variable.
-6. Use 07 entrada, 08 filtros, 09 riesgo y 10 salidas.
-7. Ejecute IS, OOS y forward demo cronológicos.
-8. Compruebe Status, RelativePath y SHA256.
-9. Solo USE explícito autoriza el entorno definido.
+4. Navegue por clase y activo: cada activo trae los 11 tipos de sistema (01_SLTP a 11_SIGNAL_ONLY), un set por lado (BUY/SELL; BOTH en el grid unificado) y dos variantes de entrada — MULTI disputa los indicadores 0–10 en un solo eje, ICHIMOKU tiene archivo propio.
+5. La fase 1 es descubrimiento de regiones: ejecute el genetico con el set tal cual — grupo de entrada completo (indicador, metodo, timeframe, applied price, periodos), salidas del sistema y llaves de filtro, todo a la vez.
+6. De las rondas siguientes en adelante, bloquee (Y→N) los inputs de escritura — enums y booleanos — decididos por la fase anterior y deje abiertos solo los numericos; el ajuste de cada filtro solo entra si su llave sobrevivio encendida.
+7. El filtro ATR de entrada (EntradaATR) existe solo en los sistemas de grid; en los demas permanece apagado por diseño.
+8. Valide al ganador en ticks reales: deciden la divergencia contra OHLC y la retencion out-of-sample, nunca la ganancia in-sample.
+9. Tras el tick real, cambie el dimensionamiento a Percentage y ejecute de nuevo: solo promueva si tambien pasa — y ese es el modo en que el set debe operar.
 
 ## Telemetría de ciclos del panel
 

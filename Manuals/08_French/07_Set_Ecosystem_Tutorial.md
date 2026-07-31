@@ -56,12 +56,12 @@ Modifiez une matrice par étape et conservez les preuves.
 1. Alignez les versions EX5, source, schéma set et manifeste.
 2. Chargez la bibliothèque par Strategy Tester Inputs.
 3. Mappez le symbole et le suffixe exacts.
-4. Commencez par les baselines 01–05, BUY/SELL séparés.
-5. 06 sert à la recherche mono-axe.
-6. 07 entrée, 08 filtres, 09 risque, 10 sorties.
-7. Exécutez IS, OOS et forward démo chronologiques.
-8. Contrôlez Status, RelativePath et SHA256.
-9. Seul USE explicite autorise l'environnement défini.
+4. Naviguez par classe et actif : chaque actif porte les 11 types de systeme (01_SLTP a 11_SIGNAL_ONLY), un set par sens (BUY/SELL ; BOTH pour le grid unifie) et deux variantes d'entree — MULTI met en concurrence les indicateurs 0–10 sur un seul axe, ICHIMOKU a son propre fichier.
+5. La phase 1 est la decouverte de regions : lancez le genetique sur le set tel quel — groupe d'entree complet (indicateur, methode, timeframe, applied price, periodes), sorties du systeme et interrupteurs de filtres, tout a la fois.
+6. Des les tours suivants, verrouillez (Y→N) les inputs « d'ecriture » — enums et booleens — decides par la phase precedente et ne laissez ouverts que les numeriques ; le reglage d'un filtre n'entre que si son interrupteur a survecu active.
+7. Le filtre ATR d'entree (EntradaATR) n'existe que dans les systemes grid ; partout ailleurs il reste desactive par construction.
+8. Validez le gagnant sur ticks reels : la divergence face a l'OHLC et la retention out-of-sample decident, jamais le profit in-sample.
+9. Apres le tick reel, passez le dimensionnement en Percentage et relancez : ne promouvez que si cela passe aussi — et c'est dans ce mode que le set doit operer.
 
 ## Télémétrie des cycles du tableau
 

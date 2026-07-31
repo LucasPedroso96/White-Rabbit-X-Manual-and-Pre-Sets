@@ -23,12 +23,12 @@ Her aşamada tek matris değiştirin ve kanıtları saklayın.
 1. EX5, kaynak, set şeması ve manifesto sürümünü eşleştirin.
 2. Kütüphaneyi Strategy Tester Inputs ile yükleyin.
 3. Broker'ın tam sembol ve suffix değerini eşleyin.
-4. 01–05 baseline ile başlayıp BUY/SELL'i ayırın.
-5. 06 tek eksenli araştırmadır.
-6. 07 giriş, 08 filtre, 09 risk, 10 çıkıştır.
-7. IS, OOS ve forward demo'yu kronolojik uygulayın.
-8. Status, RelativePath ve SHA256 kontrol edin.
-9. Yalnızca açık USE tanımlı ortam için adaydır.
+4. Sinif ve enstrumana gore gezinin: her enstruman 11 sistem tipini tasir (01_SLTP'den 11_SIGNAL_ONLY'ye), yon basina bir set (BUY/SELL; birlesik grid icin BOTH) ve iki giris varyanti — MULTI, 0–10 gostergelerini tek eksende yaristirir, ICHIMOKU'nun kendi dosyasi vardir.
+5. Faz 1 bolge kesfidir: genetigi set oldugu gibi calistirin — tam giris grubu (gosterge, yontem, zaman dilimi, applied price, periyotlar), sistemin cikislari ve filtre anahtarlari, hepsi bir arada.
+6. Sonraki turlardan itibaren onceki fazda kararlastirilan 'yazi' girdilerini — enum ve boolean — Y→N ile kilitleyin ve yalnizca sayisallari acik birakin; bir filtrenin ayari ancak anahtari acik hayatta kaldiysa girer.
+7. ATR giris filtresi (EntradaATR) yalnizca grid sistemlerinde vardir; digerlerinde tasarim geregi kapali kalir.
+8. Kazanani gercek tiklerle dogrulayin: OHLC'ye karsi sapma ve out-of-sample tutma karar verir, asla in-sample kar degil.
+9. Gercek tikten sonra pozisyon boyutlandirmayi Percentage'a cevirip yeniden kosun: ancak o da gecerse terfi ettirin — set zaten o modda islem yapmalidir.
 
 ## Durumlar ve karar
 
@@ -94,6 +94,8 @@ Live, **Percentage** usually makes more sense: it tracks the account, compounds
 as it grows and cuts exposure as it shrinks — protection Fixed-R cannot give,
 because it deliberately ignores the running balance. Both modes report in R, so
 the record stays readable after the switch.
+
+Bu yuzden devre, onayli bir seti ancak son gecisi Percentage modunda tekrarladiktan sonra kaydeder: sonuc bilesik getiri altinda tutmuyorsa hazir degildi — dogrulanan set de o modda teslim edilir.
 
 ## Risk uyarısı
 
