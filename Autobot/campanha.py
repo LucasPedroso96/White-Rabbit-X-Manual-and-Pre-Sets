@@ -116,8 +116,14 @@ def registrar(reg: dict) -> None:
 
 
 def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
+    # --period M1 explicito (dono, 2026-07-31): obrigatorio em todos os
+    # algoritmos porque cada indicador carrega o proprio TF via input -- com
+    # o chart period != M1, qualquer input "Current TF" colapsaria pro period
+    # do chart. O default de optimize_two_stage.py ja e M1, mas nao vale a
+    # pena depender disso silenciosamente aqui.
     cmd = [sys.executable, str(AQUI / "optimize_two_stage.py"),
            "--symbol", simbolo, "--sistema", sistema, "--variante", variante,
+           "--period", "M1",
            "--from", args.inicio, "--to", args.fim,
            "--deposit", str(args.deposit),
            "--min-retencao", str(args.min_retencao),

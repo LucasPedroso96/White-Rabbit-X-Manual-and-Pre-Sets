@@ -364,9 +364,12 @@ def apply_core(p: Profile, ac: AssetClass, ichimoku: bool,
         p.fix("EntradaATR", "false")
         p.fix("VolatilityFilter", 1)
 
-    # Noticias exigem CSV em Common\Files: fica desligado por padrao.
+    # Noticias exigem CSV em Common\Files: fica desligado por padrao. Sub-flag
+    # bate com o default da propria EA (false) -- com o filtro mestre desligado
+    # ela e inerte (CheckNewsFilter retorna cedo), mas nao ha motivo pra deixar
+    # gravado um valor que ninguem escolheu deliberadamente (dono, 2026-07-31).
     p.fix("AtivarFiltroNoticias", "false")
-    p.fix("NewsSomenteAltoImpacto", "true")
+    p.fix("NewsSomenteAltoImpacto", "false")
     p.fix("NewsMinutosAntes", 15)
     p.fix("NewsMinutosDepois", 15)
     p.raw("NewsMoedasManual", ac.news)

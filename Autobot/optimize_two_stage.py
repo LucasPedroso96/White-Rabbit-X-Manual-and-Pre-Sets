@@ -649,7 +649,12 @@ def main() -> int:
     ap.add_argument("--symbol", required=True)
     ap.add_argument("--sistema", default="01_SLTP")
     ap.add_argument("--variante", default="SELL_MULTI")
-    ap.add_argument("--period", default="H1")
+    # M1 e OBRIGATORIO em todos os estagios (dono, 2026-07-31): cada indicador
+    # carrega o proprio TF via input (MTF_TF1/TF2, ATR_TimeFrame etc.) -- se o
+    # chart period do tester nao for M1, qualquer input marcado "Current TF"
+    # colapsa pro period do chart em vez do TF que o eixo pretende testar, e o
+    # espaco de busca encolhe silenciosamente sem nenhum erro.
+    ap.add_argument("--period", default="M1")
     ap.add_argument("--from", dest="inicio", default="2023.08.01")
     ap.add_argument("--to", dest="fim", default="2026.07.21")
     ap.add_argument("--deposit", type=int, default=500)
