@@ -27,7 +27,9 @@ Cambie una sola matriz por etapa y conserve la evidencia.
 5. La fase 1 es descubrimiento de regiones: ejecute el genetico con el set tal cual — grupo de entrada completo (indicador, metodo, timeframe, applied price, periodos), salidas del sistema y llaves de filtro, todo a la vez.
 6. De las rondas siguientes en adelante, bloquee (Y→N) los inputs de escritura — enums y booleanos — decididos por la fase anterior y deje abiertos solo los numericos; el ajuste de cada filtro solo entra si su llave sobrevivio encendida.
 7. El filtro ATR de entrada (EntradaATR) existe solo en los sistemas de grid; en los demas permanece apagado por diseño.
-8. Valide al ganador en ticks reales: deciden la divergencia contra OHLC y la retencion out-of-sample, nunca la ganancia in-sample.
+8. Valide al ganador en ticks reales: deciden la divergencia contra OHLC y la retencion out-of-sample, nunca la ganancia in-sample. Rechace un candidato cuyo resultado en tick real diverja del resultado OHLC en más del 30% — ambos deben coincidir en la forma del resultado, no solo en el signo.
+8a. Filtre al sobreviviente con Monte Carlo: remuestree la secuencia de operaciones mediante bootstrap (en múltiplos de R, no en moneda) y rechace si el drawdown en el percentil 95 supera el doble del drawdown observado, o si la probabilidad de ruina remuestreada supera el 5%. Un set que solo parece estable por el orden específico en que ocurrieron sus operaciones no es estable.
+8b. Para los seis sistemas Fixed-R (`01` a `06`), exija una expectativa en R positiva fuera de muestra. Un set que empató o perdió R fuera de muestra no se promueve, sin importar su puntuación in-sample.
 9. Tras el tick real, cambie el dimensionamiento a Percentage y ejecute de nuevo: solo promueva si tambien pasa — y ese es el modo en que el set debe operar.
 
 ## Estados y decisión
@@ -96,6 +98,18 @@ because it deliberately ignores the running balance. Both modes report in R, so
 the record stays readable after the switch.
 
 Por eso el circuito solo guarda un set aprobado tras repetir el pase final en modo Percentage: si el resultado no se sostiene bajo interes compuesto, no estaba listo — y el set validado se entrega en ese modo.
+
+## Fórmulas: qué optimizan y qué reporta el resultado
+
+`selectedFormula` decide qué devuelve OnTester al optimizador genético — el número único con el que se clasifica cada pasada. No es la misma pregunta que "en qué reporta el set entregado". El circuito usa fórmulas distintas para tareas distintas: las fases iniciales favorecen fórmulas que premian un resultado amplio y bien poblado (para que la búsqueda genética tenga un gradiente que escalar), en lugar de una fórmula estrecha que puntúa alto solo en un camino específico.
+
+Para los seis sistemas Fixed-R, el reporte final del set entregado usa **SomaR** (la suma de los resultados de las operaciones en múltiplos de R): una vez que un candidato ya pasó la retención, la divergencia, el Monte Carlo y el filtro de expectativa en R anterior, SomaR es lo que expresa el resultado en la misma unidad que el resto de esta guía usa para comparar símbolos y sistemas — R, no moneda. No decide al ganador; reporta el resultado del ganador ya decidido en una unidad comparable.
+
+## Autobot y Historical Tool Manager
+
+Esta biblioteca se entrega prevalidada, pero el circuito descrito arriba no es una caja negra — se publica como **Autobot** en el mismo repositorio donde vive este manual (`Autobot/`), el código real que ejecuta cada paso de esta guía. Léalo para ver exactamente cómo un set se ganó su estatus, o ejecútelo usted mismo contra su propio bróker, lista de símbolos o rango de fechas.
+
+El paso de confirmación en tick real depende de contar con datos de tick reales contra los cuales confirmar. **Historical Tool Manager** (MQL5 Market: https://www.mql5.com/pt/market/product/188711) importa historial profundo de tick y M1 a MT5 como Custom Symbol para instrumentos cuyo propio historial del bróker no cubre suficiente tiempo atrás — útil tanto si ejecuta el Autobot como si solo quiere más historial para probar manualmente.
 
 ## Aviso de riesgo
 

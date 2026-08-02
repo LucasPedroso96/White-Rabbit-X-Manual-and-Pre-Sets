@@ -53,9 +53,12 @@ Resmî Telegram kanalına katılın: **https://t.me/MrRabbit_MT5**
 Kılavuzlar ve tam set kütüphanesi: **https://github.com/LucasPedroso96/White-Rabbit-X-Manual-and-Pre-Sets**
 
 - Enstrümana ve sistem türüne göre (SL/TP, trailing, grid, martingale ve diğerleri) hazırlanmış set dosyaları; doğrudan Strateji Test Cihazına yüklenecek şekilde düzenlenmiştir.
+- **Autobot**: bu kütüphanenin arkasındaki otomasyon, aynı depoda yayınlanır — her seti yayınlanmadan önce üreten, walk-forward testinden geçiren, Monte Carlo ile kapıdan geçiren ve gerçek tikle doğrulayan asıl koddur. Kendi brokerinize ve enstrümanlarınıza karşı kendiniz çalıştırabilir veya bir setin statüsünü nasıl kazandığını görmek için kodu okuyabilirsiniz.
 - Kendi dilinizde kılavuzlar: Portekizce, İngilizce, Rusça, Çince, İspanyolca, Japonca, Almanca, Korece, Fransızca, İtalyanca ve Türkçe.
 - EA ve set kütüphaneleri için güncelleme duyuruları.
 - Destek ve diğer kullanıcılarla deneyim paylaşımı.
+
+Tamamlayıcı ürün: **Historical Tool Manager** (MQL5 Market: https://www.mql5.com/pt/market/product/188711) derin tick ve M1 geçmişini MT5'e Custom Symbol olarak aktarır — Autobot'un gerçek tik doğrulama aşamasının dayandığı veri kaynağıdır.
 
 > Bu tek resmî kanaldır. White Rabbit X'i temsil ettiğini iddia eden üçüncü kişilerden set veya EA kopyası satın almayın: EA yalnızca MQL5 Market üzerinden satılır ve setler yukarıdaki kanalda ücretsiz dağıtılır.
 

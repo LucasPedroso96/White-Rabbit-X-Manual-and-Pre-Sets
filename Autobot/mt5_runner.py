@@ -1,0 +1,116 @@
+# -*- coding: utf-8 -*-
+"""Utilitarios compartilhados para rodar o Strategy Tester pela linha de comando.
+
+Existe por causa de UMA armadilha que custou tres diagnosticos separados no
+mesmo dia: com um terminal ja aberto, `terminal64.exe /config:...` nao roda
+nada. O Windows apenas da foco a instancia existente e o processo novo sai --
+sem erro, sem log, sem exit code diferente de zero. O teste simplesmente nao
+acontece, e quem le o resultado ve "0 trades" e vai investigar a estrategia.
+
+Por isso a checagem vive aqui e nao no comentario de cada script.
+"""
+from __future__ import annotations
+
+import subprocess
+import time
+from pathlib import Path
+
+
+def terminal_aberto() -> bool:
+    """Ha um terminal MetaTrader em execucao nesta maquina?
+
+    tasklist existe em qualquer Windows e nao acrescenta dependencia. Nao
+    distingue QUAL instalacao esta aberta; para o efeito aqui tanto faz, porque
+    qualquer terminal aberto ja impede a inicializacao de outro.
+    """
+    try:
+        saida = subprocess.run(  # noqa: S603
+            ["tasklist", "/FI", "IMAGENAME eq terminal64.exe", "/NH"],
+            capture_output=True, text=True, timeout=15, check=False).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "terminal64.exe" in saida.lower()
+
+
+def fechar_terminal(espera: int = 45) -> bool:
+    """Fecha o terminal COM GRACA e espera ele sumir de verdade.
+
+    /F destroi trabalho: o MT5 persiste definicao de simbolo custom e cache de
+    otimizacao no encerramento limpo. Matar a forca ja deixou centenas de MB de
+    ticks no disco para um simbolo que o tester passou a responder "not exist".
+    So recorre ao /F depois de esperar -- preso e pior que forcado.
+    """
+    subprocess.run(["taskkill", "/IM", "terminal64.exe"],  # noqa: S603
+                   capture_output=True, check=False)
+    for _ in range(espera):
+        time.sleep(1)
+        if not terminal_aberto():
+            time.sleep(2)          # deixa o flush terminar
+            return True
+    subprocess.run(["taskkill", "/IM", "terminal64.exe", "/F"],  # noqa: S603
+                   capture_output=True, check=False)
+    time.sleep(3)
+    return not terminal_aberto()
+
+
+def garantir_terminal_livre(fechar: bool = False) -> None:
+    """Levanta se houver terminal aberto, ou fecha quando autorizado.
+
+    Falhar aqui e MUITO melhor do que rodar: o custo de um erro visivel e
+    reabrir o terminal; o custo do silencio e concluir coisa errada sobre uma
+    estrategia a partir de um teste que nunca rodou.
+    """
+    if not terminal_aberto():
+        return
+
+    porque = ("Com o terminal em execucao o /config nao executa nada -- a "
+              "janela apenas ganha foco, nenhum log e escrito, e o resultado "
+              "vem vazio como se a estrategia nao tivesse operado.")
+
+    if not fechar:
+        raise SystemExit(f"Ha um MetaTrader aberto. Feche-o antes de rodar.\n"
+                         f"{porque}\n"
+                         "Use --fechar-terminal para fechar automaticamente.")
+
+    if fechar_terminal():
+        return
+
+    # Mandar usar a flag que ja foi usada manda procurar no lugar errado: o
+    # problema aqui nao e permissao, e algo REABRINDO o terminal. Foi o que
+    # aconteceu ao deixar um orquestrador de campanha rodando -- ele subia
+    # outro terminal a cada vez que este fechava.
+    raise SystemExit(
+        "Fechei o MetaTrader e ele voltou a aparecer.\n"
+        f"{porque}\n"
+        "Isso costuma significar que algo esta REABRINDO o terminal: outra "
+        "campanha ou script ainda em execucao. Encerre o orquestrador antes "
+        "do terminal -- na ordem inversa ele simplesmente abre outro.")
+
+
+def ler_novo(logs_dir: Path, antes: dict[Path, int]) -> str:
+    """Le so o que foi escrito nos logs depois de `antes`.
+
+    O MT5 ANEXA todas as corridas no mesmo arquivo do dia; ler o arquivo inteiro
+    faz cada corrida herdar as contagens das anteriores. Offset impar
+    dessincroniza os pares de bytes do UTF-16LE.
+    """
+    if not logs_dir.is_dir():
+        return ""
+    partes = []
+    for p in logs_dir.glob("*.log"):
+        inicio = antes.get(p, 0)
+        if p.stat().st_size <= inicio:
+            continue
+        with p.open("rb") as fh:
+            fh.seek(inicio)
+            bruto = fh.read()
+        if inicio % 2:
+            bruto = bruto[1:]
+        partes.append(bruto.decode("utf-16-le", errors="replace"))
+    return "\n".join(partes)
+
+
+def marcar_logs(logs_dir: Path) -> dict[Path, int]:
+    if not logs_dir.is_dir():
+        return {}
+    return {p: p.stat().st_size for p in logs_dir.glob("*.log")}

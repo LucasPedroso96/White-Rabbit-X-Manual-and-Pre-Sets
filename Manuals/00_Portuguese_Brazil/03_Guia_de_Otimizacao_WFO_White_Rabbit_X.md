@@ -27,7 +27,9 @@ Altere uma matriz por vez e retenha evidências completas para cada promoção.
 5. A fase 1 é descoberta de regiões: rode o genético com o set como está — entradas completas (indicador, método, timeframe, applied price, períodos), saídas do sistema e chaves de filtro, tudo de uma vez.
 6. Das rodadas seguintes em diante, trave (Y→N) os inputs de escrita — enums e booleanos — decididos na fase anterior e deixe abertos só os numéricos; o ajuste de cada filtro só entra se a chave sobreviveu ligada.
 7. O filtro ATR de entrada (EntradaATR) existe apenas nos sistemas de grid; nos demais permanece desligado por construção.
-8. Valide o vencedor em ticks reais: decidem a divergência contra o OHLC e a retenção out-of-sample, nunca o lucro in-sample.
+8. Valide o vencedor em ticks reais: decidem a divergência contra o OHLC e a retenção out-of-sample, nunca o lucro in-sample. Reprove um candidato cujo resultado em tick real divirja do OHLC em mais de 30% — os dois devem concordar sobre o formato do resultado, não só sobre o sinal.
+8a. Passe o sobrevivente pelo Monte Carlo: reamostre a sequência de trades (em múltiplos de R, não em moeda) e reprove se o drawdown no percentil 95 exceder duas vezes o drawdown observado, ou se a probabilidade de ruína reamostrada exceder 5%. Um set que só parece estável por causa da ordem específica em que os trades aconteceram não é estável.
+8b. Para os seis sistemas Fixed-R (`01` a `06`), exija expectância em R positiva fora da amostra. Um set que empatou ou perdeu R fora da amostra não é promovido, não importa a pontuação in-sample.
 9. Depois do tick real, troque o dimensionamento para Percentagem e rode de novo: só promova se passar também — e é nesse modo que o set deve operar.
 10. Execute in-sample, out-of-sample e forward demo cronológicos, com custos e execução realistas.
 11. Se usar notícias, gere WhiteRabbit_News.csv para todo o período e moedas antes de iniciar o tester.
@@ -100,6 +102,37 @@ protecao que o R fixo nao da, porque ignora o saldo corrente de proposito. Os
 dois modos reportam em R, entao o historico continua legivel depois da troca.
 
 Por isso o circuito so grava um set aprovado depois de repetir o passe final em Percentagem: se o resultado nao se sustenta sob juros compostos, ele nao estava pronto — e o set validado ja sai gravado nesse modo.
+
+## Formulas: o que otimizam, e o que reporta o resultado
+
+`selectedFormula` decide o que o OnTester devolve para o genetico -- o numero
+unico que ordena os passes. Nao e a mesma pergunta que "em que o set entregue
+reporta". O circuito usa formulas diferentes para tarefas diferentes: as fases
+iniciais favorecem formulas que premiam um resultado amplo e bem povoado (para
+o genetico ter gradiente pra subir), nao uma formula estreita que so pontua
+alto num caminho especifico.
+
+Para os seis sistemas Fixed-R, o relatorio final do set entregue usa **SomaR**
+(soma dos resultados dos trades em multiplos de R): depois que um candidato ja
+passou por retencao, divergencia, Monte Carlo e o gate de expectancia em R
+acima, o SomaR e o que declara o resultado na mesma unidade que este guia usa
+para comparar simbolos e sistemas -- R, nao moeda. Ele nao decide o vencedor;
+reporta o resultado de quem ja venceu.
+
+## Autobot e Historical Tool Manager
+
+Esta biblioteca sai pre-validada, mas o circuito acima nao e caixa-preta -- ele
+e publicado como **Autobot** no mesmo repositorio onde este manual mora
+(`Autobot/`), o codigo real que roda cada passo deste guia. Leia para ver
+exatamente como um set conquistou seu status, ou rode voce mesmo contra sua
+propria corretora, lista de ativos ou periodo.
+
+A etapa de confirmacao em tick real depende de ter dado de tick real pra
+confirmar contra. O **Historical Tool Manager** (MQL5 Market:
+https://www.mql5.com/pt/market/product/188711) importa historico profundo de
+tick e M1 para o MT5 como Custom Symbol, para ativos cujo historico da propria
+corretora nao cobre tempo suficiente -- util tanto rodando o Autobot quanto so
+querendo mais historico pra testar manualmente.
 
 ## Aviso de risco
 

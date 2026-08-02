@@ -27,7 +27,9 @@ Modificare una sola matrice per fase e conservare le prove.
 5. La fase 1 e la scoperta delle regioni: lanciate il genetico sul set cosi com'e — gruppo di ingresso completo (indicatore, metodo, timeframe, applied price, periodi), uscite del sistema e interruttori dei filtri, tutto insieme.
 6. Dai giri successivi, bloccate (Y→N) gli input 'di scrittura' — enum e booleani — decisi dalla fase precedente e lasciate aperti solo i numerici; la taratura di un filtro entra solo se il suo interruttore e sopravvissuto acceso.
 7. Il filtro ATR di ingresso (EntradaATR) esiste solo nei sistemi grid; altrove resta spento per costruzione.
-8. Validate il vincitore su tick reali: decidono la divergenza contro l'OHLC e la retention out-of-sample, mai il profitto in-sample.
+8. Validate il vincitore su tick reali: decidono la divergenza contro l'OHLC e la retention out-of-sample, mai il profitto in-sample. Scartate un candidato il cui risultato su tick reali diverge da quello OHLC per più del 30% — i due devono concordare sulla forma del risultato, non solo sul segno.
+8a. Filtrate il sopravvissuto con Monte Carlo: ricampionate la sequenza di trade con bootstrap (in multipli di R, non in valuta) e scartate se il drawdown al 95° percentile supera il doppio del drawdown osservato, o se la probabilità di rovina ricampionata supera il 5%. Un set che sembra stabile solo per l'ordine specifico in cui i suoi trade sono avvenuti non è stabile.
+8b. Per i sei sistemi Fixed-R (`01` a `06`), richiedete un'aspettativa in R positiva fuori campione. Un set che ha pareggiato o perso R fuori campione non viene promosso, indipendentemente dal punteggio in-sample.
 9. Dopo il tick reale, passate il dimensionamento a Percentage e rilanciate: promuovete solo se passa anche questa — ed e in quel modo che il set deve operare.
 
 ## Stati e decisione
@@ -96,6 +98,18 @@ because it deliberately ignores the running balance. Both modes report in R, so
 the record stays readable after the switch.
 
 Per questo il circuito salva un set approvato solo dopo aver ripetuto il passaggio finale in modalita Percentage: se il risultato non regge sotto interesse composto, non era pronto — e il set validato viene consegnato in quella modalita.
+
+## Formule: cosa ottimizzano e cosa riporta il risultato
+
+`selectedFormula` decide cosa OnTester restituisce all'ottimizzatore genetico — il numero unico in base al quale un passaggio viene classificato. Non è la stessa domanda di "in che unità riporta il risultato il set consegnato". Il circuito usa formule diverse per compiti diversi: le fasi iniziali favoriscono formule che premiano un risultato ampio e ben popolato (così la ricerca genetica ha un gradiente da risalire), invece di una formula ristretta che ottiene un punteggio alto solo su un percorso specifico.
+
+Per i sei sistemi Fixed-R, il report finale del set consegnato usa **SomaR** (la somma degli esiti dei trade in multipli di R): una volta che un candidato ha già superato retention, divergenza, Monte Carlo e il gate di aspettativa in R sopra descritto, SomaR è ciò che esprime il risultato nella stessa unità che questa guida usa per confrontare simboli e sistemi altrove — R, non valuta. Non decide il vincitore; riporta il risultato del vincitore già determinato in un'unità comparabile.
+
+## Autobot e Historical Tool Manager
+
+Questa libreria viene consegnata pre-validata, ma il circuito sopra descritto non è una scatola nera — è pubblicato come **Autobot** nello stesso repository in cui si trova questo manuale (`Autobot/`), il codice reale che esegue ogni passaggio di questa guida. Leggetelo per vedere esattamente come un set ha guadagnato il suo status, oppure eseguitelo voi stessi contro il vostro broker, la vostra lista di strumenti o il vostro intervallo di date.
+
+La fase di conferma su tick reali dipende dalla disponibilità di dati di tick reali con cui confrontarsi. **Historical Tool Manager** (MQL5 Market: https://www.mql5.com/pt/market/product/188711) importa in MT5 uno storico profondo di tick e M1 come Custom Symbol per gli strumenti il cui storico presso il proprio broker non copre un periodo sufficientemente lungo — utile sia che eseguiate l'Autobot, sia che vogliate semplicemente più storico per testare manualmente.
 
 ## Avviso di rischio
 

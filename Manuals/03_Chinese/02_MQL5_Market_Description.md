@@ -53,9 +53,12 @@ Current schema: 127 inputs. Current manifest: 3738 sets.
 手册与完整参数集库：**https://github.com/LucasPedroso96/White-Rabbit-X-Manual-and-Pre-Sets**
 
 - 按品种和系统类型（止损止盈、追踪止损、网格、马丁格尔等）分类的现成参数集，可直接载入策略测试器。
+- **Autobot**：这套参数集背后的自动化程序，发布在同一个仓库中——在每个参数集发布之前，实际生成、执行 walk-forward 测试、Monte Carlo 把关并用真实 tick 确认它的正是这套代码。您可以针对自己的经纪商和品种自行运行，也可以阅读代码，了解某个参数集是如何取得其地位的。
 - 您所用语言的手册：葡萄牙语、英语、俄语、中文、西班牙语、日语、德语、韩语、法语、意大利语和土耳其语。
 - EA 与参数集库的更新通知。
 - 技术支持以及与其他用户的经验交流。
+
+配套产品：**Historical Tool Manager**（MQL5 Market：https://www.mql5.com/pt/market/product/188711）以 Custom Symbol 的形式将深度 tick 和 M1 历史数据导入 MT5——这正是 Autobot 真实 tick 确认阶段所依赖的数据来源。
 
 > 这是唯一的官方频道。请勿从声称代表 White Rabbit X 的第三方购买参数集或 EA 副本：本 EA 仅在 MQL5 Market 销售，参数集在上述频道免费发布。
 

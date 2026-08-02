@@ -53,9 +53,12 @@ Rejoignez le canal Telegram officiel : **https://t.me/MrRabbit_MT5**
 Manuels et bibliothèque complète de sets : **https://github.com/LucasPedroso96/White-Rabbit-X-Manual-and-Pre-Sets**
 
 - Sets prêts à l'emploi par actif et par type de système (SL/TP, trailing, grille, martingale et autres), organisés pour être chargés directement dans le Testeur de Stratégies.
+- **Autobot** : l'automatisation derrière cette bibliothèque, publiée dans le même dépôt — le code réel qui génère, teste en walk-forward, valide par Monte Carlo et confirme sur ticks réels chaque set avant sa publication. Exécutez-le vous-même contre votre propre courtier et vos actifs, ou lisez-le pour voir comment un set a mérité son statut.
 - Manuels dans votre langue : portugais, anglais, russe, chinois, espagnol, japonais, allemand, coréen, français, italien et turc.
 - Avis de mise à jour de l'EA et des bibliothèques de sets.
 - Support et échange d'expérience avec les autres utilisateurs.
+
+Produit complémentaire : **Historical Tool Manager** (MQL5 Market : https://www.mql5.com/pt/market/product/188711) importe un historique profond de ticks et M1 dans MT5 sous forme de Custom Symbols — la source de données dont dépend l'étape de confirmation sur ticks réels de l'Autobot.
 
 > C'est le seul canal officiel. N'achetez pas de sets ni de copies de l'EA auprès de tiers prétendant représenter White Rabbit X : l'EA est vendu uniquement sur le MQL5 Market et les sets sont distribués gratuitement sur le canal ci-dessus.
 

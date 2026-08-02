@@ -1,0 +1,15 @@
+# Cache Python, nunca fonte
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+
+# Sua conta real, nunca a minha nem a de mais ninguem
+_conta_real.json
+
+# Resultados de campanha e logs sao dados de UMA maquina/conta, nao codigo
+campanha_resultados*.jsonl
+amostra_noite_resultados.jsonl
+*.log
+*.bak
+*.bak_*

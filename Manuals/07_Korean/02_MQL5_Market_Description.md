@@ -53,9 +53,12 @@ Current schema: 127 inputs. Current manifest: 3738 sets.
 매뉴얼 및 전체 세트 라이브러리: **https://github.com/LucasPedroso96/White-Rabbit-X-Manual-and-Pre-Sets**
 
 - 종목별·시스템 유형별(SL/TP, 트레일링, 그리드, 마틴게일 등)로 정리된 완성 세트 파일. 전략 테스터에 바로 불러올 수 있습니다.
+- **Autobot**: 이 라이브러리 뒤에 있는 자동화 도구로, 같은 저장소에 공개되어 있습니다 — 각 세트가 출시되기 전에 실제로 생성하고, walk-forward 테스트를 하고, Monte Carlo로 게이트하고, 실제 틱으로 확인하는 코드입니다. 직접 자신의 브로커와 종목을 대상으로 실행하거나, 코드를 읽어 세트가 어떻게 그 지위를 얻었는지 확인할 수 있습니다.
 - 사용 언어별 매뉴얼: 포르투갈어, 영어, 러시아어, 중국어, 스페인어, 일본어, 독일어, 한국어, 프랑스어, 이탈리아어, 터키어.
 - EA 및 세트 라이브러리 업데이트 공지.
 - 지원 및 다른 사용자와의 경험 공유.
+
+보조 제품: **Historical Tool Manager**(MQL5 Market: https://www.mql5.com/pt/market/product/188711)는 깊은 tick 및 M1 이력을 Custom Symbol 형태로 MT5에 가져옵니다 — Autobot의 실제 틱 확인 단계가 의존하는 데이터 소스입니다.
 
 > 공식 채널은 이곳뿐입니다. White Rabbit X를 대리한다고 주장하는 제3자에게서 세트나 EA 사본을 구매하지 마십시오. 본 EA는 MQL5 Market에서만 판매되며 세트는 위 채널에서 무료로 배포됩니다.
 

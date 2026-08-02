@@ -53,9 +53,12 @@ Son reglas conservadoras; el bróker puede imponer límites más estrictos.
 Manuales y la biblioteca completa de sets: **https://github.com/LucasPedroso96/White-Rabbit-X-Manual-and-Pre-Sets**
 
 - Sets listos por activo y por tipo de sistema (SL/TP, trailing, grid, martingala y otros), organizados para cargar directamente en el Probador de Estrategias.
+- **Autobot**: la automatización detrás de esta biblioteca, publicada en el mismo repositorio — el código real que genera, prueba en walk-forward, valida con Monte Carlo y confirma en tick real cada set antes de publicarlo. Ejecútelo usted mismo contra su propio bróker y sus símbolos, o léalo para ver cómo un set se ganó su estatus.
 - Manuales en su idioma: portugués, inglés, ruso, chino, español, japonés, alemán, coreano, francés, italiano y turco.
 - Avisos de actualización del EA y de las bibliotecas de sets.
 - Soporte e intercambio de experiencia con otros usuarios.
+
+Producto complementario: **Historical Tool Manager** (MQL5 Market: https://www.mql5.com/pt/market/product/188711) importa historial profundo de tick y M1 a MT5 como Custom Symbol — la fuente de datos de la que depende la etapa de confirmación en tick real del Autobot.
 
 > Este es el único canal oficial. No compre sets ni copias del EA a terceros que digan representar a White Rabbit X: el EA se vende únicamente en el MQL5 Market y los sets se distribuyen gratuitamente en el canal indicado.
 

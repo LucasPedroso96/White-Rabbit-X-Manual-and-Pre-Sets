@@ -27,7 +27,9 @@ Change one matrix at a time and retain complete evidence for each promotion deci
 5. Phase 1 is region discovery: run the genetic optimizer on the set as shipped — the full entry group (indicator, method, timeframe, applied price, periods), the system's exits and the filter switches, all at once.
 6. From the following rounds on, lock (Y→N) the written inputs — enums and booleans — decided by the previous phase and keep only the numeric ones open; each filter's tuning only enters if its switch survived enabled.
 7. The ATR entry filter (EntradaATR) exists only in the grid systems; everywhere else it stays off by design.
-8. Validate the winner on real ticks: the divergence against OHLC and the out-of-sample retention decide, never in-sample profit.
+8. Validate the winner on real ticks: the divergence against OHLC and the out-of-sample retention decide, never in-sample profit. Reject a candidate whose real-tick result diverges from the OHLC result by more than 30% — the two should agree on the shape of the outcome, not just its sign.
+8a. Gate the survivor on Monte Carlo: bootstrap-resample the trade sequence (in R-multiples, not currency) and reject if the 95th-percentile drawdown exceeds twice the observed drawdown, or if the resampled ruin probability exceeds 5%. A set that only looks stable because of the specific order its trades happened to occur in is not stable.
+8b. For the six Fixed-R systems (`01` through `06`), require positive out-of-sample R-expectancy. A set that broke even or lost R out of sample does not get promoted no matter how it scored in-sample.
 9. After the real-tick pass, switch position sizing to Percentage and run again: only promote if it passes too — and that is the mode the set should trade in.
 10. Run chronological in-sample, out-of-sample and forward-demo phases with realistic costs.
 11. For news tests, generate WhiteRabbit_News.csv for the full date range and every required currency.
@@ -99,6 +101,37 @@ because it deliberately ignores the running balance. Both modes report in R, so
 the record stays readable after the switch.
 
 That is why the circuit only saves an approved set after repeating the final pass in Percentage mode: if the result does not hold under compounding, it was not ready — and the validated set ships in that mode.
+
+## Formulas: what they optimize for, and what reports the result
+
+`selectedFormula` decides what OnTester returns to the genetic optimizer — the
+single number a pass gets ranked on. It is not the same question as "what does
+the delivered set report in." The circuit uses different formulas for
+different jobs: earlier phases favor formulas that reward a broad, well-
+populated result (so the genetic search has a gradient to climb) rather than a
+narrow one that happens to score high on one path.
+
+For the six Fixed-R systems, the delivered set's final report uses **SomaR**
+(the sum of trade outcomes in R-multiples): once a candidate has already
+passed retention, divergence, Monte Carlo and the R-expectancy gate above, SomaR
+is what states the result in the same unit the rest of this guide uses to
+compare symbols and systems — R, not currency. It does not decide the winner;
+it reports the winner's result in a comparable unit.
+
+## Autobot and Historical Tool Manager
+
+This library ships pre-validated, but the circuit above is not a black box —
+it is published as **Autobot** in the same repository this manual lives in
+(`Autobot/`), the actual code that runs all of the steps in this guide. Read it
+to see exactly how a set earned its status, or run it yourself against your
+own broker, symbol list or date range.
+
+The real-tick confirmation step depends on having real tick data to confirm
+against. **Historical Tool Manager** (MQL5 Market:
+https://www.mql5.com/pt/market/product/188711) imports deep tick and M1
+history into MT5 as Custom Symbols for instruments your broker's own history
+doesn't cover far enough back — useful whether you run the Autobot or just
+want more history to test manually.
 
 ## Risk warning
 

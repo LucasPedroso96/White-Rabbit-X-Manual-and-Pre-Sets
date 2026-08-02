@@ -27,7 +27,9 @@ Her aşamada tek matris değiştirin ve kanıtları saklayın.
 5. Faz 1 bolge kesfidir: genetigi set oldugu gibi calistirin — tam giris grubu (gosterge, yontem, zaman dilimi, applied price, periyotlar), sistemin cikislari ve filtre anahtarlari, hepsi bir arada.
 6. Sonraki turlardan itibaren onceki fazda kararlastirilan 'yazi' girdilerini — enum ve boolean — Y→N ile kilitleyin ve yalnizca sayisallari acik birakin; bir filtrenin ayari ancak anahtari acik hayatta kaldiysa girer.
 7. ATR giris filtresi (EntradaATR) yalnizca grid sistemlerinde vardir; digerlerinde tasarim geregi kapali kalir.
-8. Kazanani gercek tiklerle dogrulayin: OHLC'ye karsi sapma ve out-of-sample tutma karar verir, asla in-sample kar degil.
+8. Kazanani gercek tiklerle dogrulayin: OHLC'ye karsi sapma ve out-of-sample tutma karar verir, asla in-sample kar degil. Gerçek tik sonucu OHLC sonucundan %30'dan fazla sapan bir adayı eleyin — ikisi yalnızca işaretinde değil, sonucun şeklinde de uyuşmalıdır.
+8a. Hayatta kalanı Monte Carlo ile kapıdan geçirin: trade dizisini (para birimiyle değil, R katları cinsinden) bootstrap ile yeniden örnekleyin ve 95. yüzdelik dilim drawdown'u gözlemlenen drawdown'un iki katını aşarsa veya yeniden örneklenen batma olasılığı %5'i aşarsa eleyin. Sadece trade'lerin gerçekleştiği belirli sıra yüzünden istikrarlı görünen bir set istikrarlı değildir.
+8b. Altı Fixed-R sistemi (`01`'den `06`'ya) için pozitif örneklem dışı R-beklentisi şart koşun. Örneklem dışında başabaş kalan veya R kaybeden bir set, örneklem içi puanı ne olursa olsun terfi ettirilmez.
 9. Gercek tikten sonra pozisyon boyutlandirmayi Percentage'a cevirip yeniden kosun: ancak o da gecerse terfi ettirin — set zaten o modda islem yapmalidir.
 
 ## Durumlar ve karar
@@ -96,6 +98,18 @@ because it deliberately ignores the running balance. Both modes report in R, so
 the record stays readable after the switch.
 
 Bu yuzden devre, onayli bir seti ancak son gecisi Percentage modunda tekrarladiktan sonra kaydeder: sonuc bilesik getiri altinda tutmuyorsa hazir degildi — dogrulanan set de o modda teslim edilir.
+
+## Formüller: neyi optimize ederler ve sonucu ne rapor eder
+
+`selectedFormula`, OnTester'ın genetik optimizasyona ne döndüreceğine — bir geçişin sıralandığı tek sayıya — karar verir. Bu, "teslim edilen set hangi birimde rapor veriyor" sorusuyla aynı değildir. Devre, farklı görevler için farklı formüller kullanır: daha erken aşamalar, yalnızca tek bir yolda yüksek puan alan dar bir formül yerine, geniş ve iyi doldurulmuş bir sonucu ödüllendiren formülleri tercih eder (böylece genetik arama tırmanacak bir eğime sahip olur).
+
+Altı Fixed-R sistemi için, teslim edilen setin nihai raporu **SomaR** (R katları cinsinden trade sonuçlarının toplamı) kullanır: bir aday zaten tutma, sapma, Monte Carlo ve yukarıdaki R-beklenti kapısından geçtikten sonra, SomaR sonucu bu kılavuzun geri kalanının sembolleri ve sistemleri karşılaştırmak için kullandığı aynı birimde — para birimi değil, R olarak — ifade eder. Kazananı belirlemez; zaten kazanmış olanın sonucunu karşılaştırılabilir bir birimde rapor eder.
+
+## Autobot ve Historical Tool Manager
+
+Bu kütüphane önceden doğrulanmış olarak teslim edilir, ancak yukarıdaki devre bir kara kutu değildir — bu kılavuzun bulunduğu aynı depoda **Autobot** (`Autobot/`) olarak yayınlanır; bu kılavuzdaki her adımı gerçekten çalıştıran koddur. Bir setin statüsünü tam olarak nasıl kazandığını görmek için okuyabilir veya kendi brokerinize, sembol listenize ya da tarih aralığınıza karşı kendiniz çalıştırabilirsiniz.
+
+Gerçek tik doğrulama adımı, karşılaştırma yapılacak gerçek tik verisinin bulunmasına bağlıdır. **Historical Tool Manager** (MQL5 Market: https://www.mql5.com/pt/market/product/188711), brokerinizin kendi geçmişinin yeterince geriye gitmediği enstrümanlar için derin tik ve M1 geçmişini MT5'e Custom Symbol olarak aktarır — ister Autobot'u çalıştırın, ister manuel test için yalnızca daha fazla geçmiş isteyin, işe yarar.
 
 ## Risk uyarısı
 

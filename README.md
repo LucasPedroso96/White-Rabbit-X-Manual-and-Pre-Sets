@@ -1,7 +1,9 @@
-# White Rabbit X — Manuals and Set Library
+# White Rabbit X — Manuals, Set Library and Autobot
 
 Public material for **White Rabbit X**, an Expert Advisor for MetaTrader 5:
-manuals in 11 languages and the complete library of **3,738 optimization sets**.
+manuals in 11 languages, the complete library of **3,738 optimization sets**,
+and the **Autobot** — the automation that generates, walk-forward-tests and
+validates every one of those sets end to end.
 
 > **The sets are starting points, not finished strategies.** Each file opens a
 > complete trading system with every axis marked for optimization. The values
@@ -9,6 +11,7 @@ manuals in 11 languages and the complete library of **3,738 optimization sets**.
 > account. Optimize, lock what you have settled, validate out of sample.
 
 - **Expert Advisor**: [MQL5 Market](https://www.mql5.com/en/market/product/187173)
+- **Historical Tool Manager** (real tick/M1 data as MT5 Custom Symbols): [MQL5 Market](https://www.mql5.com/pt/market/product/188711)
 - **Community and support**: [Telegram](https://t.me/MrRabbit_MT5)
 
 ---
@@ -69,6 +72,26 @@ regardless of your balance. Start with the Fixed-R ones.
 
 ---
 
+## Autobot
+
+`Autobot/` is the automation that produced this library — not a black box
+that hands you a finished strategy, but the actual Python circuit: generate
+the sets, run each one through a five-stage validation (genetic search →
+refined search → exit-filter pass → **real-tick confirmation** → percentage-
+sizing proof), gate on Monte Carlo drawdown robustness and out-of-sample
+R-expectancy, and only then mark it ready.
+
+Run it yourself — against your own broker, your own symbol list, your own
+date range — or read it to see exactly how a set earned its place in `Sets/`.
+Setup, requirements and what each script does: [`Autobot/README.md`](Autobot/README.md).
+
+It pairs with **Historical Tool Manager** (linked above): the Autobot's
+real-tick confirmation stage is only as good as the tick data behind it, and
+HTM is what imports deep tick/M1 history into MT5 as Custom Symbols for
+symbols your broker doesn't carry far enough back.
+
+---
+
 ## Two things that change your results
 
 ### 1. Strategy Tester modeling mode
@@ -87,6 +110,10 @@ in the optimistic direction. Only fixed SL/TP stayed within 3%.
 The reason is structural: trailing and grid depend on **when** price touched
 each level inside the bar. OHLC mode interpolates that and smooths away exactly
 the adverse excursions that would have taken the position out.
+
+Real-tick modeling needs real tick data behind it — if your broker's own
+history doesn't reach back far enough, **Historical Tool Manager** (linked
+above) imports it as an MT5 Custom Symbol.
 
 ### 2. Lock what you have already found
 

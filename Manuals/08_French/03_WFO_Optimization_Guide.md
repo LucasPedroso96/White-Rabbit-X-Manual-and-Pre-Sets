@@ -27,7 +27,9 @@ Modifiez une matrice par étape et conservez les preuves.
 5. La phase 1 est la decouverte de regions : lancez le genetique sur le set tel quel — groupe d'entree complet (indicateur, methode, timeframe, applied price, periodes), sorties du systeme et interrupteurs de filtres, tout a la fois.
 6. Des les tours suivants, verrouillez (Y→N) les inputs « d'ecriture » — enums et booleens — decides par la phase precedente et ne laissez ouverts que les numeriques ; le reglage d'un filtre n'entre que si son interrupteur a survecu active.
 7. Le filtre ATR d'entree (EntradaATR) n'existe que dans les systemes grid ; partout ailleurs il reste desactive par construction.
-8. Validez le gagnant sur ticks reels : la divergence face a l'OHLC et la retention out-of-sample decident, jamais le profit in-sample.
+8. Validez le gagnant sur ticks reels : la divergence face a l'OHLC et la retention out-of-sample decident, jamais le profit in-sample. Rejetez un candidat dont le résultat en ticks réels diverge du résultat OHLC de plus de 30 % — les deux doivent s'accorder sur la forme du résultat, pas seulement sur son signe.
+8a. Filtrez le survivant par Monte Carlo : rééchantillonnez la séquence de trades par bootstrap (en multiples de R, pas en devise) et rejetez si le drawdown au 95e percentile dépasse le double du drawdown observé, ou si la probabilité de ruine rééchantillonnée dépasse 5 %. Un set qui ne paraît stable qu'à cause de l'ordre particulier dans lequel ses trades se sont produits n'est pas stable.
+8b. Pour les six systèmes Fixed-R (`01` à `06`), exigez une espérance en R positive hors échantillon. Un set qui a fait match nul ou perdu du R hors échantillon n'est pas promu, quel que soit son score in-sample.
 9. Apres le tick reel, passez le dimensionnement en Percentage et relancez : ne promouvez que si cela passe aussi — et c'est dans ce mode que le set doit operer.
 
 ## Statuts et décision
@@ -96,6 +98,18 @@ because it deliberately ignores the running balance. Both modes report in R, so
 the record stays readable after the switch.
 
 C'est pourquoi le circuit n'enregistre un set approuve qu'apres avoir repete la passe finale en mode Percentage : si le resultat ne tient pas sous interets composes, il n'etait pas pret — et le set valide est livre dans ce mode.
+
+## Formules : ce qu'elles optimisent, et ce qui rapporte le résultat
+
+`selectedFormula` détermine ce qu'OnTester renvoie à l'optimiseur génétique — le nombre unique sur lequel un passage est classé. Ce n'est pas la même question que « dans quelle unité le set livré rapporte-t-il son résultat ». Le circuit utilise des formules différentes selon les tâches : les phases précoces privilégient des formules qui récompensent un résultat large et bien peuplé (pour que la recherche génétique ait un gradient à gravir), plutôt qu'une formule étroite qui obtient un score élevé sur un seul chemin.
+
+Pour les six systèmes Fixed-R, le rapport final du set livré utilise **SomaR** (la somme des résultats des trades en multiples de R) : une fois qu'un candidat a déjà franchi la rétention, la divergence, le Monte Carlo et le seuil d'espérance en R ci-dessus, SomaR exprime le résultat dans la même unité que ce guide utilise par ailleurs pour comparer symboles et systèmes — le R, pas la devise. Elle ne décide pas du gagnant ; elle rapporte le résultat du gagnant déjà déterminé dans une unité comparable.
+
+## Autobot et Historical Tool Manager
+
+Cette bibliothèque est livrée pré-validée, mais le circuit décrit ci-dessus n'est pas une boîte noire — il est publié sous le nom **Autobot** dans le même dépôt que ce manuel (`Autobot/`), le code réel qui exécute chacune des étapes de ce guide. Lisez-le pour voir exactement comment un set a mérité son statut, ou exécutez-le vous-même contre votre propre courtier, votre liste de symboles ou votre plage de dates.
+
+L'étape de confirmation sur ticks réels dépend de la disponibilité de données de ticks réels pour la confirmation. **Historical Tool Manager** (MQL5 Market : https://www.mql5.com/pt/market/product/188711) importe un historique profond de ticks et M1 dans MT5 sous forme de Custom Symbols, pour les instruments dont l'historique propre du courtier ne remonte pas assez loin — utile que vous exécutiez l'Autobot ou que vous vouliez simplement plus d'historique pour tester manuellement.
 
 ## Avertissement de risque
 
