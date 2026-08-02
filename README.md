@@ -90,7 +90,7 @@ the adverse excursions that would have taken the position out.
 
 ### 2. Lock what you have already found
 
-Each set opens millions of combinations — the largest one exceeds 22 trillion.
+Each set opens millions of combinations — the largest one exceeds 240 sextillion.
 The workflow is iterative: run it, learn something, then flip that parameter's
 `Y` to `N` and keep the winning value. The search space collapses by orders of
 magnitude and the next round is far sharper.
