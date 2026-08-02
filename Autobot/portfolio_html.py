@@ -9,6 +9,7 @@ Sobrepor as curvas responde isso de um olhar.
 O arquivo nao busca nada na rede: os graficos sao SVG desenhado aqui. Abre
 offline, em qualquer navegador, sem depender de CDN.
 """
+
 from __future__ import annotations
 
 import html
@@ -16,23 +17,54 @@ from pathlib import Path
 
 import pandas as pd
 
-CORES = ["#60a5fa", "#34d399", "#fbbf24", "#f87171", "#a78bfa",
-         "#22d3ee", "#fb923c", "#4ade80", "#f472b6", "#94a3b8"]
+CORES = [
+    "#60a5fa",
+    "#34d399",
+    "#fbbf24",
+    "#f87171",
+    "#a78bfa",
+    "#22d3ee",
+    "#fb923c",
+    "#4ade80",
+    "#f472b6",
+    "#94a3b8",
+]
 
 
-def _caminho_svg(valores: list[float], largura: int, altura: int,
-                 minimo: float, maximo: float) -> str:
+def _participacao_barras(escolhidas: list[str], pesos: dict[str, float]) -> str:
+    total = sum(pesos[n] for n in escolhidas)
+    if not total:
+        return ""
+    linhas = []
+    for i, nome in enumerate(escolhidas):
+        pct = (pesos[nome] / total) * 100.0
+        linhas.append(
+            f'<div class="bar-row"><div class="bar-meta"><span class="bolinha" '
+            f'style="background:{CORES[i % len(CORES)]}"></span>{html.escape(nome)}</div>'
+            f'<div class="bar-track"><div class="bar-fill" style="width:{pct:.1f}%;'
+            f'background:{CORES[i % len(CORES)]}"></div></div>'
+            f'<span class="bar-pct">{pct:.1f}%</span></div>'
+        )
+    return "".join(linhas)
+
+
+def _caminho_svg(
+    valores: list[float], largura: int, altura: int, minimo: float, maximo: float
+) -> str:
     if len(valores) < 2 or maximo <= minimo:
         return ""
     passo = largura / (len(valores) - 1)
     faixa = maximo - minimo
-    pontos = [f"{i * passo:.1f},{altura - (v - minimo) / faixa * altura:.1f}"
-              for i, v in enumerate(valores)]
+    pontos = [
+        f"{i * passo:.1f},{altura - (v - minimo) / faixa * altura:.1f}"
+        for i, v in enumerate(valores)
+    ]
     return "M" + " L".join(pontos)
 
 
-def _grafico_curvas(series: dict[str, pd.Series], escolhidas: list[str],
-                    pesos: dict[str, float]) -> str:
+def _grafico_curvas(
+    series: dict[str, pd.Series], escolhidas: list[str], pesos: dict[str, float]
+) -> str:
     largura, altura = 1000, 320
     curvas = {n: series[n].cumsum() for n in escolhidas}
     combinado = sum(series[n] * pesos[n] for n in escolhidas).cumsum()
@@ -44,23 +76,29 @@ def _grafico_curvas(series: dict[str, pd.Series], escolhidas: list[str],
     folga = (maximo - minimo) * 0.05 or 1.0
     minimo, maximo = minimo - folga, maximo + folga
 
-    partes = [f'<svg viewBox="0 0 {largura} {altura}" '
-              f'preserveAspectRatio="none" class="grafico">']
+    partes = [
+        f'<svg viewBox="0 0 {largura} {altura}" '
+        f'preserveAspectRatio="none" class="grafico">'
+    ]
     # Linha do zero: separa lucro de prejuizo sem precisar ler eixo.
     if minimo < 0 < maximo:
         y = altura - (0 - minimo) / (maximo - minimo) * altura
-        partes.append(f'<line x1="0" y1="{y:.1f}" x2="{largura}" '
-                      f'y2="{y:.1f}" class="zero"/>')
+        partes.append(
+            f'<line x1="0" y1="{y:.1f}" x2="{largura}" ' f'y2="{y:.1f}" class="zero"/>'
+        )
     for i, (_nome, curva) in enumerate(curvas.items()):
         d = _caminho_svg(curva.tolist(), largura, altura, minimo, maximo)
         if d:
-            partes.append(f'<path d="{d}" fill="none" '
-                          f'stroke="{CORES[i % len(CORES)]}" '
-                          f'stroke-width="1.5" opacity="0.75"/>')
+            partes.append(
+                f'<path d="{d}" fill="none" '
+                f'stroke="{CORES[i % len(CORES)]}" '
+                f'stroke-width="1.5" opacity="0.75"/>'
+            )
     d = _caminho_svg(combinado.tolist(), largura, altura, minimo, maximo)
     if d:
-        partes.append(f'<path d="{d}" fill="none" stroke="#e2e8f0" '
-                      f'stroke-width="3"/>')
+        partes.append(
+            f'<path d="{d}" fill="none" stroke="#e2e8f0" ' f'stroke-width="3"/>'
+        )
     partes.append("</svg>")
     return "".join(partes)
 
@@ -70,13 +108,15 @@ def _heatmap(correl: pd.DataFrame, escolhidas: list[str]) -> str:
     saida = ['<table class="heat"><thead><tr><th></th>']
     for n in nomes:
         marca = " *" if n in escolhidas else ""
-        saida.append(f'<th title="{html.escape(n)}">'
-                     f'{html.escape(n[:12])}{marca}</th>')
+        saida.append(
+            f'<th title="{html.escape(n)}">' f"{html.escape(n[:12])}{marca}</th>"
+        )
     saida.append("</tr></thead><tbody>")
     for a in nomes:
         marca = " *" if a in escolhidas else ""
-        saida.append(f'<tr><th title="{html.escape(a)}">'
-                     f'{html.escape(a[:18])}{marca}</th>')
+        saida.append(
+            f'<tr><th title="{html.escape(a)}">' f"{html.escape(a[:18])}{marca}</th>"
+        )
         for b in nomes:
             v = float(correl.loc[a, b])
             # Vermelho: andam juntas (nao diversificam).
@@ -89,8 +129,7 @@ def _heatmap(correl: pd.DataFrame, escolhidas: list[str]) -> str:
             else:
                 cor = f"rgba(52,211,153,{min(abs(v), 1) * 0.85:.2f})"
                 texto = "#ffffff" if abs(v) > 0.5 else "#e2e8f0"
-            saida.append(f'<td style="background:{cor};color:{texto}">'
-                         f'{v:.2f}</td>')
+            saida.append(f'<td style="background:{cor};color:{texto}">' f"{v:.2f}</td>")
         saida.append("</tr>")
     saida.append("</tbody></table>")
     return "".join(saida)
@@ -116,6 +155,11 @@ h2{font-size:15px;margin:32px 0 12px;color:#94a3b8;font-weight:600;
 .grafico{width:100%;height:320px;background:#0e1622;border:1px solid #24344d;
  border-radius:10px;margin-top:8px}
 .zero{stroke:#334155;stroke-width:1;stroke-dasharray:4 4}
+.bar-row{display:grid;grid-template-columns:minmax(160px,1fr) minmax(220px,1.5fr) 56px;align-items:center;gap:10px;margin:10px 0}
+.bar-meta{display:flex;align-items:center;color:#e2e8f0;font-size:12.5px}
+.bar-track{height:10px;background:#0e1622;border:1px solid #24344d;border-radius:999px;overflow:hidden}
+.bar-fill{height:100%;border-radius:999px}
+.bar-pct{color:#94a3b8;font-size:11.5px;text-align:right}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th,td{padding:9px 10px;border-bottom:1px solid #1e293b;text-align:left}
 th{color:#64748b;font-weight:600;font-size:11px;text-transform:uppercase;
@@ -133,9 +177,15 @@ th{color:#64748b;font-weight:600;font-size:11px;text-transform:uppercase;
 """
 
 
-def gerar(destino: Path, series: dict[str, pd.Series], correl: pd.DataFrame,
-          escolhidas: list[str], pesos: dict[str, float],
-          metricas_fn, recusadas: list[str]) -> None:
+def gerar(
+    destino: Path,
+    series: dict[str, pd.Series],
+    correl: pd.DataFrame,
+    escolhidas: list[str],
+    pesos: dict[str, float],
+    metricas_fn,
+    recusadas: list[str],
+) -> None:
     m_ind = {n: metricas_fn(s) for n, s in series.items()}
     combinado = sum(series[n] * pesos[n] for n in escolhidas)
     m_port = metricas_fn(combinado)
@@ -151,13 +201,16 @@ def gerar(destino: Path, series: dict[str, pd.Series], correl: pd.DataFrame,
             f'<td class="num">{m["resultado"]:,.0f}</td>'
             f'<td class="num neg">{m["drawdown"]:,.0f}</td>'
             f'<td class="num">{m["recuperacao"]:.2f}</td>'
-            f'<td class="num">{m["sharpe"]:.2f}</td></tr>')
+            f'<td class="num">{m["sharpe"]:.2f}</td></tr>'
+        )
 
     bloco_fora = ""
     if recusadas:
         itens = "".join(f"<li>{html.escape(r)}</li>" for r in recusadas)
-        bloco_fora = ('<section><h2>Fora do portfolio</h2>'
-                      f'<ul class="fora">{itens}</ul></section>')
+        bloco_fora = (
+            "<section><h2>Fora do portfolio</h2>"
+            f'<ul class="fora">{itens}</ul></section>'
+        )
 
     classe_res = "up" if m_port["resultado"] > 0 else "neg"
     corpo = f"""<!doctype html>
@@ -187,6 +240,11 @@ def gerar(destino: Path, series: dict[str, pd.Series], correl: pd.DataFrame,
 <p class="legenda">A linha branca grossa e o portfolio ponderado; as coloridas
  sao os componentes. O que importa aqui nao e quem sobe mais, e se as quedas
  acontecem no mesmo lugar.</p>
+
+<h2>Participacao no portfolio</h2>
+<div class="rolagem">{_participacao_barras(escolhidas, pesos)}</div>
+<p class="legenda">Cada faixa mostra a proporcao de peso no desenho final.
+ O ideal e balances de risco com pouca co-movimentacao entre as linhas.</p>
 
 <h2>Composicao</h2>
 <table><thead><tr><th>Estrategia</th><th class="num">Peso</th>

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>White Rabbit X — Autobot</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header>
+  <h1>White Rabbit X — Autobot</h1>
+  <span id="badge-mt5" class="badge">MT5: ...</span>
+  <span id="badge-campanha" class="badge">Campanha: ...</span>
+</header>
+<nav>
+  <button data-tab="campanha" class="ativo">Campanha ao vivo</button>
+  <button data-tab="configurar">Configurar corrida</button>
+  <button data-tab="biblioteca">Biblioteca de Sets</button>
+  <button data-tab="portfolios">Portfólios</button>
+  <button data-tab="perfil">Perfil da corretora</button>
+  <button data-tab="custo">Custo Nativo</button>
+</nav>
+<main>
+
+<!-- ================= CAMPANHA AO VIVO ================= -->
+<section id="painel-campanha" class="painel ativo">
+  <div class="cards" id="cards"></div>
+  <div id="atual"></div>
+  <div class="grid-2">
+    <div class="box">
+      <h2>Progresso por sistema</h2>
+      <div id="sistema-bars" class="bar-grid"></div>
+    </div>
+    <div class="box">
+      <h2>Mapa de ativos por classe</h2>
+      <div id="ativos-map" class="chip-grid"></div>
+    </div>
+  </div>
+  <div class="box">
+    <button class="acao perigo" id="btn-stop">Parar corrida</button>
+    <span class="status-msg" id="msg-stop"></span>
+  </div>
+  <h2>Por sistema</h2>
+  <table id="tbl-sistemas"><thead><tr><th>Sistema</th><th>Testados</th>
+  <th>Aprovados</th></tr></thead><tbody></tbody></table>
+  <h2>Últimos combos</h2>
+  <table id="tbl-recentes"><thead><tr><th>Símbolo</th><th>Sistema</th>
+  <th>Variante</th><th>Veredito</th><th>Retenção</th><th>Min</th>
+  </tr></thead><tbody></tbody></table>
+</section>
+
+<!-- ================= CONFIGURAR CORRIDA ================= -->
+<section id="painel-configurar" class="painel">
+  <div class="box">
+    <h2>Modo</h2>
+    <div class="modo-toggle">
+      <button data-modo="auto" class="ativo" id="btn-modo-auto">Automático (auto-detecta ativos elegíveis)</button>
+      <button data-modo="manual" id="btn-modo-manual">Manual (escolho sistema e ativo)</button>
+    </div>
+
+    <div id="bloco-manual" style="display:none">
+      <fieldset>
+        <legend>Sistemas</legend>
+        <div class="grid-check" id="check-sistemas"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Ativos</legend>
+        <button class="acao secundario" id="btn-detectar">Detectar disponíveis agora</button>
+        <span class="status-msg" id="msg-detectar"></span>
+        <div id="grupos-ativos"></div>
+      </fieldset>
+    </div>
+
+    <fieldset>
+      <legend>Parâmetros</legend>
+      <div class="linha">
+        <div><label class="campo">De</label><input type="text" id="campo-inicio" value="2023.08.01"></div>
+        <div><label class="campo">Até</label><input type="text" id="campo-fim" value="2026.07.21"></div>
+        <div><label class="campo">Depósito</label><input type="number" id="campo-deposito" value="500"></div>
+        <div><label class="campo">Retenção mínima %</label><input type="number" id="campo-retencao" value="30"></div>
+      </div>
+    </fieldset>
+
+    <button class="acao" id="btn-iniciar">Iniciar corrida</button>
+    <span class="status-msg" id="msg-iniciar"></span>
+  </div>
+</section>
+
+<!-- ================= BIBLIOTECA DE SETS ================= -->
+<section id="painel-biblioteca" class="painel">
+  <div class="box">
+    <h2>Biblioteca atual</h2>
+    <div id="info-biblioteca">carregando...</div>
+    <button class="acao" id="btn-regenerar" style="margin-top:12px">Regenerar biblioteca completa</button>
+    <span class="status-msg" id="msg-regenerar"></span>
+  </div>
+</section>
+
+<!-- ================= PORTFÓLIOS ================= -->
+<section id="painel-portfolios" class="painel">
+  <div class="box">
+    <h2>Mapa geral</h2>
+    <div id="mapa-html" class="mapa-html">carregando...</div>
+  </div>
+  <div class="box">
+    <h2>Por sistema</h2>
+    <div class="tabs-sub" id="tabs-sistemas-portfolio"></div>
+    <div id="portfolio-sistema-html" class="mapa-html"></div>
+    <p class="status-msg">O espelho de prontos só guarda o <code>.set</code>
+    validado, não o relatório <code>.htm</code> original — aponte abaixo para
+    uma pasta onde você já reuniu os relatórios dos sets que quer comparar.</p>
+    <input type="text" id="portfolio-pasta" placeholder="Caminho da pasta com os relatórios .htm/.csv">
+    <button class="acao secundario" id="btn-gerar-portfolio" style="margin-top:12px">Gerar painel de correlação</button>
+    <span class="status-msg" id="msg-portfolio"></span>
+  </div>
+</section>
+
+<!-- ================= PERFIL DA CORRETORA ================= -->
+<section id="painel-perfil" class="painel">
+  <div class="box">
+    <h2>Interesses</h2>
+    <label class="campo">Ativos (vazio = todos; separados por vírgula)</label>
+    <input type="text" id="perfil-ativos" placeholder="EURUSD, GBPUSD, XAUUSD">
+    <label class="campo">Sistemas (vazio = todos)</label>
+    <div class="grid-check" id="perfil-sistemas"></div>
+
+    <h2 style="margin-top:20px">Risco</h2>
+    <div class="linha">
+      <div><label class="campo">Risco por trade %</label><input type="number" id="perfil-risco" value="1.0" step="0.1"></div>
+      <div><label class="campo">Lote fixo</label><input type="number" id="perfil-lote" value="0.01" step="0.01"></div>
+    </div>
+
+    <h2 style="margin-top:20px">Walk-forward</h2>
+    <div class="linha">
+      <div><label class="campo">Data final</label><input type="text" id="perfil-wfo-fim" value="2026.07.21"></div>
+    </div>
+
+    <div style="margin-top:16px">
+      <button class="acao secundario" id="btn-perfil-dry">Dry-run (só mostra o que faria)</button>
+      <button class="acao" id="btn-perfil-aplicar">Aplicar de verdade</button>
+    </div>
+    <span class="status-msg" id="msg-perfil"></span>
+    <pre id="saida-perfil" style="white-space:pre-wrap;font-size:12px;color:#9ca3af;margin-top:12px"></pre>
+  </div>
+  <div class="box">
+    <h2>Última sincronização</h2>
+    <pre id="ultima-sync" style="white-space:pre-wrap;font-size:12px;color:#9ca3af">nenhuma ainda</pre>
+  </div>
+</section>
+
+<!-- ================= CUSTO NATIVO ================= -->
+<section id="painel-custo" class="painel">
+  <div class="box">
+    <h2>Taxas medidas (por lote)</h2>
+    <table id="tbl-custo"><thead><tr><th>Símbolo nativo</th>
+    <th>Comissão/lote</th><th>Swap/lote</th><th>Medido em</th></tr></thead>
+    <tbody></tbody></table>
+  </div>
+  <div class="box">
+    <h2>Medir um símbolo novo</h2>
+    <input type="text" id="custo-simbolo" placeholder="GBPUSD (sem sufixo .HT)">
+    <button class="acao" id="btn-medir-custo" style="margin-top:10px">Medir agora</button>
+    <span class="status-msg" id="msg-custo"></span>
+  </div>
+</section>
+
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
