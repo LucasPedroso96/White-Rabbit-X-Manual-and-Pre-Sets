@@ -50,7 +50,15 @@ document.querySelectorAll("nav button[data-tab]").forEach((btn) => {
 
 async function carregarStatus() {
   const d = await api("/api/status");
+  const q = d.qualidade || {};
   const emAndamento = d.atual ? 1 : 0;
+  const mcPct = Number(q.mc_pass_rate ?? 0);
+  const ret = Number(q.retencao_media ?? 0);
+  const narrativa = mcPct >= 70 && ret >= 70
+    ? "robusto: a maior parte do ledger já está com MC e retenção de saída bem alinhados"
+    : mcPct >= 40
+      ? "misto: evidência aceita, mas ainda há ruído de robustez para melhorar"
+      : "frágil: o painel ainda não mostra uma robustez forte o suficiente para andar sem filtro";
   document.getElementById("cards").innerHTML = `
     <div class="card">Feitos<b>${d.total_feitos}</b></div>
     <div class="card">Aprovados<b class="ok">${d.aprovados}</b></div>
@@ -66,10 +74,25 @@ async function carregarStatus() {
       `<tr><td>${s}</td><td>${v.total}</td><td>${v.aprovados}</td></tr>`).join("");
   document.getElementById("sistema-bars").innerHTML = Object.entries(d.por_sistema).map(([s, v]) => {
     const pct = v.total ? Math.round((v.aprovados / v.total) * 100) : 0;
+    const tone = pct >= 70 ? "ok" : pct >= 40 ? "live" : "no";
     return `<div class="bar-item"><div class="bar-label"><span>${s}</span><span>${v.aprovados}/${v.total}</span></div>
-      <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="progress-track"><div class="progress-fill ${tone}" style="width:${pct}%"></div></div>
       <div class="bar-note">${pct}% aprovados</div></div>`;
   }).join("") || `<span class="status-msg">sem sistema validado ainda</span>`;
+  document.getElementById("quality-grid").innerHTML = `
+    <div class="metric-card"><div class="metric-label">MC pass rate</div><b>${q.mc_pass_rate ?? 0}%</b></div>
+    <div class="metric-card"><div class="metric-label">Retenção média</div><b>${q.retencao_media ?? "-"}%</b></div>
+    <div class="metric-card"><div class="metric-label">Lucro médio real</div><b>${q.lucro_medio_tick_real ?? "-"}</b></div>
+    <div class="metric-card"><div class="metric-label">Status</div><b>${narrativa}</b></div>`;
+  document.getElementById("quality-summary").innerHTML = `
+    <span class="status-msg">MC: ${q.mc_status}</span><br>
+    <span class="status-msg">WFE: ${q.wfe_status}</span><br>
+    <span class="status-msg ok">Resumo: ${narrativa}</span>`;
+  document.getElementById("wfe-mc-panel").innerHTML = `
+    <div class="diagnostic-row"><span>MC aprovado no ledger</span><strong>${q.mc_pass_rate ?? 0}%</strong></div>
+    <div class="diagnostic-row"><span>Retenção OOS média</span><strong>${q.retencao_media ?? "-"}%</strong></div>
+    <div class="diagnostic-row"><span>Lucro tick real médio</span><strong>${q.lucro_medio_tick_real ?? "-"}</strong></div>
+    <div class="diagnostic-row"><span>Interpretação</span><strong>${narrativa}</strong></div>`;
   document.querySelector("#tbl-recentes tbody").innerHTML = d.recentes.map((r) => {
     const ok = r.aprovado;
     return `<tr class="${ok ? "ok" : "no"}"><td>${r.simbolo}</td><td>${r.sistema}</td>

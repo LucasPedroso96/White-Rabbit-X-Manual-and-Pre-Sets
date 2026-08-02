@@ -24,6 +24,7 @@ Uso:
     python dashboard_campanha.py                # porta 8020
     python dashboard_campanha.py --port 8021
 """
+
 from __future__ import annotations
 
 import argparse
@@ -57,21 +58,29 @@ app = FastAPI(title="WRX Autobot Dashboard")
 # ------------------------------------------------------------- estado global
 
 _processo: subprocess.Popen | None = None  # so valido no MESMO processo do
-                                            # uvicorn -- ver estado_campanha()
-                                            # para o caso de o painel reiniciar
+# uvicorn -- ver estado_campanha()
+# para o caso de o painel reiniciar
 _jobs: dict[str, dict] = {}
 
 
 def _executar_job(job_id: str, cmd: list[str], timeout: int) -> None:
     _jobs[job_id]["status"] = "rodando"
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=timeout)
-        _jobs[job_id].update({
-            "status": "feito" if p.returncode == 0 else "erro",
-            "saida": (p.stdout or "") + (p.stderr or ""),
-            "codigo": p.returncode,
-        })
+        p = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+        _jobs[job_id].update(
+            {
+                "status": "feito" if p.returncode == 0 else "erro",
+                "saida": (p.stdout or "") + (p.stderr or ""),
+                "codigo": p.returncode,
+            }
+        )
     except subprocess.TimeoutExpired:
         _jobs[job_id].update({"status": "erro", "saida": "estourou o tempo limite"})
     except Exception as exc:  # noqa: BLE001 -- job em thread nao pode matar o servidor
@@ -81,10 +90,14 @@ def _executar_job(job_id: str, cmd: list[str], timeout: int) -> None:
 
 def lancar_job(cmd: list[str], timeout: int = 600) -> str:
     job_id = uuid.uuid4().hex[:12]
-    _jobs[job_id] = {"status": "iniciado", "cmd": cmd,
-                     "iniciado_em": datetime.now().isoformat(timespec="seconds")}
-    threading.Thread(target=_executar_job, args=(job_id, cmd, timeout),
-                     daemon=True).start()
+    _jobs[job_id] = {
+        "status": "iniciado",
+        "cmd": cmd,
+        "iniciado_em": datetime.now().isoformat(timespec="seconds"),
+    }
+    threading.Thread(
+        target=_executar_job, args=(job_id, cmd, timeout), daemon=True
+    ).start()
     return job_id
 
 
@@ -94,6 +107,7 @@ def job_status(job_id: str) -> JSONResponse:
 
 
 # --------------------------------------------------------------- ledger/log
+
 
 def ler_ledger() -> list[dict]:
     if not LEDGER.exists():
@@ -133,6 +147,57 @@ def limpar_ledger_incompleto() -> int:
     return removidas
 
 
+def resumo_qualidade(resultados: list[dict]) -> dict:
+    """Consolida o que o ledger já conhece sobre robustez do passe atual.
+
+    WFE e MC nao aparecem em todos os registros; quando nao existe a metrica
+    o painel mostra o estado conforme o dado coletado, sem inventar valor.
+    """
+    total = len(resultados)
+    if not total:
+        return {
+            "mc_pass_rate": 0.0,
+            "retencao_media": None,
+            "lucro_medio_tick_real": None,
+            "wfe_status": "sem relatorio no ledger",
+            "mc_status": "sem resultado no ledger",
+        }
+
+    mc_ok = sum(1 for r in resultados if r.get("mc_aprovado") is True)
+    retencoes = [
+        float(r["retencao_oos"])
+        for r in resultados
+        if r.get("retencao_oos") is not None
+    ]
+    lucros = [
+        float(r["lucro_tick_real"])
+        for r in resultados
+        if r.get("lucro_tick_real") is not None
+    ]
+    wfe_disponivel = any(r.get("wfe") is not None for r in resultados)
+    mc_disponivel = any(r.get("mc_aprovado") is not None for r in resultados)
+
+    return {
+        "mc_pass_rate": round((mc_ok / total) * 100.0, 1) if total else 0.0,
+        "retencao_media": (
+            round(sum(retencoes) / len(retencoes), 2) if retencoes else None
+        ),
+        "lucro_medio_tick_real": (
+            round(sum(lucros) / len(lucros), 2) if lucros else None
+        ),
+        "wfe_status": (
+            "relatorio WFE presente"
+            if wfe_disponivel
+            else "sem relatorio WFE no ledger"
+        ),
+        "mc_status": (
+            "relatorio Monte Carlo presente"
+            if mc_disponivel
+            else "sem relatorio MC no ledger"
+        ),
+    }
+
+
 _HEADER = re.compile(r"\[(\d+)/(\d+)\]\s+(\S+)\s+(\S+)\s+(\S+)")
 _VEREDITO = re.compile(r"^-> (aprovado|reprovado) \| retencao=(\S+) \| ([\d.]+) min")
 
@@ -158,8 +223,13 @@ def combo_atual() -> dict | None:
         if limpa and not limpa.startswith("="):
             estagio = limpa
             break
-    return {"posicao": f"{n}/{total}", "simbolo": simbolo, "sistema": sistema,
-            "variante": variante, "estagio": estagio}
+    return {
+        "posicao": f"{n}/{total}",
+        "simbolo": simbolo,
+        "sistema": sistema,
+        "variante": variante,
+        "estagio": estagio,
+    }
 
 
 @app.get("/api/status")
@@ -173,22 +243,25 @@ def status() -> JSONResponse:
         d["total"] += 1
         if r.get("aprovado"):
             d["aprovados"] += 1
-    return JSONResponse({
-        "total_feitos": len(resultados),
-        "aprovados": len(aprovados),
-        "reprovados": len(resultados) - len(aprovados),
-        "por_sistema": por_sistema,
-        "atual": combo_atual(),
-        "recentes": list(reversed(resultados))[:30],
-    })
+    return JSONResponse(
+        {
+            "total_feitos": len(resultados),
+            "aprovados": len(aprovados),
+            "reprovados": len(resultados) - len(aprovados),
+            "por_sistema": por_sistema,
+            "atual": combo_atual(),
+            "recentes": list(reversed(resultados))[:30],
+            "qualidade": resumo_qualidade(resultados),
+        }
+    )
 
 
 # ---------------------------------------------------------------- /api/config
 
+
 @app.get("/api/config")
 def config() -> JSONResponse:
-    sistemas = [{"code": s.code, "label": s.label, "status": s.status}
-               for s in SYSTEMS]
+    sistemas = [{"code": s.code, "label": s.label, "status": s.status} for s in SYSTEMS]
     classes = {
         codigo: {"capital_base": CLASSES[codigo].capital_base, "ativos": ativos}
         for codigo, ativos in ASSETS.items()
@@ -197,6 +270,7 @@ def config() -> JSONResponse:
 
 
 # ------------------------------------------------------------ campanha start/stop
+
 
 def estado_campanha() -> dict:
     vivo = False
@@ -220,20 +294,30 @@ def campanha_estado() -> JSONResponse:
 def campanha_start(body: dict) -> JSONResponse:
     global _processo
     if estado_campanha()["rodando"]:
-        return JSONResponse({"ok": False, "erro": "ja ha uma corrida rodando"},
-                            status_code=409)
+        return JSONResponse(
+            {"ok": False, "erro": "ja ha uma corrida rodando"}, status_code=409
+        )
     if terminal_aberto():
         return JSONResponse(
             {"ok": False, "erro": "MT5 ocupado por outra acao -- espere terminar"},
-            status_code=409)
+            status_code=409,
+        )
 
     modo = body.get("modo", "auto")
-    cmd = [sys.executable, str(AQUI / "campanha.py"),
-          "--from", body.get("inicio", "2023.08.01"),
-          "--to", body.get("fim", "2026.07.21"),
-          "--deposit", str(body.get("deposit", 500)),
-          "--min-retencao", str(body.get("min_retencao", 30.0)),
-          "--timeout", str(body.get("timeout", 21600))]
+    cmd = [
+        sys.executable,
+        str(AQUI / "campanha.py"),
+        "--from",
+        body.get("inicio", "2023.08.01"),
+        "--to",
+        body.get("fim", "2026.07.21"),
+        "--deposit",
+        str(body.get("deposit", 500)),
+        "--min-retencao",
+        str(body.get("min_retencao", 30.0)),
+        "--timeout",
+        str(body.get("timeout", 21600)),
+    ]
     if modo == "manual":
         sistemas = body.get("sistemas") or []
         simbolos = body.get("simbolos") or []
@@ -243,14 +327,27 @@ def campanha_start(body: dict) -> JSONResponse:
             cmd += ["--simbolos", ",".join(simbolos)]
 
     with LOG.open("a", encoding="utf-8") as fh:
-        fh.write(f"\n### painel: iniciando ({modo}) em "
-                f"{datetime.now().isoformat(timespec='seconds')} ###\n")
-    _processo = subprocess.Popen(cmd, stdout=open(LOG, "a", encoding="utf-8"),
-                                 stderr=subprocess.STDOUT, cwd=str(AQUI))
-    LOCK.write_text(json.dumps({
-        "pid": _processo.pid, "modo": modo,
-        "iniciado_em": datetime.now().isoformat(timespec="seconds"),
-    }, ensure_ascii=False), encoding="utf-8")
+        fh.write(
+            f"\n### painel: iniciando ({modo}) em "
+            f"{datetime.now().isoformat(timespec='seconds')} ###\n"
+        )
+    _processo = subprocess.Popen(
+        cmd,
+        stdout=open(LOG, "a", encoding="utf-8"),
+        stderr=subprocess.STDOUT,
+        cwd=str(AQUI),
+    )
+    LOCK.write_text(
+        json.dumps(
+            {
+                "pid": _processo.pid,
+                "modo": modo,
+                "iniciado_em": datetime.now().isoformat(timespec="seconds"),
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
     return JSONResponse({"ok": True, "pid": _processo.pid})
 
 
@@ -273,32 +370,42 @@ def campanha_stop() -> JSONResponse:
     if pid is None and _processo is not None:
         pid = _processo.pid
     if pid is not None:
-        subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)],
-                       capture_output=True, check=False)
+        subprocess.run(
+            ["taskkill", "/T", "/F", "/PID", str(pid)], capture_output=True, check=False
+        )
     _processo = None
     # So DEPOIS da arvore python estar morta -- senao um filho ainda vivo
     # pode reabrir o terminal entre o fechamento gracioso e o taskkill acima.
     fechado = fechar_terminal()
     LOCK.unlink(missing_ok=True)
     removidas = limpar_ledger_incompleto()
-    return JSONResponse({"ok": True, "terminal_fechado": fechado,
-                         "entradas_incompletas_removidas": removidas})
+    return JSONResponse(
+        {
+            "ok": True,
+            "terminal_fechado": fechado,
+            "entradas_incompletas_removidas": removidas,
+        }
+    )
 
 
 # ---------------------------------------------------------- deteccao de ativos
+
 
 @app.post("/api/ativos/detectar")
 def ativos_detectar() -> JSONResponse:
     if estado_campanha()["rodando"] or terminal_aberto():
         return JSONResponse(
             {"ok": False, "erro": "MT5 ocupado -- pare a corrida atual primeiro"},
-            status_code=409)
+            status_code=409,
+        )
     job_id = lancar_job(
-        [sys.executable, str(AQUI / "descobrir_ativos.py")], timeout=120)
+        [sys.executable, str(AQUI / "descobrir_ativos.py")], timeout=120
+    )
     return JSONResponse({"ok": True, "job_id": job_id})
 
 
 # ------------------------------------------------------------------ biblioteca
+
 
 def _manifesto_stats() -> dict | None:
     caminho = base.SETS / "MANIFESTO_SISTEMAS.csv"
@@ -307,8 +414,10 @@ def _manifesto_stats() -> dict | None:
     st = caminho.stat()
     with caminho.open(encoding="utf-8-sig") as fh:
         total = sum(1 for _ in fh) - 1
-    return {"total_sets": max(total, 0),
-            "gerado_em": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds")}
+    return {
+        "total_sets": max(total, 0),
+        "gerado_em": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
+    }
 
 
 @app.get("/api/biblioteca")
@@ -326,15 +435,21 @@ def biblioteca_regenerar() -> JSONResponse:
     # enquanto uma campanha rodando por fora ainda lia os templates.
     if estado_campanha()["rodando"] or terminal_aberto():
         return JSONResponse(
-            {"ok": False, "erro": "corrida ativa -- regenerar agora sobrescreveria "
-                                  "o template que ela esta lendo"},
-            status_code=409)
+            {
+                "ok": False,
+                "erro": "corrida ativa -- regenerar agora sobrescreveria "
+                "o template que ela esta lendo",
+            },
+            status_code=409,
+        )
     job_id = lancar_job(
-        [sys.executable, str(AQUI / "generate_system_sets.py")], timeout=600)
+        [sys.executable, str(AQUI / "generate_system_sets.py")], timeout=600
+    )
     return JSONResponse({"ok": True, "job_id": job_id})
 
 
 # ------------------------------------------------------------------ portfolios
+
 
 def _prontos_dir() -> Path:
     return base.DADOS / "MQL5" / "Profiles" / "Tester" / "White_Rabbit_X_Sets_Autobot"
@@ -359,7 +474,9 @@ def _md_para_html(texto: str) -> str:
             if all(re.fullmatch(r":?-+:?", c) for c in celulas):
                 continue  # linha separadora do cabecalho da tabela
             tag = "th" if not dentro_tabela else "td"
-            linhas_html.append("<tr>" + "".join(f"<{tag}>{c}</{tag}>" for c in celulas) + "</tr>")
+            linhas_html.append(
+                "<tr>" + "".join(f"<{tag}>{c}</{tag}>" for c in celulas) + "</tr>"
+            )
             if not dentro_tabela:
                 linhas_html.insert(-1, "<table>")
                 dentro_tabela = True
@@ -383,13 +500,18 @@ def _md_para_html(texto: str) -> str:
 def portfolios() -> JSONResponse:
     pasta = _prontos_dir()
     mapa = pasta / "MAPA.md"
-    resultado = {"mapa_html": _md_para_html(mapa.read_text(encoding="utf-8"))
-                if mapa.exists() else None, "sistemas": {}}
+    resultado = {
+        "mapa_html": (
+            _md_para_html(mapa.read_text(encoding="utf-8")) if mapa.exists() else None
+        ),
+        "sistemas": {},
+    }
     pasta_port = pasta / "_PORTFOLIOS"
     if pasta_port.is_dir():
         for arq in sorted(pasta_port.glob("*.md")):
             resultado["sistemas"][arq.stem] = _md_para_html(
-                arq.read_text(encoding="utf-8"))
+                arq.read_text(encoding="utf-8")
+            )
     return JSONResponse(resultado)
 
 
@@ -405,29 +527,46 @@ def portfolios_gerar(body: dict) -> JSONResponse:
     pasta = (body.get("pasta") or "").strip()
     if not pasta:
         return JSONResponse(
-            {"ok": False, "erro": "informe a pasta com os relatorios .htm/.csv "
-                                  "coletados -- o espelho de prontos so guarda "
-                                  "o .set, nao o relatorio original"},
-            status_code=400)
+            {
+                "ok": False,
+                "erro": "informe a pasta com os relatorios .htm/.csv "
+                "coletados -- o espelho de prontos so guarda "
+                "o .set, nao o relatorio original",
+            },
+            status_code=400,
+        )
     if not Path(pasta).is_dir():
-        return JSONResponse({"ok": False, "erro": f"pasta nao encontrada: {pasta}"},
-                            status_code=400)
+        return JSONResponse(
+            {"ok": False, "erro": f"pasta nao encontrada: {pasta}"}, status_code=400
+        )
     nome = body.get("nome", "geral")
     saida = AQUI / f"portfolio_{nome}.html"
-    job_id = lancar_job([
-        sys.executable, str(AQUI / "portfolio_builder.py"),
-        "--relatorios", pasta, "--html", str(saida),
-        "--out", str(AQUI / f"portfolio_{nome}.csv"),
-    ], timeout=300)
+    job_id = lancar_job(
+        [
+            sys.executable,
+            str(AQUI / "portfolio_builder.py"),
+            "--relatorios",
+            pasta,
+            "--html",
+            str(saida),
+            "--out",
+            str(AQUI / f"portfolio_{nome}.csv"),
+        ],
+        timeout=300,
+    )
     return JSONResponse({"ok": True, "job_id": job_id, "arquivo": saida.name})
 
 
 # --------------------------------------------------------------- perfil (auto_set_manager)
 
+
 @app.get("/api/perfil")
 def perfil() -> JSONResponse:
-    atual = json.loads(PERFIL_ATUAL.read_text(encoding="utf-8")) \
-        if PERFIL_ATUAL.exists() else None
+    atual = (
+        json.loads(PERFIL_ATUAL.read_text(encoding="utf-8"))
+        if PERFIL_ATUAL.exists()
+        else None
+    )
     ultima = None
     log_sync = base.SETS / "ULTIMA_SINCRONIZACAO.json"
     if log_sync.exists():
@@ -443,13 +582,18 @@ def perfil_sincronizar(body: dict) -> JSONResponse:
     dry_run = bool(body.get("dry_run", True))
     if not dry_run and (estado_campanha()["rodando"] or terminal_aberto()):
         return JSONResponse(
-            {"ok": False, "erro": "MT5 ocupado -- so dry-run agora"},
-            status_code=409)
+            {"ok": False, "erro": "MT5 ocupado -- so dry-run agora"}, status_code=409
+        )
     perfil_corpo = body.get("perfil") or {}
-    PERFIL_ATUAL.write_text(json.dumps(perfil_corpo, indent=2, ensure_ascii=False),
-                            encoding="utf-8")
-    cmd = [sys.executable, str(AQUI / "auto_set_manager.py"),
-          "--perfil", str(PERFIL_ATUAL)]
+    PERFIL_ATUAL.write_text(
+        json.dumps(perfil_corpo, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    cmd = [
+        sys.executable,
+        str(AQUI / "auto_set_manager.py"),
+        "--perfil",
+        str(PERFIL_ATUAL),
+    ]
     if dry_run:
         cmd.append("--dry-run")
     job_id = lancar_job(cmd, timeout=300)
@@ -457,6 +601,7 @@ def perfil_sincronizar(body: dict) -> JSONResponse:
 
 
 # --------------------------------------------------------------- custo nativo
+
 
 @app.get("/api/custo-nativo")
 def custo_nativo_cache() -> JSONResponse:
@@ -469,15 +614,23 @@ def custo_nativo_cache() -> JSONResponse:
 def custo_nativo_medir(body: dict) -> JSONResponse:
     simbolo = (body.get("symbol") or "").strip()
     if not simbolo:
-        return JSONResponse({"ok": False, "erro": "informe o simbolo nativo"},
-                            status_code=400)
+        return JSONResponse(
+            {"ok": False, "erro": "informe o simbolo nativo"}, status_code=400
+        )
     if estado_campanha()["rodando"] or terminal_aberto():
         return JSONResponse(
             {"ok": False, "erro": "MT5 ocupado -- pare a corrida atual primeiro"},
-            status_code=409)
-    job_id = lancar_job([
-        sys.executable, str(AQUI / "custo_nativo.py"), "--symbol", simbolo,
-    ], timeout=1800)
+            status_code=409,
+        )
+    job_id = lancar_job(
+        [
+            sys.executable,
+            str(AQUI / "custo_nativo.py"),
+            "--symbol",
+            simbolo,
+        ],
+        timeout=1800,
+    )
     return JSONResponse({"ok": True, "job_id": job_id})
 
 
@@ -493,11 +646,13 @@ def home() -> FileResponse:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("--port", type=int, default=8020)
     args = ap.parse_args()
     import uvicorn
+
     print(f"WRX Autobot Dashboard -> http://127.0.0.1:{args.port}")
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
     return 0
