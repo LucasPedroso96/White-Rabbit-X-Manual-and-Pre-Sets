@@ -1,5 +1,25 @@
 // ---------------------------------------------------------------- utilidades
 
+let deferredInstallPrompt = null;
+const installButton = document.getElementById("btn-install");
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  installButton.style.display = "inline-flex";
+});
+
+installButton.addEventListener("click", async () => {
+  if (!deferredInstallPrompt) {
+    installButton.textContent = "Prompt indisponível no navegador";
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  installButton.style.display = "none";
+});
+
 async function api(path, opts) {
   const r = await fetch(path, opts);
   return r.json();
