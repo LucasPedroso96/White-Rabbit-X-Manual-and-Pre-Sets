@@ -25,17 +25,20 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import descobrir_ativos
 import optimize_sets as base
 
 AQUI = Path(__file__).resolve().parent
 LEDGER = AQUI / "campanha_resultados.jsonl"
 
-# Multi-ativo (dono, 2026-08-02): os 9 simbolos custom .HT ja injetados no MT5
-# (todos os pares diretos de USD em Forex + XAUUSD/XAGUSD em Metais). Os
-# outros 80 do catalogo (cross pairs de Forex, cripto, indices, acoes) ainda
-# precisam de historico injetado -- ver White_Rabbit_X_asset_readiness.md.
-SIMBOLOS = ["EURUSD.HT", "GBPUSD.HT", "AUDUSD.HT", "NZDUSD.HT",
-            "USDCAD.HT", "USDCHF.HT", "USDJPY.HT", "XAUUSD.HT", "XAGUSD.HT"]
+# Multi-ativo (dono, 2026-08-02): a lista de simbolos NUNCA e cravada aqui --
+# uma lista fixa (ex.: "os 9 .HT do dono") so funciona na maquina de quem a
+# escreveu. Em qualquer outro terminal os simbolos nao existem, o `/config:`
+# falha em silencio, e o combo sai com "sem JSON final" (foi exatamente o
+# que aconteceu com um usuario externo do Autobot publicado). Ver
+# `descobrir_ativos.py`: auto-detecta o que este terminal/conta pode testar
+# (nativo ou injetado via Historical Tool Manager, filtrado por saldo), a
+# menos que o usuario tenha gravado uma lista propria em campanha_ativos.json.
 
 # Grid primeiro: e o DEFAULT do autobot/repositorio a partir de 2026-08-02,
 # nao um pedido pontual desta campanha -- decisao assumida (dono topou
@@ -67,17 +70,20 @@ def variantes(sistema: str) -> list[str]:
     return [b if duplo else a for a, b in RODADAS if not (duplo and b is None)]
 
 
-def fila() -> list[tuple[str, str, str]]:
+def fila(simbolos: list[str]) -> list[tuple[str, str, str]]:
     """Combos na ordem de execucao: SISTEMA por fora (grid primeiro), depois
     variante, depois SIMBOLO por dentro.
 
-    Multi-ativo muda o que "largura" significa (dono, 2026-08-02): antes, com
-    1 simbolo so, a largura era "todos os 11 tipos". Agora, com 9 simbolos, a
+    `simbolos` vem de `descobrir_ativos` (auto-detectado ou escolhido pelo
+    usuario) -- nunca uma lista cravada aqui, ver comentario acima.
+
+    Multi-ativo muda o que "largura" significa (dono, 2026-08-02): com um
+    simbolo so, a largura era "todos os 11 tipos". Com varios simbolos, a
     pergunta aberta por sistema deixou de ser "sobrevive?" (isso os 25 passes
     da amostra de formulas ja respondeu por tipo) e passou a ser "sobrevive em
     QUAIS ativos?" -- por isso simbolo fica por dentro: interromper no meio de
-    um sistema ainda deixa ele medido nos 9 ativos, e o proximo sistema (mesmo
-    peso, so depois na fila) comeca do zero. Grid abre a fila por ser o
+    um sistema ainda deixa ele medido em todos os ativos, e o proximo sistema
+    (mesmo peso, so depois na fila) comeca do zero. Grid abre a fila por ser o
     default do autobot (ver comentario em SISTEMAS), sem ganhar frequencia
     extra -- e so o primeiro a rodar, nao roda mais vezes que os outros.
     """
@@ -87,7 +93,7 @@ def fila() -> list[tuple[str, str, str]]:
             v = bilateral if sistema in BILATERAL else unilateral
             if v is None:              # bilateral nao tem BUY_* proprio
                 continue
-            for simbolo in SIMBOLOS:
+            for simbolo in simbolos:
                 if base.achar_set(simbolo, sistema, v) is not None:
                     itens.append((simbolo, sistema, v))
     return itens
@@ -167,7 +173,11 @@ def main() -> int:
     ap.add_argument("--listar", action="store_true")
     args = ap.parse_args()
 
-    todos = fila()
+    simbolos = descobrir_ativos.carregar_ou_descobrir()
+    if not simbolos:
+        print("Sem simbolos elegiveis -- nada a rodar.", flush=True)
+        return 1
+    todos = fila(simbolos)
     ja = feitos()
     pendentes = [c for c in todos if c not in ja]
     print(f"campanha: {len(todos)} combos | {len(ja)} feitos | "

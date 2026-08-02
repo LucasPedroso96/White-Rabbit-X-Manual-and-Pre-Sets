@@ -35,6 +35,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+from mt5_runner import lancar_terminal
 import wrx_paths
 
 TERMINAL_EXE = wrx_paths.terminal_exe()
@@ -133,9 +134,7 @@ def rodar(symbol: str, period: str, set_path: Path, inicio: str, fim: str,
         log = Path(tmp) / "tester.log"
         escrever_ini(ini, symbol, period, nome_set, inicio, fim, deposito, modelo)
         try:
-            subprocess.run(
-                [str(TERMINAL_EXE), f"/config:{ini}", f"/report:{log}"],
-                timeout=timeout, capture_output=True, check=False)
+            lancar_terminal(TERMINAL_EXE, ini, timeout, f"/report:{log}")
         except subprocess.TimeoutExpired:
             return {"erro": "timeout"}
 

@@ -47,13 +47,33 @@ account data, not code). Nothing here uses a fictitious leverage or balance;
 if this file is missing, the tools that need it stop with a clear message
 instead of guessing.
 
+## Which assets does it test?
+
+`campanha.py` never hardcodes a symbol list. On startup it asks
+`descobrir_ativos.py` to scan **this terminal, this account**: every symbol
+in the asset catalog (`generate_system_sets.ASSETS`) that (a) exists on your
+broker — native, or injected as a `.HT` custom symbol via [Historical Tool
+Manager](https://www.mql5.com/pt/market/product/188711) if you use it, which
+is entirely optional — and (b) has at least 180 days of history. Nothing is
+excluded for having a small account balance: research and backtesting are
+balance-agnostic by design, only which asset **classes are already
+affordable to trade live** gets printed for information and used to order
+the queue, never to skip anything.
+
+Want to run a fixed list instead of auto-detection? Run
+`python descobrir_ativos.py --gravar` once you're happy with what it found
+(or hand-edit) — it writes `campanha_ativos.json`, which `campanha.py` then
+uses verbatim until you delete it.
+
 ## What each tool does
 
 | Script | Role |
 |---|---|
 | `generate_system_sets.py` | Rebuilds the entire `Sets/` library from scratch (3,738 files) — every asset × system × side × entry variant, every axis marked for optimization. |
 | `auto_set_manager.py` | Rewrites the generic library against **your** broker: real symbol suffix (`EURUSDm`, `XAUUSD.r`...), real minimum lot, real capital. |
+| `descobrir_ativos.py` | Detects which symbols this terminal/account can actually test (see "Which assets does it test?" above). Run standalone to preview the list before a campaign. |
 | `campanha.py` | Batch-runs the full 5-stage circuit (below) over a queue of symbol/system/side combinations, resumable via a ledger file so a multi-day run survives interruption. |
+| `custo_nativo.py` | Measures real commission and swap per lot from a reference run on your broker's **native** symbol, and caches it — a `.HT` custom symbol always reports zero commission (MT5 custom symbols don't carry a broker commission schedule), so campaigns on `.HT` data report an informational cost-adjusted profit alongside the raw one. |
 | `optimize_two_stage.py` | The circuit itself for a single combination — called by `campanha.py`, or run standalone with `--symbol`/`--sistema`/`--variante`. |
 | `monte_carlo_wrx.py` | Bootstrap resampling over the trade sequence (R-multiples, not currency) — the drawdown-robustness gate inside stage 4. |
 | `wfo_matrix.py` | Sweeps a grid of In-Sample/Out-of-Sample window ratios and reports which proportions hold up **in the neighborhood**, not just at one arbitrary split. |
@@ -90,7 +110,11 @@ order — no system gets more search time than another by default.
 ## Honest limits
 
 - A campaign for one symbol across all 11 systems and both entry-indicator
-  modes takes on the order of days of unattended MT5 time, not minutes.
+  modes takes on the order of days of unattended MT5 time, not minutes. A
+  broker that offers most of the catalog natively can turn the auto-detected
+  queue into thousands of combinations — check `descobrir_ativos.py`'s
+  output before starting an unattended run, and use `campanha_ativos.json`
+  to scope it down if you want to start smaller.
 - The Strategy Tester's interleaved-holdout mode is not walk-forward in the
   strict sense (it cannot re-optimize at each window boundary) — see
   `Manuals/*/03_WFO_Optimization_Guide` for what that distinction means in

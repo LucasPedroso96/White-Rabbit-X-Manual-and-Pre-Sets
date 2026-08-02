@@ -6,6 +6,10 @@ __pycache__/
 
 # Sua conta real, nunca a minha nem a de mais ninguem
 _conta_real.json
+_custo_nativo.json
+
+# Sua escolha de ativos, se voce gravar uma (descobrir_ativos.py --gravar)
+campanha_ativos.json
 
 # Resultados de campanha e logs sao dados de UMA maquina/conta, nao codigo
 campanha_resultados*.jsonl

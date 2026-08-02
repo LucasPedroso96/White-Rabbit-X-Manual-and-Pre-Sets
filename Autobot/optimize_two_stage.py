@@ -69,9 +69,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import custo_nativo
 import monte_carlo_wrx
 import optimize_sets as base
-from mt5_runner import garantir_terminal_livre
+from mt5_runner import garantir_terminal_livre, lancar_terminal
 
 # FASE 1 = DESCOBERTA DE REGIOES (pedido do dono, 2026-07-31): o grupo de
 # Entradas COMPLETO -- indicador, metodo, timeframe, applied price, periodos,
@@ -610,8 +611,7 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
         texto_ini = ini.read_text(encoding="utf-16")
         ini.write_text(texto_ini.replace("Optimization=2", "Optimization=0"),
                        encoding="utf-16")
-        subprocess.run([str(base.TERMINAL), f"/config:{ini}"],  # noqa: S603
-                       timeout=timeout, capture_output=True, check=False)
+        lancar_terminal(base.TERMINAL, ini, timeout)
     limite = time.monotonic() + 90
     log = ""
     while time.monotonic() < limite:
@@ -635,8 +635,7 @@ def rodar(caminho_set: Path, symbol: str, periodo: str, inicio: str, fim: str,
         ini = Path(tmp) / "otim.ini"
         base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
                           inicio, fim, deposito, modelo, 6, nome_rel)
-        subprocess.run([str(base.TERMINAL), f"/config:{ini}"],  # noqa: S603
-                       timeout=timeout, capture_output=True, check=False)
+        lancar_terminal(base.TERMINAL, ini, timeout)
     log = base.texto_novo(antes)
     m = re.search(r"local (\d+) tasks", log)
     print(f"    passes executados: {m.group(1) if m else '?'}", flush=True)
@@ -938,6 +937,22 @@ def main() -> int:
         print(f"    lucro em tick real:  {lucro_real:>10.2f}")
         print(f"    divergencia:         {div:>9.1f}%")
 
+    # Custo nativo (dono, 2026-08-02): simbolo .HT sai com comissao/swap ZERO
+    # por construcao (CustomSymbolCreate nao herda isso do broker -- e config
+    # de GRUPO no servidor, nao propriedade de simbolo). So informativo por
+    # enquanto -- nao entra no veredito ate decidirmos exigir isso no gate.
+    lucro_ajustado = None
+    simbolo_nativo = args.symbol.split(".")[0] if "." in args.symbol else None
+    custo = custo_nativo.custo_cacheado(simbolo_nativo) if simbolo_nativo else None
+    if custo and lucro_real is not None:
+        volume = custo_nativo.volume_negociado(base.DADOS / "conf_wrx.htm")
+        if volume:
+            lucro_ajustado = custo_nativo.ajustar_lucro(lucro_real, volume, custo)
+            print(f"    lucro ajustado ao custo nativo de {simbolo_nativo}: "
+                  f"{lucro_ajustado:>10.2f} (comissao+swap medidos: "
+                  f"{volume * (custo['comissao_por_lote'] + custo['swap_por_lote']):+.2f} "
+                  f"em {volume:.2f} lotes)", flush=True)
+
     aprovado, motivos = veredito(div, oos["retencao"], args.min_retencao)
     for m in motivos:
         print(f"    {m}")
@@ -1058,6 +1073,7 @@ def main() -> int:
     print(json.dumps({"simbolo": args.symbol, "sistema": args.sistema,
                       "variante": args.variante, "lucro_ohlc": lucro_ohlc,
                       "lucro_tick_real": lucro_real,
+                      "lucro_ajustado_custo_nativo": lucro_ajustado,
                       "retencao_oos": oos["retencao"],
                       "retencao_pct": retencao_pct,
                       "sizing_entrega": sizing_entrega,
