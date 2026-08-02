@@ -35,7 +35,7 @@ TERMINAL = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
                 r"\59EECBFD4A9CCD98CCBC61E96D5DED8E\MQL5")
 EA_SOURCE = TERMINAL / "Experts" / "White Rabbit X (Global Multi-Indicator).mq5"
 TEMPLATE = TERMINAL / "Profiles" / "Tester" / "exemplo arquivo set.set"
-OUTPUT = TERMINAL / "Profiles" / "Tester" / "White_Rabbit_X_Sets"
+OUTPUT = TERMINAL / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
 
 MAGIC_BASE = 610_000_000
 MAGIC_SPAN = 89_999_999   # magics ficam entre 610.000.000 e 699.999.999
@@ -316,7 +316,7 @@ def apply_core(p: Profile, ac: AssetClass, ichimoku: bool,
     p.opt("InpAppliedPrice", 1, 1, 1, 7)
 
     p.opt("EntryMethod", 1, 0, 1, 6)
-    p.opt("TimeFrame", ac.timeframe, ac.tf_lo, 1, ac.tf_lo + 2)
+    p.opt("TimeFrame", ac.timeframe, ac.tf_lo, 1, ac.tf_hi)
 
     p.opt("StochasticSlowing", 3, 1, 2, 7)
     p.opt("StochasticMethod", 0, 0, 1, 3)   # MODE_SMA..LWMA
@@ -326,7 +326,7 @@ def apply_core(p: Profile, ac: AssetClass, ichimoku: bool,
     # ATR alimenta stop, alvo e trailing. Prende-lo ao timeframe da classe de
     # ativo assume que a volatilidade de referencia mora no mesmo prazo da
     # entrada, o que e palpite, nao medida -- por isso tambem e eixo da fase 1.
-    p.opt("ATR_TimeFrame", ac.timeframe, max(0, ac.tf_lo - 1), 1, ac.tf_lo + 2)
+    p.opt("ATR_TimeFrame", ac.timeframe, max(0, ac.tf_lo - 1), 1, ac.tf_hi)
     p.opt("PeriodoATR", 14, 7, 7, 28)
 
     # Filtros em FUNIL (pedido do dono, 2026-07-31): a FLAG de cada filtro e
@@ -340,7 +340,7 @@ def apply_core(p: Profile, ac: AssetClass, ichimoku: bool,
     p.opt_bool("AtivarFiltroMTF")
     p.opt_bool("MTF_RequererAmbos", "false")
     p.opt_bool("AtivarFiltroMA")
-    p.opt("MA_TimeFrame", ac.timeframe, ac.tf_lo, 1, ac.tf_lo + 2)
+    p.opt("MA_TimeFrame", ac.timeframe, ac.tf_lo, 1, ac.tf_hi)
     p.opt("MA_Period", 200, 100, 100, 300)
     p.opt("MA_Method", 1, 0, 1, 3)          # SMA..LWMA
     p.opt("MetodoMA", 2, 0, 1, 3)
@@ -348,7 +348,7 @@ def apply_core(p: Profile, ac: AssetClass, ichimoku: bool,
     p.opt("MA_AppliedPrice", 1, 1, 1, 7)
     p.opt("MA_SlopeLookback", 3, 1, 1, 5)
     p.opt_bool("AtivarFiltroADX")
-    p.opt("ADX_TimeFrame", ac.timeframe, ac.tf_lo, 1, ac.tf_lo + 2)
+    p.opt("ADX_TimeFrame", ac.timeframe, ac.tf_lo, 1, ac.tf_hi)
     p.opt("ADX_Period", 14, 7, 7, 28)
     p.opt("ADX_Limiar", 25, 15, 5, 30)
     p.opt("MetodoADX", 0, 0, 1, 1)          # forca / forca+DI
@@ -432,7 +432,11 @@ def apply_defaults(p: Profile, ac: AssetClass, side: str, magic: int,
     p.fix("MaxSlippage", ac.slippage)
     p.fix("MagicNumber", magic)
     p.fix("ModificationSafetyPoints", 0)
-    p.fix("InterfaceLanguage", 0)
+    # English fixo nos sets de trabalho: com Auto (0), GetInterfaceLanguage()
+    # detecta o idioma do terminal (TerminalInfoString(TERMINAL_LANGUAGE)) e
+    # aqui isso vira Portugues -- o set de entrega volta para Auto (0) em
+    # optimize_two_stage.py, entao cada comprador ve o proprio idioma dele.
+    p.fix("InterfaceLanguage", 1)
 
     # Painel LIGADO: em otimizacao o EA nao desenha nada de qualquer forma --
     # CanRenderChartInterface() ja retorna false quando MQL_VISUAL_MODE e 0.
@@ -446,6 +450,10 @@ def apply_defaults(p: Profile, ac: AssetClass, side: str, magic: int,
     p.fix("MaxVisibleDealLabels", 120)
     p.fix("ClosedDealLabelFontSize", 10)
     p.fix("ApplyEmbeddedChartTheme", "true")
+    p.fix("ChartTheme", 0)          # Theme_Dark -- default do EA
+    p.fix("DASH_C_DEAL_BG", 3328)   # C'0,13,0' em BGR (R+G*256+B*65536)
+    p.fix("DASH_C_PANEL_BG", 0)     # clrBlack
+    p.fix("DashboardPanelOpacityPct", 100)
 
     # Walk-forward LIGADO por padrao, em In-Sample (dono, 2026-07-31: "todos
     # sets tao com wfo desligados no insample! isso e errado!"). O template e
@@ -728,17 +736,12 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.fix("Multiplicador", 1)
         p.opt("DistanciaMinima", 2.0, 1.0, 0.5, 5.0)
         p.opt_bool("UsarsomenteATRGRID")
-        set_exposure(p, side, 5, hedging=True)
-        if side == "BOTH":
-            # A cesta unificada tem UM alvo cobrindo compra e venda. Com um lado
-            # so ela era indistinguivel do grid separado -- medido em XAUUSD, os
-            # dois davam resultado igual ao centavo, porque UnificarProfit junta
-            # o que houver ENTRE os lados e nao havia segundo lado.
-            p.opt("MaxLongTrades", 5, 2, 2, 10)
-            p.opt("MaxShortTrades", 5, 2, 2, 10)
-        else:
-            target = "MaxLongTrades" if side == "BUY" else "MaxShortTrades"
-            p.opt(target, 5, 2, 2, 10)
+        # Sem teto de posicoes por lado: o dono confia na distancia ATR
+        # (DistanciaMinima) e no proximo sinal como freio, nao numa contagem
+        # fixa. 999 e o "sem limite" pratico do MaxLongTrades/MaxShortTrades --
+        # travado (N), sem eixo de busca 2..10 por cima (a cesta unificada
+        # ("BOTH") ja recebe os dois lados de set_exposure).
+        set_exposure(p, side, 999, hedging=True)
         # (criterio vem de FORMULA_POR_SISTEMA, aplicado depois deste bloco)
 
     elif system == "09_MARTINGALE":

@@ -63,8 +63,8 @@ BILATERAL = {"08_GRID_UNIFIED"}
 # ela rende o retrato mais largo por corrida -- mas o Ichimoku (11) vive em
 # arquivo proprio (Tenkan<Kijun<SenkouB no OnInit), e sem estas rodadas ele
 # era o unico indicador que NUNCA era testado.
-RODADAS = [("SELL_MULTI", "BOTH_MULTI"), ("BUY_MULTI", None),
-           ("SELL_ICHIMOKU", "BOTH_ICHIMOKU"), ("BUY_ICHIMOKU", None)]
+RODADAS = [("BUY_MULTI", "BOTH_MULTI"), ("SELL_MULTI", None),
+           ("BUY_ICHIMOKU", "BOTH_ICHIMOKU"), ("SELL_ICHIMOKU", None)]
 
 
 def variantes(sistema: str) -> list[str]:

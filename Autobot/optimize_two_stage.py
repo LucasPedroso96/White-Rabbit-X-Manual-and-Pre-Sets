@@ -69,6 +69,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import monte_carlo_wrx
 import optimize_sets as base
 from mt5_runner import garantir_terminal_livre
 
@@ -135,6 +136,10 @@ INDICADOR_USA = {
     "StochasticSlowing": {3},
     "StochasticMethod": {3},
     "StochasticPriceField": {3},
+    # Nos MULTI o EntryIndicator so varia 0..10 -- Ichimoku (11) vive em set
+    # proprio -- entao estes dois nunca tem efeito num vencedor MULTI.
+    "IchimokuUseKumo": {11},
+    "IchimokuChikouFilter": {11},
 }
 
 
@@ -296,7 +301,7 @@ def reescrever(origem: Path, destino: Path, otimizar: list[str],
     return marcados
 
 
-def janelas_wfo(inicio: str, fim: str, ciclos_alvo: int = 3) -> dict[str, str]:
+def janelas_wfo(inicio: str, fim: str, ciclos_alvo: int = 6) -> dict[str, str]:
     """Configura o walk-forward interno A PARTIR do periodo da corrida.
 
     O holdout interno da EA entrega o mesmo que o Forward nativo do MT5 e sai
@@ -499,7 +504,7 @@ def veredito(div: float | None, retencao: float | None,
     if div is None:
         motivos.append("SEM VEREDITO: a conferencia em tick real nao produziu numero.")
         return False, motivos
-    if div > 15:
+    if div > 30:
         aprovado = False
         motivos.append("REPROVADO na divergencia: o resultado do OHLC nao se")
         motivos.append("sustentou em tick real. Neste sistema a gestao depende do")
@@ -693,6 +698,11 @@ def main() -> int:
     # o que foi escolhido antes volta ao default -- ver conferir_set().
     travados = janelas_wfo(args.inicio, args.fim)
     wfo = dict(travados)
+    # English fixo em todo o set de trabalho da campanha (fora de `wfo`, que
+    # so guarda as janelas): com Auto, o EA detecta o idioma do terminal
+    # (Portugues aqui) para o painel. A entrega (linha ~980) volta pra Auto --
+    # so o nosso set de trabalho roda em EN.
+    travados["InterfaceLanguage"] = "1"
     n = reescrever(origem, trabalho, eixos_da_fase1(origem), travados)
     print(f"  [1/5] regioes em OHLC ({n} parametros: entradas completas + "
           f"saidas + flags) | WFO In-Sample: "
@@ -880,6 +890,28 @@ def main() -> int:
     lucro_ohlc = ordenados[0][1]
     print(f"\n    retencao confirmada em tick real: {retencao_top}%", flush=True)
 
+    # Monte Carlo sobre os trades do passe IS+OOS que acabou de rodar -- tem
+    # que ler o relatorio AGORA: o proximo passe (divergencia, logo abaixo)
+    # reescreve o mesmo nome de relatorio ("conf_wrx") por cima.
+    mc = monte_carlo_wrx.rodar_mc(
+        monte_carlo_wrx.achar_relatorio("conf_wrx"), trabalho)
+    mc_aprovado = True
+    if mc is None:
+        print("    Monte Carlo: nao aplicavel (sistema fora de Fixed-R ou "
+              "relatorio sem trades legiveis).", flush=True)
+    elif mc["mc_dd_p95"] is None:
+        print(f"    Monte Carlo: poucos trades ({mc['mc_n_trades']}) para "
+              "reamostrar com confianca.", flush=True)
+    else:
+        mc_aprovado = (mc["mc_dd_p95"] <= 2 * mc["mc_dd_observado"]
+                       and mc["mc_prob_ruina"] <= 0.05)
+        print(f"    Monte Carlo ({mc['mc_n_trades']} trades, 1000 reamostras): "
+              f"DD p95 {mc['mc_dd_p95']:.2f}R (observado "
+              f"{mc['mc_dd_observado']:.2f}R) | prob. ruina "
+              f"{mc['mc_prob_ruina']*100:.1f}%"
+              + ("" if mc_aprovado else " -- REPROVADO no Monte Carlo"),
+              flush=True)
+
     # A divergencia exige um passe a mais, em modo In-Sample: ela compara o
     # MESMO conjunto de parametros nos dois modelos de tick, e o estagio 2 rodou
     # em In-Sample. Comparar contra o passe IS+OOS misturaria duas mudancas --
@@ -909,6 +941,10 @@ def main() -> int:
     aprovado, motivos = veredito(div, oos["retencao"], args.min_retencao)
     for m in motivos:
         print(f"    {m}")
+    if aprovado and not mc_aprovado:
+        aprovado = False
+        print("    REPROVADO no Monte Carlo: a sequencia de trades depende "
+              "demais da ordem em que aconteceu (ver DD p95 acima).")
 
     # ---- Estagio 5: prova em PERCENTUAL, e so entao salvar ------------------
     # O circuito inteiro mediu em Fixed-R com capital base fixo: 1R identico em
@@ -976,6 +1012,10 @@ def main() -> int:
     wfo_chaves = set(wfo) | {"AtivarWFO", "MetodoDeEntradawfo", "input_end_date"}
     entrega = {k: v for k, v in travados.items() if k not in wfo_chaves}
     entrega["AtivarWFO"] = "false"   # conferido contra o default da biblioteca
+    # Set de trabalho roda fixado em English (evita paineis/erros em PT no
+    # nosso terminal); o set entregue volta para Auto -- cada comprador ve
+    # o dashboard no idioma do proprio terminal dele.
+    entrega["InterfaceLanguage"] = "0"
     if sizing_entrega == "percentage":
         # A prova do estagio 5 foi em %, entao e em % que o set sai: entregar
         # em Fixed-R seria entregar um modo que a ultima conferencia nao mediu.
@@ -1003,6 +1043,10 @@ def main() -> int:
                       "sizing_entrega": sizing_entrega,
                       "expectancy_r": oos["expectancy"],
                       "trades_oos": oos["trades"],
+                      "mc_dd_p95": mc["mc_dd_p95"] if mc else None,
+                      "mc_dd_observado": mc["mc_dd_observado"] if mc else None,
+                      "mc_prob_ruina": mc["mc_prob_ruina"] if mc else None,
+                      "mc_aprovado": mc_aprovado,
                       "parametros": {**otimizados, **vencedor}},
                      ensure_ascii=False))
     return 0

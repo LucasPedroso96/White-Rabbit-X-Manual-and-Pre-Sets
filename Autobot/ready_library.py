@@ -48,8 +48,8 @@ AQUI = Path(__file__).resolve().parent
 DADOS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
              r"\59EECBFD4A9CCD98CCBC61E96D5DED8E")
 TESTER = DADOS / "MQL5" / "Profiles" / "Tester"
-BIBLIOTECA = TESTER / "White_Rabbit_X_Sets"
-PRONTOS = TESTER / "White_Rabbit_X_Sets_PRONTOS"
+BIBLIOTECA = TESTER / "White_Rabbit_X_Sets_templates"
+PRONTOS = TESTER / "White_Rabbit_X_Sets_Autobot"
 LEDGER = AQUI / "campanha_resultados.jsonl"
 
 MARCA = "\uff0a"          # ＊ -- ver docstring
@@ -169,6 +169,7 @@ def sincronizar(biblioteca: Path = BIBLIOTECA, tester: Path = TESTER,
             "retencao": reg.get("retencao_oos"),
             "expectancy": reg.get("expectancy_r"),
             "trades": reg.get("trades_oos"),
+            "mc_prob_ruina": reg.get("mc_prob_ruina"),
             "capital": ler_param(origem, "CapitalBaseR"),
         })
 
@@ -272,16 +273,18 @@ def _gerar_portfolios(destino: Path, prontos: list[dict]) -> None:
             f"Membros validados: {len(membros)} | capital base: n/d",
             "",
             "| Simbolo | Variante | Retencao OOS | Expectancy | Trades OOS "
-            "| CapitalBaseR | Set |",
-            "|---|---|---|---|---|---|---|",
+            "| Prob. Ruina (MC) | CapitalBaseR | Set |",
+            "|---|---|---|---|---|---|---|---|",
         ]
         for m in membros:
             exp = m["expectancy"]
+            ruina = m.get("mc_prob_ruina")
             linhas.append(
                 f"| {m['simbolo']} | {m['variante']} "
                 f"| {_fmt(m['retencao'], '%')} "
                 f"| {'n/d' if exp is None else f'{exp:+.3f}R'} "
                 f"| {m['trades'] if m['trades'] is not None else 'n/d'} "
+                f"| {'n/d' if ruina is None else f'{ruina*100:.1f}%'} "
                 f"| {m['capital'] or 'n/d'} "
                 f"| {m['classe']}/{m['ativo']}/{m['sistema']}/"
                 f"{MARCA}{m['variante']}.set |")

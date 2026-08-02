@@ -55,7 +55,7 @@ checar("nome fora do padrao", rl.analisar_nome("VALIDADO_qualquercoisa.set"),
 # --- fila da campanha: ICHIMOKU presente, sistemas antes de variantes --------
 vs = campanha.variantes("01_SLTP")
 checar("variantes unilaterais", vs,
-       ["SELL_MULTI", "BUY_MULTI", "SELL_ICHIMOKU", "BUY_ICHIMOKU"])
+       ["BUY_MULTI", "SELL_MULTI", "BUY_ICHIMOKU", "SELL_ICHIMOKU"])
 vs = campanha.variantes("08_GRID_UNIFIED")
 checar("variantes bilaterais", vs, ["BOTH_MULTI", "BOTH_ICHIMOKU"])
 
@@ -118,7 +118,8 @@ with tempfile.TemporaryDirectory() as tmp:
 
     port = (destino / rl.PASTA_PORTFOLIOS / "01_SLTP.md").read_text(encoding="utf-8")
     checar_contem("portfolio: membro com metricas", port,
-                  "| EURUSD.HT | BUY_MULTI | 41.5% | +0.157R | 410 | 15000 |")
+                  "| EURUSD.HT | BUY_MULTI | 41.5% | +0.157R | 410 | n/d "
+                  "| 15000 |")
     checar_contem("portfolio: membro sem ledger", port,
                   "| XAUUSD.HT | BUY_MULTI | n/d |")
     checar_contem("portfolio: capital somado", port, "30,000")
