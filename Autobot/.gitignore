@@ -8,6 +8,10 @@ __pycache__/
 _conta_real.json
 _custo_nativo.json
 
+# Estado local de dashboard / perfil, nunca publicar no repo publico
+campanha_dashboard.lock.json
+perfil_dashboard.json
+
 # Sua escolha de ativos, se voce gravar uma (descobrir_ativos.py --gravar)
 campanha_ativos.json
 
@@ -17,8 +21,3 @@ amostra_noite_resultados.jsonl
 *.log
 *.bak
 *.bak_*
-
-# Estado de runtime do dashboard (lockfile do processo, perfil sincronizado
-# por ultimo) -- de UMA maquina, nao codigo
-campanha_dashboard.lock.json
-perfil_dashboard.json

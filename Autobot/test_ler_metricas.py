@@ -75,16 +75,10 @@ checar("cumulativo/trades", ler_metricas(ANTIGO + COMPLETO)["trades"], 410)
 checar("cumulativo/saldo", ler_metricas(ANTIGO + COMPLETO)["saldo"], 827.92)
 
 # --- e contra um log REAL, se houver um por perto ---------------------------
-# Best-effort: este teste roda "sem precisar do MT5" (ver docstring), entao a
-# ausencia de terminal configurado so pula este bloco extra, nunca quebra o
-# resto da suite.
-try:
-    import wrx_paths
-    LOGS = wrx_paths.TERMINAL / "Tester" / "logs"
-except SystemExit:
-    LOGS = None
+LOGS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
+            r"\59EECBFD4A9CCD98CCBC61E96D5DED8E\Tester\logs")
 reais = sorted(LOGS.glob("*.log"), key=lambda p: p.stat().st_mtime) \
-    if LOGS is not None and LOGS.is_dir() else []
+    if LOGS.is_dir() else []
 if reais:
     texto = reais[-1].read_text(encoding="utf-16-le", errors="replace")
     r = ler_metricas(texto)

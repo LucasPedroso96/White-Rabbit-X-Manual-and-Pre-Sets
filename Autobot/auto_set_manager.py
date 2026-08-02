@@ -358,7 +358,9 @@ def main() -> int:
                 encoding="utf-8")
         # mt5.shutdown() so fecha a conexao Python-terminal, nao o processo
         # terminal64.exe -- fechar_terminal() e o que efetivamente libera a
-        # maquina pro proximo `/config:` de outra ferramenta.
+        # maquina pro proximo `/config:` (mesma armadilha documentada em
+        # mt5_runner.py; achada aqui na pratica, o painel ficou "MT5 ocupado"
+        # depois de um --dry-run que so tinha chamado shutdown()).
         fechar_terminal()
     return 0
 

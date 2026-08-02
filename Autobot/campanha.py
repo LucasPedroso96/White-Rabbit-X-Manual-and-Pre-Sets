@@ -46,6 +46,8 @@ LEDGER = AQUI / "campanha_resultados.jsonl"
 # default"). Depois do grid, MESMO peso pros outros 9 -- acabou a hierarquia
 # antiga de "trailing antes de geometria fixa antes de recovery"; a ordem
 # restante e so a ordem numerica dos sistemas, sem prioridade implicita.
+# Continua sendo o DEFAULT (nenhuma flag = esta ordem, todos os 11); o modo
+# manual do dashboard so filtra/reordena por cima disso via --sistemas.
 SISTEMAS = ["07_GRID_SEPARATE", "08_GRID_UNIFIED",
             "01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
             "05_BE_TRAIL", "06_REVERSAL_EXIT", "09_MARTINGALE",
@@ -76,7 +78,6 @@ def fila(simbolos: list[str], sistemas: list[str] | None = None) -> list[tuple[s
 
     `simbolos` vem de `descobrir_ativos` (auto-detectado ou escolhido pelo
     usuario) -- nunca uma lista cravada aqui, ver comentario acima.
-
     `sistemas` e opcional: None usa o SISTEMAS default (todos os 11, grid
     primeiro); passado explicitamente (modo manual do dashboard, ou
     `--sistemas` na CLI), filtra E define a ordem -- quem chama decide a

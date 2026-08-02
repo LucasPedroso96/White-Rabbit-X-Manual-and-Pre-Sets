@@ -37,10 +37,11 @@ import time
 from pathlib import Path
 
 from mt5_runner import garantir_terminal_livre, lancar_terminal
-import wrx_paths
 
-TERMINAL = wrx_paths.terminal_exe()
-DADOS = wrx_paths.TERMINAL
+TERMINAL = Path(r"C:\Users\Lucas Pedroso\Desktop\Levain 2.0 (Em Andamento)"
+                r"\Levain-2.0\MetaTrader5\terminal64.exe")
+DADOS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
+             r"\59EECBFD4A9CCD98CCBC61E96D5DED8E")
 SETS = DADOS / "MQL5" / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
 EA = r"White Rabbit X (Global Multi-Indicator).ex5"
 LOGS = DADOS / "Tester" / "logs"
