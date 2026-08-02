@@ -33,6 +33,7 @@ from datetime import datetime
 from pathlib import Path
 
 import wrx_paths
+from mt5_runner import fechar_terminal
 
 TERMINAL = wrx_paths.TERMINAL / "MQL5"
 SETS = TERMINAL / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
@@ -355,7 +356,10 @@ def main() -> int:
             (SETS / "ULTIMA_SINCRONIZACAO.json").write_text(
                 json.dumps(registro, indent=2, ensure_ascii=False),
                 encoding="utf-8")
-        mt5.shutdown()
+        # mt5.shutdown() so fecha a conexao Python-terminal, nao o processo
+        # terminal64.exe -- fechar_terminal() e o que efetivamente libera a
+        # maquina pro proximo `/config:` de outra ferramenta.
+        fechar_terminal()
     return 0
 
 

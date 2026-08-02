@@ -65,6 +65,23 @@ Want to run a fixed list instead of auto-detection? Run
 (or hand-edit) — it writes `campanha_ativos.json`, which `campanha.py` then
 uses verbatim until you delete it.
 
+## Control-panel dashboard
+
+Everything below is also usable from one screen instead of the command line:
+
+```
+python dashboard_campanha.py        # http://localhost:8020
+```
+
+Start/stop a campaign (auto-detected assets or a manual system/asset
+selection), regenerate the set library, sync `auto_set_manager.py` against
+your broker profile, browse the portfolios already built, measure native
+cost, and watch a live symbol × system progress map — all through a local
+FastAPI app with no external service involved. Guarded the same way the CLI
+tools are: nothing that touches MT5 runs while another MT5-touching action is
+already in flight (`mt5_runner.terminal_aberto()` is checked before every
+such action, not just a local flag).
+
 ## What each tool does
 
 | Script | Role |
@@ -84,6 +101,7 @@ uses verbatim until you delete it.
 | `portfolio_builder.py` / `portfolio_html.py` | Turns a Strategy Tester `.htm` report into structured metrics (drawdown, R-expectancy, retention) and an HTML view. |
 | `amostra_formulas.py` / `amostra_noite.py` | Compares the EA's built-in fitness formulas against each other on a fixed system/period — how each one behaves in practice, not just what it computes. |
 | `calc_capital_base.py` | Per-asset-class capital reference used for Fixed-R sizing (`CapitalBaseR`). |
+| `dashboard_campanha.py` | Local control-panel — runs everything above from one screen (see "Control-panel dashboard"). |
 
 ## The five-stage circuit
 

@@ -1,0 +1,19 @@
+{
+  "name": "White Rabbit X — Autobot",
+  "short_name": "WRX Autobot",
+  "description": "Dashboard operacional do White Rabbit X para campanha, portfólios e diagnóstico de robustez.",
+  "start_url": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "background_color": "#07111b",
+  "theme_color": "#1b4d5c",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/static/icon.webp",
+      "sizes": "256x256",
+      "type": "image/webp",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -17,3 +17,8 @@ amostra_noite_resultados.jsonl
 *.log
 *.bak
 *.bak_*
+
+# Estado de runtime do dashboard (lockfile do processo, perfil sincronizado
+# por ultimo) -- de UMA maquina, nao codigo
+campanha_dashboard.lock.json
+perfil_dashboard.json

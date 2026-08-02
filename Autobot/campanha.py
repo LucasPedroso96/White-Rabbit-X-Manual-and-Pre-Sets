@@ -70,12 +70,17 @@ def variantes(sistema: str) -> list[str]:
     return [b if duplo else a for a, b in RODADAS if not (duplo and b is None)]
 
 
-def fila(simbolos: list[str]) -> list[tuple[str, str, str]]:
-    """Combos na ordem de execucao: SISTEMA por fora (grid primeiro), depois
-    variante, depois SIMBOLO por dentro.
+def fila(simbolos: list[str], sistemas: list[str] | None = None) -> list[tuple[str, str, str]]:
+    """Combos na ordem de execucao: SISTEMA por fora (grid primeiro por
+    default), depois variante, depois SIMBOLO por dentro.
 
     `simbolos` vem de `descobrir_ativos` (auto-detectado ou escolhido pelo
     usuario) -- nunca uma lista cravada aqui, ver comentario acima.
+
+    `sistemas` e opcional: None usa o SISTEMAS default (todos os 11, grid
+    primeiro); passado explicitamente (modo manual do dashboard, ou
+    `--sistemas` na CLI), filtra E define a ordem -- quem chama decide a
+    prioridade, a funcao so respeita.
 
     Multi-ativo muda o que "largura" significa (dono, 2026-08-02): com um
     simbolo so, a largura era "todos os 11 tipos". Com varios simbolos, a
@@ -83,13 +88,12 @@ def fila(simbolos: list[str]) -> list[tuple[str, str, str]]:
     da amostra de formulas ja respondeu por tipo) e passou a ser "sobrevive em
     QUAIS ativos?" -- por isso simbolo fica por dentro: interromper no meio de
     um sistema ainda deixa ele medido em todos os ativos, e o proximo sistema
-    (mesmo peso, so depois na fila) comeca do zero. Grid abre a fila por ser o
-    default do autobot (ver comentario em SISTEMAS), sem ganhar frequencia
-    extra -- e so o primeiro a rodar, nao roda mais vezes que os outros.
+    (mesmo peso, so depois na fila) comeca do zero.
     """
+    sistemas = sistemas if sistemas is not None else SISTEMAS
     itens = []
     for unilateral, bilateral in RODADAS:
-        for sistema in SISTEMAS:
+        for sistema in sistemas:
             v = bilateral if sistema in BILATERAL else unilateral
             if v is None:              # bilateral nao tem BUY_* proprio
                 continue
@@ -171,13 +175,32 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=21600)
     ap.add_argument("--limite", type=int, default=0, help="0 = sem limite")
     ap.add_argument("--listar", action="store_true")
+    ap.add_argument("--sistemas", default="",
+                    help="lista separada por virgula, filtra e ordena "
+                         "(ex.: 07_GRID_SEPARATE,01_SLTP); vazio = os 11 default")
+    ap.add_argument("--simbolos", default="",
+                    help="lista separada por virgula, sobrepoe a "
+                         "auto-deteccao/campanha_ativos.json so nesta corrida")
     args = ap.parse_args()
 
-    simbolos = descobrir_ativos.carregar_ou_descobrir()
+    if args.simbolos.strip():
+        simbolos = [s.strip() for s in args.simbolos.split(",") if s.strip()]
+    else:
+        simbolos = descobrir_ativos.carregar_ou_descobrir()
     if not simbolos:
         print("Sem simbolos elegiveis -- nada a rodar.", flush=True)
         return 1
-    todos = fila(simbolos)
+
+    sistemas = ([s.strip() for s in args.sistemas.split(",") if s.strip()]
+                if args.sistemas.strip() else None)
+    if sistemas:
+        desconhecidos = [s for s in sistemas if s not in SISTEMAS]
+        if desconhecidos:
+            print(f"--sistemas com codigo(s) desconhecido(s): {desconhecidos}",
+                  flush=True)
+            return 1
+
+    todos = fila(simbolos, sistemas)
     ja = feitos()
     pendentes = [c for c in todos if c not in ja]
     print(f"campanha: {len(todos)} combos | {len(ja)} feitos | "
