@@ -35,11 +35,11 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from mt5_runner import lancar_terminal
-import wrx_paths
-
-TERMINAL_EXE = wrx_paths.terminal_exe()
-DATA_DIR = wrx_paths.TERMINAL
+TERMINAL_DIR = Path(r"C:\Users\Lucas Pedroso\Desktop\Levain 2.0 (Em Andamento)"
+                    r"\Levain-2.0\MetaTrader5")
+TERMINAL_EXE = TERMINAL_DIR / "terminal64.exe"
+DATA_DIR = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
+                r"\59EECBFD4A9CCD98CCBC61E96D5DED8E")
 EA_REL = r"White Rabbit X (Global Multi-Indicator).ex5"
 
 

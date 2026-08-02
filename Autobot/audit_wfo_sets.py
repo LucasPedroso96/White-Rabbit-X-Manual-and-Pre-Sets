@@ -29,9 +29,9 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
-import wrx_paths
-
-ROOT = wrx_paths.TERMINAL / "MQL5" / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
+ROOT = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
+            r"\59EECBFD4A9CCD98CCBC61E96D5DED8E\MQL5\Profiles\Tester"
+            r"\White_Rabbit_X_Sets_templates")
 
 CUSTOM = -1
 

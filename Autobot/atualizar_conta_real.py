@@ -25,11 +25,11 @@ from pathlib import Path
 import MetaTrader5 as mt5
 
 from mt5_runner import fechar_terminal, garantir_terminal_livre
-from wrx_paths import terminal_exe
 
 AQUI = Path(__file__).resolve().parent
 CACHE = AQUI / "_conta_real.json"
-TERMINAL = terminal_exe()
+TERMINAL = Path(r"C:\Users\Lucas Pedroso\Desktop\Levain 2.0 (Em Andamento)"
+                r"\Levain-2.0\MetaTrader5\terminal64.exe")
 
 
 def main() -> int:
