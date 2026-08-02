@@ -36,7 +36,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from mt5_runner import garantir_terminal_livre
+from mt5_runner import garantir_terminal_livre, lancar_terminal
 
 TERMINAL = Path(r"C:\Users\Lucas Pedroso\Desktop\Levain 2.0 (Em Andamento)"
                 r"\Levain-2.0\MetaTrader5\terminal64.exe")
@@ -220,9 +220,7 @@ def main() -> int:
                          str(rel).replace("/", "\\"),
                          args.inicio, args.fim, args.deposit, args.model)
             try:
-                subprocess.run([str(TERMINAL), f"/config:{ini}"],
-                               timeout=args.timeout, capture_output=True,
-                               check=False)
+                lancar_terminal(TERMINAL, ini, args.timeout)
             except subprocess.TimeoutExpired:
                 print(f"{rotulo[:39]:<40}{'timeout':>6}")
                 falhas.append((rotulo, "estourou o tempo"))

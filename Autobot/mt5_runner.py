@@ -87,6 +87,28 @@ def garantir_terminal_livre(fechar: bool = False) -> None:
         "do terminal -- na ordem inversa ele simplesmente abre outro.")
 
 
+def lancar_terminal(terminal: Path, ini: Path, timeout: int,
+                    *args_extra: str) -> None:
+    """Roda `/config:` minimizado e SEM ativar -- nao rouba o foco de quem
+    esta trabalhando na maquina.
+
+    SW_SHOWMINNOACTIVE (7) mostra a janela minimizada sem trazer o processo
+    pra frente nem tirar o foco da janela atual -- diferente de SW_MINIMIZE
+    (6), que ativa antes de minimizar e ainda rouba o foco por um instante.
+    O processo continua visivel na barra de tarefas; nada aqui esconde o
+    terminal, so evita que ele interrompa o que esta em primeiro plano.
+
+    `args_extra` repassa flags adicionais (`/report:...` etc.) que alguns
+    chamadores precisam junto do `/config:`.
+    """
+    info = subprocess.STARTUPINFO()
+    info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    info.wShowWindow = 7  # SW_SHOWMINNOACTIVE
+    subprocess.run([str(terminal), f"/config:{ini}", *args_extra],  # noqa: S603
+                   timeout=timeout, capture_output=True, check=False,
+                   startupinfo=info)
+
+
 def ler_novo(logs_dir: Path, antes: dict[Path, int]) -> str:
     """Le so o que foi escrito nos logs depois de `antes`.
 

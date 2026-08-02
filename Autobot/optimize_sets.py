@@ -41,7 +41,7 @@ import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from mt5_runner import garantir_terminal_livre
+from mt5_runner import garantir_terminal_livre, lancar_terminal
 
 TERMINAL = Path(r"C:\Users\Lucas Pedroso\Desktop\Levain 2.0 (Em Andamento)"
                 r"\Levain-2.0\MetaTrader5\terminal64.exe")
@@ -345,8 +345,7 @@ def main() -> int:
         escrever_ini(ini, args.symbol, args.period, rel, args.inicio, args.fim,
                      args.deposit, args.model, args.criterion, nome_relatorio)
         try:
-            subprocess.run([str(TERMINAL), f"/config:{ini}"],
-                           timeout=args.timeout, capture_output=True, check=False)
+            lancar_terminal(TERMINAL, ini, args.timeout)
         except subprocess.TimeoutExpired:
             print(f"Estourou {args.timeout}s. O genetico pode precisar de mais "
                   "tempo, ou o periodo/modelo esta caro demais.")

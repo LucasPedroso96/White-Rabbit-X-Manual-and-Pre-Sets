@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>White Rabbit X — Autobot</title>
+<link rel="manifest" href="/static/manifest.webmanifest">
+<link rel="stylesheet" href="/static/styles.css">
+<meta name="theme-color" content="#1b4d5c">
+<meta name="description" content="White Rabbit X — operational dashboard for live campaign, portfolio, and robustness diagnostics.">
+</head>
+<body>
+<header>
+  <h1>White Rabbit X — Autobot</h1>
+  <span id="badge-mt5" class="badge" data-i18n="badge.mt5">MT5: ...</span>
+  <span id="badge-campanha" class="badge" data-i18n="badge.campaign">Campaign: ...</span>
+  <label class="language-select">
+    <span data-i18n="lang.label">Language</span>
+    <select id="lang-picker">
+      <option value="en">English</option>
+      <option value="pt">Português</option>
+      <option value="es">Español</option>
+      <option value="de">Deutsch</option>
+      <option value="fr">Français</option>
+      <option value="it">Italiano</option>
+      <option value="ru">Русский</option>
+      <option value="zh">中文</option>
+      <option value="ja">日本語</option>
+      <option value="ko">한국어</option>
+      <option value="tr">Türkçe</option>
+    </select>
+  </label>
+  <button id="btn-install" class="acao secundario" style="display:none; margin-left:auto" data-i18n="install.button">Install app</button>
+</header>
+<nav>
+  <button data-tab="campanha" class="ativo" data-i18n="nav.live">Live campaign</button>
+  <button data-tab="configurar" data-i18n="nav.setup">Run setup</button>
+  <button data-tab="biblioteca" data-i18n="nav.sets">Set library</button>
+  <button data-tab="portfolios" data-i18n="nav.portfolios">Portfolios</button>
+  <button data-tab="perfil" data-i18n="nav.broker">Broker profile</button>
+  <button data-tab="custo" data-i18n="nav.native-cost">Native cost</button>
+</nav>
+<main>
+
+<!-- ================= LIVE CAMPAIGN ================= -->
+<section id="painel-campanha" class="painel ativo">
+  <div class="cards" id="cards"></div>
+  <div id="atual"></div>
+  <div class="grid-2">
+    <div class="box">
+      <h2 data-i18n="campaign.robustness">Robustness diagnosis</h2>
+      <div id="quality-grid" class="metric-grid"></div>
+      <div id="quality-summary" class="quality-note"></div>
+    </div>
+    <div class="box">
+      <h2 data-i18n="campaign.asset-map">Asset map by class</h2>
+      <div id="ativos-map" class="chip-grid"></div>
+    </div>
+  </div>
+  <div class="grid-2">
+    <div class="box">
+      <h2 data-i18n="campaign.progress">Progress by system</h2>
+      <div id="sistema-bars" class="bar-grid"></div>
+    </div>
+    <div class="box">
+      <h2 data-i18n="campaign.reports">Reports and status</h2>
+      <div id="wfe-mc-panel" class="diagnostic-list"></div>
+    </div>
+  </div>
+  <div class="box">
+    <button class="acao perigo" id="btn-stop" data-i18n="campaign.stop-run">Stop run</button>
+    <span class="status-msg" id="msg-stop"></span>
+  </div>
+  <h2 data-i18n="campaign.by-system">By system</h2>
+  <table id="tbl-sistemas"><thead><tr><th data-i18n="table.system">System</th><th data-i18n="table.tests">Tested</th>
+  <th data-i18n="table.approved">Approved</th></tr></thead><tbody></tbody></table>
+  <h2 data-i18n="campaign.recent-combos">Latest combos</h2>
+  <table id="tbl-recentes"><thead><tr><th data-i18n="table.symbol">Symbol</th><th data-i18n="table.system">System</th>
+  <th data-i18n="table.variant">Variant</th><th data-i18n="table.verdict">Verdict</th><th data-i18n="table.retention">Retention</th><th data-i18n="table.minutes">Min</th>
+  </tr></thead><tbody></tbody></table>
+</section>
+
+<!-- ================= RUN SETUP ================= -->
+<section id="painel-configurar" class="painel">
+  <div class="box">
+    <h2 data-i18n="setup.mode">Mode</h2>
+    <div class="modo-toggle">
+      <button data-modo="auto" class="ativo" id="btn-modo-auto" data-i18n="setup.auto">Automatic (auto-detect eligible assets)</button>
+      <button data-modo="manual" id="btn-modo-manual" data-i18n="setup.manual">Manual (choose system and asset)</button>
+    </div>
+
+    <div id="bloco-manual" style="display:none">
+      <fieldset>
+        <legend data-i18n="setup.systems">Systems</legend>
+        <div class="grid-check" id="check-sistemas"></div>
+      </fieldset>
+      <fieldset>
+        <legend data-i18n="setup.assets">Assets</legend>
+        <button class="acao secundario" id="btn-detectar" data-i18n="setup.detect">Detect available now</button>
+        <span class="status-msg" id="msg-detectar"></span>
+        <div id="grupos-ativos"></div>
+      </fieldset>
+    </div>
+
+    <fieldset>
+      <legend data-i18n="setup.parameters">Parameters</legend>
+      <div class="linha">
+        <div><label class="campo" data-i18n="setup.from">From</label><input type="text" id="campo-inicio" value="2023.08.01"></div>
+        <div><label class="campo" data-i18n="setup.to">To</label><input type="text" id="campo-fim" value="2026.07.21"></div>
+        <div><label class="campo" data-i18n="setup.deposit">Deposit</label><input type="number" id="campo-deposito" value="500"></div>
+        <div><label class="campo" data-i18n="setup.min-retention">Minimum retention %</label><input type="number" id="campo-retencao" value="30"></div>
+      </div>
+    </fieldset>
+
+    <button class="acao" id="btn-iniciar" data-i18n="setup.start-run">Start run</button>
+    <span class="status-msg" id="msg-iniciar"></span>
+  </div>
+</section>
+
+<!-- ================= SET LIBRARY ================= -->
+<section id="painel-biblioteca" class="painel">
+  <div class="box">
+    <h2 data-i18n="library.current">Current library</h2>
+    <div id="info-biblioteca" data-i18n="library.loading">loading...</div>
+    <button class="acao" id="btn-regenerar" style="margin-top:12px" data-i18n="library.regenerate">Regenerate the full library</button>
+    <span class="status-msg" id="msg-regenerar"></span>
+  </div>
+</section>
+
+<!-- ================= PORTFOLIOS ================= -->
+<section id="painel-portfolios" class="painel">
+  <div class="box">
+    <h2 data-i18n="portfolio.general-map">General map</h2>
+    <div id="mapa-html" class="mapa-html" data-i18n="portfolio.loading">loading...</div>
+  </div>
+  <div class="box">
+    <h2 data-i18n="portfolio.by-system">By system</h2>
+    <div class="tabs-sub" id="tabs-sistemas-portfolio"></div>
+    <div id="portfolio-sistema-html" class="mapa-html"></div>
+    <p class="status-msg" data-i18n="portfolio.note">The set mirror only stores the validated <code>.set</code>, not the original <code>.htm</code> report — point below to a folder where you already gathered the set reports you want to compare.</p>
+    <input type="text" id="portfolio-pasta" placeholder="Folder path with .htm/.csv reports">
+    <button class="acao secundario" id="btn-gerar-portfolio" style="margin-top:12px" data-i18n="portfolio.generate">Generate correlation panel</button>
+    <span class="status-msg" id="msg-portfolio"></span>
+  </div>
+</section>
+
+<!-- ================= BROKER PROFILE ================= -->
+<section id="painel-perfil" class="painel">
+  <div class="box">
+    <h2 data-i18n="profile.interests">Interests</h2>
+    <label class="campo" data-i18n="profile.assets">Assets (empty = all; comma separated)</label>
+    <input type="text" id="perfil-ativos" placeholder="EURUSD, GBPUSD, XAUUSD">
+    <label class="campo" data-i18n="profile.systems">Systems (empty = all)</label>
+    <div class="grid-check" id="perfil-sistemas"></div>
+
+    <h2 style="margin-top:20px" data-i18n="profile.risk">Risk</h2>
+    <div class="linha">
+      <div><label class="campo" data-i18n="profile.risk-per-trade">Risk per trade %</label><input type="number" id="perfil-risco" value="1.0" step="0.1"></div>
+      <div><label class="campo" data-i18n="profile.fixed-lot">Fixed lot</label><input type="number" id="perfil-lote" value="0.01" step="0.01"></div>
+    </div>
+
+    <h2 style="margin-top:20px" data-i18n="profile.walk-forward">Walk-forward</h2>
+    <div class="linha">
+      <div><label class="campo" data-i18n="profile.final-date">Final date</label><input type="text" id="perfil-wfo-fim" value="2026.07.21"></div>
+    </div>
+
+    <div style="margin-top:16px">
+      <button class="acao secundario" id="btn-perfil-dry" data-i18n="profile.dry-run">Dry-run (show only what it would do)</button>
+      <button class="acao" id="btn-perfil-aplicar" data-i18n="profile.apply">Apply for real</button>
+    </div>
+    <span class="status-msg" id="msg-perfil"></span>
+    <pre id="saida-perfil" style="white-space:pre-wrap;font-size:12px;color:#9ca3af;margin-top:12px"></pre>
+  </div>
+  <div class="box">
+    <h2 data-i18n="profile.last-sync">Last synchronization</h2>
+    <pre id="ultima-sync" style="white-space:pre-wrap;font-size:12px;color:#9ca3af">none yet</pre>
+  </div>
+</section>
+
+<!-- ================= NATIVE COST ================= -->
+<section id="painel-custo" class="painel">
+  <div class="box">
+    <h2 data-i18n="cost.title">Measured fees (per lot)</h2>
+    <table id="tbl-custo"><thead><tr><th data-i18n="cost.symbol">Native symbol</th>
+    <th data-i18n="cost.commission">Commission/lot</th><th data-i18n="cost.swap">Swap/lot</th><th data-i18n="cost.when">Measured on</th></tr></thead>
+    <tbody></tbody></table>
+  </div>
+  <div class="box">
+    <h2 data-i18n="cost.measure-new">Measure a new symbol</h2>
+    <input type="text" id="custo-simbolo" placeholder="GBPUSD (without .HT suffix)">
+    <button class="acao" id="btn-medir-custo" style="margin-top:10px" data-i18n="cost.measure-now">Measure now</button>
+    <span class="status-msg" id="msg-custo"></span>
+  </div>
+</section>
+
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>

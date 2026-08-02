@@ -28,7 +28,7 @@ import time
 from pathlib import Path
 
 import optimize_sets as base
-from mt5_runner import garantir_terminal_livre
+from mt5_runner import garantir_terminal_livre, lancar_terminal
 
 # Indice = valor gravado no .set (enum CustomFormulaType, 0-based no .mq5).
 # 0 (None) fica de fora -- nao calcula nada, nao ha o que comparar.
@@ -92,8 +92,7 @@ def rodar_uma(trabalho: Path, args, formula: int) -> dict:
         base.escrever_ini(ini, args.symbol, args.period, rel, args.inicio,
                           args.fim, args.deposit, 1, 6, nome_relatorio)
         try:
-            subprocess.run([str(base.TERMINAL), f"/config:{ini}"],  # noqa: S603
-                           timeout=args.timeout, capture_output=True, check=False)
+            lancar_terminal(base.TERMINAL, ini, args.timeout)
         except subprocess.TimeoutExpired:
             return {"formula": formula, "nome": FORMULAS[formula],
                     "erro": f"estourou {args.timeout}s"}

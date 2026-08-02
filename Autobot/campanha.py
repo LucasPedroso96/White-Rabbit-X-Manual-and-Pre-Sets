@@ -7,12 +7,9 @@ processo: relancar o script pula o que ja foi medido e continua de onde parou.
 Sem isso, qualquer interrupcao -- cota, queda de energia, reinicio -- custaria
 todas as horas ja gastas.
 
-ORDEM: por TIPO DE SISTEMA primeiro, nao por simbolo. Sao 11 tipos e 9 simbolos
-com tick real; varrer simbolo a simbolo daria 9 medidas do 01_SLTP antes da
-primeira do 02_SLTP. Como a pergunta em aberto e "quais TIPOS sobrevivem a
-metodologia", a largura vale mais que a profundidade no comeco -- interromper
-depois de 11 corridas deixa um retrato dos 11 tipos, e nao um retrato exaustivo
-de um tipo so.
+ORDEM: por SISTEMA primeiro (grid abrindo a fila, depois peso igual pros
+outros 10), simbolo por dentro -- ver o docstring de `fila()` para o porque
+(9 simbolos .HT com tick real, o que virou default do autobot em 2026-08-02).
 
     python campanha.py                 # continua de onde parou
     python campanha.py --listar        # so mostra a fila
@@ -28,30 +25,33 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import descobrir_ativos
 import optimize_sets as base
 
 AQUI = Path(__file__).resolve().parent
 LEDGER = AQUI / "campanha_resultados.jsonl"
 
-# EURUSD SO, todos os sistemas (dono, 2026-07-31): a pergunta em aberto e
-# "quais TIPOS sobrevivem a metodologia", e ela se responde num ativo com tick
-# real. Espalhar por 9 simbolos antes disso multiplicaria por 9 o custo de
-# descobrir que um tipo nao presta. Os outros entram depois, com os tipos ja
-# triados.
-SIMBOLOS = ["EURUSD.HT"]
+# Multi-ativo (dono, 2026-08-02): a lista de simbolos NUNCA e cravada aqui --
+# uma lista fixa (ex.: "os 9 .HT do dono") so funciona na maquina de quem a
+# escreveu. Em qualquer outro terminal os simbolos nao existem, o `/config:`
+# falha em silencio, e o combo sai com "sem JSON final" (foi exatamente o
+# que aconteceu com um usuario externo do Autobot publicado). Ver
+# `descobrir_ativos.py`: auto-detecta o que este terminal/conta pode testar
+# (nativo ou injetado via Historical Tool Manager, filtrado por saldo), a
+# menos que o usuario tenha gravado uma lista propria em campanha_ativos.json.
 
-# Ordem pedida pelo dono: grid, trailing e so-indicador primeiro. O resto e
-# escolha minha, por quanto cada um ENSINA sobre o proximo:
-#   - geometria fixa (01/02/06) depois do trailing, para comparar "deixar
-#     correr" contra "alvo fixo" com o mesmo sinal ja conhecido;
-#   - recovery (09/10) por ultimo: sao os que mais dependem da geometria de
-#     saida estar resolvida, e os mais provaveis de reprovar -- se reprovarem,
-#     reprovam sabendo que o resto ja foi medido.
-SISTEMAS = ["07_GRID_SEPARATE", "08_GRID_UNIFIED",             # cesta
-            "03_TRAIL_ONLY", "04_SLTP_TRAIL", "05_BE_TRAIL",   # trailing
-            "11_SIGNAL_ONLY",                                  # so indicador
-            "01_SLTP", "02_SLTP_ORGANIC", "06_REVERSAL_EXIT",  # geometria fixa
-            "09_MARTINGALE", "10_DALEMBERT"]                   # recovery
+# Grid primeiro: e o DEFAULT do autobot/repositorio a partir de 2026-08-02,
+# nao um pedido pontual desta campanha -- decisao assumida (dono topou
+# delegar o "padrao" pra ca: "padrao e seu com o do repositorio e o autobot
+# default"). Depois do grid, MESMO peso pros outros 9 -- acabou a hierarquia
+# antiga de "trailing antes de geometria fixa antes de recovery"; a ordem
+# restante e so a ordem numerica dos sistemas, sem prioridade implicita.
+# Continua sendo o DEFAULT (nenhuma flag = esta ordem, todos os 11); o modo
+# manual do dashboard so filtra/reordena por cima disso via --sistemas.
+SISTEMAS = ["07_GRID_SEPARATE", "08_GRID_UNIFIED",
+            "01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
+            "05_BE_TRAIL", "06_REVERSAL_EXIT", "09_MARTINGALE",
+            "10_DALEMBERT", "11_SIGNAL_ONLY"]
 
 # 08_GRID_UNIFIED e bilateral: opera os dois lados no mesmo passe, entao o set
 # e BOTH_*. Os demais tem um set por lado.
@@ -72,22 +72,33 @@ def variantes(sistema: str) -> list[str]:
     return [b if duplo else a for a, b in RODADAS if not (duplo and b is None)]
 
 
-def fila() -> list[tuple[str, str, str]]:
-    """Combos na ordem de execucao: TODOS os sistemas antes de trocar de
-    variante, todas as variantes antes de trocar de simbolo.
+def fila(simbolos: list[str], sistemas: list[str] | None = None) -> list[tuple[str, str, str]]:
+    """Combos na ordem de execucao: SISTEMA por fora (grid primeiro por
+    default), depois variante, depois SIMBOLO por dentro.
 
-    Assim as 11 primeiras corridas (~4h) sao os 11 tipos em EURUSD, e nao 11
-    variacoes do mesmo tipo. Interromper cedo deixa um retrato de todos os
-    tipos; a ordem inversa deixaria um tipo exaustivamente medido e dez sem
-    nenhuma medida.
+    `simbolos` vem de `descobrir_ativos` (auto-detectado ou escolhido pelo
+    usuario) -- nunca uma lista cravada aqui, ver comentario acima.
+    `sistemas` e opcional: None usa o SISTEMAS default (todos os 11, grid
+    primeiro); passado explicitamente (modo manual do dashboard, ou
+    `--sistemas` na CLI), filtra E define a ordem -- quem chama decide a
+    prioridade, a funcao so respeita.
+
+    Multi-ativo muda o que "largura" significa (dono, 2026-08-02): com um
+    simbolo so, a largura era "todos os 11 tipos". Com varios simbolos, a
+    pergunta aberta por sistema deixou de ser "sobrevive?" (isso os 25 passes
+    da amostra de formulas ja respondeu por tipo) e passou a ser "sobrevive em
+    QUAIS ativos?" -- por isso simbolo fica por dentro: interromper no meio de
+    um sistema ainda deixa ele medido em todos os ativos, e o proximo sistema
+    (mesmo peso, so depois na fila) comeca do zero.
     """
+    sistemas = sistemas if sistemas is not None else SISTEMAS
     itens = []
-    for simbolo in SIMBOLOS:
-        for unilateral, bilateral in RODADAS:
-            for sistema in SISTEMAS:
-                v = bilateral if sistema in BILATERAL else unilateral
-                if v is None:          # bilateral nao tem BUY_* proprio
-                    continue
+    for unilateral, bilateral in RODADAS:
+        for sistema in sistemas:
+            v = bilateral if sistema in BILATERAL else unilateral
+            if v is None:              # bilateral nao tem BUY_* proprio
+                continue
+            for simbolo in simbolos:
                 if base.achar_set(simbolo, sistema, v) is not None:
                     itens.append((simbolo, sistema, v))
     return itens
@@ -165,9 +176,32 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=21600)
     ap.add_argument("--limite", type=int, default=0, help="0 = sem limite")
     ap.add_argument("--listar", action="store_true")
+    ap.add_argument("--sistemas", default="",
+                    help="lista separada por virgula, filtra e ordena "
+                         "(ex.: 07_GRID_SEPARATE,01_SLTP); vazio = os 11 default")
+    ap.add_argument("--simbolos", default="",
+                    help="lista separada por virgula, sobrepoe a "
+                         "auto-deteccao/campanha_ativos.json so nesta corrida")
     args = ap.parse_args()
 
-    todos = fila()
+    if args.simbolos.strip():
+        simbolos = [s.strip() for s in args.simbolos.split(",") if s.strip()]
+    else:
+        simbolos = descobrir_ativos.carregar_ou_descobrir()
+    if not simbolos:
+        print("Sem simbolos elegiveis -- nada a rodar.", flush=True)
+        return 1
+
+    sistemas = ([s.strip() for s in args.sistemas.split(",") if s.strip()]
+                if args.sistemas.strip() else None)
+    if sistemas:
+        desconhecidos = [s for s in sistemas if s not in SISTEMAS]
+        if desconhecidos:
+            print(f"--sistemas com codigo(s) desconhecido(s): {desconhecidos}",
+                  flush=True)
+            return 1
+
+    todos = fila(simbolos, sistemas)
     ja = feitos()
     pendentes = [c for c in todos if c not in ja]
     print(f"campanha: {len(todos)} combos | {len(ja)} feitos | "
