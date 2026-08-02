@@ -946,6 +946,18 @@ def main() -> int:
         print("    REPROVADO no Monte Carlo: a sequencia de trades depende "
               "demais da ordem em que aconteceu (ver DD p95 acima).")
 
+    # Sistemas com SL (Fixed-R) ja imprimem R METRICS a cada passe -- so
+    # nunca tinham virado gate. Expectancy negativa em R e o mesmo problema
+    # que retencao negativa: a "vantagem" nao sobrevive fora da amostra,
+    # so que medida na unidade que o dono pediu para validar aqui (R, nao
+    # dinheiro). Pedido do dono (2026-08-02): "algoritmos em Multiple R nas
+    # ultimas etapas... a formula indicada foi somar R... para sistemas com SL".
+    r_capavel = modo_de_sizing(origem) == "3"
+    if aprovado and r_capavel and oos["expectancy"] is not None and oos["expectancy"] <= 0:
+        aprovado = False
+        print(f"    REPROVADO em R: expectancy fora da amostra "
+              f"{oos['expectancy']:+.3f}R nao e positiva.")
+
     # ---- Estagio 5: prova em PERCENTUAL, e so entao salvar ------------------
     # O circuito inteiro mediu em Fixed-R com capital base fixo: 1R identico em
     # todo passe, sem juros compostos -- e o que torna as metricas comparaveis.
@@ -1016,6 +1028,14 @@ def main() -> int:
     # nosso terminal); o set entregue volta para Auto -- cada comprador ve
     # o dashboard no idioma do proprio terminal dele.
     entrega["InterfaceLanguage"] = "0"
+    if r_capavel:
+        # Formula_SomaR (14): pedido do dono ao implementar o Multiplo R --
+        # sistemas com SL validam (e entregam) medidos em R, nao na formula
+        # usada para MOLDAR a busca genetica (9/8, escolhidas para nao punir
+        # sorte concentrada / filtro que reduz trades). SomaR sozinho nunca
+        # decide quem vence aqui: so um candidato chega a entrega, ja aprovado
+        # em retencao + divergencia + Monte Carlo + expectancy em R acima.
+        entrega["selectedFormula"] = "14"
     if sizing_entrega == "percentage":
         # A prova do estagio 5 foi em %, entao e em % que o set sai: entregar
         # em Fixed-R seria entregar um modo que a ultima conferencia nao mediu.
