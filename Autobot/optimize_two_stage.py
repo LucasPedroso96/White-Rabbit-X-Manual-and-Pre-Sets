@@ -37,6 +37,14 @@ otimizacao cara teria enterrado.
   ESTAGIO 3 (IS+OOS)  FILTROS DE EXECUCAO: hora, dia e spread -- os ultimos a
                     rodar, otimizando em In-Sample + Out-Sample por decisao
                     do dono. So sao adotados se MELHORAREM a retencao.
+  ESTAGIO 3.5 (tick real, SO GRID)  GEOMETRIA DO GRID: reabre so os ~4 eixos
+                    de saida (Take, DistanciaMinima, VelaTake,
+                    UsarsomenteATRGRID) sobre o resto ja travado, e busca
+                    DIRETO em tick real (dono, 2026-08-03, apos medir 45%+ de
+                    divergencia no grid). Pequeno o bastante pra ser viavel
+                    (~10-25 min); ataca a causa raiz -- geometria de saida e
+                    a unica parte do grid que realmente diverge OHLC vs tick
+                    real -- em vez de so reprovar depois de pronta.
   ESTAGIO 4 (ticks reais)  CONFIRMACAO do vencedor unico (~35s por passe):
                     retencao em IS+OOS e divergencia OHLC vs tick real.
                     Reprovou em qualquer uma, nao promove.
@@ -62,6 +70,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -73,6 +82,11 @@ import custo_nativo
 import monte_carlo_wrx
 import optimize_sets as base
 from mt5_runner import garantir_terminal_livre, lancar_terminal
+
+AQUI = Path(__file__).resolve().parent
+RELATORIOS_DIR = AQUI / "campanha_relatorios"
+RELATORIO_ARQUIVOS = ("conf_wrx.htm", "conf_wrx.png", "conf_wrx-hst.png",
+                      "conf_wrx-mfemae.png", "conf_wrx-holding.png")
 
 # FASE 1 = DESCOBERTA DE REGIOES (pedido do dono, 2026-07-31): o grupo de
 # Entradas COMPLETO -- indicador, metodo, timeframe, applied price, periodos,
@@ -111,7 +125,7 @@ ESCRITA = {"EntryIndicator", "EntryMethod", "TimeFrame", "InpAppliedPrice",
            "AtivarTrailATR", "UsarsomenteATRGRID",
            "ReversalExitUseEntryFilters",
            "AtivarFiltroMA", "AtivarFiltroADX", "AtivarFiltroMTF",
-           "EntradaATR"}
+           "EntradaATR", "Hedging"}
 
 # FASE 2 = SO NUMEROS: com a escrita travada, refinam-se os eixos numericos na
 # faixa fina da biblioteca -- periodos, multiplicadores, distancias, limiares.
@@ -122,9 +136,25 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
            "Stop", "Take", "Trail", "BreakevenDistancia",
            "Multiplicador", "DistanciaMinima", "MaxMartingaleSteps",
            "DAlembertStep",
-           "MA_Period", "MA_SlopeLookback", "ADX_Period", "ADX_Limiar",
+           "MA_TimeFrame", "MA_Period", "MA_SlopeLookback",
+           "ADX_TimeFrame", "ADX_Period", "ADX_Limiar",
            "MA_Method", "MetodoMA", "SentidoMA", "MA_AppliedPrice",
            "MetodoADX", "MTF_RequererAmbos", "VolatilityFilter"]
+
+# Geometria de saida do grid (dono, 2026-08-03): medido que grid diverge
+# OHLC->tick real em ate 45%+ (23x subestimado, ver docstring do modulo) --
+# e SO na geometria de saida, porque a entrada (indicador/metodo/timeframe)
+# da o MESMO instante nos dois modelos por construcao (anti-repaint no
+# fechamento da barra). Buscar o circuito inteiro em tick real e inviavel
+# (medido: ~7-8x mais lento por passe que OHLC, semanas por simbolo em
+# escala) -- mas reabrir SO estes ~4 eixos, ja travados pelas fases 1/2 em
+# OHLC, e um genetico pequeno e barato o bastante pra rodar direto em tick
+# real. GATES confirma que sao os unicos eixos de geometria do grid
+# realmente ativos (Trail/TrailVela/MetodoDeCalculo ficam mortos porque
+# AtivarTrailATR e cravado false; VelaStop morto porque AtivarStop e false).
+SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE", "08_GRID_UNIFIED"}
+EIXOS_GEOMETRIA_TICK_REAL = ["Take", "DistanciaMinima", "VelaTake",
+                            "UsarsomenteATRGRID"]
 
 # Parametro -> indicadores que REALMENTE o usam, lido na criacao dos handles
 # do EA (~1234-1290). Fora dessa lista o parametro nao entra no calculo, entao
@@ -213,12 +243,14 @@ GATES = {
     "Trail": "AtivarTrailATR",
     "VelaTake": "AtivarTake",
     "VelaStop": "AtivarStop",
+    "MA_TimeFrame": "AtivarFiltroMA",
     "MA_Period": "AtivarFiltroMA",
     "MetodoMA": "AtivarFiltroMA",
     "MA_Method": "AtivarFiltroMA",
     "SentidoMA": "AtivarFiltroMA",
     "MA_AppliedPrice": "AtivarFiltroMA",
     "MA_SlopeLookback": "AtivarFiltroMA",
+    "ADX_TimeFrame": "AtivarFiltroADX",
     "ADX_Period": "AtivarFiltroADX",
     "ADX_Limiar": "AtivarFiltroADX",
     "MetodoADX": "AtivarFiltroADX",
@@ -398,10 +430,19 @@ def torneio_retencao(candidatos, cab, metricas, origem: Path, trabalho: Path,
     saida = []
     for i, linha in enumerate(candidatos, 1):
         if linha is None:
-            cand, lucro_is = {}, 0.0
+            cand, lucro_is, trades_is = {}, 0.0, None
         else:
             cand = {c: v for c, v in zip(cab, linha) if c not in metricas}
             lucro_is = base.num(linha[cab.index("Profit")])
+            # Trades OOS (R METRICS) so existe pra sistemas Fixed-R -- grid e
+            # recovery usam lote fixo/monetario e o bloco nunca aparece no
+            # log da EA, deixando `r['trades']` sempre None (achado real,
+            # 2026-08-03: candidato aprovado sem NENHUMA visao de quantos
+            # trades geraram o lucro). A coluna "Trades" do proprio relatorio
+            # genetico existe pra qualquer sizing e nao depende de idioma do
+            # terminal -- serve de contagem IN-SAMPLE quando o R METRICS falha.
+            trades_is = (int(base.num(linha[cab.index("Trades")]))
+                        if "Trades" in cab else None)
         passo = dict(travados, **cand, MetodoDeEntradawfo="1")
         reescrever(origem, trabalho, [], passo)
         faltando = conferir_set(trabalho, passo)
@@ -411,9 +452,19 @@ def torneio_retencao(candidatos, cab, metricas, origem: Path, trabalho: Path,
         r = passe_unico(trabalho, args.symbol, args.period, args.inicio,
                         args.fim, args.deposit, modelo)
         ret, exp = r["retencao"], r["expectancy"]
+        # trades_is viaja com `r` (nao so no print) pra chegar ate o ledger --
+        # sem isso o "trades" do combo vencedor (conf[0], usado no JSON final)
+        # ficava None pra sempre em grid/martingale/d'Alembert, e a coluna
+        # Trades do dashboard nunca mostrava nada pra exatamente os sistemas
+        # que motivaram o achado (2026-08-03).
+        r["trades_is"] = trades_is
+        trades_txt = (f"{r['trades']} trades" if r["trades"] is not None
+                     else (f"~{trades_is} trades (IS, R METRICS indisponivel "
+                           "neste sizing)" if trades_is is not None
+                           else "trades n/d"))
         print(f"      {i:2}. lucro IS {lucro_is:>8.2f} | retencao "
               f"{'    n/d' if ret is None else f'{ret:>7.1f}%'} | "
-              f"{r['trades']} trades | expectancy "
+              f"{trades_txt} | expectancy "
               f"{'n/d' if exp is None else f'{exp:+.3f}R'}", flush=True)
         saida.append((ret, lucro_is, cand, r))
     # Sem retencao medida vai para o fim: ausencia de medida nao e boa medida.
@@ -644,6 +695,33 @@ def rodar(caminho_set: Path, symbol: str, periodo: str, inicio: str, fim: str,
     if not candidatos:
         return [], []
     return base.ler_relatorio(candidatos[0])
+
+
+def arquivar_relatorio(symbol: str, sistema: str, variante: str) -> str | None:
+    """Copia conf_wrx.* (confirmacao IS+OOS, tick real) pra fora de DADOS
+    antes do proximo passe (divergencia) sobrescrever -- mesmo relatorio que
+    o Monte Carlo logo acima acabou de ler. Roda pra TODO combo, aprovado ou
+    nao: e a base do "certificado de qualidade" (dono, 2026-08-03) e do que
+    faltava no dashboard -- "um monte de relatorio, e nao temos nada la".
+
+    Chave SEM timestamp: uma recorrida do mesmo combo substitui o relatorio
+    anterior, mesma convencao do `VALIDADO_*.set` de entrega. Nunca aborta o
+    combo -- e um extra pro dashboard, nao faz parte do veredito.
+    """
+    pasta_rel = f"{symbol.replace('.', '_')}__{sistema}__{variante}"
+    destino = RELATORIOS_DIR / pasta_rel
+    try:
+        destino.mkdir(parents=True, exist_ok=True)
+        copiados = 0
+        for nome in RELATORIO_ARQUIVOS:
+            origem_arq = base.DADOS / nome
+            if origem_arq.exists():
+                shutil.copy2(origem_arq, destino / nome)
+                copiados += 1
+        return pasta_rel if copiados else None
+    except OSError as exc:
+        print(f"    AVISO: nao arquivou o relatorio ({exc})", flush=True)
+        return None
 
 
 def main() -> int:
@@ -877,6 +955,53 @@ def main() -> int:
     else:
         print("    nenhum eixo de execucao com faixa neste set.", flush=True)
 
+    # ---- Estagio 3.5: GEOMETRIA DO GRID em TICKS REAIS -----------------------
+    # So sistemas grid (ver comentario em SISTEMAS_GEOMETRIA_TICK_REAL). Reabre
+    # so os eixos de saida sobre o resto ja travado (indicador, regiao,
+    # filtros) e busca DIRETO em tick real -- pequeno o bastante (4 eixos) pra
+    # ser viavel, e ataca a causa raiz da divergencia do grid em vez de so
+    # medi-la depois de pronta.
+    lucro_ohlc_pre_geometria = ordenados[0][1] if ordenados else None
+    geometria_refeita_tick_real = False
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        # reescrever() trava (nome in travar) ANTES de checar `otimizar` --
+        # esses 4 eixos ja estao em `travados` desde a fase 2 (NUMEROS), entao
+        # precisam sair do dict passado aqui pra virarem Y de verdade. Achado
+        # ao ver "0 parametros" no primeiro combo real (AUDCAD): a fase nunca
+        # rodou, so revalidou o mesmo ponto que a fase 2 ja tinha achado.
+        travados_sem_geo = {k: v for k, v in travados.items()
+                           if k not in EIXOS_GEOMETRIA_TICK_REAL}
+        n = reescrever(origem, trabalho, EIXOS_GEOMETRIA_TICK_REAL,
+                      travados_sem_geo)
+        print(f"\n  [3.5/5] geometria do grid em TICKS REAIS ({n} parametros: "
+              f"{EIXOS_GEOMETRIA_TICK_REAL})", flush=True)
+        t0 = time.time()
+        cab_g, linhas_g = rodar(trabalho, args.symbol, args.period,
+                                args.inicio, args.fim, args.deposit, 4,
+                                args.timeout)
+        geo_ok = (base.escolher_candidatos(cab_g, linhas_g, args.min_trades,
+                                           args.min_pf) if linhas_g else [])
+        print(f"    {(time.time()-t0)/60:.1f} min | aptos: {len(geo_ok)} de "
+              f"{len(linhas_g)}", flush=True)
+        if geo_ok:
+            ord_g = torneio_retencao(geo_ok[:args.finalistas], cab_g,
+                                     metricas, origem, trabalho, travados,
+                                     args, 4, "geometria grid (tick real, "
+                                     "~35s cada)")
+            if ord_g and ord_g[0][0] is not None:
+                geometria_refeita_tick_real = True
+                print(f"    geometria refeita em tick real: retencao "
+                      f"{ordenados[0][0]} -> {ord_g[0][0]}", flush=True)
+                travados.update(ord_g[0][2])
+                otimizados.update(ord_g[0][2])
+                ordenados = ord_g
+            else:
+                print("    torneio da geometria sem medida; mantida a "
+                      "geometria de OHLC.", flush=True)
+        else:
+            print("    nenhum candidato de geometria passou os pisos; "
+                  "mantida a geometria de OHLC.", flush=True)
+
     # ---- Estagio 4: confirmacao em TICKS REAIS ------------------------------
     print("\n  [4/5] confirmacao em TICKS REAIS", flush=True)
     t0 = time.time()
@@ -911,6 +1036,8 @@ def main() -> int:
               + ("" if mc_aprovado else " -- REPROVADO no Monte Carlo"),
               flush=True)
 
+    relatorio_dir = arquivar_relatorio(args.symbol, args.sistema, args.variante)
+
     # A divergencia exige um passe a mais, em modo In-Sample: ela compara o
     # MESMO conjunto de parametros nos dois modelos de tick, e o estagio 2 rodou
     # em In-Sample. Comparar contra o passe IS+OOS misturaria duas mudancas --
@@ -933,9 +1060,14 @@ def main() -> int:
         print("    a conferencia nao produziu resultado -- verifique o log.")
     elif abs(lucro_ohlc) > 1e-9:
         div = abs(lucro_real - lucro_ohlc) / abs(lucro_ohlc) * 100
-        print(f"\n    lucro em OHLC:       {lucro_ohlc:>10.2f}")
+        rotulo_base = ("lucro na busca (tick real):"
+                       if geometria_refeita_tick_real else "lucro em OHLC:")
+        print(f"\n    {rotulo_base:<21}{lucro_ohlc:>10.2f}")
         print(f"    lucro em tick real:  {lucro_real:>10.2f}")
         print(f"    divergencia:         {div:>9.1f}%")
+        if geometria_refeita_tick_real and lucro_ohlc_pre_geometria is not None:
+            print(f"    (memo: geometria OHLC prometia {lucro_ohlc_pre_geometria:.2f} "
+                  f"na mesma busca -- comparavel ao lucro em tick real acima)")
 
     # Custo nativo (dono, 2026-08-02): simbolo .HT sai com comissao/swap ZERO
     # por construcao (CustomSymbolCreate nao herda isso do broker -- e config
@@ -1079,10 +1211,17 @@ def main() -> int:
                       "sizing_entrega": sizing_entrega,
                       "expectancy_r": oos["expectancy"],
                       "trades_oos": oos["trades"],
+                      "trades_is": oos.get("trades_is"),
                       "mc_dd_p95": mc["mc_dd_p95"] if mc else None,
                       "mc_dd_observado": mc["mc_dd_observado"] if mc else None,
                       "mc_prob_ruina": mc["mc_prob_ruina"] if mc else None,
                       "mc_aprovado": mc_aprovado,
+                      # So-informativo, nunca usado no veredito: mc_aprovado
+                      # comeca True de proposito (grid/martingale/d'Alembert
+                      # sao estruturalmente isentos de MC) -- sem isso o
+                      # dashboard nao distingue "MC passou" de "MC nem rodou".
+                      "mc_medido": mc is not None and mc.get("mc_dd_p95") is not None,
+                      "relatorio_dir": relatorio_dir,
                       "parametros": {**otimizados, **vencedor}},
                      ensure_ascii=False))
     return 0

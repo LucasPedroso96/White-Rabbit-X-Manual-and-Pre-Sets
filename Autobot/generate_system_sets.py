@@ -122,16 +122,20 @@ GATES_DEPENDENCIAS = {
     "VelaStop": "AtivarStop",
     "BreakevenDistancia": "AtivarBreakeven",
     "MTF_RequererAmbos": "AtivarFiltroMTF",
+    "MA_TimeFrame": "AtivarFiltroMA",
     "MA_Period": "AtivarFiltroMA",
     "MA_Method": "AtivarFiltroMA",
     "MetodoMA": "AtivarFiltroMA",
     "SentidoMA": "AtivarFiltroMA",
     "MA_AppliedPrice": "AtivarFiltroMA",
     "MA_SlopeLookback": "AtivarFiltroMA",
+    "ADX_TimeFrame": "AtivarFiltroADX",
     "ADX_Period": "AtivarFiltroADX",
     "ADX_Limiar": "AtivarFiltroADX",
     "MetodoADX": "AtivarFiltroADX",
     "VolatilityFilter": "EntradaATR",
+    "NewsMinutosAntes": "AtivarFiltroNoticias",
+    "NewsMinutosDepois": "AtivarFiltroNoticias",
 }
 
 

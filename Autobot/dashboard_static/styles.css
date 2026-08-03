@@ -76,15 +76,23 @@ h2 { font-size: 16px; color: var(--muted); margin-top: 0; }
   font-weight: 600; z-index: 2;
 }
 .hm-cell { display: inline-block; width: 22px; height: 16px; border-radius: 4px; }
-.hm-cell.aprovado { background: #1f7a43; }
-.hm-cell.reprovado { background: #8a2c2c; }
-.hm-cell.sem_teste { background: var(--bg3); opacity: .55; }
+.hm-cell.hm-none { background: var(--bg3); opacity: .55; }
+.hm-cell.hm-fail { background: #8a2c2c; }
+.hm-cell.hm-low  { background: #7a5a30; }
+.hm-cell.hm-mid  { background: #96803a; }
+.hm-cell.hm-high { background: #1f7a43; }
+.hm-cell.hm-pass { background: #3a6b52; }
 table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
 th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 th { color: var(--muted); font-weight: 600; }
 tr.ok td:first-child { border-left: 3px solid var(--ok); }
 tr.no td:first-child { border-left: 3px solid var(--no); }
 .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+.linha-oculta { display: none; }
+tr.linha-detalhe td { background: var(--bg3); border-left: 3px solid var(--accent-2); }
+.detalhe-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 16px; font-size: 12px; color: var(--muted); padding: 4px 0; }
+.detalhe-grid b { color: var(--text); }
+.detalhe-grid a { color: var(--accent-2); }
 .pill.ok { background: #14532d; color: var(--ok); }
 .pill.no { background: #3a1b1b; color: var(--no); }
 #atual {

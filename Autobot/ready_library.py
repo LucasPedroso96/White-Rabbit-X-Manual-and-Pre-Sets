@@ -6,7 +6,7 @@ Os sets validados pelo circuito nascem soltos na raiz de Profiles/Tester
 subir um set: "para ESTE ativo e ESTE sistema, existe algo pronto?". A
 resposta certa mora na mesma geografia da biblioteca -- por isso o espelho:
 
-    White_Rabbit_X_Sets_PRONTOS/<classe>/<ativo>/<sistema>/＊BUY_MULTI.set
+    White_Rabbit_X_Sets_Autobot/<classe>/<ativo>/<sistema>/＊BUY_MULTI.set
 
 A arvore e um clone 1:1 das pastas da biblioteca, entao o dialogo "Load" do
 Strategy Tester navega nela do jeito que ja se navega nos templates. Pasta

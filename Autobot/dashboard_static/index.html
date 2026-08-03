@@ -38,6 +38,7 @@
   <button data-tab="portfolios" data-i18n="nav.portfolios">Portfolios</button>
   <button data-tab="perfil" data-i18n="nav.broker">Broker profile</button>
   <button data-tab="custo" data-i18n="nav.native-cost">Native cost</button>
+  <button data-tab="implantacao">Deployment</button>
 </nav>
 <main>
 
@@ -75,7 +76,8 @@
   <th data-i18n="table.approved">Approved</th></tr></thead><tbody></tbody></table>
   <h2 data-i18n="campaign.recent-combos">Latest combos</h2>
   <table id="tbl-recentes"><thead><tr><th data-i18n="table.symbol">Symbol</th><th data-i18n="table.system">System</th>
-  <th data-i18n="table.variant">Variant</th><th data-i18n="table.verdict">Verdict</th><th data-i18n="table.retention">Retention</th><th data-i18n="table.minutes">Min</th>
+  <th data-i18n="table.variant">Variant</th><th data-i18n="table.verdict">Verdict</th><th data-i18n="table.retention">Retention</th>
+  <th>Expectancy</th><th>Trades</th><th data-i18n="table.minutes">Min</th><th></th>
   </tr></thead><tbody></tbody></table>
 </section>
 
@@ -141,6 +143,12 @@
     <button class="acao secundario" id="btn-gerar-portfolio" style="margin-top:12px" data-i18n="portfolio.generate">Generate correlation panel</button>
     <span class="status-msg" id="msg-portfolio"></span>
   </div>
+  <div class="box">
+    <h2>Correlation panel</h2>
+    <div class="tabs-sub" id="tabs-portfolio-gerados"></div>
+    <iframe id="portfolio-iframe" style="display:none;width:100%;height:640px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
+    <span class="status-msg" id="msg-portfolio-iframe">No correlation panel generated yet.</span>
+  </div>
 </section>
 
 <!-- ================= BROKER PROFILE ================= -->
@@ -181,7 +189,8 @@
   <div class="box">
     <h2 data-i18n="cost.title">Measured fees (per lot)</h2>
     <table id="tbl-custo"><thead><tr><th data-i18n="cost.symbol">Native symbol</th>
-    <th data-i18n="cost.commission">Commission/lot</th><th data-i18n="cost.swap">Swap/lot</th><th data-i18n="cost.when">Measured on</th></tr></thead>
+    <th data-i18n="cost.commission">Commission/lot</th><th data-i18n="cost.swap">Swap/lot</th>
+    <th>Entries</th><th>Volume (lots)</th><th>Period</th><th data-i18n="cost.when">Measured on</th></tr></thead>
     <tbody></tbody></table>
   </div>
   <div class="box">
@@ -189,6 +198,27 @@
     <input type="text" id="custo-simbolo" placeholder="GBPUSD (without .HT suffix)">
     <button class="acao" id="btn-medir-custo" style="margin-top:10px" data-i18n="cost.measure-now">Measure now</button>
     <span class="status-msg" id="msg-custo"></span>
+  </div>
+</section>
+
+<!-- ================= DEPLOYMENT ================= -->
+<section id="painel-implantacao" class="painel">
+  <div class="box">
+    <h2>Certified sets</h2>
+    <p class="status-msg">Only sets with an archived validation report (equity curve, trade blotter, Monte Carlo)
+      count as certified — a bare <code>.set</code> without evidence is not exportable. This panel never touches a
+      live/VPS account: it only prepares a download; taking it there is up to you.</p>
+    <div class="linha" style="margin:10px 0">
+      <button class="acao secundario" id="btn-implantacao-todos">Select all certified</button>
+      <button class="acao secundario" id="btn-implantacao-nenhum">Clear selection</button>
+      <button class="acao" id="btn-implantacao-exportar">Export selected (.zip)</button>
+    </div>
+    <span class="status-msg" id="msg-implantacao"></span>
+    <table id="tbl-implantacao">
+      <thead><tr><th></th><th>Symbol</th><th>System</th><th>Variant</th><th>Retention</th>
+      <th>Certificate</th><th>Deployed</th></tr></thead>
+      <tbody></tbody>
+    </table>
   </div>
 </section>
 
