@@ -732,6 +732,12 @@ langPicker?.addEventListener('change', (event) => {
   applyTranslations(event.target.value);
 });
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
 let deferredInstallPrompt = null;
 const installButton = document.getElementById("btn-install");
 

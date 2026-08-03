@@ -698,6 +698,14 @@ def home() -> FileResponse:
     return FileResponse(str(ESTATICOS / "index.html"))
 
 
+@app.get("/sw.js")
+def service_worker() -> FileResponse:
+    # Servido na raiz (nao em /static/sw.js) de proposito -- o escopo padrao
+    # de um service worker e a pasta de onde ele foi servido, e a pagina que
+    # ele precisa controlar (o dashboard) mora em "/", nao em "/static/".
+    return FileResponse(str(ESTATICOS / "sw.js"), media_type="application/javascript")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
