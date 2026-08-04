@@ -638,6 +638,86 @@ def ler_metricas(log: str) -> dict:
     }
 
 
+_PADRAO_ALL_FORMULAS = re.compile(
+    r"ALL_FORMULAS Profit=([-\d.]+) Trades=(\d+) GrossProfit=([-\d.]+) "
+    r"GrossLoss=([-\d.]+) EquityDDPercent=([-\d.]+) Sharpe=([-\d.]+) "
+    r"InitialDeposit=([-\d.]+) \| GridSurvival=([-\d.]+) "
+    r"ProfitFormula=([-\d.]+) ProfitWinTradeDD=([-\d.]+) "
+    r"EffRelDeposit=([-\d.]+) AdjEffGrid=([-\d.]+) "
+    r"ProfitRelDDDeposit=([-\d.]+) PPTDD=([-\d.]+) SharpeAdjDD=([-\d.]+) "
+    r"PessimisticProfit=([-\d.]+) ResilienceDD=([-\d.]+) "
+    r"ReturnUniformity=([-\d.]+) SystemRobustness=([-\d.]+) "
+    r"LevainComposite=([-\d.]+) SomaR=([-\d.]+)")
+
+_CAMPOS_ALL_FORMULAS = [
+    "profit", "trades", "gross_profit", "gross_loss", "equity_dd_pct",
+    "sharpe", "initial_deposit", "grid_survival", "profit_formula",
+    "profit_win_trade_dd", "eff_rel_deposit", "adj_eff_grid",
+    "profit_rel_dd_deposit", "pptdd", "sharpe_adj_dd", "pessimistic_profit",
+    "resilience_dd", "return_uniformity", "system_robustness",
+    "levain_composite", "soma_r",
+]
+
+
+def ler_todas_formulas(log: str) -> list[dict]:
+    """Le TODAS as linhas ALL_FORMULAS de um log, uma por passe (ordem de
+    execucao, nao a ordem do relatorio).
+
+    Cada formula e calculada pela PROPRIA EA (OnTester, 2026-08-04) --
+    GridSurvivalScore e PessimisticProfit usam desvio-padrao/contagem de
+    trades individuais via g_closedOperations[], dado que nao sobrevive no
+    relatorio resumido do genetico. Reimplementar essas duas em Python a
+    partir das colunas do relatorio teria dado numero aproximado, nao real
+    -- por isso a EA imprime, em vez do Python recalcular.
+
+    Funcao separada de proposito, mesmo padrao de ler_metricas: testa em
+    milissegundos contra um log gravado, sem precisar do MT5.
+    """
+    saida = []
+    for m in _PADRAO_ALL_FORMULAS.finditer(log):
+        valores = m.groups()
+        d = {campo: (int(v) if campo == "trades" else float(v))
+             for campo, v in zip(_CAMPOS_ALL_FORMULAS, valores)}
+        saida.append(d)
+    return saida
+
+
+def casar_formula_com_relatorio(cab: list[str], linhas: list[list[str]],
+                                todas_formulas: list[dict],
+                                tolerancia_pct: float = 0.001) -> dict[int, dict]:
+    """Casa cada linha do relatorio .xml do genetico (por indice) com o
+    dict de formulas do MESMO passe, lido do log.
+
+    O relatorio do genetico reordena as linhas por resultado -- a ordem em
+    que elas aparecem NAO e a ordem de execucao dos passes, entao nao da
+    pra casar por posicao. O casamento usa Profit+Trades (+Equity DD % se
+    disponivel) como impressao digital: os dois lados vem da MESMA chamada
+    de TesterStatistics() no mesmo passe, entao devem bater quase exato.
+    """
+    if "Profit" not in cab or "Trades" not in cab:
+        return {}
+    i_profit = cab.index("Profit")
+    i_trades = cab.index("Trades")
+    i_dd = cab.index("Equity DD %") if "Equity DD %" in cab else None
+    casados: dict[int, dict] = {}
+    usados: set[int] = set()
+    for idx_linha, linha in enumerate(linhas):
+        profit_rel = base.num(linha[i_profit])
+        trades_rel = int(base.num(linha[i_trades]))
+        dd_rel = base.num(linha[i_dd]) if i_dd is not None else None
+        for idx_f, f in enumerate(todas_formulas):
+            if idx_f in usados or f["trades"] != trades_rel:
+                continue
+            if abs(f["profit"] - profit_rel) > max(0.01, abs(profit_rel) * tolerancia_pct):
+                continue
+            if dd_rel is not None and abs(f["equity_dd_pct"] - dd_rel) > 0.5:
+                continue
+            casados[idx_linha] = f
+            usados.add(idx_f)
+            break
+    return casados
+
+
 def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
                 fim: str, deposito: int, modelo: int,
                 timeout: int = 3600) -> dict:
