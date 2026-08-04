@@ -59,6 +59,14 @@ LEDGER = AQUI / "campanha_resultados.jsonl"
 MARCA = "\uff0a"          # ＊ -- ver docstring
 PASTA_PORTFOLIOS = "_PORTFOLIOS"
 
+# Espelha optimize_two_stage.py/generate_system_sets.py: sistemas com SL
+# validam em R (Fixed-R). Fora daqui: lote fixo/monetario -- CapitalBaseR,
+# expectancy em R e MC nunca se aplicam, e "0"/"n/d" nao e ausencia de
+# medida, e "essa metrica nao existe pra esse sizing" (achado do dono,
+# 2026-08-04: portfolio mostrava 0/n/d sem dizer qual dos dois era).
+SISTEMAS_R_CAPAZES = {"01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY",
+                      "04_SLTP_TRAIL", "05_BE_TRAIL", "06_REVERSAL_EXIT"}
+
 # O sistema comeca com dois digitos e a variante e um conjunto fechado; e isso
 # que torna o parse do nome nao-ambiguo mesmo com underscores no simbolo
 # (EURUSD.HT vira EURUSD_HT na gravacao).
@@ -217,8 +225,11 @@ def sincronizar(biblioteca: Path = BIBLIOTECA, tester: Path = TESTER,
             "retencao": reg.get("retencao_oos"),
             "expectancy": reg.get("expectancy_r"),
             "trades": reg.get("trades_oos"),
+            "trades_is": reg.get("trades_is"),
             "mc_prob_ruina": reg.get("mc_prob_ruina"),
+            "mc_medido": reg.get("mc_medido", False),
             "capital": ler_param(origem, "CapitalBaseR"),
+            "sizing_fixed_r": info["sistema"] in SISTEMAS_R_CAPAZES,
         })
 
     # 3. Marcador orfao sai: um VALIDADO_ removido da raiz (recorrida que
@@ -316,8 +327,11 @@ def _gerar_portfolios(destino: Path, prontos: list[dict]) -> None:
         # jogaria retencao 0.0 (medida, e ruim) no mesmo balde de None.
         membros.sort(key=lambda m: -(m["retencao"]
                                      if m["retencao"] is not None else -9e9))
+        # So soma capital de membro R-capaz: CapitalBaseR=0 em lote fixo/
+        # monetario nao e "capital zero", e "essa metrica nao existe aqui" --
+        # somar junto subestimaria o capital real de um portfolio misto.
         capitais = [float(m["capital"]) for m in membros
-                    if m["capital"] not in (None, "")]
+                    if m["sizing_fixed_r"] and m["capital"] not in (None, "")]
         linhas = [
             f"# Portfolio — {sistema}",
             "",
@@ -332,13 +346,27 @@ def _gerar_portfolios(destino: Path, prontos: list[dict]) -> None:
         for m in membros:
             exp = m["expectancy"]
             ruina = m.get("mc_prob_ruina")
+            r_capaz = m["sizing_fixed_r"]
+            trades_txt = (str(m["trades"]) if m["trades"] is not None
+                         else (f"~{m['trades_is']} (IS)"
+                               if m.get("trades_is") is not None
+                               else "n/d"))
+            # MC e CapitalBaseR nao existem fora de Fixed-R -- "nao se aplica"
+            # e um fato do sizing, nao ausencia de medida (mesma distincao
+            # que mc_medido ja faz no dashboard principal).
+            ruina_txt = ("n/a (fora de Fixed-R)" if not r_capaz
+                        else "n/d" if not m.get("mc_medido")
+                        else f"{ruina*100:.1f}%" if ruina is not None
+                        else "n/d")
+            capital_txt = ("n/a (lote fixo)" if not r_capaz
+                          else (m["capital"] or "n/d"))
             linhas.append(
                 f"| {m['simbolo']} | {m['variante']} "
                 f"| {_fmt(m['retencao'], '%')} "
                 f"| {'n/d' if exp is None else f'{exp:+.3f}R'} "
-                f"| {m['trades'] if m['trades'] is not None else 'n/d'} "
-                f"| {'n/d' if ruina is None else f'{ruina*100:.1f}%'} "
-                f"| {m['capital'] or 'n/d'} "
+                f"| {trades_txt} "
+                f"| {ruina_txt} "
+                f"| {capital_txt} "
                 # classe/ativo/sistema sempre carregam a MARCA aqui: um
                 # membro so entra em `prontos` porque ele PROPRIO fez essas
                 # tres pastas serem marcadas (ver _marcar_ancestrais).
