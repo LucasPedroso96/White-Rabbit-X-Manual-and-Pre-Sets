@@ -927,6 +927,18 @@ document.getElementById("btn-stop").addEventListener("click", async () => {
   carregarEstado();
 });
 
+// Preenche os campos de data final com HOJE, calculado no carregamento --
+// um valor cravado no HTML fica velho silenciosamente (achado ao vivo,
+// 2026-08-03: campo esquecido em 2026.07.21 fez o EURUSD grid rodar contra
+// uma janela 13 dias mais curta do que devia, sem nenhum aviso).
+function hojeMT5() {
+  const d = new Date();
+  const dois = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${dois(d.getMonth() + 1)}.${dois(d.getDate())}`;
+}
+document.getElementById("campo-fim").value = hojeMT5();
+document.getElementById("perfil-wfo-fim").value = hojeMT5();
+
 setInterval(() => { carregarStatus(); carregarEstado(); carregarHeatmap(); }, 8000);
 applyTranslations(langPicker?.value || 'en');
 carregarStatus();

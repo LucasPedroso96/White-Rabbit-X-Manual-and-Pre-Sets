@@ -39,6 +39,7 @@ import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from pathlib import Path
 
 from mt5_runner import garantir_terminal_livre, lancar_terminal
@@ -287,7 +288,7 @@ def main() -> int:
     # input "Current TF" colapsar pro period do chart em vez do TF pretendido.
     ap.add_argument("--period", default="M1")
     ap.add_argument("--from", dest="inicio", default="2024.01.01")
-    ap.add_argument("--to", dest="fim", default="2026.07.21")
+    ap.add_argument("--to", dest="fim", default=datetime.now().strftime("%Y.%m.%d"))
     ap.add_argument("--deposit", type=int, default=10000)
     ap.add_argument("--model", type=int, default=1,
                     help="1 = OHLC M1 (rapido). 4 = ticks reais (fiel a "

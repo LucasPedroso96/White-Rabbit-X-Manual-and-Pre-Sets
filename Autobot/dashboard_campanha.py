@@ -411,7 +411,7 @@ def campanha_start(body: dict) -> JSONResponse:
         "--from",
         body.get("inicio", "2023.08.01"),
         "--to",
-        body.get("fim", "2026.07.21"),
+        body.get("fim") or datetime.now().strftime("%Y.%m.%d"),
         "--deposit",
         str(body.get("deposit", 500)),
         "--min-retencao",

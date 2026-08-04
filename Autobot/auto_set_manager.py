@@ -59,7 +59,7 @@ PERFIL_MODELO = {
     "walk_forward": {
         "_comentario": "ligar=false mantem o WFO desligado nos sets.",
         "ligar": False,
-        "data_final": "2026.07.21",
+        "data_final": datetime.now().strftime("%Y.%m.%d"),
         "is_dias": 122,
         "oos_dias": 61,
     },
@@ -322,7 +322,7 @@ def main() -> int:
         if wfo.get("ligar"):
             mudancas.update({
                 "AtivarWFO": "true",
-                "input_end_date": wfo.get("data_final", "2026.07.21"),
+                "input_end_date": wfo.get("data_final") or datetime.now().strftime("%Y.%m.%d"),
                 "wfo_windowSize": "-1",
                 "wfo_customWindowSizeDays": str(wfo.get("is_dias", 122)),
                 "wfo_stepSize": "-1",

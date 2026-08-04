@@ -738,7 +738,7 @@ def main() -> int:
     # espaco de busca encolhe silenciosamente sem nenhum erro.
     ap.add_argument("--period", default="M1")
     ap.add_argument("--from", dest="inicio", default="2023.08.01")
-    ap.add_argument("--to", dest="fim", default="2026.07.21")
+    ap.add_argument("--to", dest="fim", default=datetime.now().strftime("%Y.%m.%d"))
     ap.add_argument("--deposit", type=int, default=500)
     ap.add_argument("--min-trades", type=int, default=100)
     ap.add_argument("--min-pf", type=float, default=1.2)
