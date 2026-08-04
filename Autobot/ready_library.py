@@ -376,7 +376,7 @@ def main() -> int:
         print(f"  AVISO: {aviso}")
     print(f"espelho: {r['prontos']} prontos | {r['copiados']} copiados | "
           f"{r['removidos']} marcadores removidos | {r['pastas_marcadas']} "
-          f"pastas com {MARCA} | MAPA.md e {PASTA_PORTFOLIOS}/ atualizados "
+          f"pastas com * | MAPA.md e {PASTA_PORTFOLIOS}/ atualizados "
           f"em {PRONTOS.name}")
     return 0
 
