@@ -88,6 +88,15 @@ RELATORIOS_DIR = AQUI / "campanha_relatorios"
 RELATORIO_ARQUIVOS = ("conf_wrx.htm", "conf_wrx.png", "conf_wrx-hst.png",
                       "conf_wrx-mfemae.png", "conf_wrx-holding.png")
 
+# FILE_COMMON (2026-08-04): a EA grava TODAS as 14 formulas aqui a cada
+# passe do genetico -- Print/PrintFormat dentro de OnTester() nao aparece
+# em log nenhum durante otimizacao (so em passe unico), confirmado com
+# teste de canario; FileWrite com FILE_COMMON sim, validado ao vivo (17
+# passes -> 17 linhas, sem colisao entre os 4 agentes em paralelo).
+ARQUIVO_TODAS_FORMULAS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming"
+                              r"\MetaQuotes\Terminal\Common\Files"
+                              r"\levain_wrx_all_formulas.txt")
+
 # FASE 1 = DESCOBERTA DE REGIOES (pedido do dono, 2026-07-31): o grupo de
 # Entradas COMPLETO -- indicador, metodo, timeframe, applied price, periodos,
 # Stochastic inteiro, Ichimoku, ATR -- MAIS as saidas do sistema (respeitando
@@ -716,6 +725,26 @@ def casar_formula_com_relatorio(cab: list[str], linhas: list[list[str]],
             usados.add(idx_f)
             break
     return casados
+
+
+def limpar_todas_formulas() -> None:
+    """Apaga o arquivo compartilhado antes de uma rodada genetica.
+
+    Os 4 agentes gravam no MESMO arquivo (FILE_COMMON); sem limpar antes,
+    a proxima rodada leria linhas de uma rodada anterior junto com as suas.
+    """
+    ARQUIVO_TODAS_FORMULAS.unlink(missing_ok=True)
+
+
+def carregar_todas_formulas() -> list[dict]:
+    """Le o arquivo compartilhado (UTF-16, escrito pela EA via FileWrite)
+    da ULTIMA rodada genetica. Lista vazia se a EA nao escreveu nada --
+    versao antiga do .ex5 sem o FileWrite, ou nenhum passe rodou.
+    """
+    if not ARQUIVO_TODAS_FORMULAS.exists():
+        return []
+    texto = ARQUIVO_TODAS_FORMULAS.read_text(encoding="utf-16", errors="replace")
+    return ler_todas_formulas(texto)
 
 
 def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
