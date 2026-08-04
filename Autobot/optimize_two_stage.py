@@ -674,6 +674,75 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
     return ler_metricas(log)
 
 
+def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
+    """Le o trecho de log de UM passe de sobrevivencia e decide se o set
+    ENTREGUE (WFO desligado, periodo completo) sobrevive ou estoura margem.
+
+    Funcao separada de proposito, mesma razao do ler_metricas: testa em
+    milissegundos contra um log gravado, sem precisar do MT5.
+    """
+    completou = "automatic testing finished" in log
+    estourou = "stop out occurred" in log
+    m = re.search(r"final balance ([\d.]+)", log)
+    saldo_final = float(m.group(1)) if m else None
+    # Piso de 50%: nao e so o stop out literal que denuncia ruina -- uma conta
+    # que termina o periodo perto de zero sem tecnicamente estourar margem
+    # (ex.: liquidacao forcada no fim do teste) e o mesmo problema.
+    sobreviveu = (completou and not estourou and saldo_final is not None
+                 and saldo_final >= 0.5 * deposito)
+    if not completou:
+        motivo = "teste nao completou dentro do timeout"
+    elif estourou:
+        motivo = "stop out (estouro de margem) durante o periodo completo"
+    elif saldo_final is None:
+        motivo = "saldo final nao encontrado no log"
+    elif saldo_final < 0.5 * deposito:
+        motivo = f"saldo final {saldo_final:.2f} < 50% do deposito ({deposito})"
+    else:
+        motivo = None
+    return {"sobreviveu": sobreviveu, "saldo_final": saldo_final,
+            "motivo": motivo}
+
+
+def verificar_sobrevivencia_completa(caminho_set: Path, symbol: str,
+                                     periodo: str, inicio: str, fim: str,
+                                     deposito: int,
+                                     timeout: int = 1800) -> dict:
+    """Roda o set ENTREGUE (WFO desligado) no periodo INTEIRO e continuo, em
+    tick real -- a mesma coisa que um comprador faz ao carregar o set e
+    apertar Start. NENHUMA etapa anterior do circuito testa isso.
+
+    Achado do dono, 2026-08-03: AUDCHF/07_GRID_SEPARATE foi aprovado com 0%
+    de divergencia numa janela OOS de ~45 dias (retencao 85.78%) -- e o set
+    ENTREGUE, rodado no periodo completo (~3 anos, como um comprador roda),
+    estourou margem em 33% do periodo, saldo 500 -> 273.98. A janela curta
+    nunca da tempo da cesta do grid (sem SL nativo por posicao, cesta manual
+    via ManageGridBasket) crescer o bastante pra quebrar; so o periodo
+    completo expoe isso. Monte Carlo nao cobre essa lacuna: e estruturalmente
+    isento pra grid (precisa de trades em R, grid usa lote fixo/monetario) --
+    esta funcao e o gate de ruina que faltava para esses sistemas.
+    """
+    rel = str(caminho_set.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
+    antes = base.marcar_logs()
+    with tempfile.TemporaryDirectory() as tmp:
+        ini = Path(tmp) / "conf.ini"
+        base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
+                          inicio, fim, deposito, 4, 6, "conf_sobrevivencia")
+        texto_ini = ini.read_text(encoding="utf-16")
+        ini.write_text(texto_ini.replace("Optimization=2", "Optimization=0"),
+                       encoding="utf-16")
+        lancar_terminal(base.TERMINAL, ini, timeout)
+    limite = time.monotonic() + 90
+    log = ""
+    while time.monotonic() < limite:
+        log = base.texto_novo(antes)
+        if "automatic testing finished" in log:
+            break
+        time.sleep(1)
+
+    return avaliar_sobrevivencia(log, deposito)
+
+
 def rodar(caminho_set: Path, symbol: str, periodo: str, inicio: str, fim: str,
           deposito: int, modelo: int, timeout: int) -> tuple[list, list]:
     """Uma otimizacao genetica. Devolve (cabecalho, linhas) do relatorio."""
@@ -1155,10 +1224,6 @@ def main() -> int:
                   "(lote fixo/monetary); entrega no modo de origem.",
                   flush=True)
 
-    print("\n    " + ("APROVADO: candidato pronto para a entrega."
-                      if aprovado else
-                      "REPROVADO: nao promova este candidato."), flush=True)
-
     # O set entregue difere do set da biblioteca SO nos parametros otimizados:
     # toda a configuracao de WFO sai fora e volta ao default (AtivarWFO=false).
     #
@@ -1187,6 +1252,36 @@ def main() -> int:
         # A prova do estagio 5 foi em %, entao e em % que o set sai: entregar
         # em Fixed-R seria entregar um modo que a ultima conferencia nao mediu.
         entrega["PositionSizeMode"] = "0"
+
+    # ---- Gate de sobrevivencia (grid): periodo completo, como o comprador
+    # roda de verdade -- achado do dono, 2026-08-03 (ver docstring da funcao).
+    sobrevivencia = None
+    if aprovado and args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        print("\n    gate de sobrevivencia: rodando o set ENTREGUE no "
+              "periodo completo (continuo, tick real)...", flush=True)
+        reescrever(origem, trabalho, [], entrega)
+        faltando = conferir_set(trabalho, entrega)
+        if faltando:
+            print(f"    ABORTADO: o set de entrega saiu incompleto antes do "
+                  f"gate de sobrevivencia: {faltando}")
+            return 1
+        t0 = time.time()
+        sobrevivencia = verificar_sobrevivencia_completa(
+            trabalho, args.symbol, args.period, args.inicio, args.fim,
+            args.deposit, max(args.timeout, 1800))
+        print(f"    {(time.time()-t0)/60:.1f} min | saldo final "
+              f"{sobrevivencia['saldo_final']}", flush=True)
+        if not sobrevivencia["sobreviveu"]:
+            aprovado = False
+            print(f"    REPROVADO no gate de sobrevivencia: "
+                  f"{sobrevivencia['motivo']}.", flush=True)
+        else:
+            print("    OK: sobreviveu ao periodo completo sem estourar "
+                  "margem.", flush=True)
+
+    print("\n    " + ("APROVADO: candidato pronto para a entrega."
+                      if aprovado else
+                      "REPROVADO: nao promova este candidato."), flush=True)
 
     # O prefixo carrega o veredito. Um reprovado gravado como "VALIDADO_" entra
     # na biblioteca pelo nome e ninguem reabre o log para descobrir que a
@@ -1221,6 +1316,15 @@ def main() -> int:
                       # sao estruturalmente isentos de MC) -- sem isso o
                       # dashboard nao distingue "MC passou" de "MC nem rodou".
                       "mc_medido": mc is not None and mc.get("mc_dd_p95") is not None,
+                      # Gate de sobrevivencia (2026-08-03): so roda pra grid
+                      # (SISTEMAS_GEOMETRIA_TICK_REAL). None = nao se aplica a
+                      # este sistema, nao "passou sem medir" -- nao confundir
+                      # com o mesmo problema que mc_medido resolveu pro MC.
+                      "sobrevivencia_medida": sobrevivencia is not None,
+                      "sobrevivencia_saldo_final": (
+                          sobrevivencia["saldo_final"] if sobrevivencia else None),
+                      "sobrevivencia_motivo_reprovacao": (
+                          sobrevivencia["motivo"] if sobrevivencia else None),
                       "relatorio_dir": relatorio_dir,
                       "parametros": {**otimizados, **vencedor}},
                      ensure_ascii=False))
