@@ -6,12 +6,16 @@ Os sets validados pelo circuito nascem soltos na raiz de Profiles/Tester
 subir um set: "para ESTE ativo e ESTE sistema, existe algo pronto?". A
 resposta certa mora na mesma geografia da biblioteca -- por isso o espelho:
 
-    White_Rabbit_X_Sets_Autobot/<classe>/<ativo>/<sistema>/＊BUY_MULTI.set
+    White_Rabbit_X_Sets_Autobot/＊<classe>/＊<ativo>/＊<sistema>/＊BUY_MULTI.set
 
 A arvore e um clone 1:1 das pastas da biblioteca, entao o dialogo "Load" do
 Strategy Tester navega nela do jeito que ja se navega nos templates. Pasta
 vazia = nada pronto ali; arquivo com ＊ = set validado, ja com WFO desligado,
-pronto para subir.
+pronto para subir. Toda pasta ancestral (classe/ativo/sistema) que tem algum
+set pronto em QUALQUER lugar abaixo dela tambem ganha o prefixo ＊ -- a arvore
+inteira e ~1000 pastas, quase todas vazias; sem marcar os niveis
+intermediarios, achar a unica pasta com conteudo exige abrir uma por uma
+(achado do dono, 2026-08-03).
 
 Sobre o marcador: o Windows proibe `*` literal em nome de arquivo, entao o
 espelho usa o asterisco de largura total ＊ (U+FF0A) -- visualmente identico,
@@ -125,6 +129,48 @@ def _fmt(valor, sufixo: str = "", casas: int = 1) -> str:
     return f"{valor:.{casas}f}{sufixo}"
 
 
+def _normalizar_pastas(destino: Path) -> None:
+    """Desfaz qualquer MARCA em nome de pasta antes do resto da sincronizacao.
+
+    Sem isso, uma pasta marcada numa rodada anterior (`＊AUDCHF`) vira uma
+    pasta NOVA e destrancada (`AUDCHF`) na proxima -- os passos 1-4 usam
+    nomes puros da biblioteca para achar/criar cada no, e um nome ja marcado
+    no disco nao bate com esse calculo, gerando duas pastas irmas para o
+    mesmo ativo em vez de reconhecer as duas como o mesmo no.
+    """
+    pastas = sorted((p for p in destino.rglob("*") if p.is_dir()),
+                    key=lambda p: len(p.parts), reverse=True)
+    for pasta in pastas:
+        if pasta.name.startswith(MARCA):
+            pasta.rename(pasta.parent / pasta.name[len(MARCA):])
+
+
+def _marcar_ancestrais(destino: Path, esperados: dict[Path, Path]) -> int:
+    """Prefixa com MARCA toda pasta (classe/ativo/sistema) com algo pronto
+    embaixo -- a arvore inteira e ~1000 pastas, quase todas vazias; sem
+    marcar os niveis intermediarios, achar a UNICA pasta com conteudo exige
+    abrir uma por uma no explorador (achado do dono, 2026-08-03).
+
+    Roda DEPOIS de posicionar os arquivos-folha (passo 4): so entao se sabe,
+    para cada pasta, se ha algo pronto em algum descendente dela.
+    """
+    marcar: set[tuple[str, ...]] = set()
+    for alvo in esperados:
+        partes = alvo.relative_to(destino).parts[:-1]   # sem o nome do .set
+        for i in range(1, len(partes) + 1):
+            marcar.add(partes[:i])
+
+    pastas = sorted((p for p in destino.rglob("*") if p.is_dir()),
+                    key=lambda p: len(p.parts), reverse=True)
+    marcados = 0
+    for pasta in pastas:
+        partes = pasta.relative_to(destino).parts
+        if partes in marcar:
+            pasta.rename(pasta.parent / f"{MARCA}{pasta.name}")
+            marcados += 1
+    return marcados
+
+
 def sincronizar(biblioteca: Path = BIBLIOTECA, tester: Path = TESTER,
                 destino: Path = PRONTOS, ledger: Path = LEDGER) -> dict:
     """Espelha pastas, posiciona os prontos com ＊ e regenera MAPA/portfolios.
@@ -134,11 +180,13 @@ def sincronizar(biblioteca: Path = BIBLIOTECA, tester: Path = TESTER,
     if not biblioteca.is_dir():
         raise FileNotFoundError(f"biblioteca nao encontrada: {biblioteca}")
 
+    destino.mkdir(parents=True, exist_ok=True)
+    _normalizar_pastas(destino)
+
     # 1. Clone das pastas. So pastas: arquivo no espelho significa "pronto",
     #    entao copiar templates para ca destruiria justamente essa semantica.
     relativos = [p.relative_to(biblioteca) for p in biblioteca.rglob("*")
                  if p.is_dir()]
-    destino.mkdir(parents=True, exist_ok=True)
     for rel in relativos:
         (destino / rel).mkdir(parents=True, exist_ok=True)
 
@@ -194,13 +242,18 @@ def sincronizar(biblioteca: Path = BIBLIOTECA, tester: Path = TESTER,
         shutil.copy2(origem, alvo)
         copiados += 1
 
+    # 5. Propaga a MARCA para classe/ativo/sistema: so agora se sabe, para
+    #    cada pasta, se ha algo pronto em algum descendente dela.
+    pastas_marcadas = _marcar_ancestrais(destino, esperados)
+
     total_templates = sum(1 for _ in biblioteca.rglob("*.set"))
     _gerar_mapa(destino, biblioteca, prontos, total_templates)
     _gerar_portfolios(destino, prontos)
 
     return {"prontos": len(prontos), "copiados": copiados,
             "removidos": removidos, "avisos": avisos,
-            "templates": total_templates, "itens": prontos}
+            "templates": total_templates, "itens": prontos,
+            "pastas_marcadas": pastas_marcadas}
 
 
 def _gerar_mapa(destino: Path, biblioteca: Path, prontos: list[dict],
@@ -286,8 +339,11 @@ def _gerar_portfolios(destino: Path, prontos: list[dict]) -> None:
                 f"| {m['trades'] if m['trades'] is not None else 'n/d'} "
                 f"| {'n/d' if ruina is None else f'{ruina*100:.1f}%'} "
                 f"| {m['capital'] or 'n/d'} "
-                f"| {m['classe']}/{m['ativo']}/{m['sistema']}/"
-                f"{MARCA}{m['variante']}.set |")
+                # classe/ativo/sistema sempre carregam a MARCA aqui: um
+                # membro so entra em `prontos` porque ele PROPRIO fez essas
+                # tres pastas serem marcadas (ver _marcar_ancestrais).
+                f"| {MARCA}{m['classe']}/{MARCA}{m['ativo']}/"
+                f"{MARCA}{m['sistema']}/{MARCA}{m['variante']}.set |")
         linhas += [
             "",
             "Metricas do ledger da campanha; 'n/d' = corrida feita fora dela.",
@@ -319,8 +375,9 @@ def main() -> int:
     for aviso in r["avisos"]:
         print(f"  AVISO: {aviso}")
     print(f"espelho: {r['prontos']} prontos | {r['copiados']} copiados | "
-          f"{r['removidos']} marcadores removidos | MAPA.md e "
-          f"{PASTA_PORTFOLIOS}/ atualizados em {PRONTOS.name}")
+          f"{r['removidos']} marcadores removidos | {r['pastas_marcadas']} "
+          f"pastas com {MARCA} | MAPA.md e {PASTA_PORTFOLIOS}/ atualizados "
+          f"em {PRONTOS.name}")
     return 0
 
 
