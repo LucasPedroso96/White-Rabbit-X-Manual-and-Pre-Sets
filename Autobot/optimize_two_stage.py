@@ -747,6 +747,33 @@ def carregar_todas_formulas() -> list[dict]:
     return ler_todas_formulas(texto)
 
 
+def reordenar_por_formula(cab: list[str], linhas: list[list[str]],
+                          campo: str = "grid_survival") -> list[list[str]]:
+    """Reordena as linhas do relatorio pela formula EXTERNA (arquivo que a
+    EA grava via FileWrite), em vez da ordem nativa do genetico.
+
+    Pedido do dono, 2026-08-04: a busca do grid roda em Profit puro
+    (FORMULA_POR_SISTEMA em generate_system_sets.py) -- a formula de risco
+    (GridSurvivalScore por padrao) vira filtro DEPOIS da busca, escolhendo
+    quem avanca de estagio, sem moldar o que o genetico explora.
+
+    Sem casamento (arquivo vazio, ou .ex5 antigo sem o FileWrite): devolve
+    `linhas` na ordem original -- upgrade opcional, nunca uma dependencia
+    dura que aborta o combo se faltar.
+    """
+    formulas = carregar_todas_formulas()
+    if not formulas:
+        return linhas
+    casados = casar_formula_com_relatorio(cab, linhas, formulas)
+    if not casados:
+        return linhas
+    indexadas = sorted(enumerate(linhas),
+                       key=lambda item: (casados[item[0]][campo]
+                                         if item[0] in casados else float("-inf")),
+                       reverse=True)
+    return [linha for _, linha in indexadas]
+
+
 def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
                 fim: str, deposito: int, modelo: int,
                 timeout: int = 3600) -> dict:
@@ -978,6 +1005,12 @@ def main() -> int:
     cab: list[str] = []
     linhas: list[list[str]] = []
     melhor_ant, aptos_ant = float("-inf"), -1
+    # Grid busca em Profit puro agora (FORMULA_POR_SISTEMA); limpa o arquivo
+    # ANTES do loop, nao a cada rodada, porque `linhas` ACUMULA entre
+    # rodadas (append, nao substitui) -- o arquivo de formulas precisa
+    # acumular do mesmo jeito pra continuar casando linha a linha.
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        limpar_todas_formulas()
     for rodada in range(1, 4):
         t0 = time.time()
         cab_r, linhas_r = rodar(trabalho, args.symbol, args.period, args.inicio,
@@ -1014,6 +1047,12 @@ def main() -> int:
         print("    nenhum passe passou o piso no estagio 1")
         return 1
     relatar_cobertura(cab, linhas, melhores)
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        # Os pisos (trades/PF) ja filtraram; agora a formula de risco decide
+        # a ORDEM entre quem sobrou -- "campeao por indicador" abaixo pega o
+        # primeiro de cada grupo, entao a ordem aqui decide quem representa
+        # cada indicador daqui pra frente.
+        melhores = reordenar_por_formula(cab, melhores)
 
     # A regiao vencedora sai de um torneio de retencao, um campeao POR
     # INDICADOR: pegar melhores[0] escolheria por lucro in-sample -- o criterio
@@ -1061,6 +1100,8 @@ def main() -> int:
     if cortados:
         print(f"    fora por nao pertencerem ao {nome_ind}: {cortados}",
               flush=True)
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        limpar_todas_formulas()
     t0 = time.time()
     cab, linhas = rodar(trabalho, args.symbol, args.period, args.inicio,
                         args.fim, args.deposit, 1, args.timeout)
@@ -1068,6 +1109,10 @@ def main() -> int:
         print("    relatorio vazio no estagio 2")
         return 1
     finais = base.escolher_candidatos(cab, linhas, args.min_trades, args.min_pf)
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        # Formula de risco escolhe quem avanca pro torneio de retencao, nao
+        # mais a ordem nativa (Profit puro, que so guiou a busca em si).
+        finais = reordenar_por_formula(cab, finais)
     print(f"    {(time.time()-t0)/60:.0f} min | aptos: {len(finais)} de {len(linhas)}",
           flush=True)
     if not finais:
@@ -1153,12 +1198,14 @@ def main() -> int:
                       travados_sem_geo)
         print(f"\n  [3.5/5] geometria do grid em TICKS REAIS ({n} parametros: "
               f"{EIXOS_GEOMETRIA_TICK_REAL})", flush=True)
+        limpar_todas_formulas()
         t0 = time.time()
         cab_g, linhas_g = rodar(trabalho, args.symbol, args.period,
                                 args.inicio, args.fim, args.deposit, 4,
                                 args.timeout)
         geo_ok = (base.escolher_candidatos(cab_g, linhas_g, args.min_trades,
                                            args.min_pf) if linhas_g else [])
+        geo_ok = reordenar_por_formula(cab_g, geo_ok) if geo_ok else geo_ok
         print(f"    {(time.time()-t0)/60:.1f} min | aptos: {len(geo_ok)} de "
               f"{len(linhas_g)}", flush=True)
         if geo_ok:

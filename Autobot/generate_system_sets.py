@@ -106,7 +106,13 @@ FORMULA_POR_SISTEMA = {
     "01_SLTP": 9, "02_SLTP_ORGANIC": 9,
     "03_TRAIL_ONLY": 8, "04_SLTP_TRAIL": 8, "05_BE_TRAIL": 8,
     "06_REVERSAL_EXIT": 9,
-    "07_GRID_SEPARATE": 1, "08_GRID_UNIFIED": 1,
+    # 2026-08-04 (pedido do dono): grid busca em Profit puro (2), nao mais
+    # GridSurvivalScore (1) -- a busca genetica segue um unico caminho de
+    # lucro maximo; GridSurvivalScore e as demais formulas viram filtro
+    # EXTERNO, calculado do lado Python (ler_todas_formulas em
+    # optimize_two_stage.py) pra escolher quem avanca de estagio, sem
+    # moldar o que o genetico explora.
+    "07_GRID_SEPARATE": 2, "08_GRID_UNIFIED": 2,
     "09_MARTINGALE": 10, "10_DALEMBERT": 10,
     "11_SIGNAL_ONLY": 9,
 }
