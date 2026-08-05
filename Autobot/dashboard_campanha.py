@@ -73,6 +73,12 @@ _processo: subprocess.Popen | None = None  # so valido no MESMO processo do
 # uvicorn -- ver estado_campanha()
 # para o caso de o painel reiniciar
 _jobs: dict[str, dict] = {}
+# Achado do dono, 2026-08-05: duplo-clique (ou 2 requests quase simultaneos)
+# em "Iniciar Corrida" passava os DOIS pela checagem de estado_campanha()
+# ANTES de qualquer um escrever o LOCK/lancar o Popen -- TOCTOU classico,
+# resultou em 2 campanha.py rodando a MESMA fila em paralelo, cada um
+# abrindo seu proprio terminal64.exe (visto brigando por AUDCAD/CADCHF).
+_lock_start = threading.Lock()
 
 
 def _executar_job(job_id: str, cmd: list[str], timeout: int) -> None:
@@ -394,16 +400,32 @@ def campanha_estado() -> JSONResponse:
 @app.post("/api/campanha/start")
 def campanha_start(body: dict) -> JSONResponse:
     global _processo
-    if estado_campanha()["rodando"]:
+    # Nao-bloqueante de proposito: se ja tem uma request de start em curso,
+    # rejeita na hora em vez de esperar -- so precisa fechar a janela entre
+    # "estado_campanha() disse que nao ha nada rodando" e "Popen+LOCK
+    # gravados", nao serializar starts legitimos um atras do outro.
+    if not _lock_start.acquire(blocking=False):
         return JSONResponse(
-            {"ok": False, "erro": "ja ha uma corrida rodando"}, status_code=409
-        )
-    if terminal_aberto():
-        return JSONResponse(
-            {"ok": False, "erro": "MT5 ocupado por outra acao -- espere terminar"},
+            {"ok": False, "erro": "outro start ja esta em andamento"},
             status_code=409,
         )
+    try:
+        if estado_campanha()["rodando"]:
+            return JSONResponse(
+                {"ok": False, "erro": "ja ha uma corrida rodando"}, status_code=409
+            )
+        if terminal_aberto():
+            return JSONResponse(
+                {"ok": False, "erro": "MT5 ocupado por outra acao -- espere terminar"},
+                status_code=409,
+            )
+        return _lancar_campanha(body)
+    finally:
+        _lock_start.release()
 
+
+def _lancar_campanha(body: dict) -> JSONResponse:
+    global _processo
     modo = body.get("modo", "auto")
     cmd = [
         sys.executable,

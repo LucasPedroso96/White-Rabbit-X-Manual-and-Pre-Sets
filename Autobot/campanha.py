@@ -73,8 +73,8 @@ def variantes(sistema: str) -> list[str]:
 
 
 def fila(simbolos: list[str], sistemas: list[str] | None = None) -> list[tuple[str, str, str]]:
-    """Combos na ordem de execucao: SISTEMA por fora (grid primeiro por
-    default), depois variante, depois SIMBOLO por dentro.
+    """Combos na ordem de execucao: SIMBOLO por fora, depois variante,
+    depois SISTEMA por dentro (grid primeiro por default).
 
     `simbolos` vem de `descobrir_ativos` (auto-detectado ou escolhido pelo
     usuario) -- nunca uma lista cravada aqui, ver comentario acima.
@@ -83,22 +83,24 @@ def fila(simbolos: list[str], sistemas: list[str] | None = None) -> list[tuple[s
     `--sistemas` na CLI), filtra E define a ordem -- quem chama decide a
     prioridade, a funcao so respeita.
 
-    Multi-ativo muda o que "largura" significa (dono, 2026-08-02): com um
-    simbolo so, a largura era "todos os 11 tipos". Com varios simbolos, a
-    pergunta aberta por sistema deixou de ser "sobrevive?" (isso os 25 passes
-    da amostra de formulas ja respondeu por tipo) e passou a ser "sobrevive em
-    QUAIS ativos?" -- por isso simbolo fica por dentro: interromper no meio de
-    um sistema ainda deixa ele medido em todos os ativos, e o proximo sistema
-    (mesmo peso, so depois na fila) comeca do zero.
+    Invertido de "sistema por fora" pra "simbolo por fora" (dono, 2026-08-05):
+    a ordem antiga (2026-08-02) processava 1 combo de cada simbolo por
+    rodada antes de repetir -- resiliente a interrupcao (todo ativo ganha
+    alguma cobertura cedo), mas visto ao vivo parecia os simbolos
+    "brigando" pra ver quem termina primeiro (AUDCAD sumia da tela por
+    varios combos de outros ativos antes de reaparecer). Prioridade agora e
+    "terminar o ativo escolhido do inicio ao fim" antes do proximo -- o
+    custo e que uma interrupcao no meio deixa os ativos seguintes com
+    cobertura zero, nao parcial.
     """
     sistemas = sistemas if sistemas is not None else SISTEMAS
     itens = []
-    for unilateral, bilateral in RODADAS:
-        for sistema in sistemas:
-            v = bilateral if sistema in BILATERAL else unilateral
-            if v is None:              # bilateral nao tem BUY_* proprio
-                continue
-            for simbolo in simbolos:
+    for simbolo in simbolos:
+        for unilateral, bilateral in RODADAS:
+            for sistema in sistemas:
+                v = bilateral if sistema in BILATERAL else unilateral
+                if v is None:              # bilateral nao tem BUY_* proprio
+                    continue
                 if base.achar_set(simbolo, sistema, v) is not None:
                     itens.append((simbolo, sistema, v))
     return itens
