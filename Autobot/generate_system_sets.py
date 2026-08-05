@@ -733,8 +733,16 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.fix("AtivarTake", "true")
         p.fix("TakeOrganico", "false")
         p.opt("VelaTake", 0, 0, 1, 3)
-        p.fix("AtivarBreakeven", "false")
-        p.fix("BreakevenDistancia", 1.0)
+        # Grid nao tem SL nativo (a cesta e a gestao), mas o breakeven do EA
+        # ja tem fallback pronto pra isso: sem SL na posicao, ele usa
+        # ATR*Stop como distancia de gatilho (ApplyBreakevenForSide, .mq5) --
+        # e Stop/VelaStop, 2 linhas acima, ja sao exatamente isso (fixo em
+        # sl_mid, VelaStop otimizado). Grid so precisava parar de cravar
+        # AtivarBreakeven em false pra herdar essa referencia de graca.
+        # Achado do dono, 2026-08-05: mesmo esquema dos outros 6 sistemas
+        # que oferecem BE (opt_bool + range), nao inventado pra grid.
+        p.opt_bool("AtivarBreakeven", "true")
+        p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
         p.fix("AtivarTrailATR", "false")
         p.opt("MetodoDeCalculo", 1, 0, 1, 4)
         p.opt("TrailVela", 0, 0, 1, 3)
