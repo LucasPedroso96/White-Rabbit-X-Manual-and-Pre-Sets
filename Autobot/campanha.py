@@ -173,7 +173,7 @@ def main() -> int:
     ap.add_argument("--to", dest="fim", default=datetime.now().strftime("%Y.%m.%d"))
     ap.add_argument("--deposit", type=int, default=500)
     ap.add_argument("--min-retencao", type=float, default=30.0)
-    ap.add_argument("--timeout", type=int, default=21600)
+    ap.add_argument("--timeout", type=int, default=43200)
     ap.add_argument("--limite", type=int, default=0, help="0 = sem limite")
     ap.add_argument("--listar", action="store_true")
     ap.add_argument("--sistemas", default="",

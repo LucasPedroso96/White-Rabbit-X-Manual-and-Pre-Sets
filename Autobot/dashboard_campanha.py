@@ -417,7 +417,12 @@ def campanha_start(body: dict) -> JSONResponse:
         "--min-retencao",
         str(body.get("min_retencao", 30.0)),
         "--timeout",
-        str(body.get("timeout", 21600)),
+        # 43200 (12h): 21600 (6h) nao bastou pro primeiro combo depois da
+        # limpeza do cache do tester -- 3 rodadas do estagio 1 sozinhas
+        # consumiram 6h10 com o cache frio (AUDCAD/07_GRID_SEPARATE,
+        # 2026-08-05). Com cache quente sobra folga; a campanha continua
+        # regravando e seguindo em frente mesmo se um combo estourar isso.
+        str(body.get("timeout", 43200)),
     ]
     if modo == "manual":
         sistemas = body.get("sistemas") or []
