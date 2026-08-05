@@ -1100,12 +1100,16 @@ def main() -> int:
         print(f"    rodada {rodada}: {(time.time()-t0)/60:.0f} min | melhor "
               f"lucro apto {melhor:.2f} | {aptos} indicadores aptos", flush=True)
         if rodada >= 2:
+            # So informativo agora -- pedido do dono, 2026-08-05: "no minimo
+            # 3 testes de exploracao inicial". O corte antecipado aqui
+            # economizava uma rodada quando a 2a nao melhorava sobre a 1a,
+            # mas isso deixava de garantir a exploracao minima pedida; as 3
+            # rodadas do range() acima sempre rodam agora, sem early-exit.
             melhorou = (aptos > aptos_ant
                         or melhor > melhor_ant + max(abs(melhor_ant) * 0.05, 1e-9))
             if not melhorou:
-                print("    rodada sem melhora; encerrando o genetico das "
-                      "regioes.", flush=True)
-                break
+                print("    rodada sem melhora (seguindo mesmo assim, "
+                      "minimo de 3 rodadas e obrigatorio).", flush=True)
         melhor_ant = max(melhor_ant, melhor)
         aptos_ant = max(aptos_ant, aptos)
 
