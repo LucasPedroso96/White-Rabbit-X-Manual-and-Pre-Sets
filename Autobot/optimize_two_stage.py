@@ -751,10 +751,14 @@ def reordenar_por_formula(cab: list[str], linhas: list[list[str]],
     """Reordena as linhas do relatorio pela formula EXTERNA (arquivo que a
     EA grava via FileWrite), em vez da ordem nativa do genetico.
 
-    Pedido do dono, 2026-08-04: a busca do grid roda em Profit puro
-    (FORMULA_POR_SISTEMA em generate_system_sets.py) -- a formula de risco
-    (GridSurvivalScore por padrao) vira filtro DEPOIS da busca, escolhendo
-    quem avanca de estagio, sem moldar o que o genetico explora.
+    A busca do grid evolui pela formula pura (GridSurvivalScore, via
+    selectedFormula do .set -- OptimizationCriterion=6/Custom faz o genetico
+    do MT5 evoluir SO em cima do que OnTester() devolve, mais nenhuma outra
+    coluna do relatorio). Esta funcao reconstroi essa mesma nota fora do
+    MT5, batendo por fingerprint (Profit+Trades+Equity DD%) com o que a EA
+    gravou via FileWrite -- o relatorio nativo do genetico nao tem os dados
+    por-trade que GridSurvivalScore precisa (CalculateStandardDeviation em
+    cima de g_closedOperations[].net).
 
     Sem casamento (arquivo vazio, ou .ex5 antigo sem o FileWrite): devolve
     `linhas` na ordem original -- upgrade opcional, nunca uma dependencia
@@ -771,6 +775,47 @@ def reordenar_por_formula(cab: list[str], linhas: list[list[str]],
                                          if item[0] in casados else float("-inf")),
                        reverse=True)
     return [linha for _, linha in indexadas]
+
+
+def priorizar_lucro_no_topo(cab: list[str], linhas: list[list[str]],
+                            campo: str = "grid_survival",
+                            corte_pct: float = 0.20,
+                            minimo: int = 10) -> list[list[str]]:
+    """Formula pura decide quem E ELEGIVEL; lucro decide quem VENCE entre os
+    elegiveis -- achado do dono, 2026-08-05: a formula sozinha as vezes
+    elegia um passe de score alto e lucro baixo (600 de GridSurvivalScore,
+    60 de lucro) na frente de outro so um pouco atras em score mas com
+    lucro bem maior. O genetico do MT5 continua evoluindo 100% pela formula
+    (isso nao muda, e nao da pra mudar -- OptimizationCriterion=6 so ve
+    OnTester()); esta funcao so reordena o relatorio JA FINALIZADO.
+
+    Corta o topo por formula (piso de risco -- e aqui que o teste A/B de
+    2026-08-04 comparou "so formula" x "so lucro" e formula ganhou em
+    sobrevivencia real), depois reordena SO essa fatia por lucro. O resto
+    da lista (fora do topo) fica na ordem de formula original, sem uso
+    imediato mas preservado por seguranca.
+    """
+    por_formula = reordenar_por_formula(cab, linhas, campo)
+    return _priorizar_lucro_na_fatia(cab, por_formula, corte_pct, minimo)
+
+
+def _priorizar_lucro_na_fatia(cab: list[str], linhas_por_formula: list[list[str]],
+                              corte_pct: float = 0.20,
+                              minimo: int = 10) -> list[list[str]]:
+    """So a fatia de cima (`linhas_por_formula` ja vem ordenada por formula):
+    pura reordenacao por lucro, sem tocar arquivo nenhum -- testavel em
+    milissegundos, mesmo motivo do resto do modulo (ver reordenar_por_formula).
+    """
+    if not linhas_por_formula or "Profit" not in cab:
+        return linhas_por_formula
+    corte = max(minimo, round(len(linhas_por_formula) * corte_pct))
+    topo, resto = linhas_por_formula[:corte], linhas_por_formula[corte:]
+    i_lucro = cab.index("Profit")
+    i_dd = cab.index("Equity DD %") if "Equity DD %" in cab else None
+    topo = sorted(topo, key=lambda r: (base.num(r[i_lucro]),
+                                       -base.num(r[i_dd]) if i_dd is not None else 0),
+                 reverse=True)
+    return topo + resto
 
 
 def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
@@ -1027,8 +1072,8 @@ def main() -> int:
     cab: list[str] = []
     linhas: list[list[str]] = []
     melhor_ant, aptos_ant = float("-inf"), -1
-    # Grid busca em Profit puro agora (FORMULA_POR_SISTEMA); limpa o arquivo
-    # ANTES do loop, nao a cada rodada, porque `linhas` ACUMULA entre
+    # Grid busca por GridSurvivalScore puro (FORMULA_POR_SISTEMA); limpa o
+    # arquivo ANTES do loop, nao a cada rodada, porque `linhas` ACUMULA entre
     # rodadas (append, nao substitui) -- o arquivo de formulas precisa
     # acumular do mesmo jeito pra continuar casando linha a linha.
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
@@ -1070,11 +1115,11 @@ def main() -> int:
         return 1
     relatar_cobertura(cab, linhas, melhores)
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
-        # Os pisos (trades/PF) ja filtraram; agora a formula de risco decide
-        # a ORDEM entre quem sobrou -- "campeao por indicador" abaixo pega o
-        # primeiro de cada grupo, entao a ordem aqui decide quem representa
-        # cada indicador daqui pra frente.
-        melhores = reordenar_por_formula(cab, melhores)
+        # Os pisos (trades/PF) ja filtraram; a formula de risco decide QUEM
+        # E ELEGIVEL (piso), o lucro decide quem VENCE dentro do topo --
+        # "campeao por indicador" abaixo pega o primeiro de cada grupo,
+        # entao a ordem aqui decide quem representa cada indicador.
+        melhores = priorizar_lucro_no_topo(cab, melhores)
 
     # A regiao vencedora sai de um torneio de retencao, um campeao POR
     # INDICADOR: pegar melhores[0] escolheria por lucro in-sample -- o criterio
@@ -1132,9 +1177,9 @@ def main() -> int:
         return 1
     finais = base.escolher_candidatos(cab, linhas, args.min_trades, args.min_pf)
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
-        # Formula de risco escolhe quem avanca pro torneio de retencao, nao
-        # mais a ordem nativa (Profit puro, que so guiou a busca em si).
-        finais = reordenar_por_formula(cab, finais)
+        # Formula de risco decide o piso de elegibilidade pro torneio de
+        # retencao; lucro decide o vencedor dentro do topo elegivel.
+        finais = priorizar_lucro_no_topo(cab, finais)
     print(f"    {(time.time()-t0)/60:.0f} min | aptos: {len(finais)} de {len(linhas)}",
           flush=True)
     if not finais:
@@ -1227,7 +1272,7 @@ def main() -> int:
                                 args.timeout)
         geo_ok = (base.escolher_candidatos(cab_g, linhas_g, args.min_trades,
                                            args.min_pf) if linhas_g else [])
-        geo_ok = reordenar_por_formula(cab_g, geo_ok) if geo_ok else geo_ok
+        geo_ok = priorizar_lucro_no_topo(cab_g, geo_ok) if geo_ok else geo_ok
         print(f"    {(time.time()-t0)/60:.1f} min | aptos: {len(geo_ok)} de "
               f"{len(linhas_g)}", flush=True)
         if geo_ok:
