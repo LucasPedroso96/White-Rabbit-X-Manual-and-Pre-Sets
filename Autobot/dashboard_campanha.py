@@ -711,11 +711,37 @@ def _sets_certificados() -> list[dict]:
             "expectancy": reg.get("expectancy_r"),
             "trades": reg.get("trades_oos"),
             "mc_prob_ruina": reg.get("mc_prob_ruina"),
+            # Lucro na janela OOS != lucro no periodo completo -- o achado
+            # do dono, 2026-08-03/04 (AUDCHF aprovado com lucro OOS alto e
+            # estourando margem no periodo inteiro) e exatamente por isso
+            # que o gate de sobrevivencia existe. Mostrar os dois, nunca so
+            # o OOS: escolher "o melhor set pra subir" olhando so pra ele
+            # foi o que gerou o problema.
+            "lucro_oos": reg.get("lucro_tick_real"),
+            "sobrevivencia_medida": reg.get("sobrevivencia_medida", False),
+            "sobrevivencia_saldo_final": reg.get("sobrevivencia_saldo_final"),
             "certificado": bool(relatorio_dir
                                 and (RELATORIOS_DIR / relatorio_dir).is_dir()),
             "relatorio_dir": relatorio_dir,
+            # Curva de equity do PERIODO COMPLETO (nao a da janela OOS) --
+            # achado do dono, 2026-08-04: sem isso nao dava pra CONFERIR
+            # visualmente um veredito de sobrevivencia, so confiar no
+            # numero. Mesma pasta do relatorio_dir (sobrevivencia.* e
+            # conf_wrx.* vivem juntos), mas so existe se o gate rodou.
+            "sobrevivencia_grafico": bool(
+                reg.get("sobrevivencia_relatorio_dir")
+                and (RELATORIOS_DIR / reg["sobrevivencia_relatorio_dir"]
+                    / "sobrevivencia.png").is_file()),
             "implantado": chave in implantados,
         })
+    # Melhor primeiro: saldo do periodo completo quando medido (a metrica
+    # que decide "sobrevive de verdade"), lucro OOS como desempate/
+    # fallback pra quem nao passou pelo gate (sistemas fora de grid).
+    saida.sort(key=lambda s: (
+        s["sobrevivencia_saldo_final"] if s["sobrevivencia_medida"]
+        and s["sobrevivencia_saldo_final"] is not None else -1e18,
+        s["lucro_oos"] if s["lucro_oos"] is not None else -1e18,
+    ), reverse=True)
     return saida
 
 

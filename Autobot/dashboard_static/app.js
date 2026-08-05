@@ -1186,22 +1186,56 @@ document.getElementById("btn-medir-custo").addEventListener("click", async () =>
 
 let implantacaoSets = [];
 
+// Sobrevive ao refresh (mesmo padrao de linhasExpandidas em tbl-recentes):
+// a chave e o proprio `chave` do set (simbolo__sistema__variante), ja
+// estavel por natureza.
+const implantacaoExpandida = new Set();
+document.querySelector("#tbl-implantacao").addEventListener("click", (ev) => {
+  const btn = ev.target.closest("button[data-grafico]");
+  if (!btn) return;
+  const chave = btn.dataset.grafico;
+  if (implantacaoExpandida.has(chave)) implantacaoExpandida.delete(chave);
+  else implantacaoExpandida.add(chave);
+  document.getElementById("graf-" + chave.replace(/[^a-zA-Z0-9]/g, "_"))
+    ?.classList.toggle("linha-oculta");
+});
+
 async function carregarImplantacao() {
   const d = await api("/api/implantacao");
   implantacaoSets = d.sets || [];
-  document.querySelector("#tbl-implantacao tbody").innerHTML = implantacaoSets.map((s) => `
+  document.querySelector("#tbl-implantacao tbody").innerHTML = implantacaoSets.map((s) => {
+    const lucroCompleto = s.sobrevivencia_medida && s.sobrevivencia_saldo_final != null
+      ? s.sobrevivencia_saldo_final.toFixed(2)
+      : (s.sobrevivencia_medida ? "n/d" : "not measured (non-grid)");
+    const idGraf = "graf-" + s.chave.replace(/[^a-zA-Z0-9]/g, "_");
+    const oculta = implantacaoExpandida.has(s.chave) ? "" : "linha-oculta";
+    const linhaPrincipal = `
     <tr>
       <td><input type="checkbox" class="chk-implantacao" value="${s.chave}" ${s.certificado ? "" : "disabled"}></td>
       <td>${s.simbolo}</td><td>${s.sistema}</td><td>${s.variante}</td>
       <td>${s.retencao ?? "-"}${s.retencao != null ? "%" : ""}</td>
+      <td>${lucroCompleto}</td>
+      <td>${s.lucro_oos != null ? s.lucro_oos.toFixed(2) : "-"}</td>
       <td>${s.certificado
         ? `<span class="pill ok">certified</span>`
         : `<span class="pill no">no report archived</span>`}</td>
       <td><label style="display:inline-flex;align-items:center;gap:4px">
         <input type="checkbox" class="chk-deployed" value="${s.chave}" ${s.implantado ? "checked" : ""}
           ${s.certificado ? "" : "disabled"}> deployed</label></td>
-    </tr>`).join("")
-    || `<tr><td colspan="7" class="status-msg">no validated set yet.</td></tr>`;
+      <td>${s.sobrevivencia_grafico
+        ? `<button class="acao secundario" style="padding:2px 8px;font-size:11px" data-grafico="${s.chave}">chart</button>`
+        : ""}</td>
+    </tr>`;
+    const linhaGrafico = s.sobrevivencia_grafico ? `
+    <tr id="${idGraf}" class="linha-detalhe ${oculta}"><td colspan="10">
+      <div class="detalhe-grid">
+        <span>Full-period equity curve (the one the survival gate actually measured — not the short OOS window):</span>
+        <img src="/relatorios/${s.relatorio_dir}/sobrevivencia.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Full-period equity curve">
+        <span><a href="/relatorios/${s.relatorio_dir}/sobrevivencia.htm" target="_blank">full report ↗</a></span>
+      </div></td></tr>` : "";
+    return linhaPrincipal + linhaGrafico;
+  }).join("")
+    || `<tr><td colspan="10" class="status-msg">no validated set yet.</td></tr>`;
 
   document.querySelectorAll(".chk-deployed").forEach((chk) => {
     chk.addEventListener("change", async () => {

@@ -39,6 +39,24 @@ checar("estouro real: nao sobrevive", r["sobreviveu"], False)
 checar("estouro real: saldo final", r["saldo_final"], 273.98)
 checar("estouro real: motivo cita stop out", "stop out" in r["motivo"], True)
 
+# --- caso real: EURUSD/BUY_MULTI aprovado (saldo final 3335.25, sem stop
+# out) mas preso sem margem pra abrir posicao nova em 2025.10.29 -- achado
+# do dono testando manualmente o set que o gate tinha deixado passar
+# (2026-08-04). "No money" nao derruba saldo nem estoura, so trava a conta
+# -- e por isso o piso de 50% e o stop-out sozinhos nao pegavam.
+SEM_MARGEM_REAL = """
+2025.10.29 06:40:00   Order opening not sent: OrderCheck retcode=10019, No money
+2025.10.29 07:33:32   order performed sell 2.47 at 1.16281 [#12789 sell 2.47 EURUSD at 1.16281]
+final balance 3335.25 USD
+OnTester result 420.8364211437089
+automatic testing finished
+"""
+r = avaliar_sobrevivencia(SEM_MARGEM_REAL, 500)
+checar("sem margem real: nao sobrevive apesar do saldo saudavel",
+       r["sobreviveu"], False)
+checar("sem margem real: saldo final ainda e lido", r["saldo_final"], 3335.25)
+checar("sem margem real: motivo cita retcode=10019", "10019" in r["motivo"], True)
+
 # --- sobrevive: completa o periodo, sem estourar, saldo saudavel ------------
 SAUDAVEL = """
 2026.07.20 23:59:58   position closed [#900 sell 0.02 AUDCHF 0.60000]

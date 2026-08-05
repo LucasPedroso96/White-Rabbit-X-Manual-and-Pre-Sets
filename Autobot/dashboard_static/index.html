@@ -214,9 +214,14 @@
       <button class="acao" id="btn-implantacao-exportar">Export selected (.zip)</button>
     </div>
     <span class="status-msg" id="msg-implantacao"></span>
+    <p class="status-msg">Sorted by full-period survival balance first (the number that matters —
+      see "Profit" tooltips below), OOS-window profit as tie-break. A set that only looks good in
+      the OOS window can still blow up over the long run — that is exactly why the survival gate exists.</p>
     <table id="tbl-implantacao">
       <thead><tr><th></th><th>Symbol</th><th>System</th><th>Variant</th><th>Retention</th>
-      <th>Certificate</th><th>Deployed</th></tr></thead>
+      <th title="Balance from the full continuous period, deposit 500 baseline — the survival gate's own measurement">Profit (full period)</th>
+      <th title="Profit measured only in the short OOS window — can look great and still hide a long-run blowup">Profit (OOS)</th>
+      <th>Certificate</th><th>Deployed</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
   </div>

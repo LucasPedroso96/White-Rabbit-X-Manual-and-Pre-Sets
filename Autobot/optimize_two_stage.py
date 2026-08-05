@@ -85,8 +85,7 @@ from mt5_runner import garantir_terminal_livre, lancar_terminal
 
 AQUI = Path(__file__).resolve().parent
 RELATORIOS_DIR = AQUI / "campanha_relatorios"
-RELATORIO_ARQUIVOS = ("conf_wrx.htm", "conf_wrx.png", "conf_wrx-hst.png",
-                      "conf_wrx-mfemae.png", "conf_wrx-holding.png")
+RELATORIO_SUFIXOS = (".htm", ".png", "-hst.png", "-mfemae.png", "-holding.png")
 
 # FILE_COMMON (2026-08-04): a EA grava TODAS as 14 formulas aqui a cada
 # passe do genetico -- Print/PrintFormat dentro de OnTester() nao aparece
@@ -819,17 +818,30 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
     """
     completou = "automatic testing finished" in log
     estourou = "stop out occurred" in log
+    # retcode=10019 ("No money"): o broker recusa abrir posicao NOVA por
+    # falta de margem -- achado do dono, 2026-08-04, testando manualmente
+    # o EURUSD/BUY_MULTI que o gate tinha aprovado (saldo final saudavel,
+    # sem stop out). Diferente de estouro: a conta nao QUEBRA, ela FICA
+    # PRESA, incapaz de operar por tempo indeterminado -- o saldo final
+    # bonito escondia isso porque nenhuma posicao nova reduziu o saldo
+    # parado. Sem SL nativo por posicao (grid usa cesta manual), qualquer
+    # ocorrencia e sinal de que a cesta cresceu alem do que a conta aguenta.
+    sem_margem = len(re.findall(r"retcode=10019", log))
     m = re.search(r"final balance ([\d.]+)", log)
     saldo_final = float(m.group(1)) if m else None
     # Piso de 50%: nao e so o stop out literal que denuncia ruina -- uma conta
     # que termina o periodo perto de zero sem tecnicamente estourar margem
     # (ex.: liquidacao forcada no fim do teste) e o mesmo problema.
-    sobreviveu = (completou and not estourou and saldo_final is not None
-                 and saldo_final >= 0.5 * deposito)
+    sobreviveu = (completou and not estourou and sem_margem == 0
+                 and saldo_final is not None and saldo_final >= 0.5 * deposito)
     if not completou:
         motivo = "teste nao completou dentro do timeout"
     elif estourou:
         motivo = "stop out (estouro de margem) durante o periodo completo"
+    elif sem_margem > 0:
+        motivo = (f"sem margem pra abrir posicao {sem_margem}x durante o "
+                  "periodo completo (retcode=10019, No money) -- conta "
+                  "ficou presa, mesmo sem estourar")
     elif saldo_final is None:
         motivo = "saldo final nao encontrado no log"
     elif saldo_final < 0.5 * deposito:
@@ -902,26 +914,36 @@ def rodar(caminho_set: Path, symbol: str, periodo: str, inicio: str, fim: str,
     return base.ler_relatorio(candidatos[0])
 
 
-def arquivar_relatorio(symbol: str, sistema: str, variante: str) -> str | None:
-    """Copia conf_wrx.* (confirmacao IS+OOS, tick real) pra fora de DADOS
-    antes do proximo passe (divergencia) sobrescrever -- mesmo relatorio que
-    o Monte Carlo logo acima acabou de ler. Roda pra TODO combo, aprovado ou
-    nao: e a base do "certificado de qualidade" (dono, 2026-08-03) e do que
+def arquivar_relatorio(symbol: str, sistema: str, variante: str,
+                       nome_origem: str = "conf_wrx",
+                       nome_destino: str | None = None) -> str | None:
+    """Copia <nome_origem>.* pra fora de DADOS antes do proximo passe
+    sobrescrever -- mesmo relatorio que o Monte Carlo (ou o gate de
+    sobrevivencia) acabou de ler. Roda pra TODO combo, aprovado ou nao: e
+    a base do "certificado de qualidade" (dono, 2026-08-03) e do que
     faltava no dashboard -- "um monte de relatorio, e nao temos nada la".
+
+    `nome_destino` renomeia na copia -- usado pra distinguir o relatorio da
+    janela OOS ("conf_wrx" -> fica "conf_wrx") do relatorio do periodo
+    completo do gate de sobrevivencia ("conf_sobrevivencia" -> vira
+    "sobrevivencia", achado do dono 2026-08-04: sem esse segundo relatorio
+    arquivado nao dava pra CONFERIR visualmente o motivo de um veredito de
+    sobrevivencia, so confiar no numero final).
 
     Chave SEM timestamp: uma recorrida do mesmo combo substitui o relatorio
     anterior, mesma convencao do `VALIDADO_*.set` de entrega. Nunca aborta o
     combo -- e um extra pro dashboard, nao faz parte do veredito.
     """
+    nome_destino = nome_destino or nome_origem
     pasta_rel = f"{symbol.replace('.', '_')}__{sistema}__{variante}"
     destino = RELATORIOS_DIR / pasta_rel
     try:
         destino.mkdir(parents=True, exist_ok=True)
         copiados = 0
-        for nome in RELATORIO_ARQUIVOS:
-            origem_arq = base.DADOS / nome
+        for sufixo in RELATORIO_SUFIXOS:
+            origem_arq = base.DADOS / f"{nome_origem}{sufixo}"
             if origem_arq.exists():
-                shutil.copy2(origem_arq, destino / nome)
+                shutil.copy2(origem_arq, destino / f"{nome_destino}{sufixo}")
                 copiados += 1
         return pasta_rel if copiados else None
     except OSError as exc:
@@ -1412,6 +1434,7 @@ def main() -> int:
     # ---- Gate de sobrevivencia (grid): periodo completo, como o comprador
     # roda de verdade -- achado do dono, 2026-08-03 (ver docstring da funcao).
     sobrevivencia = None
+    sobrevivencia_relatorio_dir = None
     if aprovado and args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
         print("\n    gate de sobrevivencia: rodando o set ENTREGUE no "
               "periodo completo (continuo, tick real)...", flush=True)
@@ -1425,6 +1448,13 @@ def main() -> int:
         sobrevivencia = verificar_sobrevivencia_completa(
             trabalho, args.symbol, args.period, args.inicio, args.fim,
             args.deposit, max(args.timeout, 1800))
+        # Arquiva o relatorio do PROPRIO gate (curva de equity do periodo
+        # completo, nao so o numero final) -- achado do dono, 2026-08-04:
+        # sem isso nao dava pra CONFERIR visualmente um veredito de
+        # sobrevivencia, so confiar no saldo final relatado.
+        sobrevivencia_relatorio_dir = arquivar_relatorio(
+            args.symbol, args.sistema, args.variante,
+            nome_origem="conf_sobrevivencia", nome_destino="sobrevivencia")
         print(f"    {(time.time()-t0)/60:.1f} min | saldo final "
               f"{sobrevivencia['saldo_final']}", flush=True)
         if not sobrevivencia["sobreviveu"]:
@@ -1481,6 +1511,7 @@ def main() -> int:
                           sobrevivencia["saldo_final"] if sobrevivencia else None),
                       "sobrevivencia_motivo_reprovacao": (
                           sobrevivencia["motivo"] if sobrevivencia else None),
+                      "sobrevivencia_relatorio_dir": sobrevivencia_relatorio_dir,
                       "relatorio_dir": relatorio_dir,
                       "parametros": {**otimizados, **vencedor}},
                      ensure_ascii=False))
