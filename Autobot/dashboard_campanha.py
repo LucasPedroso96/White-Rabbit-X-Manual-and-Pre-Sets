@@ -91,6 +91,7 @@ def _executar_job(job_id: str, cmd: list[str], timeout: int) -> None:
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         _jobs[job_id].update(
             {
@@ -459,11 +460,18 @@ def _lancar_campanha(body: dict) -> JSONResponse:
             f"\n### painel: iniciando ({modo}) em "
             f"{datetime.now().isoformat(timespec='seconds')} ###\n"
         )
+    # CREATE_NO_WINDOW so suprime a JANELA DE CONSOLE que este python.exe
+    # filho abriria sozinho (achado do dono, 2026-08-06: cada combo novo
+    # roubava foco/atrapalhava outros apps na tela). Continua 100% visivel
+    # no Task Manager/tasklist e matavel por taskkill igual antes -- nao e
+    # o processo "escondido" que a regra do projeto proibe, so a janela
+    # que ninguem le (stdout ja vai pro LOG, nunca pra um console).
     _processo = subprocess.Popen(
         cmd,
         stdout=open(LOG, "a", encoding="utf-8"),
         stderr=subprocess.STDOUT,
         cwd=str(AQUI),
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
     LOCK.write_text(
         json.dumps(

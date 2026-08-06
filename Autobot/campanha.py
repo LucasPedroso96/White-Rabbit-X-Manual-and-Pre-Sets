@@ -142,9 +142,15 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
            "--min-retencao", str(args.min_retencao),
            "--fechar-terminal", "--timeout", str(args.timeout)]
     t0 = time.time()
+    # CREATE_NO_WINDOW: so suprime a janela de console que este python.exe
+    # filho abriria sozinho (achado do dono, 2026-08-06 -- cada combo novo
+    # roubava foco/atrapalhava outros apps). Continua visivel no Task
+    # Manager e matavel normalmente; stdout/stderr ja vao capturados aqui
+    # em `p`, nunca pra um console de verdade.
     p = subprocess.run(cmd, capture_output=True, text=True,
                        encoding="utf-8", errors="replace",
-                       timeout=args.timeout + 600)
+                       timeout=args.timeout + 600,
+                       creationflags=subprocess.CREATE_NO_WINDOW)
     saida = (p.stdout or "") + (p.stderr or "")
     print(saida, flush=True)
 

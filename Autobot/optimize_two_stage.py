@@ -86,6 +86,59 @@ from mt5_runner import garantir_terminal_livre, lancar_terminal
 AQUI = Path(__file__).resolve().parent
 RELATORIOS_DIR = AQUI / "campanha_relatorios"
 RELATORIO_SUFIXOS = (".htm", ".png", "-hst.png", "-mfemae.png", "-holding.png")
+CHECKPOINTS_DIR = AQUI / "campanha_checkpoints"
+
+
+def _checkpoint_estagio1(symbol: str, sistema: str, variante: str) -> Path:
+    return CHECKPOINTS_DIR / f"{symbol}__{sistema}__{variante}.json"
+
+
+def salvar_checkpoint_estagio1(symbol: str, sistema: str, variante: str,
+                               cab: list[str], linhas: list[list[str]],
+                               rodada: int) -> None:
+    """Persiste o progresso do Estagio 1 apos cada rodada, combo a combo.
+
+    Achado do dono, 2026-08-06: reiniciar a campanha (pra aplicar um fix)
+    jogava fora o `linhas` acumulado das rodadas ja rodadas -- o cache do
+    tester (.opt) preserva o resultado BRUTO de cada passe individual e
+    acelera re-simular, mas isso e coisa diferente de reaproveitar o que o
+    Estagio 1 ja tinha DECIDIDO (quantas rodadas, quais linhas passaram o
+    piso). Sem isto, um restart sempre recomeca a contagem do zero mesmo
+    com o MT5 respondendo rapido pelo cache.
+    """
+    CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
+    _checkpoint_estagio1(symbol, sistema, variante).write_text(
+        json.dumps({"symbol": symbol, "sistema": sistema, "variante": variante,
+                    "cab": cab, "linhas": linhas, "rodada_concluida": rodada},
+                   ensure_ascii=False),
+        encoding="utf-8")
+
+
+def carregar_checkpoint_estagio1(symbol: str, sistema: str,
+                                 variante: str) -> dict | None:
+    """Devolve o checkpoint SO se bater com este combo exato. `None` em
+    qualquer outra situacao (ausente, corrompido, de outro combo) -- upgrade
+    opcional, nunca uma dependencia dura: sem checkpoint valido, o Estagio 1
+    comeca do zero normalmente, como sempre fez.
+    """
+    caminho = _checkpoint_estagio1(symbol, sistema, variante)
+    if not caminho.exists():
+        return None
+    try:
+        dado = json.loads(caminho.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if (dado.get("symbol") != symbol or dado.get("sistema") != sistema
+            or dado.get("variante") != variante
+            or not isinstance(dado.get("linhas"), list)
+            or not isinstance(dado.get("cab"), list)
+            or not isinstance(dado.get("rodada_concluida"), int)):
+        return None
+    return dado
+
+
+def limpar_checkpoint_estagio1(symbol: str, sistema: str, variante: str) -> None:
+    _checkpoint_estagio1(symbol, sistema, variante).unlink(missing_ok=True)
 
 # FILE_COMMON (2026-08-04): a EA grava TODAS as 14 formulas aqui a cada
 # passe do genetico -- Print/PrintFormat dentro de OnTester() nao aparece
@@ -1091,19 +1144,32 @@ def main() -> int:
     cab: list[str] = []
     linhas: list[list[str]] = []
     melhor_ant, aptos_ant = float("-inf"), -1
+    rodada_inicial = 1
+    checkpoint = carregar_checkpoint_estagio1(args.symbol, args.sistema,
+                                              args.variante)
+    if checkpoint:
+        cab, linhas = checkpoint["cab"], checkpoint["linhas"]
+        rodada_inicial = checkpoint["rodada_concluida"] + 1
+        print(f"    checkpoint do estagio 1 encontrado: retomando da rodada "
+              f"{rodada_inicial} ({len(linhas)} linhas ja acumuladas de "
+              "corridas anteriores)", flush=True)
     # Grid busca por GridSurvivalScore puro (FORMULA_POR_SISTEMA); limpa o
     # arquivo ANTES do loop, nao a cada rodada, porque `linhas` ACUMULA entre
     # rodadas (append, nao substitui) -- o arquivo de formulas precisa
-    # acumular do mesmo jeito pra continuar casando linha a linha.
-    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+    # acumular do mesmo jeito pra continuar casando linha a linha. So limpa
+    # em inicio de verdade: com checkpoint, o arquivo pode ter formulas de
+    # rodadas anteriores (processo antigo) que `linhas` ainda referencia --
+    # limpar aqui perderia o casamento por fingerprint dessas linhas.
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL and not checkpoint:
         limpar_todas_formulas()
-    for rodada in range(1, 4):
+    for rodada in range(rodada_inicial, 4):
         t0 = time.time()
         cab_r, linhas_r = rodar(trabalho, args.symbol, args.period, args.inicio,
                                 args.fim, args.deposit, 1, args.timeout)
         if not linhas_r:
             if not linhas:
                 print("    relatorio vazio -- nenhum passe sobreviveu aos filtros")
+                limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
                 return 1
             print(f"    rodada {rodada}: relatorio vazio; sigo com as anteriores.",
                   flush=True)
@@ -1131,11 +1197,15 @@ def main() -> int:
                       "minimo de 3 rodadas e obrigatorio).", flush=True)
         melhor_ant = max(melhor_ant, melhor)
         aptos_ant = max(aptos_ant, aptos)
+        salvar_checkpoint_estagio1(args.symbol, args.sistema, args.variante,
+                                   cab, linhas, rodada)
 
     melhores = base.escolher_candidatos(cab, linhas, piso1, 1.0)
     if not melhores:
         print("    nenhum passe passou o piso no estagio 1")
+        limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
+    limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
     relatar_cobertura(cab, linhas, melhores)
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
         # Os pisos (trades/PF) ja filtraram; a formula de risco decide QUEM
