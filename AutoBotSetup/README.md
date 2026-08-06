@@ -85,9 +85,18 @@ AutobotRuntime/python-embed/python.exe -m pip install --no-warn-script-location 
 mkdir -p AutobotRuntime/Autobot
 # copie os .py operacionais + dashboard_static/ de ../Autobot/
 
-# Launcher (ja existe em AutobotRuntime/Iniciar_Dashboard.bat -- so confirma
-# que ta la; ele chama python-embed\python.exe dashboard_campanha.py)
+# Launcher e icone: fonte rastreado no git, fica em AutoBotSetup/ mesmo
+# (nao dentro de AutobotRuntime/, que e so pasta gerada) -- copia pra
+# dentro do runtime a cada build.
+cp Iniciar_Dashboard.bat AutobotRuntime/
+cp wrx_icon.ico AutobotRuntime/
 ```
+
+`Iniciar_Dashboard.bat` e `wrx_icon.ico` **sao** versionados (ficam soltos em
+`AutoBotSetup/`, ao lado de `wrx_setup.py`) -- so o conteudo gerado
+(`AutobotRuntime/python-embed/`, a copia dos `.py` do Autobot, `build/`) fica
+de fora do git. Se editar o launcher, edite o de `AutoBotSetup/`, nao a copia
+dentro de `AutobotRuntime/` (essa e descartavel, recriada a cada build).
 
 ### 2. Compilar o `.exe`
 
