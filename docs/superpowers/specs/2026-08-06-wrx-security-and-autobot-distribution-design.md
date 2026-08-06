@@ -156,6 +156,40 @@ do dono (ou de um cliente de confiança) antes de redistribuir em massa.
 3. **C (instalador)** é o maior esforço de engenharia; roda por último,
    com seu próprio plano de implementação detalhado.
 
+## Atualização 2026-08-06 — mudança de repositório
+
+Depois deste desenho aprovado, o dono pediu que o WRX deixasse de viver
+dentro do Levain-2.0 (sistema não relacionado). Executado antes do resto
+deste plano:
+
+- `Autobot/` (ex-`white_rabbit_x_optimization_tools/`), `AutoBotSetup/`,
+  esta spec, a spec de 2026-07-31, os 4 docs de specs/plans do WRX, os
+  `.bat` de compilação e o script de tradução de docs — todos migrados
+  para este repositório (`Documents\White Rabbit X`, clone do
+  `White-Rabbit-X-Manual-and-Pre-Sets` público), com histórico
+  preservado via `git filter-repo` + `git merge --allow-unrelated-histories`
+  onde havia histórico a preservar.
+- Estado de runtime real (checkpoints, resultados de campanha, cache de
+  conta) e o `.exe` do instalador em produção foram preservados em
+  `Autobot/_runtime_migrado_do_levain/` e `AutoBotSetup/`, não descartados.
+- `.codex-staging/white-rabbit` (repo aninhado com remote próprio em
+  `github.com/LucasPedroso96/White-Rabbit.git`, conteúdo redundante com
+  `Autobot/ea_source/`) foi removido do Levain-2.0 sem migrar — já vive no
+  próprio remote dele.
+- Docs genéricos do Levain (`SISTEMA_*`, `ANALISE_*`) que apenas
+  mencionam White Rabbit de passagem (1-10 menções em arquivos de
+  270-700+ linhas) **não** foram movidos — são sobre a arquitetura do
+  próprio Levain.
+- Levain-2.0 não tem mais nenhum arquivo com "white rabbit"/"wrx"/
+  "autobot" no nome ou no `.gitignore`.
+
+**Isso não muda a Decisão C.** O caminho de build do instalador do
+cliente passa a ser `Documents\White Rabbit X\AutoBotSetup\wrx_setup.py`
+em vez de `Levain-2.0\AutoBotSetup\wrx_setup.py`, e a fonte do Autobot
+completo passa a ser `Documents\White Rabbit X\Autobot\` em vez de
+`Levain-2.0\white_rabbit_x_optimization_tools\`. O comportamento final
+entregue ao cliente é o mesmo desenhado originalmente.
+
 ## Riscos e limites conhecidos
 
 - Reescrever histórico do Levain-2.0- muda o SHA de todo commit após o
