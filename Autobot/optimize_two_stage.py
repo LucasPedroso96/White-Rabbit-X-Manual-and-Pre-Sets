@@ -833,7 +833,7 @@ def _priorizar_lucro_na_fatia(cab: list[str], linhas_por_formula: list[list[str]
 
 def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
                 fim: str, deposito: int, modelo: int,
-                timeout: int = 3600) -> dict:
+                timeout: int | None = None) -> dict:
     """Roda UM backtest e devolve saldo final, trades e abortos.
 
     E assim que os ticks reais entram: como CONFERENCIA dos parametros que a
@@ -844,6 +844,12 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
     o resultado do OHLC se sustenta em dado real? Se sustenta, acabou. Se nao,
     ele EXPOE a divergencia -- enquanto otimizar em tick real teria escondido o
     problema, entregando um resultado bonito ajustado ao modelo caro.
+
+    Sem teto proprio (dono, 2026-08-06): o antigo timeout=3600 fixo matava
+    passes legitimos em ativo pesado (muito tick/history data pra carregar)
+    -- e como lancar_terminal() nunca deixa o TimeoutExpired escapar, nao
+    ha mais risco de crash em esperar. O teto real que ainda existe e o de
+    fora, campanha.py --timeout (12h por combo).
     """
     rel = str(caminho_set.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
     antes = base.marcar_logs()

@@ -87,7 +87,7 @@ def garantir_terminal_livre(fechar: bool = False) -> None:
         "do terminal -- na ordem inversa ele simplesmente abre outro.")
 
 
-def lancar_terminal(terminal: Path, ini: Path, timeout: int,
+def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
                     *args_extra: str) -> None:
     """Roda `/config:` minimizado e SEM ativar -- nao rouba o foco de quem
     esta trabalhando na maquina.
