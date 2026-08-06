@@ -30,7 +30,7 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-            r"\59EECBFD4A9CCD98CCBC61E96D5DED8E\MQL5\Profiles\Tester"
+            r"\D2A36B4A61A508797F5C460B1F34DC5D\MQL5\Profiles\Tester"
             r"\White_Rabbit_X_Sets_templates")
 
 CUSTOM = -1

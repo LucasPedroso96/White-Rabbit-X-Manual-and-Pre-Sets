@@ -50,7 +50,7 @@ from pathlib import Path
 
 AQUI = Path(__file__).resolve().parent
 DADOS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-             r"\59EECBFD4A9CCD98CCBC61E96D5DED8E")
+             r"\D2A36B4A61A508797F5C460B1F34DC5D")
 TESTER = DADOS / "MQL5" / "Profiles" / "Tester"
 BIBLIOTECA = TESTER / "White_Rabbit_X_Sets_templates"
 PRONTOS = TESTER / "White_Rabbit_X_Sets_Autobot"

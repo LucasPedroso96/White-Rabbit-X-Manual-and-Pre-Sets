@@ -25,7 +25,7 @@ import sys
 from pathlib import Path
 
 EXPERTS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-               r"\59EECBFD4A9CCD98CCBC61E96D5DED8E\MQL5\Experts")
+               r"\D2A36B4A61A508797F5C460B1F34DC5D\MQL5\Experts")
 GLOBAL = EXPERTS / "White Rabbit X (Global Multi-Indicator).mq5"
 BRASIL = EXPERTS / "White Rabbit X (Versão Brasileira PT).mq5"
 GLOSSARIO = Path(__file__).parent / "glossario_br.json"

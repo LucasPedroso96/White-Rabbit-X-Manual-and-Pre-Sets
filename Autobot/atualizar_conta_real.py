@@ -28,8 +28,8 @@ from mt5_runner import fechar_terminal, garantir_terminal_livre
 
 AQUI = Path(__file__).resolve().parent
 CACHE = AQUI / "_conta_real.json"
-TERMINAL = Path(r"C:\Users\Lucas Pedroso\Desktop\Levain 2.0 (Em Andamento)"
-                r"\Levain-2.0\MetaTrader5\terminal64.exe")
+TERMINAL = Path(r"C:\Program Files\RoboForex MT5 Terminal (WhiteRabbitEA)"
+                r"\terminal64.exe")
 
 
 def main() -> int:
