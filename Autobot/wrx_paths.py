@@ -25,6 +25,7 @@ import os
 from pathlib import Path
 
 ENV_DATA_DIR = "WRX_MT5_DATA_DIR"
+ENV_MANUALS_STAGING_DIR = "WRX_MANUALS_STAGING_DIR"
 
 
 def _autodetect_data_dir() -> Path | None:
@@ -58,6 +59,23 @@ def data_dir() -> Path:
         f"Configure a variavel de ambiente {ENV_DATA_DIR} apontando para a "
         "pasta de dados do terminal (no MetaTrader: File -> Open Data Folder), "
         "ou instale o EA em MQL5/Experts antes de rodar estas ferramentas."
+    )
+
+
+def manuals_staging_root() -> Path:
+    """Pasta de staging dos manuais fora do repo (config por maquina, so
+    usada pelas ferramentas internas de manutencao de manual)."""
+    env = os.environ.get(ENV_MANUALS_STAGING_DIR)
+    if env:
+        p = Path(env)
+        if not p.exists():
+            raise SystemExit(f"{ENV_MANUALS_STAGING_DIR} aponta para um "
+                              f"caminho que nao existe: {p}")
+        return p
+    raise SystemExit(
+        f"Configure a variavel de ambiente {ENV_MANUALS_STAGING_DIR} "
+        "apontando para a pasta de staging dos manuais "
+        "(Pacote_Completo_White_Rabbit_X/Languages)."
     )
 
 

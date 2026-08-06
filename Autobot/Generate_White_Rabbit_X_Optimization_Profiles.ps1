@@ -1,8 +1,8 @@
 [CmdletBinding()]
 param(
-    [string]$LibraryRoot = 'C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal\59EECBFD4A9CCD98CCBC61E96D5DED8E\MQL5\Profiles\Tester\White_Rabbit_X_Asset_Library_Sets',
-    [string]$TemplatePath = 'C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal\59EECBFD4A9CCD98CCBC61E96D5DED8E\MQL5\Profiles\Tester\exemplo arquivo set.set',
-    [string]$EaSourcePath = 'C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal\59EECBFD4A9CCD98CCBC61E96D5DED8E\MQL5\Experts\White Rabbit X (Global Multi-Indicator).mq5',
+    [string]$LibraryRoot = '',
+    [string]$TemplatePath = '',
+    [string]$EaSourcePath = '',
     [string]$OutputRoot = '',
     [string]$WfoEndDate = '',
     [int]$MagicBase = 590000000,
@@ -13,6 +13,33 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+# Sem caminho pessoal cravado: resolve a pasta de dados do terminal via
+# WRX_MT5_DATA_DIR, ou auto-detecta o primeiro terminal com White Rabbit X
+# instalado em MQL5\Experts (mesma logica de wrx_paths.py).
+if (-not $LibraryRoot -or -not $TemplatePath -or -not $EaSourcePath) {
+    $dataDir = $env:WRX_MT5_DATA_DIR
+    if (-not $dataDir) {
+        $base = Join-Path $env:APPDATA 'MetaQuotes\Terminal'
+        $dataDir = Get-ChildItem -Path $base -Directory -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path (Join-Path $_.FullName 'MQL5\Experts\White Rabbit X*') } |
+            Select-Object -First 1 -ExpandProperty FullName
+    }
+    if (-not $dataDir -or -not (Test-Path $dataDir)) {
+        throw "Nao encontrei a pasta de dados do terminal MT5. Configure a " +
+              "variavel de ambiente WRX_MT5_DATA_DIR ou informe -LibraryRoot/" +
+              "-TemplatePath/-EaSourcePath explicitamente."
+    }
+    if (-not $LibraryRoot) {
+        $LibraryRoot = Join-Path $dataDir 'MQL5\Profiles\Tester\White_Rabbit_X_Asset_Library_Sets'
+    }
+    if (-not $TemplatePath) {
+        $TemplatePath = Join-Path $dataDir 'MQL5\Profiles\Tester\exemplo arquivo set.set'
+    }
+    if (-not $EaSourcePath) {
+        $EaSourcePath = Join-Path $dataDir 'MQL5\Experts\White Rabbit X (Global Multi-Indicator).mq5'
+    }
+}
 
 $setEncoding = [System.Text.UnicodeEncoding]::new($false, $true)
 $utf8Bom = [System.Text.UTF8Encoding]::new($true)

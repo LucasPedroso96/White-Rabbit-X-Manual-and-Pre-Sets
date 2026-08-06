@@ -35,11 +35,10 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-TERMINAL_DIR = Path(r"C:\Users\Lucas Pedroso\Desktop\Levain 2.0 (Em Andamento)"
-                    r"\Levain-2.0\MetaTrader5")
-TERMINAL_EXE = TERMINAL_DIR / "terminal64.exe"
-DATA_DIR = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-                r"\D2A36B4A61A508797F5C460B1F34DC5D")
+import wrx_paths
+
+TERMINAL_EXE = wrx_paths.terminal_exe()
+DATA_DIR = wrx_paths.data_dir()
 EA_REL = r"White Rabbit X (Global Multi-Indicator).ex5"
 
 

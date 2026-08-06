@@ -48,9 +48,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import wrx_paths
+
 AQUI = Path(__file__).resolve().parent
-DADOS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-             r"\D2A36B4A61A508797F5C460B1F34DC5D")
+DADOS = wrx_paths.data_dir()
 TESTER = DADOS / "MQL5" / "Profiles" / "Tester"
 BIBLIOTECA = TESTER / "White_Rabbit_X_Sets_templates"
 PRONTOS = TESTER / "White_Rabbit_X_Sets_Autobot"

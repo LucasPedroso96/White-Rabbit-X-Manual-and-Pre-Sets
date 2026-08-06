@@ -21,9 +21,10 @@ import re
 import sys
 from pathlib import Path
 
-EA = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-          r"\D2A36B4A61A508797F5C460B1F34DC5D\MQL5\Experts"
-          r"\White Rabbit X (Global Multi-Indicator).mq5")
+import wrx_paths
+
+EA = (wrx_paths.data_dir() / "MQL5" / "Experts"
+      / "White Rabbit X (Global Multi-Indicator).mq5")
 
 # Altura aproximada de uma linha por tamanho de fonte, em pixels. Serve para
 # decidir se duas linhas consecutivas se tocam.

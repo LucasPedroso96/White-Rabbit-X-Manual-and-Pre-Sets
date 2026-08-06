@@ -69,6 +69,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -145,9 +146,9 @@ def limpar_checkpoint_estagio1(symbol: str, sistema: str, variante: str) -> None
 # em log nenhum durante otimizacao (so em passe unico), confirmado com
 # teste de canario; FileWrite com FILE_COMMON sim, validado ao vivo (17
 # passes -> 17 linhas, sem colisao entre os 4 agentes em paralelo).
-ARQUIVO_TODAS_FORMULAS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming"
-                              r"\MetaQuotes\Terminal\Common\Files"
-                              r"\levain_wrx_all_formulas.txt")
+ARQUIVO_TODAS_FORMULAS = (Path(os.environ["APPDATA"])
+                          / "MetaQuotes" / "Terminal" / "Common" / "Files"
+                          / "levain_wrx_all_formulas.txt")
 
 # FASE 1 = DESCOBERTA DE REGIOES (pedido do dono, 2026-07-31): o grupo de
 # Entradas COMPLETO -- indicador, metodo, timeframe, applied price, periodos,

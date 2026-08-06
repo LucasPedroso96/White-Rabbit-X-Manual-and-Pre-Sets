@@ -32,10 +32,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import wrx_paths
 from mt5_runner import fechar_terminal
 
-TERMINAL = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-                r"\D2A36B4A61A508797F5C460B1F34DC5D\MQL5")
+TERMINAL = wrx_paths.data_dir() / "MQL5"
 SETS = TERMINAL / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
 ARCHIVE = TERMINAL / "Profiles" / "Tester" / "White_Rabbit_X_Sets_Arquivados"
 

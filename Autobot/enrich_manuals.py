@@ -26,8 +26,9 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\Lucas Pedroso\OneDrive\SantoGral\Santo Gral"
-            r"\venda mql5\Pacote_Completo_White_Rabbit_X\Languages")
+import wrx_paths
+
+ROOT = wrx_paths.manuals_staging_root()
 
 TELEGRAM = "https://t.me/MrRabbit_MT5"
 EA_VERSION = "1.12"

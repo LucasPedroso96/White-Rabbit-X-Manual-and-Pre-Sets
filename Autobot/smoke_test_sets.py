@@ -36,12 +36,11 @@ import tempfile
 import time
 from pathlib import Path
 
+import wrx_paths
 from mt5_runner import garantir_terminal_livre, lancar_terminal
 
-TERMINAL = Path(r"C:\Program Files\RoboForex MT5 Terminal (WhiteRabbitEA)"
-                r"\terminal64.exe")
-DADOS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-             r"\D2A36B4A61A508797F5C460B1F34DC5D")
+TERMINAL = wrx_paths.terminal_exe()
+DADOS = wrx_paths.data_dir()
 SETS = DADOS / "MQL5" / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
 EA = r"White Rabbit X (Global Multi-Indicator).ex5"
 LOGS = DADOS / "Tester" / "logs"

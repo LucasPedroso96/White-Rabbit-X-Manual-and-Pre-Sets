@@ -39,9 +39,10 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-            r"\D2A36B4A61A508797F5C460B1F34DC5D\MQL5\Profiles\Tester"
-            r"\White_Rabbit_X_Sets_templates")
+import wrx_paths
+
+ROOT = (wrx_paths.data_dir() / "MQL5" / "Profiles" / "Tester"
+        / "White_Rabbit_X_Sets_templates")
 
 # WFO_TIME_PERIOD do EA: os valores sao dias, Custom = -1 (CUSTOM_DAYS).
 PRESETS = {360: "Ano", 180: "Semestre", 90: "Trimestre", 30: "Mes",

@@ -13,6 +13,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import wrx_paths
 from optimize_two_stage import ler_metricas
 
 FALHAS: list[str] = []
@@ -75,10 +76,12 @@ checar("cumulativo/trades", ler_metricas(ANTIGO + COMPLETO)["trades"], 410)
 checar("cumulativo/saldo", ler_metricas(ANTIGO + COMPLETO)["saldo"], 827.92)
 
 # --- e contra um log REAL, se houver um por perto ---------------------------
-LOGS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-            r"\D2A36B4A61A508797F5C460B1F34DC5D\Tester\logs")
+try:
+    LOGS = wrx_paths.data_dir() / "Tester" / "logs"
+except SystemExit:
+    LOGS = None
 reais = sorted(LOGS.glob("*.log"), key=lambda p: p.stat().st_mtime) \
-    if LOGS.is_dir() else []
+    if LOGS and LOGS.is_dir() else []
 if reais:
     texto = reais[-1].read_text(encoding="utf-16-le", errors="replace")
     r = ler_metricas(texto)

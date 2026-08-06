@@ -21,8 +21,9 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\Lucas Pedroso\OneDrive\SantoGral\Santo Gral"
-            r"\venda mql5\Pacote_Completo_White_Rabbit_X\Languages")
+import wrx_paths
+
+ROOT = wrx_paths.manuals_staging_root()
 
 # Cada idioma nomeia os arquivos a sua maneira; o vinculo e o prefixo numerico.
 DOC_SLOTS = ["01", "02", "03", "04", "05", "06", "07", "08"]
@@ -149,9 +150,8 @@ def main() -> int:
         }
 
     # Sincronia com a EA: o manual precisa refletir os 127 inputs atuais.
-    ea = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-              r"\D2A36B4A61A508797F5C460B1F34DC5D\MQL5\Experts"
-              r"\White Rabbit X (Global Multi-Indicator).mq5")
+    ea = (wrx_paths.data_dir() / "MQL5" / "Experts"
+          / "White Rabbit X (Global Multi-Indicator).mq5")
     if ea.exists():
         ea_inputs = re.findall(
             r"^\s*input\s+(?!group\b)[A-Za-z_][A-Za-z0-9_]*\s+"

@@ -30,8 +30,9 @@ from reportlab.platypus import (KeepTogether, ListFlowable, ListItem,
                                 Spacer, Table, TableStyle)
 from reportlab.lib import colors
 
-ROOT = Path(r"C:\Users\Lucas Pedroso\OneDrive\SantoGral\Santo Gral"
-            r"\venda mql5\Pacote_Completo_White_Rabbit_X\Languages")
+import wrx_paths
+
+ROOT = wrx_paths.manuals_staging_root()
 WINFONTS = Path(r"C:\Windows\Fonts")
 
 # Fonte CID embutida no reportlab para cada escrita logografica.

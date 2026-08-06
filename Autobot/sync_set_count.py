@@ -30,23 +30,22 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
 
-BIBLIOTECA = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-                  r"\D2A36B4A61A508797F5C460B1F34DC5D\MQL5\Profiles\Tester"
-                  r"\White_Rabbit_X_Sets_templates")
+import wrx_paths
 
-DESTINOS = [
-    Path(r"C:\Users\Lucas Pedroso\OneDrive\SantoGral\Santo Gral\venda mql5"
-         r"\Pacote_Completo_White_Rabbit_X\Languages"),
-    Path(r"C:\Users\Lucas Pedroso\Desktop\Metatrader5EAS\White Rabbit"),
-    Path(r"C:\Users\Lucas Pedroso\Desktop\Levain 2.0 (Em Andamento)"
-         r"\Levain-2.0\white_rabbit_x_optimization_tools"),
-    Path(r"C:\Users\Lucas Pedroso\Desktop\Levain 2.0 (Em Andamento)"
-         r"\Levain-2.0\AutoBotSetup"),
-]
+BIBLIOTECA = (wrx_paths.data_dir() / "MQL5" / "Profiles" / "Tester"
+              / "White_Rabbit_X_Sets_templates")
+
+# Destinos adicionais (alem da pasta de manuais) sao especificos da maquina
+# de quem mantem o pacote de venda -- configuraveis via WRX_SYNC_DESTINOS
+# (caminhos separados por ";"), nunca cravados no codigo.
+DESTINOS = [wrx_paths.manuals_staging_root()]
+_extra = os.environ.get("WRX_SYNC_DESTINOS", "")
+DESTINOS += [Path(p) for p in _extra.split(";") if p.strip()]
 
 TEXTO = {".md", ".txt", ".py", ".csv", ".json", ".html"}
 # Versao arquivada guarda o numero que valia na epoca. Reescrever ali nao

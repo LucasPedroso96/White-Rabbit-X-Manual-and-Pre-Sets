@@ -15,9 +15,10 @@ import csv
 from collections import Counter
 from pathlib import Path
 
-ROOT = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-            r"\D2A36B4A61A508797F5C460B1F34DC5D\MQL5\Profiles\Tester"
-            r"\White_Rabbit_X_Sets_templates")
+import wrx_paths
+
+ROOT = (wrx_paths.data_dir() / "MQL5" / "Profiles" / "Tester"
+        / "White_Rabbit_X_Sets_templates")
 
 EXTRA = """
 ## Out-of-sample validation, and what it is not

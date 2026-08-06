@@ -31,8 +31,9 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-TERMINAL = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-                r"\D2A36B4A61A508797F5C460B1F34DC5D\MQL5")
+import wrx_paths
+
+TERMINAL = wrx_paths.data_dir() / "MQL5"
 EA_SOURCE = TERMINAL / "Experts" / "White Rabbit X (Global Multi-Indicator).mq5"
 TEMPLATE = TERMINAL / "Profiles" / "Tester" / "exemplo arquivo set.set"
 OUTPUT = TERMINAL / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
