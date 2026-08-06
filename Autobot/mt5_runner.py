@@ -112,13 +112,26 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
     funcao -- entao engolir o timeout e seguro: o chamador ve o log sem
     "automatic testing finished" e trata como qualquer outro passe
     incompleto, o mesmo caminho que ja existe pra log vazio ou estourado.
+
+    `stdout`/`stderr` vao pro DEVNULL, nao capturados (dono, 2026-08-06,
+    causa raiz do "processo nao fecha a tempo"): com `capture_output=True`
+    o Python cria PIPEs e so retorna de `communicate()` quando eles fecham
+    (EOF) -- e um processo DESCENDENTE do terminal (um dos agentes locais)
+    que herda o handle do pipe e demora pra sair prende o Python esperando
+    o PIPE, nao o processo principal. Confirmado no log do MT5: a
+    otimizacao terminou limpa (genetic optimization finished, cache salvo,
+    todos os cores com "connection closed") as 02:43:59, e mesmo assim o
+    Python so retornou 9 HORAS depois. Ninguem le o retorno desta funcao
+    (todo chamador confere pelo LOG do MT5, nunca por stdout/stderr) --
+    DEVNULL nao cria esse pipe, entao nao ha o que prender.
     """
     info = subprocess.STARTUPINFO()
     info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     info.wShowWindow = 7  # SW_SHOWMINNOACTIVE
     try:
         subprocess.run([str(terminal), f"/config:{ini}", *args_extra],  # noqa: S603
-                       timeout=timeout, capture_output=True, check=False,
+                       timeout=timeout, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=False,
                        startupinfo=info)
     except subprocess.TimeoutExpired:
         pass
