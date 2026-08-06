@@ -1,0 +1,6 @@
+
+# Privado / especifico desta maquina -- nao publicar
+AutoBotSetup/Sets/
+AutoBotSetup/*.exe
+Autobot/_runtime_migrado_do_levain/
+tools_wrx/
