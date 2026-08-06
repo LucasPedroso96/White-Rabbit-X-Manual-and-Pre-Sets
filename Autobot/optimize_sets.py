@@ -39,14 +39,15 @@ import sys
 import tempfile
 import time
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from pathlib import Path
 
 from mt5_runner import garantir_terminal_livre, lancar_terminal
 
-TERMINAL = Path(r"C:\Users\Lucas Pedroso\Desktop\Levain 2.0 (Em Andamento)"
-                r"\Levain-2.0\MetaTrader5\terminal64.exe")
+TERMINAL = Path(r"C:\Program Files\RoboForex MT5 Terminal (WhiteRabbitEA)"
+                r"\terminal64.exe")
 DADOS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-             r"\59EECBFD4A9CCD98CCBC61E96D5DED8E")
+             r"\D2A36B4A61A508797F5C460B1F34DC5D")
 SETS = DADOS / "MQL5" / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
 CONTA_CACHE = Path(__file__).resolve().parent / "_conta_real.json"
 EA = r"White Rabbit X (Global Multi-Indicator).ex5"
@@ -287,7 +288,7 @@ def main() -> int:
     # input "Current TF" colapsar pro period do chart em vez do TF pretendido.
     ap.add_argument("--period", default="M1")
     ap.add_argument("--from", dest="inicio", default="2024.01.01")
-    ap.add_argument("--to", dest="fim", default="2026.07.21")
+    ap.add_argument("--to", dest="fim", default=datetime.now().strftime("%Y.%m.%d"))
     ap.add_argument("--deposit", type=int, default=10000)
     ap.add_argument("--model", type=int, default=1,
                     help="1 = OHLC M1 (rapido). 4 = ticks reais (fiel a "

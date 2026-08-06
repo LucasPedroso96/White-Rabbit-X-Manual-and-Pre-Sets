@@ -87,7 +87,7 @@ def garantir_terminal_livre(fechar: bool = False) -> None:
         "do terminal -- na ordem inversa ele simplesmente abre outro.")
 
 
-def lancar_terminal(terminal: Path, ini: Path, timeout: int,
+def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
                     *args_extra: str) -> None:
     """Roda `/config:` minimizado e SEM ativar -- nao rouba o foco de quem
     esta trabalhando na maquina.
@@ -100,13 +100,41 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int,
 
     `args_extra` repassa flags adicionais (`/report:...` etc.) que alguns
     chamadores precisam junto do `/config:`.
+
+    Nunca deixa `TimeoutExpired` escapar: achado do dono, 2026-08-06, um
+    UNICO passe travado (o bug ja conhecido de processo que nao fecha a
+    tempo, mesmo com o teste tendo terminado) derrubava o script inteiro
+    com traceback -- jogando fora horas de estagio ja completo so porque
+    UM passe de conferencia no meio do caminho nao respondeu a tempo.
+    `subprocess.run(timeout=...)` ja mata o processo antes de levantar a
+    excecao (documentado no proprio Python); todo chamador aqui ja
+    descobre sucesso/falha lendo o LOG depois, nunca o retorno desta
+    funcao -- entao engolir o timeout e seguro: o chamador ve o log sem
+    "automatic testing finished" e trata como qualquer outro passe
+    incompleto, o mesmo caminho que ja existe pra log vazio ou estourado.
+
+    `stdout`/`stderr` vao pro DEVNULL, nao capturados (dono, 2026-08-06,
+    causa raiz do "processo nao fecha a tempo"): com `capture_output=True`
+    o Python cria PIPEs e so retorna de `communicate()` quando eles fecham
+    (EOF) -- e um processo DESCENDENTE do terminal (um dos agentes locais)
+    que herda o handle do pipe e demora pra sair prende o Python esperando
+    o PIPE, nao o processo principal. Confirmado no log do MT5: a
+    otimizacao terminou limpa (genetic optimization finished, cache salvo,
+    todos os cores com "connection closed") as 02:43:59, e mesmo assim o
+    Python so retornou 9 HORAS depois. Ninguem le o retorno desta funcao
+    (todo chamador confere pelo LOG do MT5, nunca por stdout/stderr) --
+    DEVNULL nao cria esse pipe, entao nao ha o que prender.
     """
     info = subprocess.STARTUPINFO()
     info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     info.wShowWindow = 7  # SW_SHOWMINNOACTIVE
-    subprocess.run([str(terminal), f"/config:{ini}", *args_extra],  # noqa: S603
-                   timeout=timeout, capture_output=True, check=False,
-                   startupinfo=info)
+    try:
+        subprocess.run([str(terminal), f"/config:{ini}", *args_extra],  # noqa: S603
+                       timeout=timeout, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=False,
+                       startupinfo=info)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 def ler_novo(logs_dir: Path, antes: dict[Path, int]) -> str:

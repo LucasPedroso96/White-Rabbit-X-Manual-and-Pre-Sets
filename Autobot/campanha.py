@@ -73,8 +73,8 @@ def variantes(sistema: str) -> list[str]:
 
 
 def fila(simbolos: list[str], sistemas: list[str] | None = None) -> list[tuple[str, str, str]]:
-    """Combos na ordem de execucao: SISTEMA por fora (grid primeiro por
-    default), depois variante, depois SIMBOLO por dentro.
+    """Combos na ordem de execucao: SIMBOLO por fora, depois variante,
+    depois SISTEMA por dentro (grid primeiro por default).
 
     `simbolos` vem de `descobrir_ativos` (auto-detectado ou escolhido pelo
     usuario) -- nunca uma lista cravada aqui, ver comentario acima.
@@ -83,22 +83,24 @@ def fila(simbolos: list[str], sistemas: list[str] | None = None) -> list[tuple[s
     `--sistemas` na CLI), filtra E define a ordem -- quem chama decide a
     prioridade, a funcao so respeita.
 
-    Multi-ativo muda o que "largura" significa (dono, 2026-08-02): com um
-    simbolo so, a largura era "todos os 11 tipos". Com varios simbolos, a
-    pergunta aberta por sistema deixou de ser "sobrevive?" (isso os 25 passes
-    da amostra de formulas ja respondeu por tipo) e passou a ser "sobrevive em
-    QUAIS ativos?" -- por isso simbolo fica por dentro: interromper no meio de
-    um sistema ainda deixa ele medido em todos os ativos, e o proximo sistema
-    (mesmo peso, so depois na fila) comeca do zero.
+    Invertido de "sistema por fora" pra "simbolo por fora" (dono, 2026-08-05):
+    a ordem antiga (2026-08-02) processava 1 combo de cada simbolo por
+    rodada antes de repetir -- resiliente a interrupcao (todo ativo ganha
+    alguma cobertura cedo), mas visto ao vivo parecia os simbolos
+    "brigando" pra ver quem termina primeiro (AUDCAD sumia da tela por
+    varios combos de outros ativos antes de reaparecer). Prioridade agora e
+    "terminar o ativo escolhido do inicio ao fim" antes do proximo -- o
+    custo e que uma interrupcao no meio deixa os ativos seguintes com
+    cobertura zero, nao parcial.
     """
     sistemas = sistemas if sistemas is not None else SISTEMAS
     itens = []
-    for unilateral, bilateral in RODADAS:
-        for sistema in sistemas:
-            v = bilateral if sistema in BILATERAL else unilateral
-            if v is None:              # bilateral nao tem BUY_* proprio
-                continue
-            for simbolo in simbolos:
+    for simbolo in simbolos:
+        for unilateral, bilateral in RODADAS:
+            for sistema in sistemas:
+                v = bilateral if sistema in BILATERAL else unilateral
+                if v is None:              # bilateral nao tem BUY_* proprio
+                    continue
                 if base.achar_set(simbolo, sistema, v) is not None:
                     itens.append((simbolo, sistema, v))
     return itens
@@ -140,9 +142,15 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
            "--min-retencao", str(args.min_retencao),
            "--fechar-terminal", "--timeout", str(args.timeout)]
     t0 = time.time()
+    # CREATE_NO_WINDOW: so suprime a janela de console que este python.exe
+    # filho abriria sozinho (achado do dono, 2026-08-06 -- cada combo novo
+    # roubava foco/atrapalhava outros apps). Continua visivel no Task
+    # Manager e matavel normalmente; stdout/stderr ja vao capturados aqui
+    # em `p`, nunca pra um console de verdade.
     p = subprocess.run(cmd, capture_output=True, text=True,
                        encoding="utf-8", errors="replace",
-                       timeout=args.timeout + 600)
+                       timeout=args.timeout + 600,
+                       creationflags=subprocess.CREATE_NO_WINDOW)
     saida = (p.stdout or "") + (p.stderr or "")
     print(saida, flush=True)
 
@@ -170,10 +178,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from", dest="inicio", default="2023.08.01")
-    ap.add_argument("--to", dest="fim", default="2026.07.21")
+    ap.add_argument("--to", dest="fim", default=datetime.now().strftime("%Y.%m.%d"))
     ap.add_argument("--deposit", type=int, default=500)
     ap.add_argument("--min-retencao", type=float, default=30.0)
-    ap.add_argument("--timeout", type=int, default=21600)
+    ap.add_argument("--timeout", type=int, default=43200)
     ap.add_argument("--limite", type=int, default=0, help="0 = sem limite")
     ap.add_argument("--listar", action="store_true")
     ap.add_argument("--sistemas", default="",

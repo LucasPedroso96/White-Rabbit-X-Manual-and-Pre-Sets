@@ -801,18 +801,36 @@ document.querySelectorAll("nav button[data-tab]").forEach((btn) => {
     if (btn.dataset.tab === "biblioteca") carregarBiblioteca();
     if (btn.dataset.tab === "portfolios") carregarPortfolios();
     if (btn.dataset.tab === "custo") carregarCusto();
+    if (btn.dataset.tab === "implantacao") carregarImplantacao();
   });
 });
 
 // ---------------------------------------------------------- campanha ao vivo
 
+// Linhas de detalhe expandidas pelo usuario -- sobrevivem ao refresh de 8s
+// (que reconstroi #tbl-recentes do zero) porque o clique so muda este Set,
+// nao o DOM direto; o proximo carregarStatus() reaplica o estado.
+const linhasExpandidas = new Set();
+document.querySelector("#tbl-recentes").addEventListener("click", (ev) => {
+  const btn = ev.target.closest("button[data-chave]");
+  if (!btn) return;
+  const chave = btn.dataset.chave;
+  if (linhasExpandidas.has(chave)) linhasExpandidas.delete(chave);
+  else linhasExpandidas.add(chave);
+  const idLinha = "det-" + chave.replace(/[^a-zA-Z0-9]/g, "_");
+  document.getElementById(idLinha)?.classList.toggle("linha-oculta");
+});
+
 async function carregarStatus() {
   const d = await api("/api/status");
   const q = d.qualidade || {};
   const emAndamento = d.atual ? 1 : 0;
+  const mcMedido = q.mc_pass_rate != null;
   const mcPct = Number(q.mc_pass_rate ?? 0);
   const ret = Number(q.retencao_media ?? 0);
-  const narrativa = mcPct >= 70 && ret >= 70
+  const narrativa = !mcMedido
+    ? "no Monte Carlo measurement yet (fine for grid/martingale/d'Alembert, which are structurally exempt) — judge by retention alone for now"
+    : mcPct >= 70 && ret >= 70
     ? "robust: the majority of the ledger already shows MC and out-of-sample retention aligned"
     : mcPct >= 40
       ? "mixed: evidence is acceptable, but there is still robustness noise to clean up"
@@ -838,7 +856,8 @@ async function carregarStatus() {
       <div class="bar-note">${pct}% approved</div></div>`;
   }).join("") || `<span class="status-msg">no validated system yet</span>`;
   document.getElementById("quality-grid").innerHTML = `
-    <div class="metric-card"><div class="metric-label">MC pass rate</div><b>${q.mc_pass_rate ?? 0}%</b></div>
+    <div class="metric-card"><div class="metric-label">MC pass rate</div><b>${mcMedido ? q.mc_pass_rate + "%" : "n/d"}</b>
+      <div class="metric-label" style="margin-top:4px">${q.mc_medidos ?? 0} of ${d.total_feitos} measured (${q.mc_cobertura_pct ?? 0}%)</div></div>
     <div class="metric-card"><div class="metric-label">Average retention</div><b>${q.retencao_media ?? "-"}%</b></div>
     <div class="metric-card"><div class="metric-label">Average real tick profit</div><b>${q.lucro_medio_tick_real ?? "-"}</b></div>
     <div class="metric-card"><div class="metric-label">Status</div><b>${narrativa}</b></div>`;
@@ -847,15 +866,41 @@ async function carregarStatus() {
     <span class="status-msg">WFE: ${q.wfe_status}</span><br>
     <span class="status-msg ok">Summary: ${narrativa}</span>`;
   document.getElementById("wfe-mc-panel").innerHTML = `
-    <div class="diagnostic-row"><span>MC approved in ledger</span><strong>${q.mc_pass_rate ?? 0}%</strong></div>
+    <div class="diagnostic-row"><span>MC approved in ledger</span><strong>${mcMedido ? q.mc_pass_rate + "%" : "n/d (" + (q.mc_medidos ?? 0) + " measured)"}</strong></div>
     <div class="diagnostic-row"><span>Average OOS retention</span><strong>${q.retencao_media ?? "-"}%</strong></div>
     <div class="diagnostic-row"><span>Average real tick profit</span><strong>${q.lucro_medio_tick_real ?? "-"}</strong></div>
     <div class="diagnostic-row"><span>Interpretation</span><strong>${narrativa}</strong></div>`;
   document.querySelector("#tbl-recentes tbody").innerHTML = d.recentes.map((r) => {
+    // Chave estavel por linha do ledger (nao por indice): o intervalo de 8s
+    // reconstroi a tabela inteira, e um id por indice perderia o "expandido"
+    // do usuario a cada refresh -- achado testando isso ao vivo.
+    const chaveLinha = `${r.simbolo}|${r.sistema}|${r.variante}|${r.quando}`;
+    const idLinha = "det-" + chaveLinha.replace(/[^a-zA-Z0-9]/g, "_");
     const ok = r.aprovado;
-    return `<tr class="${ok ? "ok" : "no"}"><td>${r.simbolo}</td><td>${r.sistema}</td>
+    const linhaPrincipal = `<tr class="${ok ? "ok" : "no"}"><td>${r.simbolo}</td><td>${r.sistema}</td>
       <td>${r.variante}</td><td><span class="pill ${ok ? "ok" : "no"}">${ok ? "approved" : "rejected"}</span></td>
-      <td>${r.retencao_oos ?? "-"}</td><td>${r.minutos ?? "-"}</td></tr>`;
+      <td>${r.retencao_oos ?? "-"}</td>
+      <td>${r.expectancy_r != null ? r.expectancy_r.toFixed(3) + "R" : "-"}</td>
+      <td>${r.trades_oos ?? (r.trades_is != null ? "~" + r.trades_is + " (IS)" : "-")}</td>
+      <td>${r.minutos ?? "-"}</td>
+      <td><button class="acao secundario" style="padding:2px 8px;font-size:11px"
+          data-chave="${chaveLinha}">···</button></td></tr>`;
+    const mc = (r.mc_dd_p95 != null || r.mc_dd_observado != null || r.mc_prob_ruina != null)
+      ? `MC: DD p95 ${r.mc_dd_p95 ?? "-"} | DD observado ${r.mc_dd_observado ?? "-"} | prob. ruína ${
+          r.mc_prob_ruina != null ? (r.mc_prob_ruina * 100).toFixed(1) + "%" : "-"}`
+      : "MC: não medido (fora de Fixed-R ou poucos trades)";
+    const oculta = linhasExpandidas.has(chaveLinha) ? "" : "linha-oculta";
+    const linhaDetalhe = `<tr id="${idLinha}" class="linha-detalhe ${oculta}"><td colspan="9">
+      <div class="detalhe-grid">
+        <span>lucro OHLC/busca: <b>${r.lucro_ohlc ?? "-"}</b></span>
+        <span>lucro tick real: <b>${r.lucro_tick_real ?? "-"}</b></span>
+        <span>lucro ajustado (custo nativo): <b>${r.lucro_ajustado_custo_nativo ?? "n/d"}</b></span>
+        <span>retenção %: <b>${r.retencao_pct ?? "-"}</b></span>
+        <span>sizing entregue: <b>${r.sizing_entrega ?? "-"}</b></span>
+        <span>${mc}</span>
+        ${r.relatorio_dir ? `<span><a href="/relatorios/${r.relatorio_dir}/conf_wrx.htm" target="_blank">relatório completo ↗</a></span>` : ""}
+      </div></td></tr>`;
+    return linhaPrincipal + linhaDetalhe;
   }).join("");
 }
 
@@ -881,6 +926,18 @@ document.getElementById("btn-stop").addEventListener("click", async () => {
   msg.className = "status-msg " + (r.ok ? "ok" : "no");
   carregarEstado();
 });
+
+// Preenche os campos de data final com HOJE, calculado no carregamento --
+// um valor cravado no HTML fica velho silenciosamente (achado ao vivo,
+// 2026-08-03: campo esquecido em 2026.07.21 fez o EURUSD grid rodar contra
+// uma janela 13 dias mais curta do que devia, sem nenhum aviso).
+function hojeMT5() {
+  const d = new Date();
+  const dois = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${dois(d.getMonth() + 1)}.${dois(d.getDate())}`;
+}
+document.getElementById("campo-fim").value = hojeMT5();
+document.getElementById("perfil-wfo-fim").value = hojeMT5();
 
 setInterval(() => { carregarStatus(); carregarEstado(); carregarHeatmap(); }, 8000);
 applyTranslations(langPicker?.value || 'en');
@@ -915,6 +972,20 @@ async function carregarConfig() {
 }
 carregarConfig();
 
+// Gradiente continuo por retencao, inspirado no densityClass() do dashboard
+// do Historical Tool Manager -- pass/fail sozinho nao diz SE vale a pena,
+// so se rodou. sem_teste/reprovado continuam tons fixos (nao ha "retencao"
+// nesses dois estados); aprovado ganha 3 faixas conforme a melhor retencao.
+function densityClass(c) {
+  if (c.status === "sem_teste") return "hm-none";
+  if (c.status === "reprovado") return "hm-fail";
+  const r = c.melhor_retencao;
+  if (r === null || r === undefined) return "hm-pass";
+  if (r >= 70) return "hm-high";
+  if (r >= 40) return "hm-mid";
+  return "hm-low";
+}
+
 async function carregarHeatmap() {
   const d = await api("/api/heatmap");
   const el = document.getElementById("ativos-map");
@@ -929,10 +1000,12 @@ async function carregarHeatmap() {
     const linhas = info.ativos.map((linha) => {
       const celulas = d.sistemas.map((sc) => {
         const c = linha.celulas[sc] || { status: "sem_teste" };
+        const tom = densityClass(c);
+        const ret = c.melhor_retencao;
         const dica = c.status === "sem_teste"
           ? `${sc}: not tested`
-          : `${sc}: ${c.aprovados}/${c.testados} approved`;
-        return `<td><span class="hm-cell ${c.status}" title="${dica}"></span></td>`;
+          : `${sc}: ${c.aprovados}/${c.testados} approved — best retention ${ret != null ? ret + "%" : "n/d"}`;
+        return `<td><span class="hm-cell ${tom}" title="${dica}"></span></td>`;
       }).join("");
       return `<tr><th>${linha.simbolo}</th>${celulas}</tr>`;
     }).join("");
@@ -1000,6 +1073,14 @@ document.getElementById("btn-regenerar").addEventListener("click", async () => {
 let portfolioSistemas = {};
 let portfolioSelecionado = null;
 
+function mostrarPortfolioIframe(url) {
+  const frame = document.getElementById("portfolio-iframe");
+  const msg = document.getElementById("msg-portfolio-iframe");
+  frame.src = url;
+  frame.style.display = "block";
+  msg.style.display = "none";
+}
+
 async function carregarPortfolios() {
   const d = await api("/api/portfolios");
   document.getElementById("mapa-html").innerHTML = d.mapa_html || "sem MAPA.md ainda";
@@ -1009,6 +1090,19 @@ async function carregarPortfolios() {
   tabs.innerHTML = nomes.map((n) => `<button data-sis="${n}">${n}</button>`).join("");
   tabs.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => selecionarPortfolio(b.dataset.sis)));
   if (nomes.length) selecionarPortfolio(nomes[0]);
+
+  const gerados = d.gerados || [];
+  const tabsGerados = document.getElementById("tabs-portfolio-gerados");
+  tabsGerados.innerHTML = gerados.map((g) => `<button data-url="${g.url}">${g.nome}</button>`).join("")
+    || `<span class="status-msg">no correlation panel generated yet — pick a folder above.</span>`;
+  tabsGerados.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    tabsGerados.querySelectorAll("button").forEach((x) => x.classList.toggle("ativo", x === b));
+    mostrarPortfolioIframe(b.dataset.url);
+  }));
+  if (gerados.length) {
+    tabsGerados.querySelector("button")?.classList.add("ativo");
+    mostrarPortfolioIframe(gerados[0].url);
+  }
 }
 function selecionarPortfolio(nome) {
   portfolioSelecionado = nome;
@@ -1023,7 +1117,11 @@ document.getElementById("btn-gerar-portfolio").addEventListener("click", async (
   const r = await post("/api/portfolios/gerar", { pasta, nome: portfolioSelecionado || "geral" });
   if (!r.ok) { msg.textContent = r.erro; msg.className = "status-msg no"; return; }
   pollJob(r.job_id, msg, (j) => {
-    if (j.status === "feito") msg.textContent = `concluído: ${r.arquivo}`;
+    if (j.status === "feito") {
+      msg.textContent = `concluído: ${r.arquivo}`;
+      mostrarPortfolioIframe(r.url);
+      carregarPortfolios();
+    }
   });
 });
 
@@ -1071,7 +1169,9 @@ async function carregarCusto() {
   const d = await api("/api/custo-nativo");
   document.querySelector("#tbl-custo tbody").innerHTML = Object.entries(d).map(([sym, c]) =>
     `<tr><td>${sym}</td><td>${c.comissao_por_lote.toFixed(4)}</td>
-     <td>${c.swap_por_lote.toFixed(4)}</td><td>${c.quando}</td></tr>`).join("");
+     <td>${c.swap_por_lote.toFixed(4)}</td><td>${c.entradas ?? "-"}</td>
+     <td>${c.volume_lotes != null ? c.volume_lotes.toFixed(2) : "-"}</td>
+     <td>${c.periodo ?? "-"}</td><td>${c.quando}</td></tr>`).join("");
 }
 document.getElementById("btn-medir-custo").addEventListener("click", async () => {
   const msg = document.getElementById("msg-custo");
@@ -1080,4 +1180,99 @@ document.getElementById("btn-medir-custo").addEventListener("click", async () =>
   const r = await post("/api/custo-nativo/medir", { symbol: simbolo });
   if (!r.ok) { msg.textContent = r.erro; msg.className = "status-msg no"; return; }
   pollJob(r.job_id, msg, () => carregarCusto());
+});
+
+// -------------------------------------------------------------- implantacao
+
+let implantacaoSets = [];
+
+// Sobrevive ao refresh (mesmo padrao de linhasExpandidas em tbl-recentes):
+// a chave e o proprio `chave` do set (simbolo__sistema__variante), ja
+// estavel por natureza.
+const implantacaoExpandida = new Set();
+document.querySelector("#tbl-implantacao").addEventListener("click", (ev) => {
+  const btn = ev.target.closest("button[data-grafico]");
+  if (!btn) return;
+  const chave = btn.dataset.grafico;
+  if (implantacaoExpandida.has(chave)) implantacaoExpandida.delete(chave);
+  else implantacaoExpandida.add(chave);
+  document.getElementById("graf-" + chave.replace(/[^a-zA-Z0-9]/g, "_"))
+    ?.classList.toggle("linha-oculta");
+});
+
+async function carregarImplantacao() {
+  const d = await api("/api/implantacao");
+  implantacaoSets = d.sets || [];
+  document.querySelector("#tbl-implantacao tbody").innerHTML = implantacaoSets.map((s) => {
+    const lucroCompleto = s.sobrevivencia_medida && s.sobrevivencia_saldo_final != null
+      ? s.sobrevivencia_saldo_final.toFixed(2)
+      : (s.sobrevivencia_medida ? "n/d" : "not measured (non-grid)");
+    const idGraf = "graf-" + s.chave.replace(/[^a-zA-Z0-9]/g, "_");
+    const oculta = implantacaoExpandida.has(s.chave) ? "" : "linha-oculta";
+    const linhaPrincipal = `
+    <tr>
+      <td><input type="checkbox" class="chk-implantacao" value="${s.chave}" ${s.certificado ? "" : "disabled"}></td>
+      <td>${s.simbolo}</td><td>${s.sistema}</td><td>${s.variante}</td>
+      <td>${s.retencao ?? "-"}${s.retencao != null ? "%" : ""}</td>
+      <td>${lucroCompleto}</td>
+      <td>${s.lucro_oos != null ? s.lucro_oos.toFixed(2) : "-"}</td>
+      <td>${s.certificado
+        ? `<span class="pill ok">certified</span>`
+        : `<span class="pill no">no report archived</span>`}</td>
+      <td><label style="display:inline-flex;align-items:center;gap:4px">
+        <input type="checkbox" class="chk-deployed" value="${s.chave}" ${s.implantado ? "checked" : ""}
+          ${s.certificado ? "" : "disabled"}> deployed</label></td>
+      <td>${s.sobrevivencia_grafico
+        ? `<button class="acao secundario" style="padding:2px 8px;font-size:11px" data-grafico="${s.chave}">chart</button>`
+        : ""}</td>
+    </tr>`;
+    const linhaGrafico = s.sobrevivencia_grafico ? `
+    <tr id="${idGraf}" class="linha-detalhe ${oculta}"><td colspan="10">
+      <div class="detalhe-grid">
+        <span>Full-period equity curve (the one the survival gate actually measured — not the short OOS window):</span>
+        <img src="/relatorios/${s.relatorio_dir}/sobrevivencia.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Full-period equity curve">
+        <span><a href="/relatorios/${s.relatorio_dir}/sobrevivencia.htm" target="_blank">full report ↗</a></span>
+      </div></td></tr>` : "";
+    return linhaPrincipal + linhaGrafico;
+  }).join("")
+    || `<tr><td colspan="10" class="status-msg">no validated set yet.</td></tr>`;
+
+  document.querySelectorAll(".chk-deployed").forEach((chk) => {
+    chk.addEventListener("change", async () => {
+      await post("/api/implantacao/marcar", { chaves: [chk.value], implantado: chk.checked });
+    });
+  });
+}
+
+document.getElementById("btn-implantacao-todos").addEventListener("click", () => {
+  document.querySelectorAll(".chk-implantacao:not(:disabled)").forEach((c) => { c.checked = true; });
+});
+document.getElementById("btn-implantacao-nenhum").addEventListener("click", () => {
+  document.querySelectorAll(".chk-implantacao").forEach((c) => { c.checked = false; });
+});
+
+document.getElementById("btn-implantacao-exportar").addEventListener("click", async () => {
+  const msg = document.getElementById("msg-implantacao");
+  const chaves = [...document.querySelectorAll(".chk-implantacao:checked")].map((c) => c.value);
+  if (!chaves.length) { msg.textContent = "select at least one certified set"; msg.className = "status-msg no"; return; }
+  msg.textContent = "preparing .zip...";
+  msg.className = "status-msg";
+  const resp = await fetch("/api/implantacao/exportar", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chaves }),
+  });
+  if (!resp.ok) {
+    const erro = await resp.json().catch(() => ({}));
+    msg.textContent = erro.erro || "export failed";
+    msg.className = "status-msg no";
+    return;
+  }
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "sets_certificados.zip";
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  msg.textContent = `exported ${chaves.length} set(s).`;
+  msg.className = "status-msg ok";
 });

@@ -32,10 +32,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-import wrx_paths
 from mt5_runner import fechar_terminal
 
-TERMINAL = wrx_paths.TERMINAL / "MQL5"
+TERMINAL = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
+                r"\D2A36B4A61A508797F5C460B1F34DC5D\MQL5")
 SETS = TERMINAL / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
 ARCHIVE = TERMINAL / "Profiles" / "Tester" / "White_Rabbit_X_Sets_Arquivados"
 
@@ -59,7 +59,7 @@ PERFIL_MODELO = {
     "walk_forward": {
         "_comentario": "ligar=false mantem o WFO desligado nos sets.",
         "ligar": False,
-        "data_final": "2026.07.21",
+        "data_final": datetime.now().strftime("%Y.%m.%d"),
         "is_dias": 122,
         "oos_dias": 61,
     },
@@ -322,7 +322,7 @@ def main() -> int:
         if wfo.get("ligar"):
             mudancas.update({
                 "AtivarWFO": "true",
-                "input_end_date": wfo.get("data_final", "2026.07.21"),
+                "input_end_date": wfo.get("data_final") or datetime.now().strftime("%Y.%m.%d"),
                 "wfo_windowSize": "-1",
                 "wfo_customWindowSizeDays": str(wfo.get("is_dias", 122)),
                 "wfo_stepSize": "-1",

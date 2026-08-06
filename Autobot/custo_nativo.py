@@ -161,7 +161,7 @@ def main() -> int:
     ap.add_argument("--sistema", default="07_GRID_SEPARATE")
     ap.add_argument("--variante", default="BUY_MULTI")
     ap.add_argument("--inicio", default="2023.08.01")
-    ap.add_argument("--fim", default="2026.07.21")
+    ap.add_argument("--fim", default=datetime.now().strftime("%Y.%m.%d"))
     ap.add_argument("--deposit", type=int, default=500)
     ap.add_argument("--timeout", type=int, default=1800)
     args = ap.parse_args()

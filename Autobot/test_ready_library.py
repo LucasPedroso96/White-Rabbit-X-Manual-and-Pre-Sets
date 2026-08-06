@@ -107,10 +107,21 @@ with tempfile.TemporaryDirectory() as tmp:
     checar("sync: copiados", r["copiados"], 2)
     checar("sync: aviso do nome estranho", len(r["avisos"]), 1)
 
-    marcado = destino / "01_Forex" / "EURUSD" / "01_SLTP" / f"{rl.MARCA}BUY_MULTI.set"
+    m = rl.MARCA
+    marcado = destino / f"{m}01_Forex" / f"{m}EURUSD" / f"{m}01_SLTP" / f"{m}BUY_MULTI.set"
     checar("sync: marcador no lugar", marcado.is_file(), True)
-    checar("sync: espelho da pasta vazia",
-           (destino / "01_Forex" / "GBPUSD" / "01_SLTP").is_dir(), True)
+    checar("sync: pasta ancestral marcada (classe)",
+           (destino / f"{m}01_Forex").is_dir(), True)
+    checar("sync: pasta ancestral marcada (ativo)",
+           (destino / f"{m}01_Forex" / f"{m}EURUSD").is_dir(), True)
+    checar("sync: sistema irmao sem set pronto fica sem marca",
+           (destino / f"{m}01_Forex" / f"{m}EURUSD" / "03_TRAIL_ONLY").is_dir(),
+           True)
+    checar("sync: ativo sem nada pronto fica sem marca",
+           (destino / f"{m}01_Forex" / "GBPUSD" / "01_SLTP").is_dir(), True)
+    checar("sync: outra classe com set pronto tambem marca",
+           (destino / f"{m}02_Metals" / f"{m}XAUUSD" / f"{m}01_SLTP" /
+            f"{m}BUY_MULTI.set").is_file(), True)
 
     mapa = (destino / "MAPA.md").read_text(encoding="utf-8")
     checar_contem("mapa: marca do EURUSD", mapa, "**EURUSD**: *01_SLTP/BUY_MULTI")
@@ -134,6 +145,10 @@ with tempfile.TemporaryDirectory() as tmp:
     r3 = rl.sincronizar(bib, tester, destino, ledger)
     checar("rebaixado: removido do espelho", r3["removidos"], 1)
     checar("rebaixado: prontos", r3["prontos"], 1)
+    checar("rebaixado: pasta ancestral perde a marca (nada mais embaixo)",
+           (destino / "02_Metals").is_dir(), True)
+    checar("rebaixado: pasta marcada antiga nao sobrevive",
+           (destino / f"{m}02_Metals").exists(), False)
     port = (destino / rl.PASTA_PORTFOLIOS / "01_SLTP.md").read_text(encoding="utf-8")
     checar("rebaixado: fora do portfolio", "XAUUSD" in port, False)
 

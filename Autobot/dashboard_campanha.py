@@ -28,6 +28,7 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import re
 import subprocess
@@ -35,14 +36,16 @@ import sys
 import threading
 import time
 import uuid
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 import optimize_sets as base
+import ready_library
 from generate_system_sets import ASSETS, CLASSES, SYSTEMS
 from mt5_runner import fechar_terminal, terminal_aberto
 
@@ -52,8 +55,17 @@ LOG = AQUI / "campanha_run.log"
 LOCK = AQUI / "campanha_dashboard.lock.json"
 PERFIL_ATUAL = AQUI / "perfil_dashboard.json"
 CUSTO_CACHE = AQUI / "_custo_nativo.json"
+SETS_IMPLANTADOS = AQUI / "sets_implantados.json"
+RELATORIOS_DIR = AQUI / "campanha_relatorios"
+RELATORIOS_DIR.mkdir(exist_ok=True)
+PORTFOLIO_OUT = AQUI / "portfolio_outputs"
+PORTFOLIO_OUT.mkdir(exist_ok=True)
 
 app = FastAPI(title="WRX Autobot Dashboard")
+# Cada rota so serve a PROPRIA pasta -- nunca a raiz de DADOS (MT5) nem AQUI
+# (fonte/ledger/credenciais).
+app.mount("/relatorios", StaticFiles(directory=str(RELATORIOS_DIR)), name="relatorios")
+app.mount("/portfolio-out", StaticFiles(directory=str(PORTFOLIO_OUT)), name="portfolio_out")
 
 # ------------------------------------------------------------- estado global
 
@@ -61,6 +73,12 @@ _processo: subprocess.Popen | None = None  # so valido no MESMO processo do
 # uvicorn -- ver estado_campanha()
 # para o caso de o painel reiniciar
 _jobs: dict[str, dict] = {}
+# Achado do dono, 2026-08-05: duplo-clique (ou 2 requests quase simultaneos)
+# em "Iniciar Corrida" passava os DOIS pela checagem de estado_campanha()
+# ANTES de qualquer um escrever o LOCK/lancar o Popen -- TOCTOU classico,
+# resultou em 2 campanha.py rodando a MESMA fila em paralelo, cada um
+# abrindo seu proprio terminal64.exe (visto brigando por AUDCAD/CADCHF).
+_lock_start = threading.Lock()
 
 
 def _executar_job(job_id: str, cmd: list[str], timeout: int) -> None:
@@ -73,6 +91,7 @@ def _executar_job(job_id: str, cmd: list[str], timeout: int) -> None:
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         _jobs[job_id].update(
             {
@@ -156,14 +175,23 @@ def resumo_qualidade(resultados: list[dict]) -> dict:
     total = len(resultados)
     if not total:
         return {
-            "mc_pass_rate": 0.0,
+            "mc_pass_rate": None,
+            "mc_medidos": 0,
+            "mc_cobertura_pct": 0.0,
             "retencao_media": None,
             "lucro_medio_tick_real": None,
             "wfe_status": "sem relatorio no ledger",
             "mc_status": "sem resultado no ledger",
         }
 
-    mc_ok = sum(1 for r in resultados if r.get("mc_aprovado") is True)
+    # mc_aprovado comeca True por padrao pra nao reprovar sistemas
+    # estruturalmente isentos de MC (grid/martingale/d'Alembert) -- por isso
+    # o pass rate so soma sobre linhas com mc_medido=True (Monte Carlo rodou
+    # de verdade), nunca sobre o default. Linhas de antes desse campo existir
+    # ficam de fora tambem (mc_medido ausente): tratar como "desconhecido" e
+    # mais honesto do que contar como medido.
+    medidos = [r for r in resultados if r.get("mc_medido") is True]
+    mc_ok = sum(1 for r in medidos if r.get("mc_aprovado") is True)
     retencoes = [
         float(r["retencao_oos"])
         for r in resultados
@@ -175,10 +203,13 @@ def resumo_qualidade(resultados: list[dict]) -> dict:
         if r.get("lucro_tick_real") is not None
     ]
     wfe_disponivel = any(r.get("wfe") is not None for r in resultados)
-    mc_disponivel = any(r.get("mc_aprovado") is not None for r in resultados)
 
     return {
-        "mc_pass_rate": round((mc_ok / total) * 100.0, 1) if total else 0.0,
+        "mc_pass_rate": (
+            round((mc_ok / len(medidos)) * 100.0, 1) if medidos else None
+        ),
+        "mc_medidos": len(medidos),
+        "mc_cobertura_pct": round((len(medidos) / total) * 100.0, 1) if total else 0.0,
         "retencao_media": (
             round(sum(retencoes) / len(retencoes), 2) if retencoes else None
         ),
@@ -191,9 +222,10 @@ def resumo_qualidade(resultados: list[dict]) -> dict:
             else "sem relatorio WFE no ledger"
         ),
         "mc_status": (
-            "relatorio Monte Carlo presente"
-            if mc_disponivel
-            else "sem relatorio MC no ledger"
+            f"Monte Carlo medido em {len(medidos)} de {total} combos"
+            if medidos
+            else "Monte Carlo ainda nao mediu nenhum combo (fora de Fixed-R "
+                 "ou poucos trades)"
         ),
     }
 
@@ -288,11 +320,16 @@ def montar_heatmap(resultados: list[dict]) -> dict:
         if not base_symb or not sistema:
             continue
         c = celulas.setdefault(base_symb, {}).setdefault(
-            sistema, {"testados": 0, "aprovados": 0}
+            sistema, {"testados": 0, "aprovados": 0, "melhor_retencao": None}
         )
         c["testados"] += 1
         if r.get("aprovado"):
             c["aprovados"] += 1
+            ret = r.get("retencao_oos")
+            if ret is not None and (
+                c["melhor_retencao"] is None or ret > c["melhor_retencao"]
+            ):
+                c["melhor_retencao"] = ret
 
     sistemas_codigos = [s.code for s in SYSTEMS]
     classes: dict[str, dict] = {}
@@ -325,6 +362,22 @@ def heatmap() -> JSONResponse:
 # ------------------------------------------------------------ campanha start/stop
 
 
+def _pid_vivo(pid: int) -> bool:
+    """Confere um PID pelo tasklist -- necessario porque `_processo` (Popen
+    em memoria) se perde toda vez que o PROPRIO painel reinicia, mesmo com a
+    campanha real continuando rodando num processo separado. Sem isso, um
+    restart do dashboard (ex.: pra aplicar uma correcao) mostrava "parada"
+    com o botao Stop desabilitado enquanto ela seguia rodando de verdade."""
+    try:
+        saida = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+            capture_output=True, text=True, timeout=10, check=False
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return str(pid) in saida
+
+
 def estado_campanha() -> dict:
     vivo = False
     info: dict = {}
@@ -334,6 +387,8 @@ def estado_campanha() -> dict:
         except json.JSONDecodeError:
             info = {}
     if _processo is not None and _processo.poll() is None:
+        vivo = True
+    elif info.get("pid") and _pid_vivo(info["pid"]):
         vivo = True
     return {"rodando": vivo, "terminal_aberto": terminal_aberto(), **info}
 
@@ -346,16 +401,32 @@ def campanha_estado() -> JSONResponse:
 @app.post("/api/campanha/start")
 def campanha_start(body: dict) -> JSONResponse:
     global _processo
-    if estado_campanha()["rodando"]:
+    # Nao-bloqueante de proposito: se ja tem uma request de start em curso,
+    # rejeita na hora em vez de esperar -- so precisa fechar a janela entre
+    # "estado_campanha() disse que nao ha nada rodando" e "Popen+LOCK
+    # gravados", nao serializar starts legitimos um atras do outro.
+    if not _lock_start.acquire(blocking=False):
         return JSONResponse(
-            {"ok": False, "erro": "ja ha uma corrida rodando"}, status_code=409
-        )
-    if terminal_aberto():
-        return JSONResponse(
-            {"ok": False, "erro": "MT5 ocupado por outra acao -- espere terminar"},
+            {"ok": False, "erro": "outro start ja esta em andamento"},
             status_code=409,
         )
+    try:
+        if estado_campanha()["rodando"]:
+            return JSONResponse(
+                {"ok": False, "erro": "ja ha uma corrida rodando"}, status_code=409
+            )
+        if terminal_aberto():
+            return JSONResponse(
+                {"ok": False, "erro": "MT5 ocupado por outra acao -- espere terminar"},
+                status_code=409,
+            )
+        return _lancar_campanha(body)
+    finally:
+        _lock_start.release()
 
+
+def _lancar_campanha(body: dict) -> JSONResponse:
+    global _processo
     modo = body.get("modo", "auto")
     cmd = [
         sys.executable,
@@ -363,13 +434,18 @@ def campanha_start(body: dict) -> JSONResponse:
         "--from",
         body.get("inicio", "2023.08.01"),
         "--to",
-        body.get("fim", "2026.07.21"),
+        body.get("fim") or datetime.now().strftime("%Y.%m.%d"),
         "--deposit",
         str(body.get("deposit", 500)),
         "--min-retencao",
         str(body.get("min_retencao", 30.0)),
         "--timeout",
-        str(body.get("timeout", 21600)),
+        # 43200 (12h): 21600 (6h) nao bastou pro primeiro combo depois da
+        # limpeza do cache do tester -- 3 rodadas do estagio 1 sozinhas
+        # consumiram 6h10 com o cache frio (AUDCAD/07_GRID_SEPARATE,
+        # 2026-08-05). Com cache quente sobra folga; a campanha continua
+        # regravando e seguindo em frente mesmo se um combo estourar isso.
+        str(body.get("timeout", 43200)),
     ]
     if modo == "manual":
         sistemas = body.get("sistemas") or []
@@ -384,11 +460,18 @@ def campanha_start(body: dict) -> JSONResponse:
             f"\n### painel: iniciando ({modo}) em "
             f"{datetime.now().isoformat(timespec='seconds')} ###\n"
         )
+    # CREATE_NO_WINDOW so suprime a JANELA DE CONSOLE que este python.exe
+    # filho abriria sozinho (achado do dono, 2026-08-06: cada combo novo
+    # roubava foco/atrapalhava outros apps na tela). Continua 100% visivel
+    # no Task Manager/tasklist e matavel por taskkill igual antes -- nao e
+    # o processo "escondido" que a regra do projeto proibe, so a janela
+    # que ninguem le (stdout ja vai pro LOG, nunca pra um console).
     _processo = subprocess.Popen(
         cmd,
         stdout=open(LOG, "a", encoding="utf-8"),
         stderr=subprocess.STDOUT,
         cwd=str(AQUI),
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
     LOCK.write_text(
         json.dumps(
@@ -565,6 +648,10 @@ def portfolios() -> JSONResponse:
             resultado["sistemas"][arq.stem] = _md_para_html(
                 arq.read_text(encoding="utf-8")
             )
+    resultado["gerados"] = [
+        {"nome": p.stem.removeprefix("portfolio_"), "url": f"/portfolio-out/{p.name}"}
+        for p in sorted(PORTFOLIO_OUT.glob("portfolio_*.html"))
+    ]
     return JSONResponse(resultado)
 
 
@@ -593,7 +680,8 @@ def portfolios_gerar(body: dict) -> JSONResponse:
             {"ok": False, "erro": f"pasta nao encontrada: {pasta}"}, status_code=400
         )
     nome = body.get("nome", "geral")
-    saida = AQUI / f"portfolio_{nome}.html"
+    PORTFOLIO_OUT.mkdir(exist_ok=True)
+    saida = PORTFOLIO_OUT / f"portfolio_{nome}.html"
     job_id = lancar_job(
         [
             sys.executable,
@@ -603,11 +691,154 @@ def portfolios_gerar(body: dict) -> JSONResponse:
             "--html",
             str(saida),
             "--out",
-            str(AQUI / f"portfolio_{nome}.csv"),
+            str(PORTFOLIO_OUT / f"portfolio_{nome}.csv"),
         ],
         timeout=300,
     )
-    return JSONResponse({"ok": True, "job_id": job_id, "arquivo": saida.name})
+    return JSONResponse(
+        {"ok": True, "job_id": job_id, "arquivo": saida.name, "url": f"/portfolio-out/{saida.name}"}
+    )
+
+
+# ---------------------------------------------------------------- implantacao
+
+
+def _carregar_implantados() -> set[str]:
+    if not SETS_IMPLANTADOS.exists():
+        return set()
+    try:
+        return set(json.loads(SETS_IMPLANTADOS.read_text(encoding="utf-8")))
+    except (json.JSONDecodeError, OSError):
+        return set()
+
+
+def _salvar_implantados(chaves: set[str]) -> None:
+    SETS_IMPLANTADOS.write_text(
+        json.dumps(sorted(chaves), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def _sets_certificados() -> list[dict]:
+    """Le (sem escrever nada) os `VALIDADO_*.set` da raiz do Tester -- MESMA
+    fonte que `ready_library.sincronizar()` usa pra montar o espelho, so que
+    aqui e so leitura: nao recria pasta nem copia arquivo, so lista pra
+    exibicao. "Certificado" = tem `relatorio_dir` arquivado (Parte C2) pra
+    aquele combo no ledger -- nunca administra um `.set` sem evidencia de
+    validacao completa, so o nome VALIDADO_/marca ＊ sozinho nao basta."""
+    metricas = ready_library.metricas_do_ledger(LEDGER)
+    implantados = _carregar_implantados()
+    saida = []
+    for origem in sorted(ready_library.TESTER.glob("VALIDADO_*.set")):
+        info = ready_library.analisar_nome(origem.name)
+        if info is None:
+            continue
+        reg = metricas.get(
+            (info["simbolo"], info["sistema"], info["variante"]), {}
+        )
+        chave = f"{info['simbolo']}__{info['sistema']}__{info['variante']}"
+        relatorio_dir = reg.get("relatorio_dir")
+        saida.append({
+            "chave": chave,
+            "simbolo": info["simbolo_exibicao"],
+            "sistema": info["sistema"],
+            "variante": info["variante"],
+            "retencao": reg.get("retencao_oos"),
+            "expectancy": reg.get("expectancy_r"),
+            "trades": reg.get("trades_oos"),
+            "mc_prob_ruina": reg.get("mc_prob_ruina"),
+            # Lucro na janela OOS != lucro no periodo completo -- o achado
+            # do dono, 2026-08-03/04 (AUDCHF aprovado com lucro OOS alto e
+            # estourando margem no periodo inteiro) e exatamente por isso
+            # que o gate de sobrevivencia existe. Mostrar os dois, nunca so
+            # o OOS: escolher "o melhor set pra subir" olhando so pra ele
+            # foi o que gerou o problema.
+            "lucro_oos": reg.get("lucro_tick_real"),
+            "sobrevivencia_medida": reg.get("sobrevivencia_medida", False),
+            "sobrevivencia_saldo_final": reg.get("sobrevivencia_saldo_final"),
+            "certificado": bool(relatorio_dir
+                                and (RELATORIOS_DIR / relatorio_dir).is_dir()),
+            "relatorio_dir": relatorio_dir,
+            # Curva de equity do PERIODO COMPLETO (nao a da janela OOS) --
+            # achado do dono, 2026-08-04: sem isso nao dava pra CONFERIR
+            # visualmente um veredito de sobrevivencia, so confiar no
+            # numero. Mesma pasta do relatorio_dir (sobrevivencia.* e
+            # conf_wrx.* vivem juntos), mas so existe se o gate rodou.
+            "sobrevivencia_grafico": bool(
+                reg.get("sobrevivencia_relatorio_dir")
+                and (RELATORIOS_DIR / reg["sobrevivencia_relatorio_dir"]
+                    / "sobrevivencia.png").is_file()),
+            "implantado": chave in implantados,
+        })
+    # Melhor primeiro: saldo do periodo completo quando medido (a metrica
+    # que decide "sobrevive de verdade"), lucro OOS como desempate/
+    # fallback pra quem nao passou pelo gate (sistemas fora de grid).
+    saida.sort(key=lambda s: (
+        s["sobrevivencia_saldo_final"] if s["sobrevivencia_medida"]
+        and s["sobrevivencia_saldo_final"] is not None else -1e18,
+        s["lucro_oos"] if s["lucro_oos"] is not None else -1e18,
+    ), reverse=True)
+    return saida
+
+
+@app.get("/api/implantacao")
+def implantacao() -> JSONResponse:
+    return JSONResponse({"sets": _sets_certificados()})
+
+
+@app.post("/api/implantacao/marcar")
+def implantacao_marcar(body: dict) -> JSONResponse:
+    chaves = body.get("chaves") or []
+    marcar_como = bool(body.get("implantado"))
+    atuais = _carregar_implantados()
+    if marcar_como:
+        atuais |= set(chaves)
+    else:
+        atuais -= set(chaves)
+    _salvar_implantados(atuais)
+    return JSONResponse({"ok": True, "implantados": sorted(atuais)})
+
+
+@app.post("/api/implantacao/exportar")
+def implantacao_exportar(body: dict):
+    """Zip com o `.set` real (sem ＊, e so marcador de exibicao no espelho) +
+    o relatorio arquivado de cada set selecionado. So local -- quem leva pro
+    VPS/conta live e o proprio usuario, copiar-colar. Recusa qualquer set sem
+    certificado: exportar sem relatorio junto devolveria o mesmo problema que
+    a Parte D existe pra evitar (administrar sem evidencia)."""
+    chaves = set(body.get("chaves") or [])
+    if not chaves:
+        return JSONResponse({"ok": False, "erro": "nenhum set selecionado"},
+                            status_code=400)
+    disponiveis = {s["chave"]: s for s in _sets_certificados()}
+    sem_certificado = [c for c in chaves
+                       if c not in disponiveis or not disponiveis[c]["certificado"]]
+    if sem_certificado:
+        return JSONResponse(
+            {"ok": False,
+             "erro": f"sem certificado (relatorio arquivado): {sem_certificado}"},
+            status_code=400,
+        )
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for chave in chaves:
+            item = disponiveis[chave]
+            nome_arquivo_real = (
+                f"VALIDADO_{item['simbolo'].replace('.', '_')}_"
+                f"{item['sistema']}_{item['variante']}.set"
+            )
+            origem_set = ready_library.TESTER / nome_arquivo_real
+            if origem_set.is_file():
+                zf.write(origem_set, f"{chave}/{item['variante']}.set")
+            pasta_rel = RELATORIOS_DIR / item["relatorio_dir"]
+            if pasta_rel.is_dir():
+                for arq in pasta_rel.iterdir():
+                    zf.write(arq, f"{chave}/relatorio/{arq.name}")
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer, media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=sets_certificados.zip"},
+    )
 
 
 # --------------------------------------------------------------- perfil (auto_set_manager)

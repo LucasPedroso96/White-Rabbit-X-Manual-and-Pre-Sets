@@ -32,7 +32,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 TERMINAL = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal"
-                r"\59EECBFD4A9CCD98CCBC61E96D5DED8E\MQL5")
+                r"\D2A36B4A61A508797F5C460B1F34DC5D\MQL5")
 EA_SOURCE = TERMINAL / "Experts" / "White Rabbit X (Global Multi-Indicator).mq5"
 TEMPLATE = TERMINAL / "Profiles" / "Tester" / "exemplo arquivo set.set"
 OUTPUT = TERMINAL / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
@@ -106,6 +106,16 @@ FORMULA_POR_SISTEMA = {
     "01_SLTP": 9, "02_SLTP_ORGANIC": 9,
     "03_TRAIL_ONLY": 8, "04_SLTP_TRAIL": 8, "05_BE_TRAIL": 8,
     "06_REVERSAL_EXIT": 9,
+    # 2026-08-04: testado Profit puro (2) guiando a busca do grid, com
+    # GridSurvivalScore (1) so como filtro externo pos-busca -- comparado
+    # ao vivo contra o metodo antigo no MESMO combo (EURUSD/
+    # 07_GRID_SEPARATE/BUY_MULTI): GridSurvivalScore-guiado achou lucro
+    # OOS 7x maior E sobreviveu ao periodo completo (saldo 3335.25);
+    # Profit-guiado achou lucro OOS baixo E estourou margem (saldo 408.68,
+    # REPROVADO). Amostra de 1 combo, mas a direcao foi clara -- revertido
+    # pro padrao. GridSurvivalScore continua guiando a busca; o filtro
+    # externo (ler_todas_formulas em optimize_two_stage.py) segue ligado,
+    # so vira redundante/confirmatorio nesse modo em vez de decisivo.
     "07_GRID_SEPARATE": 1, "08_GRID_UNIFIED": 1,
     "09_MARTINGALE": 10, "10_DALEMBERT": 10,
     "11_SIGNAL_ONLY": 9,
@@ -122,16 +132,20 @@ GATES_DEPENDENCIAS = {
     "VelaStop": "AtivarStop",
     "BreakevenDistancia": "AtivarBreakeven",
     "MTF_RequererAmbos": "AtivarFiltroMTF",
+    "MA_TimeFrame": "AtivarFiltroMA",
     "MA_Period": "AtivarFiltroMA",
     "MA_Method": "AtivarFiltroMA",
     "MetodoMA": "AtivarFiltroMA",
     "SentidoMA": "AtivarFiltroMA",
     "MA_AppliedPrice": "AtivarFiltroMA",
     "MA_SlopeLookback": "AtivarFiltroMA",
+    "ADX_TimeFrame": "AtivarFiltroADX",
     "ADX_Period": "AtivarFiltroADX",
     "ADX_Limiar": "AtivarFiltroADX",
     "MetodoADX": "AtivarFiltroADX",
     "VolatilityFilter": "EntradaATR",
+    "NewsMinutosAntes": "AtivarFiltroNoticias",
+    "NewsMinutosDepois": "AtivarFiltroNoticias",
 }
 
 
@@ -719,8 +733,16 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.fix("AtivarTake", "true")
         p.fix("TakeOrganico", "false")
         p.opt("VelaTake", 0, 0, 1, 3)
-        p.fix("AtivarBreakeven", "false")
-        p.fix("BreakevenDistancia", 1.0)
+        # Grid nao tem SL nativo (a cesta e a gestao), mas o breakeven do EA
+        # ja tem fallback pronto pra isso: sem SL na posicao, ele usa
+        # ATR*Stop como distancia de gatilho (ApplyBreakevenForSide, .mq5) --
+        # e Stop/VelaStop, 2 linhas acima, ja sao exatamente isso (fixo em
+        # sl_mid, VelaStop otimizado). Grid so precisava parar de cravar
+        # AtivarBreakeven em false pra herdar essa referencia de graca.
+        # Achado do dono, 2026-08-05: mesmo esquema dos outros 6 sistemas
+        # que oferecem BE (opt_bool + range), nao inventado pra grid.
+        p.opt_bool("AtivarBreakeven", "true")
+        p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
         p.fix("AtivarTrailATR", "false")
         p.opt("MetodoDeCalculo", 1, 0, 1, 4)
         p.opt("TrailVela", 0, 0, 1, 3)

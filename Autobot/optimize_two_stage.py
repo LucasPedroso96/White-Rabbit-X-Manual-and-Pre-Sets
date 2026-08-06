@@ -37,6 +37,14 @@ otimizacao cara teria enterrado.
   ESTAGIO 3 (IS+OOS)  FILTROS DE EXECUCAO: hora, dia e spread -- os ultimos a
                     rodar, otimizando em In-Sample + Out-Sample por decisao
                     do dono. So sao adotados se MELHORAREM a retencao.
+  ESTAGIO 3.5 (tick real, SO GRID)  GEOMETRIA DO GRID: reabre so os ~4 eixos
+                    de saida (Take, DistanciaMinima, VelaTake,
+                    UsarsomenteATRGRID) sobre o resto ja travado, e busca
+                    DIRETO em tick real (dono, 2026-08-03, apos medir 45%+ de
+                    divergencia no grid). Pequeno o bastante pra ser viavel
+                    (~10-25 min); ataca a causa raiz -- geometria de saida e
+                    a unica parte do grid que realmente diverge OHLC vs tick
+                    real -- em vez de so reprovar depois de pronta.
   ESTAGIO 4 (ticks reais)  CONFIRMACAO do vencedor unico (~35s por passe):
                     retencao em IS+OOS e divergencia OHLC vs tick real.
                     Reprovou em qualquer uma, nao promove.
@@ -62,6 +70,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -73,6 +82,72 @@ import custo_nativo
 import monte_carlo_wrx
 import optimize_sets as base
 from mt5_runner import garantir_terminal_livre, lancar_terminal
+
+AQUI = Path(__file__).resolve().parent
+RELATORIOS_DIR = AQUI / "campanha_relatorios"
+RELATORIO_SUFIXOS = (".htm", ".png", "-hst.png", "-mfemae.png", "-holding.png")
+CHECKPOINTS_DIR = AQUI / "campanha_checkpoints"
+
+
+def _checkpoint_estagio1(symbol: str, sistema: str, variante: str) -> Path:
+    return CHECKPOINTS_DIR / f"{symbol}__{sistema}__{variante}.json"
+
+
+def salvar_checkpoint_estagio1(symbol: str, sistema: str, variante: str,
+                               cab: list[str], linhas: list[list[str]],
+                               rodada: int) -> None:
+    """Persiste o progresso do Estagio 1 apos cada rodada, combo a combo.
+
+    Achado do dono, 2026-08-06: reiniciar a campanha (pra aplicar um fix)
+    jogava fora o `linhas` acumulado das rodadas ja rodadas -- o cache do
+    tester (.opt) preserva o resultado BRUTO de cada passe individual e
+    acelera re-simular, mas isso e coisa diferente de reaproveitar o que o
+    Estagio 1 ja tinha DECIDIDO (quantas rodadas, quais linhas passaram o
+    piso). Sem isto, um restart sempre recomeca a contagem do zero mesmo
+    com o MT5 respondendo rapido pelo cache.
+    """
+    CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
+    _checkpoint_estagio1(symbol, sistema, variante).write_text(
+        json.dumps({"symbol": symbol, "sistema": sistema, "variante": variante,
+                    "cab": cab, "linhas": linhas, "rodada_concluida": rodada},
+                   ensure_ascii=False),
+        encoding="utf-8")
+
+
+def carregar_checkpoint_estagio1(symbol: str, sistema: str,
+                                 variante: str) -> dict | None:
+    """Devolve o checkpoint SO se bater com este combo exato. `None` em
+    qualquer outra situacao (ausente, corrompido, de outro combo) -- upgrade
+    opcional, nunca uma dependencia dura: sem checkpoint valido, o Estagio 1
+    comeca do zero normalmente, como sempre fez.
+    """
+    caminho = _checkpoint_estagio1(symbol, sistema, variante)
+    if not caminho.exists():
+        return None
+    try:
+        dado = json.loads(caminho.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if (dado.get("symbol") != symbol or dado.get("sistema") != sistema
+            or dado.get("variante") != variante
+            or not isinstance(dado.get("linhas"), list)
+            or not isinstance(dado.get("cab"), list)
+            or not isinstance(dado.get("rodada_concluida"), int)):
+        return None
+    return dado
+
+
+def limpar_checkpoint_estagio1(symbol: str, sistema: str, variante: str) -> None:
+    _checkpoint_estagio1(symbol, sistema, variante).unlink(missing_ok=True)
+
+# FILE_COMMON (2026-08-04): a EA grava TODAS as 14 formulas aqui a cada
+# passe do genetico -- Print/PrintFormat dentro de OnTester() nao aparece
+# em log nenhum durante otimizacao (so em passe unico), confirmado com
+# teste de canario; FileWrite com FILE_COMMON sim, validado ao vivo (17
+# passes -> 17 linhas, sem colisao entre os 4 agentes em paralelo).
+ARQUIVO_TODAS_FORMULAS = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming"
+                              r"\MetaQuotes\Terminal\Common\Files"
+                              r"\levain_wrx_all_formulas.txt")
 
 # FASE 1 = DESCOBERTA DE REGIOES (pedido do dono, 2026-07-31): o grupo de
 # Entradas COMPLETO -- indicador, metodo, timeframe, applied price, periodos,
@@ -111,7 +186,7 @@ ESCRITA = {"EntryIndicator", "EntryMethod", "TimeFrame", "InpAppliedPrice",
            "AtivarTrailATR", "UsarsomenteATRGRID",
            "ReversalExitUseEntryFilters",
            "AtivarFiltroMA", "AtivarFiltroADX", "AtivarFiltroMTF",
-           "EntradaATR"}
+           "EntradaATR", "Hedging"}
 
 # FASE 2 = SO NUMEROS: com a escrita travada, refinam-se os eixos numericos na
 # faixa fina da biblioteca -- periodos, multiplicadores, distancias, limiares.
@@ -122,9 +197,25 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
            "Stop", "Take", "Trail", "BreakevenDistancia",
            "Multiplicador", "DistanciaMinima", "MaxMartingaleSteps",
            "DAlembertStep",
-           "MA_Period", "MA_SlopeLookback", "ADX_Period", "ADX_Limiar",
+           "MA_TimeFrame", "MA_Period", "MA_SlopeLookback",
+           "ADX_TimeFrame", "ADX_Period", "ADX_Limiar",
            "MA_Method", "MetodoMA", "SentidoMA", "MA_AppliedPrice",
            "MetodoADX", "MTF_RequererAmbos", "VolatilityFilter"]
+
+# Geometria de saida do grid (dono, 2026-08-03): medido que grid diverge
+# OHLC->tick real em ate 45%+ (23x subestimado, ver docstring do modulo) --
+# e SO na geometria de saida, porque a entrada (indicador/metodo/timeframe)
+# da o MESMO instante nos dois modelos por construcao (anti-repaint no
+# fechamento da barra). Buscar o circuito inteiro em tick real e inviavel
+# (medido: ~7-8x mais lento por passe que OHLC, semanas por simbolo em
+# escala) -- mas reabrir SO estes ~4 eixos, ja travados pelas fases 1/2 em
+# OHLC, e um genetico pequeno e barato o bastante pra rodar direto em tick
+# real. GATES confirma que sao os unicos eixos de geometria do grid
+# realmente ativos (Trail/TrailVela/MetodoDeCalculo ficam mortos porque
+# AtivarTrailATR e cravado false; VelaStop morto porque AtivarStop e false).
+SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE", "08_GRID_UNIFIED"}
+EIXOS_GEOMETRIA_TICK_REAL = ["Take", "DistanciaMinima", "VelaTake",
+                            "UsarsomenteATRGRID"]
 
 # Parametro -> indicadores que REALMENTE o usam, lido na criacao dos handles
 # do EA (~1234-1290). Fora dessa lista o parametro nao entra no calculo, entao
@@ -213,12 +304,14 @@ GATES = {
     "Trail": "AtivarTrailATR",
     "VelaTake": "AtivarTake",
     "VelaStop": "AtivarStop",
+    "MA_TimeFrame": "AtivarFiltroMA",
     "MA_Period": "AtivarFiltroMA",
     "MetodoMA": "AtivarFiltroMA",
     "MA_Method": "AtivarFiltroMA",
     "SentidoMA": "AtivarFiltroMA",
     "MA_AppliedPrice": "AtivarFiltroMA",
     "MA_SlopeLookback": "AtivarFiltroMA",
+    "ADX_TimeFrame": "AtivarFiltroADX",
     "ADX_Period": "AtivarFiltroADX",
     "ADX_Limiar": "AtivarFiltroADX",
     "MetodoADX": "AtivarFiltroADX",
@@ -398,22 +491,54 @@ def torneio_retencao(candidatos, cab, metricas, origem: Path, trabalho: Path,
     saida = []
     for i, linha in enumerate(candidatos, 1):
         if linha is None:
-            cand, lucro_is = {}, 0.0
+            cand, lucro_is, trades_is = {}, 0.0, None
         else:
             cand = {c: v for c, v in zip(cab, linha) if c not in metricas}
             lucro_is = base.num(linha[cab.index("Profit")])
+            # Trades OOS (R METRICS) so existe pra sistemas Fixed-R -- grid e
+            # recovery usam lote fixo/monetario e o bloco nunca aparece no
+            # log da EA, deixando `r['trades']` sempre None (achado real,
+            # 2026-08-03: candidato aprovado sem NENHUMA visao de quantos
+            # trades geraram o lucro). A coluna "Trades" do proprio relatorio
+            # genetico existe pra qualquer sizing e nao depende de idioma do
+            # terminal -- serve de contagem IN-SAMPLE quando o R METRICS falha.
+            trades_is = (int(base.num(linha[cab.index("Trades")]))
+                        if "Trades" in cab else None)
         passo = dict(travados, **cand, MetodoDeEntradawfo="1")
         reescrever(origem, trabalho, [], passo)
         faltando = conferir_set(trabalho, passo)
         if faltando:
             print(f"      {i:2}. pulado: nao chegou ao set {faltando}", flush=True)
             continue
-        r = passe_unico(trabalho, args.symbol, args.period, args.inicio,
-                        args.fim, args.deposit, modelo)
+        try:
+            r = passe_unico(trabalho, args.symbol, args.period, args.inicio,
+                            args.fim, args.deposit, modelo)
+        except subprocess.TimeoutExpired:
+            # Achado do dono, 2026-08-06: um UNICO passe travado (o mesmo
+            # bug de processo que nao fecha a tempo, ja visto no gate de
+            # sobrevivencia) derrubava o main() inteiro com traceback --
+            # jogando fora HORAS de Estagio 1 ja completo (3 rodadas, todos
+            # os indicadores medidos) so porque o 2o candidato do torneio
+            # nao respondeu. O combo virava "sem JSON final" no ledger, sem
+            # veredito nenhum sobre a estrategia -- so um crash disfarcado
+            # de reprovacao. Pulado como qualquer outro candidato sem
+            # medida (linha 458 acima) em vez de propagar.
+            print(f"      {i:2}. pulado: timeout no passe unico", flush=True)
+            continue
         ret, exp = r["retencao"], r["expectancy"]
+        # trades_is viaja com `r` (nao so no print) pra chegar ate o ledger --
+        # sem isso o "trades" do combo vencedor (conf[0], usado no JSON final)
+        # ficava None pra sempre em grid/martingale/d'Alembert, e a coluna
+        # Trades do dashboard nunca mostrava nada pra exatamente os sistemas
+        # que motivaram o achado (2026-08-03).
+        r["trades_is"] = trades_is
+        trades_txt = (f"{r['trades']} trades" if r["trades"] is not None
+                     else (f"~{trades_is} trades (IS, R METRICS indisponivel "
+                           "neste sizing)" if trades_is is not None
+                           else "trades n/d"))
         print(f"      {i:2}. lucro IS {lucro_is:>8.2f} | retencao "
               f"{'    n/d' if ret is None else f'{ret:>7.1f}%'} | "
-              f"{r['trades']} trades | expectancy "
+              f"{trades_txt} | expectancy "
               f"{'n/d' if exp is None else f'{exp:+.3f}R'}", flush=True)
         saida.append((ret, lucro_is, cand, r))
     # Sem retencao medida vai para o fim: ausencia de medida nao e boa medida.
@@ -587,9 +712,181 @@ def ler_metricas(log: str) -> dict:
     }
 
 
+_PADRAO_ALL_FORMULAS = re.compile(
+    r"ALL_FORMULAS Profit=([-\d.]+) Trades=(\d+) GrossProfit=([-\d.]+) "
+    r"GrossLoss=([-\d.]+) EquityDDPercent=([-\d.]+) Sharpe=([-\d.]+) "
+    r"InitialDeposit=([-\d.]+) \| GridSurvival=([-\d.]+) "
+    r"ProfitFormula=([-\d.]+) ProfitWinTradeDD=([-\d.]+) "
+    r"EffRelDeposit=([-\d.]+) AdjEffGrid=([-\d.]+) "
+    r"ProfitRelDDDeposit=([-\d.]+) PPTDD=([-\d.]+) SharpeAdjDD=([-\d.]+) "
+    r"PessimisticProfit=([-\d.]+) ResilienceDD=([-\d.]+) "
+    r"ReturnUniformity=([-\d.]+) SystemRobustness=([-\d.]+) "
+    r"LevainComposite=([-\d.]+) SomaR=([-\d.]+)")
+
+_CAMPOS_ALL_FORMULAS = [
+    "profit", "trades", "gross_profit", "gross_loss", "equity_dd_pct",
+    "sharpe", "initial_deposit", "grid_survival", "profit_formula",
+    "profit_win_trade_dd", "eff_rel_deposit", "adj_eff_grid",
+    "profit_rel_dd_deposit", "pptdd", "sharpe_adj_dd", "pessimistic_profit",
+    "resilience_dd", "return_uniformity", "system_robustness",
+    "levain_composite", "soma_r",
+]
+
+
+def ler_todas_formulas(log: str) -> list[dict]:
+    """Le TODAS as linhas ALL_FORMULAS de um log, uma por passe (ordem de
+    execucao, nao a ordem do relatorio).
+
+    Cada formula e calculada pela PROPRIA EA (OnTester, 2026-08-04) --
+    GridSurvivalScore e PessimisticProfit usam desvio-padrao/contagem de
+    trades individuais via g_closedOperations[], dado que nao sobrevive no
+    relatorio resumido do genetico. Reimplementar essas duas em Python a
+    partir das colunas do relatorio teria dado numero aproximado, nao real
+    -- por isso a EA imprime, em vez do Python recalcular.
+
+    Funcao separada de proposito, mesmo padrao de ler_metricas: testa em
+    milissegundos contra um log gravado, sem precisar do MT5.
+    """
+    saida = []
+    for m in _PADRAO_ALL_FORMULAS.finditer(log):
+        valores = m.groups()
+        d = {campo: (int(v) if campo == "trades" else float(v))
+             for campo, v in zip(_CAMPOS_ALL_FORMULAS, valores)}
+        saida.append(d)
+    return saida
+
+
+def casar_formula_com_relatorio(cab: list[str], linhas: list[list[str]],
+                                todas_formulas: list[dict],
+                                tolerancia_pct: float = 0.001) -> dict[int, dict]:
+    """Casa cada linha do relatorio .xml do genetico (por indice) com o
+    dict de formulas do MESMO passe, lido do log.
+
+    O relatorio do genetico reordena as linhas por resultado -- a ordem em
+    que elas aparecem NAO e a ordem de execucao dos passes, entao nao da
+    pra casar por posicao. O casamento usa Profit+Trades (+Equity DD % se
+    disponivel) como impressao digital: os dois lados vem da MESMA chamada
+    de TesterStatistics() no mesmo passe, entao devem bater quase exato.
+    """
+    if "Profit" not in cab or "Trades" not in cab:
+        return {}
+    i_profit = cab.index("Profit")
+    i_trades = cab.index("Trades")
+    i_dd = cab.index("Equity DD %") if "Equity DD %" in cab else None
+    casados: dict[int, dict] = {}
+    usados: set[int] = set()
+    for idx_linha, linha in enumerate(linhas):
+        profit_rel = base.num(linha[i_profit])
+        trades_rel = int(base.num(linha[i_trades]))
+        dd_rel = base.num(linha[i_dd]) if i_dd is not None else None
+        for idx_f, f in enumerate(todas_formulas):
+            if idx_f in usados or f["trades"] != trades_rel:
+                continue
+            if abs(f["profit"] - profit_rel) > max(0.01, abs(profit_rel) * tolerancia_pct):
+                continue
+            if dd_rel is not None and abs(f["equity_dd_pct"] - dd_rel) > 0.5:
+                continue
+            casados[idx_linha] = f
+            usados.add(idx_f)
+            break
+    return casados
+
+
+def limpar_todas_formulas() -> None:
+    """Apaga o arquivo compartilhado antes de uma rodada genetica.
+
+    Os 4 agentes gravam no MESMO arquivo (FILE_COMMON); sem limpar antes,
+    a proxima rodada leria linhas de uma rodada anterior junto com as suas.
+    """
+    ARQUIVO_TODAS_FORMULAS.unlink(missing_ok=True)
+
+
+def carregar_todas_formulas() -> list[dict]:
+    """Le o arquivo compartilhado (UTF-16, escrito pela EA via FileWrite)
+    da ULTIMA rodada genetica. Lista vazia se a EA nao escreveu nada --
+    versao antiga do .ex5 sem o FileWrite, ou nenhum passe rodou.
+    """
+    if not ARQUIVO_TODAS_FORMULAS.exists():
+        return []
+    texto = ARQUIVO_TODAS_FORMULAS.read_text(encoding="utf-16", errors="replace")
+    return ler_todas_formulas(texto)
+
+
+def reordenar_por_formula(cab: list[str], linhas: list[list[str]],
+                          campo: str = "grid_survival") -> list[list[str]]:
+    """Reordena as linhas do relatorio pela formula EXTERNA (arquivo que a
+    EA grava via FileWrite), em vez da ordem nativa do genetico.
+
+    A busca do grid evolui pela formula pura (GridSurvivalScore, via
+    selectedFormula do .set -- OptimizationCriterion=6/Custom faz o genetico
+    do MT5 evoluir SO em cima do que OnTester() devolve, mais nenhuma outra
+    coluna do relatorio). Esta funcao reconstroi essa mesma nota fora do
+    MT5, batendo por fingerprint (Profit+Trades+Equity DD%) com o que a EA
+    gravou via FileWrite -- o relatorio nativo do genetico nao tem os dados
+    por-trade que GridSurvivalScore precisa (CalculateStandardDeviation em
+    cima de g_closedOperations[].net).
+
+    Sem casamento (arquivo vazio, ou .ex5 antigo sem o FileWrite): devolve
+    `linhas` na ordem original -- upgrade opcional, nunca uma dependencia
+    dura que aborta o combo se faltar.
+    """
+    formulas = carregar_todas_formulas()
+    if not formulas:
+        return linhas
+    casados = casar_formula_com_relatorio(cab, linhas, formulas)
+    if not casados:
+        return linhas
+    indexadas = sorted(enumerate(linhas),
+                       key=lambda item: (casados[item[0]][campo]
+                                         if item[0] in casados else float("-inf")),
+                       reverse=True)
+    return [linha for _, linha in indexadas]
+
+
+def priorizar_lucro_no_topo(cab: list[str], linhas: list[list[str]],
+                            campo: str = "grid_survival",
+                            corte_pct: float = 0.20,
+                            minimo: int = 10) -> list[list[str]]:
+    """Formula pura decide quem E ELEGIVEL; lucro decide quem VENCE entre os
+    elegiveis -- achado do dono, 2026-08-05: a formula sozinha as vezes
+    elegia um passe de score alto e lucro baixo (600 de GridSurvivalScore,
+    60 de lucro) na frente de outro so um pouco atras em score mas com
+    lucro bem maior. O genetico do MT5 continua evoluindo 100% pela formula
+    (isso nao muda, e nao da pra mudar -- OptimizationCriterion=6 so ve
+    OnTester()); esta funcao so reordena o relatorio JA FINALIZADO.
+
+    Corta o topo por formula (piso de risco -- e aqui que o teste A/B de
+    2026-08-04 comparou "so formula" x "so lucro" e formula ganhou em
+    sobrevivencia real), depois reordena SO essa fatia por lucro. O resto
+    da lista (fora do topo) fica na ordem de formula original, sem uso
+    imediato mas preservado por seguranca.
+    """
+    por_formula = reordenar_por_formula(cab, linhas, campo)
+    return _priorizar_lucro_na_fatia(cab, por_formula, corte_pct, minimo)
+
+
+def _priorizar_lucro_na_fatia(cab: list[str], linhas_por_formula: list[list[str]],
+                              corte_pct: float = 0.20,
+                              minimo: int = 10) -> list[list[str]]:
+    """So a fatia de cima (`linhas_por_formula` ja vem ordenada por formula):
+    pura reordenacao por lucro, sem tocar arquivo nenhum -- testavel em
+    milissegundos, mesmo motivo do resto do modulo (ver reordenar_por_formula).
+    """
+    if not linhas_por_formula or "Profit" not in cab:
+        return linhas_por_formula
+    corte = max(minimo, round(len(linhas_por_formula) * corte_pct))
+    topo, resto = linhas_por_formula[:corte], linhas_por_formula[corte:]
+    i_lucro = cab.index("Profit")
+    i_dd = cab.index("Equity DD %") if "Equity DD %" in cab else None
+    topo = sorted(topo, key=lambda r: (base.num(r[i_lucro]),
+                                       -base.num(r[i_dd]) if i_dd is not None else 0),
+                 reverse=True)
+    return topo + resto
+
+
 def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
                 fim: str, deposito: int, modelo: int,
-                timeout: int = 3600) -> dict:
+                timeout: int | None = None) -> dict:
     """Roda UM backtest e devolve saldo final, trades e abortos.
 
     E assim que os ticks reais entram: como CONFERENCIA dos parametros que a
@@ -600,6 +897,12 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
     o resultado do OHLC se sustenta em dado real? Se sustenta, acabou. Se nao,
     ele EXPOE a divergencia -- enquanto otimizar em tick real teria escondido o
     problema, entregando um resultado bonito ajustado ao modelo caro.
+
+    Sem teto proprio (dono, 2026-08-06): o antigo timeout=3600 fixo matava
+    passes legitimos em ativo pesado (muito tick/history data pra carregar)
+    -- e como lancar_terminal() nunca deixa o TimeoutExpired escapar, nao
+    ha mais risco de crash em esperar. O teto real que ainda existe e o de
+    fora, campanha.py --timeout (12h por combo).
     """
     rel = str(caminho_set.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
     antes = base.marcar_logs()
@@ -621,6 +924,88 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
         time.sleep(1)
 
     return ler_metricas(log)
+
+
+def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
+    """Le o trecho de log de UM passe de sobrevivencia e decide se o set
+    ENTREGUE (WFO desligado, periodo completo) sobrevive ou estoura margem.
+
+    Funcao separada de proposito, mesma razao do ler_metricas: testa em
+    milissegundos contra um log gravado, sem precisar do MT5.
+    """
+    completou = "automatic testing finished" in log
+    estourou = "stop out occurred" in log
+    # retcode=10019 ("No money"): o broker recusa abrir posicao NOVA por
+    # falta de margem -- achado do dono, 2026-08-04, testando manualmente
+    # o EURUSD/BUY_MULTI que o gate tinha aprovado (saldo final saudavel,
+    # sem stop out). Diferente de estouro: a conta nao QUEBRA, ela FICA
+    # PRESA, incapaz de operar por tempo indeterminado -- o saldo final
+    # bonito escondia isso porque nenhuma posicao nova reduziu o saldo
+    # parado. Sem SL nativo por posicao (grid usa cesta manual), qualquer
+    # ocorrencia e sinal de que a cesta cresceu alem do que a conta aguenta.
+    sem_margem = len(re.findall(r"retcode=10019", log))
+    m = re.search(r"final balance ([\d.]+)", log)
+    saldo_final = float(m.group(1)) if m else None
+    # Piso de 50%: nao e so o stop out literal que denuncia ruina -- uma conta
+    # que termina o periodo perto de zero sem tecnicamente estourar margem
+    # (ex.: liquidacao forcada no fim do teste) e o mesmo problema.
+    sobreviveu = (completou and not estourou and sem_margem == 0
+                 and saldo_final is not None and saldo_final >= 0.5 * deposito)
+    if not completou:
+        motivo = "teste nao completou dentro do timeout"
+    elif estourou:
+        motivo = "stop out (estouro de margem) durante o periodo completo"
+    elif sem_margem > 0:
+        motivo = (f"sem margem pra abrir posicao {sem_margem}x durante o "
+                  "periodo completo (retcode=10019, No money) -- conta "
+                  "ficou presa, mesmo sem estourar")
+    elif saldo_final is None:
+        motivo = "saldo final nao encontrado no log"
+    elif saldo_final < 0.5 * deposito:
+        motivo = f"saldo final {saldo_final:.2f} < 50% do deposito ({deposito})"
+    else:
+        motivo = None
+    return {"sobreviveu": sobreviveu, "saldo_final": saldo_final,
+            "motivo": motivo}
+
+
+def verificar_sobrevivencia_completa(caminho_set: Path, symbol: str,
+                                     periodo: str, inicio: str, fim: str,
+                                     deposito: int,
+                                     timeout: int = 1800) -> dict:
+    """Roda o set ENTREGUE (WFO desligado) no periodo INTEIRO e continuo, em
+    tick real -- a mesma coisa que um comprador faz ao carregar o set e
+    apertar Start. NENHUMA etapa anterior do circuito testa isso.
+
+    Achado do dono, 2026-08-03: AUDCHF/07_GRID_SEPARATE foi aprovado com 0%
+    de divergencia numa janela OOS de ~45 dias (retencao 85.78%) -- e o set
+    ENTREGUE, rodado no periodo completo (~3 anos, como um comprador roda),
+    estourou margem em 33% do periodo, saldo 500 -> 273.98. A janela curta
+    nunca da tempo da cesta do grid (sem SL nativo por posicao, cesta manual
+    via ManageGridBasket) crescer o bastante pra quebrar; so o periodo
+    completo expoe isso. Monte Carlo nao cobre essa lacuna: e estruturalmente
+    isento pra grid (precisa de trades em R, grid usa lote fixo/monetario) --
+    esta funcao e o gate de ruina que faltava para esses sistemas.
+    """
+    rel = str(caminho_set.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
+    antes = base.marcar_logs()
+    with tempfile.TemporaryDirectory() as tmp:
+        ini = Path(tmp) / "conf.ini"
+        base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
+                          inicio, fim, deposito, 4, 6, "conf_sobrevivencia")
+        texto_ini = ini.read_text(encoding="utf-16")
+        ini.write_text(texto_ini.replace("Optimization=2", "Optimization=0"),
+                       encoding="utf-16")
+        lancar_terminal(base.TERMINAL, ini, timeout)
+    limite = time.monotonic() + 90
+    log = ""
+    while time.monotonic() < limite:
+        log = base.texto_novo(antes)
+        if "automatic testing finished" in log:
+            break
+        time.sleep(1)
+
+    return avaliar_sobrevivencia(log, deposito)
 
 
 def rodar(caminho_set: Path, symbol: str, periodo: str, inicio: str, fim: str,
@@ -646,6 +1031,43 @@ def rodar(caminho_set: Path, symbol: str, periodo: str, inicio: str, fim: str,
     return base.ler_relatorio(candidatos[0])
 
 
+def arquivar_relatorio(symbol: str, sistema: str, variante: str,
+                       nome_origem: str = "conf_wrx",
+                       nome_destino: str | None = None) -> str | None:
+    """Copia <nome_origem>.* pra fora de DADOS antes do proximo passe
+    sobrescrever -- mesmo relatorio que o Monte Carlo (ou o gate de
+    sobrevivencia) acabou de ler. Roda pra TODO combo, aprovado ou nao: e
+    a base do "certificado de qualidade" (dono, 2026-08-03) e do que
+    faltava no dashboard -- "um monte de relatorio, e nao temos nada la".
+
+    `nome_destino` renomeia na copia -- usado pra distinguir o relatorio da
+    janela OOS ("conf_wrx" -> fica "conf_wrx") do relatorio do periodo
+    completo do gate de sobrevivencia ("conf_sobrevivencia" -> vira
+    "sobrevivencia", achado do dono 2026-08-04: sem esse segundo relatorio
+    arquivado nao dava pra CONFERIR visualmente o motivo de um veredito de
+    sobrevivencia, so confiar no numero final).
+
+    Chave SEM timestamp: uma recorrida do mesmo combo substitui o relatorio
+    anterior, mesma convencao do `VALIDADO_*.set` de entrega. Nunca aborta o
+    combo -- e um extra pro dashboard, nao faz parte do veredito.
+    """
+    nome_destino = nome_destino or nome_origem
+    pasta_rel = f"{symbol.replace('.', '_')}__{sistema}__{variante}"
+    destino = RELATORIOS_DIR / pasta_rel
+    try:
+        destino.mkdir(parents=True, exist_ok=True)
+        copiados = 0
+        for sufixo in RELATORIO_SUFIXOS:
+            origem_arq = base.DADOS / f"{nome_origem}{sufixo}"
+            if origem_arq.exists():
+                shutil.copy2(origem_arq, destino / f"{nome_destino}{sufixo}")
+                copiados += 1
+        return pasta_rel if copiados else None
+    except OSError as exc:
+        print(f"    AVISO: nao arquivou o relatorio ({exc})", flush=True)
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
@@ -660,7 +1082,7 @@ def main() -> int:
     # espaco de busca encolhe silenciosamente sem nenhum erro.
     ap.add_argument("--period", default="M1")
     ap.add_argument("--from", dest="inicio", default="2023.08.01")
-    ap.add_argument("--to", dest="fim", default="2026.07.21")
+    ap.add_argument("--to", dest="fim", default=datetime.now().strftime("%Y.%m.%d"))
     ap.add_argument("--deposit", type=int, default=500)
     ap.add_argument("--min-trades", type=int, default=100)
     ap.add_argument("--min-pf", type=float, default=1.2)
@@ -722,13 +1144,32 @@ def main() -> int:
     cab: list[str] = []
     linhas: list[list[str]] = []
     melhor_ant, aptos_ant = float("-inf"), -1
-    for rodada in range(1, 4):
+    rodada_inicial = 1
+    checkpoint = carregar_checkpoint_estagio1(args.symbol, args.sistema,
+                                              args.variante)
+    if checkpoint:
+        cab, linhas = checkpoint["cab"], checkpoint["linhas"]
+        rodada_inicial = checkpoint["rodada_concluida"] + 1
+        print(f"    checkpoint do estagio 1 encontrado: retomando da rodada "
+              f"{rodada_inicial} ({len(linhas)} linhas ja acumuladas de "
+              "corridas anteriores)", flush=True)
+    # Grid busca por GridSurvivalScore puro (FORMULA_POR_SISTEMA); limpa o
+    # arquivo ANTES do loop, nao a cada rodada, porque `linhas` ACUMULA entre
+    # rodadas (append, nao substitui) -- o arquivo de formulas precisa
+    # acumular do mesmo jeito pra continuar casando linha a linha. So limpa
+    # em inicio de verdade: com checkpoint, o arquivo pode ter formulas de
+    # rodadas anteriores (processo antigo) que `linhas` ainda referencia --
+    # limpar aqui perderia o casamento por fingerprint dessas linhas.
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL and not checkpoint:
+        limpar_todas_formulas()
+    for rodada in range(rodada_inicial, 4):
         t0 = time.time()
         cab_r, linhas_r = rodar(trabalho, args.symbol, args.period, args.inicio,
                                 args.fim, args.deposit, 1, args.timeout)
         if not linhas_r:
             if not linhas:
                 print("    relatorio vazio -- nenhum passe sobreviveu aos filtros")
+                limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
                 return 1
             print(f"    rodada {rodada}: relatorio vazio; sigo com as anteriores.",
                   flush=True)
@@ -744,20 +1185,34 @@ def main() -> int:
         print(f"    rodada {rodada}: {(time.time()-t0)/60:.0f} min | melhor "
               f"lucro apto {melhor:.2f} | {aptos} indicadores aptos", flush=True)
         if rodada >= 2:
+            # So informativo agora -- pedido do dono, 2026-08-05: "no minimo
+            # 3 testes de exploracao inicial". O corte antecipado aqui
+            # economizava uma rodada quando a 2a nao melhorava sobre a 1a,
+            # mas isso deixava de garantir a exploracao minima pedida; as 3
+            # rodadas do range() acima sempre rodam agora, sem early-exit.
             melhorou = (aptos > aptos_ant
                         or melhor > melhor_ant + max(abs(melhor_ant) * 0.05, 1e-9))
             if not melhorou:
-                print("    rodada sem melhora; encerrando o genetico das "
-                      "regioes.", flush=True)
-                break
+                print("    rodada sem melhora (seguindo mesmo assim, "
+                      "minimo de 3 rodadas e obrigatorio).", flush=True)
         melhor_ant = max(melhor_ant, melhor)
         aptos_ant = max(aptos_ant, aptos)
+        salvar_checkpoint_estagio1(args.symbol, args.sistema, args.variante,
+                                   cab, linhas, rodada)
 
     melhores = base.escolher_candidatos(cab, linhas, piso1, 1.0)
     if not melhores:
         print("    nenhum passe passou o piso no estagio 1")
+        limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
+    limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
     relatar_cobertura(cab, linhas, melhores)
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        # Os pisos (trades/PF) ja filtraram; a formula de risco decide QUEM
+        # E ELEGIVEL (piso), o lucro decide quem VENCE dentro do topo --
+        # "campeao por indicador" abaixo pega o primeiro de cada grupo,
+        # entao a ordem aqui decide quem representa cada indicador.
+        melhores = priorizar_lucro_no_topo(cab, melhores)
 
     # A regiao vencedora sai de um torneio de retencao, um campeao POR
     # INDICADOR: pegar melhores[0] escolheria por lucro in-sample -- o criterio
@@ -805,6 +1260,8 @@ def main() -> int:
     if cortados:
         print(f"    fora por nao pertencerem ao {nome_ind}: {cortados}",
               flush=True)
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        limpar_todas_formulas()
     t0 = time.time()
     cab, linhas = rodar(trabalho, args.symbol, args.period, args.inicio,
                         args.fim, args.deposit, 1, args.timeout)
@@ -812,6 +1269,10 @@ def main() -> int:
         print("    relatorio vazio no estagio 2")
         return 1
     finais = base.escolher_candidatos(cab, linhas, args.min_trades, args.min_pf)
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        # Formula de risco decide o piso de elegibilidade pro torneio de
+        # retencao; lucro decide o vencedor dentro do topo elegivel.
+        finais = priorizar_lucro_no_topo(cab, finais)
     print(f"    {(time.time()-t0)/60:.0f} min | aptos: {len(finais)} de {len(linhas)}",
           flush=True)
     if not finais:
@@ -877,6 +1338,55 @@ def main() -> int:
     else:
         print("    nenhum eixo de execucao com faixa neste set.", flush=True)
 
+    # ---- Estagio 3.5: GEOMETRIA DO GRID em TICKS REAIS -----------------------
+    # So sistemas grid (ver comentario em SISTEMAS_GEOMETRIA_TICK_REAL). Reabre
+    # so os eixos de saida sobre o resto ja travado (indicador, regiao,
+    # filtros) e busca DIRETO em tick real -- pequeno o bastante (4 eixos) pra
+    # ser viavel, e ataca a causa raiz da divergencia do grid em vez de so
+    # medi-la depois de pronta.
+    lucro_ohlc_pre_geometria = ordenados[0][1] if ordenados else None
+    geometria_refeita_tick_real = False
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        # reescrever() trava (nome in travar) ANTES de checar `otimizar` --
+        # esses 4 eixos ja estao em `travados` desde a fase 2 (NUMEROS), entao
+        # precisam sair do dict passado aqui pra virarem Y de verdade. Achado
+        # ao ver "0 parametros" no primeiro combo real (AUDCAD): a fase nunca
+        # rodou, so revalidou o mesmo ponto que a fase 2 ja tinha achado.
+        travados_sem_geo = {k: v for k, v in travados.items()
+                           if k not in EIXOS_GEOMETRIA_TICK_REAL}
+        n = reescrever(origem, trabalho, EIXOS_GEOMETRIA_TICK_REAL,
+                      travados_sem_geo)
+        print(f"\n  [3.5/5] geometria do grid em TICKS REAIS ({n} parametros: "
+              f"{EIXOS_GEOMETRIA_TICK_REAL})", flush=True)
+        limpar_todas_formulas()
+        t0 = time.time()
+        cab_g, linhas_g = rodar(trabalho, args.symbol, args.period,
+                                args.inicio, args.fim, args.deposit, 4,
+                                args.timeout)
+        geo_ok = (base.escolher_candidatos(cab_g, linhas_g, args.min_trades,
+                                           args.min_pf) if linhas_g else [])
+        geo_ok = priorizar_lucro_no_topo(cab_g, geo_ok) if geo_ok else geo_ok
+        print(f"    {(time.time()-t0)/60:.1f} min | aptos: {len(geo_ok)} de "
+              f"{len(linhas_g)}", flush=True)
+        if geo_ok:
+            ord_g = torneio_retencao(geo_ok[:args.finalistas], cab_g,
+                                     metricas, origem, trabalho, travados,
+                                     args, 4, "geometria grid (tick real, "
+                                     "~35s cada)")
+            if ord_g and ord_g[0][0] is not None:
+                geometria_refeita_tick_real = True
+                print(f"    geometria refeita em tick real: retencao "
+                      f"{ordenados[0][0]} -> {ord_g[0][0]}", flush=True)
+                travados.update(ord_g[0][2])
+                otimizados.update(ord_g[0][2])
+                ordenados = ord_g
+            else:
+                print("    torneio da geometria sem medida; mantida a "
+                      "geometria de OHLC.", flush=True)
+        else:
+            print("    nenhum candidato de geometria passou os pisos; "
+                  "mantida a geometria de OHLC.", flush=True)
+
     # ---- Estagio 4: confirmacao em TICKS REAIS ------------------------------
     print("\n  [4/5] confirmacao em TICKS REAIS", flush=True)
     t0 = time.time()
@@ -911,6 +1421,8 @@ def main() -> int:
               + ("" if mc_aprovado else " -- REPROVADO no Monte Carlo"),
               flush=True)
 
+    relatorio_dir = arquivar_relatorio(args.symbol, args.sistema, args.variante)
+
     # A divergencia exige um passe a mais, em modo In-Sample: ela compara o
     # MESMO conjunto de parametros nos dois modelos de tick, e o estagio 2 rodou
     # em In-Sample. Comparar contra o passe IS+OOS misturaria duas mudancas --
@@ -933,9 +1445,14 @@ def main() -> int:
         print("    a conferencia nao produziu resultado -- verifique o log.")
     elif abs(lucro_ohlc) > 1e-9:
         div = abs(lucro_real - lucro_ohlc) / abs(lucro_ohlc) * 100
-        print(f"\n    lucro em OHLC:       {lucro_ohlc:>10.2f}")
+        rotulo_base = ("lucro na busca (tick real):"
+                       if geometria_refeita_tick_real else "lucro em OHLC:")
+        print(f"\n    {rotulo_base:<21}{lucro_ohlc:>10.2f}")
         print(f"    lucro em tick real:  {lucro_real:>10.2f}")
         print(f"    divergencia:         {div:>9.1f}%")
+        if geometria_refeita_tick_real and lucro_ohlc_pre_geometria is not None:
+            print(f"    (memo: geometria OHLC prometia {lucro_ohlc_pre_geometria:.2f} "
+                  f"na mesma busca -- comparavel ao lucro em tick real acima)")
 
     # Custo nativo (dono, 2026-08-02): simbolo .HT sai com comissao/swap ZERO
     # por construcao (CustomSymbolCreate nao herda isso do broker -- e config
@@ -1023,10 +1540,6 @@ def main() -> int:
                   "(lote fixo/monetary); entrega no modo de origem.",
                   flush=True)
 
-    print("\n    " + ("APROVADO: candidato pronto para a entrega."
-                      if aprovado else
-                      "REPROVADO: nao promova este candidato."), flush=True)
-
     # O set entregue difere do set da biblioteca SO nos parametros otimizados:
     # toda a configuracao de WFO sai fora e volta ao default (AtivarWFO=false).
     #
@@ -1056,6 +1569,44 @@ def main() -> int:
         # em Fixed-R seria entregar um modo que a ultima conferencia nao mediu.
         entrega["PositionSizeMode"] = "0"
 
+    # ---- Gate de sobrevivencia (grid): periodo completo, como o comprador
+    # roda de verdade -- achado do dono, 2026-08-03 (ver docstring da funcao).
+    sobrevivencia = None
+    sobrevivencia_relatorio_dir = None
+    if aprovado and args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        print("\n    gate de sobrevivencia: rodando o set ENTREGUE no "
+              "periodo completo (continuo, tick real)...", flush=True)
+        reescrever(origem, trabalho, [], entrega)
+        faltando = conferir_set(trabalho, entrega)
+        if faltando:
+            print(f"    ABORTADO: o set de entrega saiu incompleto antes do "
+                  f"gate de sobrevivencia: {faltando}")
+            return 1
+        t0 = time.time()
+        sobrevivencia = verificar_sobrevivencia_completa(
+            trabalho, args.symbol, args.period, args.inicio, args.fim,
+            args.deposit, max(args.timeout, 1800))
+        # Arquiva o relatorio do PROPRIO gate (curva de equity do periodo
+        # completo, nao so o numero final) -- achado do dono, 2026-08-04:
+        # sem isso nao dava pra CONFERIR visualmente um veredito de
+        # sobrevivencia, so confiar no saldo final relatado.
+        sobrevivencia_relatorio_dir = arquivar_relatorio(
+            args.symbol, args.sistema, args.variante,
+            nome_origem="conf_sobrevivencia", nome_destino="sobrevivencia")
+        print(f"    {(time.time()-t0)/60:.1f} min | saldo final "
+              f"{sobrevivencia['saldo_final']}", flush=True)
+        if not sobrevivencia["sobreviveu"]:
+            aprovado = False
+            print(f"    REPROVADO no gate de sobrevivencia: "
+                  f"{sobrevivencia['motivo']}.", flush=True)
+        else:
+            print("    OK: sobreviveu ao periodo completo sem estourar "
+                  "margem.", flush=True)
+
+    print("\n    " + ("APROVADO: candidato pronto para a entrega."
+                      if aprovado else
+                      "REPROVADO: nao promova este candidato."), flush=True)
+
     # O prefixo carrega o veredito. Um reprovado gravado como "VALIDADO_" entra
     # na biblioteca pelo nome e ninguem reabre o log para descobrir que a
     # retencao era negativa -- o arquivo passa a afirmar o que ele nao provou.
@@ -1079,10 +1630,27 @@ def main() -> int:
                       "sizing_entrega": sizing_entrega,
                       "expectancy_r": oos["expectancy"],
                       "trades_oos": oos["trades"],
+                      "trades_is": oos.get("trades_is"),
                       "mc_dd_p95": mc["mc_dd_p95"] if mc else None,
                       "mc_dd_observado": mc["mc_dd_observado"] if mc else None,
                       "mc_prob_ruina": mc["mc_prob_ruina"] if mc else None,
                       "mc_aprovado": mc_aprovado,
+                      # So-informativo, nunca usado no veredito: mc_aprovado
+                      # comeca True de proposito (grid/martingale/d'Alembert
+                      # sao estruturalmente isentos de MC) -- sem isso o
+                      # dashboard nao distingue "MC passou" de "MC nem rodou".
+                      "mc_medido": mc is not None and mc.get("mc_dd_p95") is not None,
+                      # Gate de sobrevivencia (2026-08-03): so roda pra grid
+                      # (SISTEMAS_GEOMETRIA_TICK_REAL). None = nao se aplica a
+                      # este sistema, nao "passou sem medir" -- nao confundir
+                      # com o mesmo problema que mc_medido resolveu pro MC.
+                      "sobrevivencia_medida": sobrevivencia is not None,
+                      "sobrevivencia_saldo_final": (
+                          sobrevivencia["saldo_final"] if sobrevivencia else None),
+                      "sobrevivencia_motivo_reprovacao": (
+                          sobrevivencia["motivo"] if sobrevivencia else None),
+                      "sobrevivencia_relatorio_dir": sobrevivencia_relatorio_dir,
+                      "relatorio_dir": relatorio_dir,
                       "parametros": {**otimizados, **vencedor}},
                      ensure_ascii=False))
     return 0
