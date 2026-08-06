@@ -200,13 +200,17 @@ def ajustar_sets(mt5, pasta: Path) -> dict:
     return relatorio
 
 
-def copiar_autobot(origem: Path) -> Path | None:
+def copiar_autobot(origem: Path, icone: Path | None = None) -> Path | None:
     """Copia o Autobot (dashboard + Python embutido) pra pasta do usuario.
 
     origem e a pasta "AutobotRuntime" (python-embed/, Autobot/,
     Iniciar_Dashboard.bat) vinda junto do instalador -- mesma logica de
     precedencia de copiar_sets(): pasta ao lado do exe tem prioridade
     sobre a empacotada, pra dar pra atualizar sem gerar instalador novo.
+
+    O icone (se existir) e copiado junto: o atalho aponta pra ele DENTRO
+    do destino permanente, nunca pro temporario do PyInstaller -- aquele
+    some assim que o instalador termina.
     """
     if not origem.is_dir():
         return None
@@ -215,10 +219,12 @@ def copiar_autobot(origem: Path) -> Path | None:
     if destino.exists():
         shutil.rmtree(destino)
     shutil.copytree(origem, destino)
+    if icone and icone.is_file():
+        shutil.copy2(icone, destino / icone.name)
     return destino
 
 
-def criar_atalho(alvo: Path, nome: str) -> bool:
+def criar_atalho(alvo: Path, nome: str, icone: Path | None = None) -> bool:
     """Cria um atalho na area de trabalho, via VBScript (sem depender de
     pywin32 -- cscript.exe ja vem em qualquer Windows)."""
     area_trabalho = Path(os.environ.get("USERPROFILE", str(Path.home()))) \
@@ -226,12 +232,15 @@ def criar_atalho(alvo: Path, nome: str) -> bool:
     if not area_trabalho.is_dir():
         return False
     atalho = area_trabalho / f"{nome}.lnk"
+    linha_icone = (f'link.IconLocation = "{icone}"\n'
+                   if icone and icone.is_file() else "")
     vbs = (
         'Set ws = CreateObject("WScript.Shell")\n'
         f'Set link = ws.CreateShortcut("{atalho}")\n'
         f'link.TargetPath = "{alvo}"\n'
         f'link.WorkingDirectory = "{alvo.parent}"\n'
         f'link.Description = "{nome}"\n'
+        f'{linha_icone}'
         'link.Save\n'
     )
     with tempfile.NamedTemporaryFile(
@@ -278,6 +287,9 @@ def main() -> int:
     origem_autobot = ao_lado / "AutobotRuntime"
     if not origem_autobot.is_dir():
         origem_autobot = Path(getattr(sys, "_MEIPASS", ao_lado)) / "AutobotRuntime"
+    origem_icone = ao_lado / "wrx_icon.ico"
+    if not origem_icone.is_file():
+        origem_icone = Path(getattr(sys, "_MEIPASS", ao_lado)) / "wrx_icon.ico"
 
     titulo("1. Procurando o MetaTrader")
     terminais = achar_terminais()
@@ -339,15 +351,17 @@ def main() -> int:
         mt5.shutdown()
 
     titulo("4. Instalando o Autobot (painel de controle)")
-    pasta_autobot = copiar_autobot(origem_autobot)
+    pasta_autobot = copiar_autobot(origem_autobot, origem_icone)
     if pasta_autobot is None:
         print("O pacote do Autobot nao veio junto com este instalador --")
         print("so os sets foram instalados. Baixe o pacote completo em")
         print(f"{TELEGRAM} se quiser o painel de campanhas.")
     else:
         print(f"Autobot instalado em:\n  {pasta_autobot}")
+        icone_instalado = pasta_autobot / origem_icone.name
         atalho_ok = criar_atalho(
-            pasta_autobot / "Iniciar_Dashboard.bat", "White Rabbit X - Autobot")
+            pasta_autobot / "Iniciar_Dashboard.bat", "White Rabbit X - Autobot",
+            icone_instalado if icone_instalado.is_file() else None)
         if atalho_ok:
             print("\nAtalho criado na area de trabalho: "
                   "\"White Rabbit X - Autobot\"")
