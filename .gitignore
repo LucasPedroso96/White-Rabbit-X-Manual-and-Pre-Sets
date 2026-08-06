@@ -4,3 +4,11 @@ AutoBotSetup/Sets/
 AutoBotSetup/*.exe
 Autobot/_runtime_migrado_do_levain/
 tools_wrx/
+
+# Artefatos de build do instalador completo (gerados, nao fonte):
+# Python embeddable baixado + copia do Autobot pra dentro do exe.
+# Regeneravel a partir de AutoBotSetup/README.md.
+AutoBotSetup/AutobotRuntime/
+AutoBotSetup/build/
+AutoBotSetup/__pycache__/
+AutoBotSetup/.mypy_cache/

@@ -12,6 +12,12 @@ simbolo, lote e capital base ao corretor do comprador.
 
 Roda sem Python instalado (empacotado com PyInstaller) e sem argumentos: e
 para alguem que comprou um robo, nao para um programador.
+
+Alem dos sets, tambem instala o Autobot -- o mesmo painel de controle
+(dashboard + campanhas de otimizacao) usado internamente -- com um Python
+proprio embutido (pasta "AutobotRuntime" ao lado do instalador ou
+empacotada no exe), entao o comprador tambem nao precisa de Python
+instalado pra isso.
 """
 from __future__ import annotations
 
@@ -19,7 +25,9 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -192,6 +200,54 @@ def ajustar_sets(mt5, pasta: Path) -> dict:
     return relatorio
 
 
+def copiar_autobot(origem: Path) -> Path | None:
+    """Copia o Autobot (dashboard + Python embutido) pra pasta do usuario.
+
+    origem e a pasta "AutobotRuntime" (python-embed/, Autobot/,
+    Iniciar_Dashboard.bat) vinda junto do instalador -- mesma logica de
+    precedencia de copiar_sets(): pasta ao lado do exe tem prioridade
+    sobre a empacotada, pra dar pra atualizar sem gerar instalador novo.
+    """
+    if not origem.is_dir():
+        return None
+    destino = Path(os.environ.get("USERPROFILE", str(Path.home()))) \
+        / "Documents" / "White Rabbit X - Autobot"
+    if destino.exists():
+        shutil.rmtree(destino)
+    shutil.copytree(origem, destino)
+    return destino
+
+
+def criar_atalho(alvo: Path, nome: str) -> bool:
+    """Cria um atalho na area de trabalho, via VBScript (sem depender de
+    pywin32 -- cscript.exe ja vem em qualquer Windows)."""
+    area_trabalho = Path(os.environ.get("USERPROFILE", str(Path.home()))) \
+        / "Desktop"
+    if not area_trabalho.is_dir():
+        return False
+    atalho = area_trabalho / f"{nome}.lnk"
+    vbs = (
+        'Set ws = CreateObject("WScript.Shell")\n'
+        f'Set link = ws.CreateShortcut("{atalho}")\n'
+        f'link.TargetPath = "{alvo}"\n'
+        f'link.WorkingDirectory = "{alvo.parent}"\n'
+        f'link.Description = "{nome}"\n'
+        'link.Save\n'
+    )
+    with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".vbs", delete=False, encoding="utf-8") as f:
+        f.write(vbs)
+        caminho_vbs = f.name
+    try:
+        r = subprocess.run(["cscript", "//nologo", caminho_vbs],
+                            capture_output=True, timeout=15)
+        return r.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+    finally:
+        os.unlink(caminho_vbs)
+
+
 def main() -> int:
     titulo(f"White Rabbit X {VERSAO} - Instalacao dos sets")
     print("Este instalador copia os sets de otimizacao para o seu MetaTrader")
@@ -216,6 +272,12 @@ def main() -> int:
         print(f"Baixe o pacote completo em {TELEGRAM}")
         input("\nEnter para sair.")
         return 1
+
+    # Mesma logica de precedencia do Sets: pasta ao lado do exe tem
+    # prioridade sobre a empacotada.
+    origem_autobot = ao_lado / "AutobotRuntime"
+    if not origem_autobot.is_dir():
+        origem_autobot = Path(getattr(sys, "_MEIPASS", ao_lado)) / "AutobotRuntime"
 
     titulo("1. Procurando o MetaTrader")
     terminais = achar_terminais()
@@ -275,6 +337,22 @@ def main() -> int:
         (destino / "INSTALACAO.json").write_text(
             json.dumps(registro, indent=2, ensure_ascii=False), encoding="utf-8")
         mt5.shutdown()
+
+    titulo("4. Instalando o Autobot (painel de controle)")
+    pasta_autobot = copiar_autobot(origem_autobot)
+    if pasta_autobot is None:
+        print("O pacote do Autobot nao veio junto com este instalador --")
+        print("so os sets foram instalados. Baixe o pacote completo em")
+        print(f"{TELEGRAM} se quiser o painel de campanhas.")
+    else:
+        print(f"Autobot instalado em:\n  {pasta_autobot}")
+        atalho_ok = criar_atalho(
+            pasta_autobot / "Iniciar_Dashboard.bat", "White Rabbit X - Autobot")
+        if atalho_ok:
+            print("\nAtalho criado na area de trabalho: "
+                  "\"White Rabbit X - Autobot\"")
+        else:
+            print(f"\nPara abrir o painel: {pasta_autobot / 'Iniciar_Dashboard.bat'}")
 
     titulo("Pronto")
     print("No Strategy Tester: aba Inputs > Load > escolha um set em")
