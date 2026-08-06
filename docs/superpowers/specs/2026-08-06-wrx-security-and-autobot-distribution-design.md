@@ -190,6 +190,34 @@ completo passa a ser `Documents\White Rabbit X\Autobot\` em vez de
 `Levain-2.0\white_rabbit_x_optimization_tools\`. O comportamento final
 entregue ao cliente é o mesmo desenhado originalmente.
 
+## Estado final (2026-08-06, fim de sessão)
+
+Todas as três frentes executadas e verificadas:
+
+- **A**: senha removida de todo o histórico local do Levain-2.0 (`git
+  filter-repo --replace-text`) e force-pushed para `main`,
+  `feat/training-process-pool` e a tag `checkpoint-wrx-m1-fix-20260801` —
+  os três únicos refs remotos. `0` ocorrências confirmadas em
+  `git log --all -p` antes do push.
+- **B**: `Autobot/`/`AutoBotSetup/` publicados em
+  `github.com/LucasPedroso96/White-Rabbit-X-Manual-and-Pre-Sets`, depois de
+  remover do histórico o fonte da EA (pertence a outro repo, privado) e
+  corrigir 22 arquivos com caminho pessoal cravado (`wrx_paths.py` já
+  existia com auto-detecção; parte dos scripts não o usava ainda).
+- **C**: `wrx_setup.py` agora também instala o Autobot completo com Python
+  3.13 embeddable próprio (`AutobotRuntime/`, gerado via
+  `AutoBotSetup/README.md`, fora do git — ~176MB). Testado de ponta a
+  ponta: o `.exe` compilado achou o terminal, copiou os sets, leu a conta
+  real via MT5 (exigiu `--collect-all numpy` no PyInstaller — sem isso o
+  `MetaTrader5` falha silenciosamente por depender de numpy
+  internamente), instalou o Autobot, criou o atalho, e o atalho abre o
+  dashboard normalmente.
+
+Também migrado nesta sessão, antes das três frentes: todo o WRX (Autobot,
+AutoBotSetup, specs, tools, screenshots) saiu do Levain-2.0 (sistema não
+relacionado) para este repositório, com histórico preservado via
+`git filter-repo` + merge de históricos não relacionados.
+
 ## Riscos e limites conhecidos
 
 - Reescrever histórico do Levain-2.0- muda o SHA de todo commit após o
