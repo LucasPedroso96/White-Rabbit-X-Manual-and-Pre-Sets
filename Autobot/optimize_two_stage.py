@@ -457,8 +457,21 @@ def torneio_retencao(candidatos, cab, metricas, origem: Path, trabalho: Path,
         if faltando:
             print(f"      {i:2}. pulado: nao chegou ao set {faltando}", flush=True)
             continue
-        r = passe_unico(trabalho, args.symbol, args.period, args.inicio,
-                        args.fim, args.deposit, modelo)
+        try:
+            r = passe_unico(trabalho, args.symbol, args.period, args.inicio,
+                            args.fim, args.deposit, modelo)
+        except subprocess.TimeoutExpired:
+            # Achado do dono, 2026-08-06: um UNICO passe travado (o mesmo
+            # bug de processo que nao fecha a tempo, ja visto no gate de
+            # sobrevivencia) derrubava o main() inteiro com traceback --
+            # jogando fora HORAS de Estagio 1 ja completo (3 rodadas, todos
+            # os indicadores medidos) so porque o 2o candidato do torneio
+            # nao respondeu. O combo virava "sem JSON final" no ledger, sem
+            # veredito nenhum sobre a estrategia -- so um crash disfarcado
+            # de reprovacao. Pulado como qualquer outro candidato sem
+            # medida (linha 458 acima) em vez de propagar.
+            print(f"      {i:2}. pulado: timeout no passe unico", flush=True)
+            continue
         ret, exp = r["retencao"], r["expectancy"]
         # trades_is viaja com `r` (nao so no print) pra chegar ate o ledger --
         # sem isso o "trades" do combo vencedor (conf[0], usado no JSON final)

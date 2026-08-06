@@ -100,13 +100,28 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int,
 
     `args_extra` repassa flags adicionais (`/report:...` etc.) que alguns
     chamadores precisam junto do `/config:`.
+
+    Nunca deixa `TimeoutExpired` escapar: achado do dono, 2026-08-06, um
+    UNICO passe travado (o bug ja conhecido de processo que nao fecha a
+    tempo, mesmo com o teste tendo terminado) derrubava o script inteiro
+    com traceback -- jogando fora horas de estagio ja completo so porque
+    UM passe de conferencia no meio do caminho nao respondeu a tempo.
+    `subprocess.run(timeout=...)` ja mata o processo antes de levantar a
+    excecao (documentado no proprio Python); todo chamador aqui ja
+    descobre sucesso/falha lendo o LOG depois, nunca o retorno desta
+    funcao -- entao engolir o timeout e seguro: o chamador ve o log sem
+    "automatic testing finished" e trata como qualquer outro passe
+    incompleto, o mesmo caminho que ja existe pra log vazio ou estourado.
     """
     info = subprocess.STARTUPINFO()
     info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     info.wShowWindow = 7  # SW_SHOWMINNOACTIVE
-    subprocess.run([str(terminal), f"/config:{ini}", *args_extra],  # noqa: S603
-                   timeout=timeout, capture_output=True, check=False,
-                   startupinfo=info)
+    try:
+        subprocess.run([str(terminal), f"/config:{ini}", *args_extra],  # noqa: S603
+                       timeout=timeout, capture_output=True, check=False,
+                       startupinfo=info)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 def ler_novo(logs_dir: Path, antes: dict[Path, int]) -> str:
