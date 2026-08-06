@@ -936,8 +936,19 @@ function hojeMT5() {
   const dois = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}.${dois(d.getMonth() + 1)}.${dois(d.getDate())}`;
 }
+function anosAtrasMT5(anos) {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - anos);
+  const dois = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}.${dois(d.getMonth() + 1)}.${dois(d.getDate())}`;
+}
 document.getElementById("campo-fim").value = hojeMT5();
 document.getElementById("perfil-wfo-fim").value = hojeMT5();
+// "From" vinha cravado em "2023.08.01" no HTML -- ficava mais desatualizado
+// a cada dia (achado 2026-08-06, quase 3 anos de defasagem). Sugestao
+// sempre relativa a hoje: 3 anos pra tras, igual ao --from default do
+// campanha.py quando chamado sem esse dashboard.
+document.getElementById("campo-inicio").value = anosAtrasMT5(3);
 
 setInterval(() => { carregarStatus(); carregarEstado(); carregarHeatmap(); }, 8000);
 applyTranslations(langPicker?.value || 'en');
@@ -1024,9 +1035,16 @@ document.getElementById("btn-detectar").addEventListener("click", async () => {
   if (!r.ok) { msg.textContent = r.erro; msg.className = "status-msg no"; return; }
   pollJob(r.job_id, msg, (j) => {
     if (j.status !== "feito") return;
-    const linha = (j.saida || "").split("\n").find((l) => l.includes("simbolos"));
-    if (!linha) return;
-    const nomes = (linha.match(/\(([^)]*)\)/) || [, ""])[1].split(",").map((s) => s.trim());
+    // descobrir_ativos.py rodado standalone (main(), nao carregar_ou_descobrir())
+    // imprime um simbolo por linha, indentado com 2 espacos -- nao a lista
+    // entre parenteses que este parser esperava antes (achado 2026-08-06,
+    // debugando "Detectar" clicado e nada era marcado): o regex antigo nunca
+    // batia com a saida real, "nomes" ficava vazio e nada era resolvido, o
+    // que por sua vez fazia o fix do sufixo (acima) nunca disparar.
+    const nomes = (j.saida || "").split("\n")
+      .map((l) => (l.match(/^  ([A-Z0-9.]+)\s*$/) || [])[1])
+      .filter(Boolean);
+    if (!nomes.length) return;
     document.querySelectorAll(".chk-ativo").forEach((c) => {
       // O nome real pode vir com sufixo (EURUSD.HT, EURUSDm...) -- usar esse
       // nome exato, nao o generico da biblioteca, ou o /config: do terminal

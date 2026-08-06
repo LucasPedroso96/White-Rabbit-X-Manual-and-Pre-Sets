@@ -142,6 +142,18 @@ def escrever_ini(destino: Path, symbol: str, periodo: str, set_rel: str,
         "Leverage": leverage_conta(),
         "Optimization": "2",            # genetico rapido
         "OptimizationCriterion": str(criterio),
+        # Sem isso o .ini nao diz nada sobre agentes, e o Tester usa
+        # qualquer config que sobrou da ultima vez que alguem abriu o
+        # Strategy Tester manualmente nesse terminal -- achado 2026-08-06,
+        # terminal dedicado recem-migrado: toda otimizacao (Optimization=2)
+        # morria em ~1s com "no agent is ready, optimization not started"
+        # (e "custom symbols not allowed in Cloud Network" pra .HT), porque
+        # o terminal novo veio com Cloud Network ligada e nenhum agente
+        # local pronto. Passe unico (Optimization=0) nunca pegava isso --
+        # so precisa de agente pra rodar genetico.
+        "UseLocal": "1",
+        "UseRemote": "0",
+        "UseCloud": "0",
         "ShutdownTerminal": "1",
         "Visual": "0",
         "ExpertParameters": set_rel,
