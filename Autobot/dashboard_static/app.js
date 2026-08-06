@@ -1028,7 +1028,21 @@ document.getElementById("btn-detectar").addEventListener("click", async () => {
     if (!linha) return;
     const nomes = (linha.match(/\(([^)]*)\)/) || [, ""])[1].split(",").map((s) => s.trim());
     document.querySelectorAll(".chk-ativo").forEach((c) => {
-      if (nomes.includes(c.value) || nomes.includes(c.value + ".HT")) c.checked = true;
+      // O nome real pode vir com sufixo (EURUSD.HT, EURUSDm...) -- usar esse
+      // nome exato, nao o generico da biblioteca, ou o /config: do terminal
+      // falha em silencio pra um simbolo que essa conta nao tem (achado
+      // 2026-08-06: EURUSD puro em vez de EURUSD.HT -- "sem JSON final" em
+      // 12s, nenhum passe rodou de verdade).
+      const real = nomes.find((n) => n === c.value || n.startsWith(c.value + "."));
+      if (real) {
+        c.checked = true;
+        c.dataset.real = real;
+        const label = c.closest("label");
+        if (label && real !== c.value) {
+          label.title = `usa ${real} nesta conta`;
+          label.classList.add("ativo-resolvido");
+        }
+      }
     });
   });
 });
@@ -1044,7 +1058,7 @@ document.getElementById("btn-iniciar").addEventListener("click", async () => {
   };
   if (modoAtual === "manual") {
     body.sistemas = [...document.querySelectorAll("#check-sistemas input:checked")].map((c) => c.value);
-    body.simbolos = [...document.querySelectorAll(".chk-ativo:checked")].map((c) => c.value);
+    body.simbolos = [...document.querySelectorAll(".chk-ativo:checked")].map((c) => c.dataset.real || c.value);
   }
   const r = await post("/api/campanha/start", body);
   msg.textContent = r.ok ? `iniciado (pid ${r.pid})` : r.erro;
