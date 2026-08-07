@@ -32,7 +32,7 @@ COMPLETO = """
 2026.07.20 23:59:58   Win rate: 36.3% | Payoff: 2.30R | Largest gain: +3.16R
 final balance 827.92 USD
 2026.07.20 23:59:58   Out-of-Sample Retention: 41.50% (out-of-sample daily ...)
-automatic testing finished
+automatical testing finished
 """
 m = ler_metricas(COMPLETO)
 checar("saldo", m["saldo"], 827.92)

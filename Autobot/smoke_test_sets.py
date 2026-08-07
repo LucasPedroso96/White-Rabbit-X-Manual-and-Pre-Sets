@@ -124,7 +124,7 @@ def esperar_corrida(antes: dict[Path, int], limite: float = 30.0) -> str:
 
     terminal64.exe devolve o controle antes de terminar de escrever o log, e o
     que faltou aparece durante a corrida SEGUINTE -- o que faz uma corrida
-    parecer muda e a proxima herdar os trades das duas. "automatic testing
+    parecer muda e a proxima herdar os trades das duas. "automatical testing
     finished" e a ultima linha que o tester escreve, entao ela e o sinal de
     que o texto esta inteiro.
     """
@@ -132,7 +132,7 @@ def esperar_corrida(antes: dict[Path, int], limite: float = 30.0) -> str:
     texto = ""
     while time.monotonic() < limite_em:
         texto = texto_novo(antes)
-        if "automatic testing finished" in texto:
+        if "automatical testing finished" in texto:
             return texto
         time.sleep(0.3)
     return texto

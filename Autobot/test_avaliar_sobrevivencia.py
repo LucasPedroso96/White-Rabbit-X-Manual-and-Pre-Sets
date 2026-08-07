@@ -32,7 +32,7 @@ final balance 273.98 USD
 OnTester result 0
 stop out occurred on 33% of testing interval
 AUDCHF,M1: 24749597 ticks, 364972 bars generated.
-automatic testing finished
+automatical testing finished
 """
 r = avaliar_sobrevivencia(ESTOURO_REAL, 500)
 checar("estouro real: nao sobrevive", r["sobreviveu"], False)
@@ -49,7 +49,7 @@ SEM_MARGEM_REAL = """
 2025.10.29 07:33:32   order performed sell 2.47 at 1.16281 [#12789 sell 2.47 EURUSD at 1.16281]
 final balance 3335.25 USD
 OnTester result 420.8364211437089
-automatic testing finished
+automatical testing finished
 """
 r = avaliar_sobrevivencia(SEM_MARGEM_REAL, 500)
 checar("sem margem real: nao sobrevive apesar do saldo saudavel",
@@ -62,7 +62,7 @@ SAUDAVEL = """
 2026.07.20 23:59:58   position closed [#900 sell 0.02 AUDCHF 0.60000]
 final balance 812.40 USD
 OnTester result 812.4
-automatic testing finished
+automatical testing finished
 """
 r = avaliar_sobrevivencia(SAUDAVEL, 500)
 checar("saudavel: sobrevive", r["sobreviveu"], True)
@@ -78,7 +78,7 @@ checar("quase zero: motivo cita o piso", "50%" in r["motivo"], True)
 # bookkeeping (achado do dono, 2026-08-07): EURUSD/BOTH_MULTI rodou o
 # periodo completo de verdade em 2.1min (nada perto de qualquer timeout),
 # saldo final ja calculado e saudavel, saem sem estouro nem sem-margem --
-# so a linha "automatic testing finished" do Tester nao chegou a tempo
+# so a linha "automatical testing finished" do Tester nao chegou a tempo
 # antes do ShutdownTerminal=1 fechar o processo. saldo_final e prova mais
 # forte de conclusao que essa linha de bookkeeping: se o OnTester/deinit
 # calculou um saldo, o periodo inteiro ja foi simulado.

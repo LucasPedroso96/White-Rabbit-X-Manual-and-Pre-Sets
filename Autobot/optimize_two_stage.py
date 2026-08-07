@@ -949,7 +949,7 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
     log = ""
     while time.monotonic() < limite:
         log = base.texto_novo(antes)
-        if "automatic testing finished" in log:
+        if "automatical testing finished" in log:
             break
         time.sleep(1)
 
@@ -974,18 +974,19 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
     sem_margem = len(re.findall(r"retcode=10019", log))
     m = re.search(r"final balance ([\d.]+)", log)
     saldo_final = float(m.group(1)) if m else None
-    # "automatic testing finished" e a linha de BOOKKEEPING do proprio
-    # Tester, escrita DEPOIS do "final balance" da EA -- achado do dono,
-    # 2026-08-07: gate reprovando em 2.1min (nada perto de qualquer
-    # timeout, seja o de 30min do gate seja o de 12h da campanha) com
-    # saldo final ja calculado e valido (881.15), mas sem essa linha no
-    # log. ShutdownTerminal=1 fecha o terminal assim que a EA termina, e
-    # essa corrida entre "Tester grava a propria linha de fechamento" e
-    # "processo e derrubado" as vezes perde -- o teste rodou o periodo
-    # inteiro de verdade (saldo final so existe se rodou), so a ultima
-    # linha de bookkeeping que nao chegou a tempo. Aceitar saldo_final
-    # como prova de conclusao tambem, nao so a string exata.
-    completou = "automatic testing finished" in log or saldo_final is not None
+    # CAUSA RAIZ de verdade (achado do dono, 2026-08-07): o MT5 escreve
+    # "automatICAL testing finished" (com "-al"), nao "automatic testing
+    # finished" -- o codigo inteiro (aqui, passe_unico, smoke_test_sets)
+    # procurava a grafia errada desde sempre, entao essa checagem NUNCA
+    # batia, em lugar nenhum. Cada chamada pagava os 90s inteiros do loop
+    # de espera em passe_unico() antes de desistir e seguir com log
+    # parcial -- essa e a causa real do "delay enorme entre chamadas"
+    # (medido: ~100s por chamada, batendo com 90s de espera morta + ~10s
+    # de lancamento real). saldo_final continua tambem aceito como prova
+    # de conclusao (nao so a string) -- defesa extra pro caso raro de
+    # ShutdownTerminal=1 cortar a ultima linha de bookkeeping antes dela
+    # ser gravada, mesmo com a grafia certa.
+    completou = "automatical testing finished" in log or saldo_final is not None
     estourou = "stop out occurred" in log
     # Piso de 50%: nao e so o stop out literal que denuncia ruina -- uma conta
     # que termina o periodo perto de zero sem tecnicamente estourar margem
@@ -993,7 +994,7 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
     sobreviveu = (completou and not estourou and sem_margem == 0
                  and saldo_final is not None and saldo_final >= 0.5 * deposito)
     if not completou:
-        motivo = ("teste nao completou -- nem 'automatic testing finished' "
+        motivo = ("teste nao completou -- nem 'automatical testing finished' "
                   "nem saldo final apareceram no log (timeout de verdade, "
                   "crash, ou log vazio)")
     elif estourou:
@@ -1044,7 +1045,7 @@ def verificar_sobrevivencia_completa(caminho_set: Path, symbol: str,
     log = ""
     while time.monotonic() < limite:
         log = base.texto_novo(antes)
-        if "automatic testing finished" in log:
+        if "automatical testing finished" in log:
             break
         time.sleep(1)
 

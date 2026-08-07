@@ -53,7 +53,7 @@ checar("duas linhas: ordem preservada", [f["trades"] for f in formulas],
        [42, 18])
 
 # --- log sem nenhuma linha ALL_FORMULAS: lista vazia, sem excecao ------------
-checar("log vazio", ler_todas_formulas("nada aqui\nautomatic testing finished"), [])
+checar("log vazio", ler_todas_formulas("nada aqui\nautomatical testing finished"), [])
 
 # --- casamento com o relatorio: por fingerprint, nao por posicao ------------
 CAB = ["Pass", "Result", "Profit", "Profit Factor", "Trades", "Equity DD %"]
