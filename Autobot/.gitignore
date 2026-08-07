@@ -13,6 +13,7 @@ campanha_dashboard.lock.json
 campanha_progresso.json
 perfil_dashboard.json
 campanha_relatorios/
+campanha_checkpoints/
 
 # Sua escolha de ativos, se voce gravar uma (descobrir_ativos.py --gravar)
 campanha_ativos.json
