@@ -110,7 +110,7 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
     excecao (documentado no proprio Python); todo chamador aqui ja
     descobre sucesso/falha lendo o LOG depois, nunca o retorno desta
     funcao -- entao engolir o timeout e seguro: o chamador ve o log sem
-    "automatical testing finished" e trata como qualquer outro passe
+    a linha de bookkeeping do Tester e trata como qualquer outro passe
     incompleto, o mesmo caminho que ja existe pra log vazio ou estourado.
 
     `stdout`/`stderr` vao pro DEVNULL, nao capturados (dono, 2026-08-06,

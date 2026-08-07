@@ -197,6 +197,17 @@ REGIOES = ["TimeFrame", "EntryIndicator", "InpAppliedPrice", "Fast_EMA",
            "AtivarFiltroMA", "AtivarFiltroADX", "AtivarFiltroMTF",
            "EntradaATR"]           # EntradaATR so tem faixa nos sets de grid
 
+# O proprio MT5 escreve essa linha -- NAO o EA -- e a grafia muda de build
+# pra build sem aviso: achado do dono, 2026-08-07, o terminal se auto-
+# atualizou NO MEIO desta sessao (terminal64.exe trocou de mtime as 15:13:59)
+# e a mensagem virou de "automatical testing finished" (com "-al", builds
+# ate entao) para "automatic testing finished" (grafia padrao, builds
+# depois) -- confirmado nos dois lados no mesmo log bruto do dia. Fixar
+# qualquer uma das duas grafias quebra assim que o MT5 atualizar de novo;
+# aceitar as duas e a unica versao que sobrevive a uma atualizacao do
+# terminal sem virar bug de novo.
+TESTE_CONCLUIDO = re.compile(r"automatic(al)? testing finished")
+
 # Enum do EA (ENUM_ENTRY_INDICATOR). Ichimoku (11) vive em set proprio porque o
 # OnInit exige Tenkan<Kijun<SenkouB; os MULTI disputam 0..10 num eixo so.
 INDICADORES = {0: "MACD", 1: "EMA", 2: "Momentum", 3: "Stochastic", 4: "TRIX",
@@ -949,7 +960,7 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
     log = ""
     while time.monotonic() < limite:
         log = base.texto_novo(antes)
-        if "automatical testing finished" in log:
+        if TESTE_CONCLUIDO.search(log):
             break
         time.sleep(1)
 
@@ -974,19 +985,13 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
     sem_margem = len(re.findall(r"retcode=10019", log))
     m = re.search(r"final balance ([\d.]+)", log)
     saldo_final = float(m.group(1)) if m else None
-    # CAUSA RAIZ de verdade (achado do dono, 2026-08-07): o MT5 escreve
-    # "automatICAL testing finished" (com "-al"), nao "automatic testing
-    # finished" -- o codigo inteiro (aqui, passe_unico, smoke_test_sets)
-    # procurava a grafia errada desde sempre, entao essa checagem NUNCA
-    # batia, em lugar nenhum. Cada chamada pagava os 90s inteiros do loop
-    # de espera em passe_unico() antes de desistir e seguir com log
-    # parcial -- essa e a causa real do "delay enorme entre chamadas"
-    # (medido: ~100s por chamada, batendo com 90s de espera morta + ~10s
-    # de lancamento real). saldo_final continua tambem aceito como prova
-    # de conclusao (nao so a string) -- defesa extra pro caso raro de
-    # ShutdownTerminal=1 cortar a ultima linha de bookkeeping antes dela
-    # ser gravada, mesmo com a grafia certa.
-    completou = "automatical testing finished" in log or saldo_final is not None
+    # Ver TESTE_CONCLUIDO no topo do arquivo -- o MT5 muda a grafia dessa
+    # linha entre builds (auto-update no meio de UMA sessao ja fez isso,
+    # 2026-08-07), entao nunca comparar contra uma string fixa aqui.
+    # saldo_final continua tambem aceito como prova de conclusao (nao so a
+    # linha do Tester) -- defesa extra pro caso raro de ShutdownTerminal=1
+    # cortar a ultima linha de bookkeeping antes dela ser gravada.
+    completou = bool(TESTE_CONCLUIDO.search(log)) or saldo_final is not None
     estourou = "stop out occurred" in log
     # Piso de 50%: nao e so o stop out literal que denuncia ruina -- uma conta
     # que termina o periodo perto de zero sem tecnicamente estourar margem
@@ -994,8 +999,8 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
     sobreviveu = (completou and not estourou and sem_margem == 0
                  and saldo_final is not None and saldo_final >= 0.5 * deposito)
     if not completou:
-        motivo = ("teste nao completou -- nem 'automatical testing finished' "
-                  "nem saldo final apareceram no log (timeout de verdade, "
+        motivo = ("teste nao completou -- nem a linha de bookkeeping do "
+                  "Tester nem saldo final apareceram no log (timeout de verdade, "
                   "crash, ou log vazio)")
     elif estourou:
         motivo = "stop out (estouro de margem) durante o periodo completo"
@@ -1045,7 +1050,7 @@ def verificar_sobrevivencia_completa(caminho_set: Path, symbol: str,
     log = ""
     while time.monotonic() < limite:
         log = base.texto_novo(antes)
-        if "automatical testing finished" in log:
+        if TESTE_CONCLUIDO.search(log):
             break
         time.sleep(1)
 

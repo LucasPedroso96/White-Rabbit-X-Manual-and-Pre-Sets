@@ -119,20 +119,27 @@ def texto_novo(antes: dict[Path, int]) -> str:
     return "\n".join(pedacos)
 
 
+# A grafia dessa linha muda de build pra build sem aviso -- o MT5 se auto-
+# atualizou NO MEIO de uma sessao (2026-08-07) e trocou "automatical testing
+# finished" por "automatic testing finished" (ou vice-versa na proxima
+# atualizacao). Nunca comparar contra uma string fixa aqui.
+TESTE_CONCLUIDO = re.compile(r"automatic(al)? testing finished")
+
+
 def esperar_corrida(antes: dict[Path, int], limite: float = 30.0) -> str:
     """Espera o log da corrida ficar completo antes de interpretar.
 
     terminal64.exe devolve o controle antes de terminar de escrever o log, e o
     que faltou aparece durante a corrida SEGUINTE -- o que faz uma corrida
-    parecer muda e a proxima herdar os trades das duas. "automatical testing
-    finished" e a ultima linha que o tester escreve, entao ela e o sinal de
-    que o texto esta inteiro.
+    parecer muda e a proxima herdar os trades das duas. A linha de
+    bookkeeping do Tester (ver TESTE_CONCLUIDO) e a ultima que ele escreve,
+    entao ela e o sinal de que o texto esta inteiro.
     """
     limite_em = time.monotonic() + limite
     texto = ""
     while time.monotonic() < limite_em:
         texto = texto_novo(antes)
-        if "automatical testing finished" in texto:
+        if TESTE_CONCLUIDO.search(texto):
             return texto
         time.sleep(0.3)
     return texto

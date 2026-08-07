@@ -68,6 +68,16 @@ r = avaliar_sobrevivencia(SAUDAVEL, 500)
 checar("saudavel: sobrevive", r["sobreviveu"], True)
 checar("saudavel: sem motivo de reprovacao", r["motivo"], None)
 
+# --- a outra grafia: o MT5 se auto-atualizou no meio desta sessao
+# (2026-08-07, terminal64.exe trocou de mtime as 15:13:59) e passou a
+# escrever "automatic testing finished" (sem "-al") em vez de "automatical
+# testing finished" -- as duas tem que ser aceitas, builds antigo e novo.
+SAUDAVEL_GRAFIA_NOVA = SAUDAVEL.replace("automatical testing finished",
+                                        "automatic testing finished")
+r = avaliar_sobrevivencia(SAUDAVEL_GRAFIA_NOVA, 500)
+checar("grafia nova (sem -al): sobrevive", r["sobreviveu"], True)
+checar("grafia nova (sem -al): sem motivo de reprovacao", r["motivo"], None)
+
 # --- fronteira: termina positivo mas abaixo do piso de 50% do deposito ------
 QUASE_ZERO = SAUDAVEL.replace("final balance 812.40", "final balance 240.00")
 r = avaliar_sobrevivencia(QUASE_ZERO, 500)
