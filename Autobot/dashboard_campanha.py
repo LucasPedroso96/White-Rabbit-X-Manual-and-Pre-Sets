@@ -464,6 +464,9 @@ def _lancar_campanha(body: dict) -> JSONResponse:
         # regravando e seguindo em frente mesmo se um combo estourar isso.
         str(body.get("timeout", 43200)),
     ]
+    limite = body.get("limite", 0)
+    if limite:
+        cmd += ["--limite", str(limite)]
     if modo == "manual":
         sistemas = body.get("sistemas") or []
         simbolos = body.get("simbolos") or []
