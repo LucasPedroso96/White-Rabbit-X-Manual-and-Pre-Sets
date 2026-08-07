@@ -46,6 +46,7 @@ from fastapi.staticfiles import StaticFiles
 
 import optimize_sets as base
 import ready_library
+import relatorio_resumo
 from generate_system_sets import ASSETS, CLASSES, SYSTEMS
 from mt5_runner import fechar_terminal, terminal_aberto
 
@@ -303,7 +304,14 @@ def status() -> JSONResponse:
 
 @app.get("/api/config")
 def config() -> JSONResponse:
-    sistemas = [{"code": s.code, "label": s.label, "status": s.status} for s in SYSTEMS]
+    capital = ready_library.capital_por_sistema()
+    sistemas = [{
+        "code": s.code, "label": s.label, "status": s.status,
+        "capital_agregado": capital.get(s.code, 0.0),
+        "capital_aplica": s.code in ready_library.SISTEMAS_R_CAPAZES,
+    } for s in SYSTEMS]
+    sistemas.sort(key=lambda s: (0 if s["capital_agregado"] > 0 else 1,
+                                  -s["capital_agregado"], s["label"]))
     classes = {
         codigo: {"capital_base": CLASSES[codigo].capital_base, "ativos": ativos}
         for codigo, ativos in ASSETS.items()
@@ -672,6 +680,7 @@ def portfolios() -> JSONResponse:
         {"nome": p.stem.removeprefix("portfolio_"), "url": f"/portfolio-out/{p.name}"}
         for p in sorted(PORTFOLIO_OUT.glob("portfolio_*.html"))
     ]
+    resultado["capital_por_sistema"] = ready_library.capital_por_sistema()
     return JSONResponse(resultado)
 
 
@@ -805,6 +814,29 @@ def implantacao() -> JSONResponse:
     return JSONResponse({"sets": _sets_certificados()})
 
 
+_NOMES_RELATORIO_VALIDOS = {"conf_wrx", "sobrevivencia"}
+
+
+@app.get("/api/relatorio/{relatorio_dir}/resumo")
+def relatorio_resumo_endpoint(relatorio_dir: str,
+                              nome: str = "conf_wrx") -> JSONResponse:
+    """Metricas-chave (Profit Factor, Sharpe, drawdowns...) ja arquivadas no
+    .htm do combo -- sob demanda, so quando uma linha e expandida no
+    dashboard (nao entra em /api/status nem /api/implantacao, que sao
+    pollados a cada poucos segundos e parsear .htm de ~1MB nesse ritmo
+    seria desperdicio)."""
+    if (nome not in _NOMES_RELATORIO_VALIDOS or "/" in relatorio_dir
+            or "\\" in relatorio_dir or ".." in relatorio_dir):
+        return JSONResponse({"ok": False, "erro": "parametro invalido"},
+                            status_code=400)
+    caminho = RELATORIOS_DIR / relatorio_dir / f"{nome}.htm"
+    if not caminho.is_file():
+        return JSONResponse({"ok": False, "erro": "relatorio nao encontrado"},
+                            status_code=404)
+    return JSONResponse({"ok": True,
+                         "resumo": relatorio_resumo.resumo_relatorio(caminho)})
+
+
 @app.post("/api/implantacao/marcar")
 def implantacao_marcar(body: dict) -> JSONResponse:
     chaves = body.get("chaves") or []
@@ -820,11 +852,13 @@ def implantacao_marcar(body: dict) -> JSONResponse:
 
 @app.post("/api/implantacao/exportar")
 def implantacao_exportar(body: dict):
-    """Zip com o `.set` real (sem ＊, e so marcador de exibicao no espelho) +
-    o relatorio arquivado de cada set selecionado. So local -- quem leva pro
-    VPS/conta live e o proprio usuario, copiar-colar. Recusa qualquer set sem
-    certificado: exportar sem relatorio junto devolveria o mesmo problema que
-    a Parte D existe pra evitar (administrar sem evidencia)."""
+    """Zip so com o `.set` real (sem ＊, e so marcador de exibicao no
+    espelho) de cada set selecionado, uma pasta por sistema. So local --
+    quem leva pro VPS/conta live e o proprio usuario, copiar-colar. Recusa
+    qualquer set sem certificado (relatorio arquivado em disco): o gate
+    exige a evidencia EXISTIR para liberar o export, mesmo sem empacotar o
+    relatorio junto -- exportar sem evidencia nenhuma devolveria o mesmo
+    problema que a Parte D existe pra evitar (administrar sem evidencia)."""
     chaves = set(body.get("chaves") or [])
     if not chaves:
         return JSONResponse({"ok": False, "erro": "nenhum set selecionado"},
@@ -849,11 +883,7 @@ def implantacao_exportar(body: dict):
             )
             origem_set = ready_library.TESTER / nome_arquivo_real
             if origem_set.is_file():
-                zf.write(origem_set, f"{chave}/{item['variante']}.set")
-            pasta_rel = RELATORIOS_DIR / item["relatorio_dir"]
-            if pasta_rel.is_dir():
-                for arq in pasta_rel.iterdir():
-                    zf.write(arq, f"{chave}/relatorio/{arq.name}")
+                zf.write(origem_set, f"{item['sistema']}/{nome_arquivo_real}")
     buffer.seek(0)
     return StreamingResponse(
         buffer, media_type="application/zip",

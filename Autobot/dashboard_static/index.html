@@ -5,7 +5,7 @@
 <title>White Rabbit X — Autobot</title>
 <link rel="manifest" href="/static/manifest.webmanifest">
 <link rel="stylesheet" href="/static/styles.css">
-<meta name="theme-color" content="#1b4d5c">
+<meta name="theme-color" content="#05080b">
 <meta name="description" content="White Rabbit X — operational dashboard for live campaign, portfolio, and robustness diagnostics.">
 </head>
 <body>
@@ -39,7 +39,7 @@
   <button data-tab="portfolios" data-i18n="nav.portfolios">Portfolios</button>
   <button data-tab="perfil" data-i18n="nav.broker">Broker profile</button>
   <button data-tab="custo" data-i18n="nav.native-cost">Native cost</button>
-  <button data-tab="implantacao">Deployment</button>
+  <button data-tab="implantacao" data-i18n="nav.implantacao">Deployment</button>
 </nav>
 <main>
 
@@ -94,12 +94,20 @@
     <div id="bloco-manual" style="display:none">
       <fieldset>
         <legend data-i18n="setup.systems">Systems</legend>
+        <div class="linha" style="margin:6px 0 10px">
+          <button type="button" class="acao secundario" id="btn-sistemas-todos" data-i18n="setup.select-all-systems">Select all systems</button>
+          <button type="button" class="acao secundario" id="btn-sistemas-nenhum" data-i18n="setup.clear-systems">Clear selection</button>
+        </div>
         <div class="grid-check" id="check-sistemas"></div>
       </fieldset>
       <fieldset>
         <legend data-i18n="setup.assets">Assets</legend>
         <button class="acao secundario" id="btn-detectar" data-i18n="setup.detect">Detect available now</button>
         <span class="status-msg" id="msg-detectar"></span>
+        <div class="linha" style="margin:6px 0 10px">
+          <button type="button" class="acao secundario" id="btn-ativos-todos" data-i18n="setup.select-all-assets">Select all assets</button>
+          <button type="button" class="acao secundario" id="btn-ativos-nenhum" data-i18n="setup.clear-assets">Clear selection</button>
+        </div>
         <div id="grupos-ativos"></div>
       </fieldset>
     </div>
@@ -138,6 +146,7 @@
   <div class="box">
     <h2 data-i18n="portfolio.by-system">By system</h2>
     <div class="tabs-sub" id="tabs-sistemas-portfolio"></div>
+    <div id="portfolio-sistema-capital" class="metric-card" style="display:none;max-width:260px;margin-bottom:10px"></div>
     <div id="portfolio-sistema-html" class="mapa-html"></div>
     <p class="status-msg" data-i18n="portfolio.note">The set mirror only stores the validated <code>.set</code>, not the original <code>.htm</code> report — point below to a folder where you already gathered the set reports you want to compare.</p>
     <input type="text" id="portfolio-pasta" placeholder="Folder path with .htm/.csv reports">
@@ -147,7 +156,7 @@
   <div class="box">
     <h2>Correlation panel</h2>
     <div class="tabs-sub" id="tabs-portfolio-gerados"></div>
-    <iframe id="portfolio-iframe" style="display:none;width:100%;height:640px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
+    <iframe id="portfolio-iframe" style="display:none;width:100%;height:640px;border:1px solid var(--line);border-radius:8px;background:var(--bg)"></iframe>
     <span class="status-msg" id="msg-portfolio-iframe">No correlation panel generated yet.</span>
   </div>
 </section>

@@ -108,6 +108,26 @@ def metricas_do_ledger(ledger: Path) -> dict[tuple[str, str, str], dict]:
     return saida
 
 
+def capital_por_sistema(tester: Path = TESTER) -> dict[str, float]:
+    """Capital agregado validado por sistema, so leitura (sem sincronizar o
+    espelho). Mesma soma que _gerar_portfolios() faz (CapitalBaseR dos sets
+    VALIDADO_* de cada sistema R-capaz), exposta para o dashboard ordenar o
+    checklist de Run Setup por capital decrescente sem custo de sync."""
+    por_sistema: dict[str, list[float]] = {}
+    for origem in sorted(tester.glob("VALIDADO_*.set")):
+        info = analisar_nome(origem.name)
+        if info is None or info["sistema"] not in SISTEMAS_R_CAPAZES:
+            continue
+        capital = ler_param(origem, "CapitalBaseR")
+        if capital in (None, ""):
+            continue
+        try:
+            por_sistema.setdefault(info["sistema"], []).append(float(capital))
+        except ValueError:
+            continue
+    return {sistema: sum(vals) for sistema, vals in por_sistema.items()}
+
+
 def achar_ativo(biblioteca: Path, simbolo: str) -> Path | None:
     """Pasta do ativo na biblioteca, aceitando sufixo (EURUSD_HT -> EURUSD)."""
     candidatos = [simbolo, simbolo.replace("_", ".")]

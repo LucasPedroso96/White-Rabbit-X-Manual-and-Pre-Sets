@@ -12,6 +12,7 @@ const i18n = {
     'nav.portfolios': 'Portfolios',
     'nav.broker': 'Broker profile',
     'nav.native-cost': 'Native cost',
+    'nav.implantacao': 'Deployment',
     'campaign.robustness': 'Robustness diagnosis',
     'campaign.asset-map': 'Asset map by class',
     'campaign.progress': 'Progress by system',
@@ -33,6 +34,10 @@ const i18n = {
     'setup.systems': 'Systems',
     'setup.assets': 'Assets',
     'setup.detect': 'Detect available now',
+    'setup.select-all-systems': 'Select all systems',
+    'setup.clear-systems': 'Clear selection',
+    'setup.select-all-assets': 'Select all assets',
+    'setup.clear-assets': 'Clear selection',
     'setup.parameters': 'Parameters',
     'setup.from': 'From',
     'setup.to': 'To',
@@ -77,6 +82,7 @@ const i18n = {
     'nav.portfolios': 'Portfólios',
     'nav.broker': 'Perfil da corretora',
     'nav.native-cost': 'Custo nativo',
+    'nav.implantacao': 'Implantação',
     'campaign.robustness': 'Diagnóstico de robustez',
     'campaign.asset-map': 'Mapa de ativos por classe',
     'campaign.progress': 'Progresso por sistema',
@@ -98,6 +104,10 @@ const i18n = {
     'setup.systems': 'Sistemas',
     'setup.assets': 'Ativos',
     'setup.detect': 'Detectar disponíveis agora',
+    'setup.select-all-systems': 'Selecionar todos os sistemas',
+    'setup.clear-systems': 'Limpar seleção',
+    'setup.select-all-assets': 'Selecionar todos os ativos',
+    'setup.clear-assets': 'Limpar seleção',
     'setup.parameters': 'Parâmetros',
     'setup.from': 'De',
     'setup.to': 'Até',
@@ -142,6 +152,7 @@ const i18n = {
     'nav.portfolios': 'Portafolios',
     'nav.broker': 'Perfil del bróker',
     'nav.native-cost': 'Costo nativo',
+    'nav.implantacao': 'Despliegue',
     'campaign.robustness': 'Diagnóstico de robustez',
     'campaign.asset-map': 'Mapa de activos por clase',
     'campaign.progress': 'Progreso por sistema',
@@ -163,6 +174,10 @@ const i18n = {
     'setup.systems': 'Sistemas',
     'setup.assets': 'Activos',
     'setup.detect': 'Detectar disponibles ahora',
+    'setup.select-all-systems': 'Seleccionar todos los sistemas',
+    'setup.clear-systems': 'Borrar selección',
+    'setup.select-all-assets': 'Seleccionar todos los activos',
+    'setup.clear-assets': 'Borrar selección',
     'setup.parameters': 'Parámetros',
     'setup.from': 'Desde',
     'setup.to': 'Hasta',
@@ -207,6 +222,7 @@ const i18n = {
     'nav.portfolios': 'Portfolios',
     'nav.broker': 'Broker-Profil',
     'nav.native-cost': 'Nativkosten',
+    'nav.implantacao': 'Bereitstellung',
     'campaign.robustness': 'Robustheitsdiagnose',
     'campaign.asset-map': 'Asset-Karte nach Klasse',
     'campaign.progress': 'Fortschritt nach System',
@@ -228,6 +244,10 @@ const i18n = {
     'setup.systems': 'Systeme',
     'setup.assets': 'Assets',
     'setup.detect': 'Jetzt verfügbare erkennen',
+    'setup.select-all-systems': 'Alle Systeme auswählen',
+    'setup.clear-systems': 'Auswahl aufheben',
+    'setup.select-all-assets': 'Alle Assets auswählen',
+    'setup.clear-assets': 'Auswahl aufheben',
     'setup.parameters': 'Parameter',
     'setup.from': 'Von',
     'setup.to': 'Bis',
@@ -272,6 +292,7 @@ const i18n = {
     'nav.portfolios': 'Portefeuilles',
     'nav.broker': 'Profil du broker',
     'nav.native-cost': 'Coût natif',
+    'nav.implantacao': 'Déploiement',
     'campaign.robustness': 'Diagnostic de robustesse',
     'campaign.asset-map': 'Carte des actifs par classe',
     'campaign.progress': 'Progression par système',
@@ -293,6 +314,10 @@ const i18n = {
     'setup.systems': 'Systèmes',
     'setup.assets': 'Actifs',
     'setup.detect': 'Détecter les actifs disponibles',
+    'setup.select-all-systems': 'Sélectionner tous les systèmes',
+    'setup.clear-systems': 'Effacer la sélection',
+    'setup.select-all-assets': 'Sélectionner tous les actifs',
+    'setup.clear-assets': 'Effacer la sélection',
     'setup.parameters': 'Paramètres',
     'setup.from': 'De',
     'setup.to': 'À',
@@ -337,6 +362,7 @@ const i18n = {
     'nav.portfolios': 'Portafogli',
     'nav.broker': 'Profilo broker',
     'nav.native-cost': 'Costo nativo',
+    'nav.implantacao': 'Distribuzione',
     'campaign.robustness': 'Diagnosi di robustezza',
     'campaign.asset-map': 'Mappa asset per classe',
     'campaign.progress': 'Avanzamento per sistema',
@@ -358,6 +384,10 @@ const i18n = {
     'setup.systems': 'Sistemi',
     'setup.assets': 'Asset',
     'setup.detect': 'Rileva disponibili ora',
+    'setup.select-all-systems': 'Seleziona tutti i sistemi',
+    'setup.clear-systems': 'Cancella selezione',
+    'setup.select-all-assets': 'Seleziona tutti gli asset',
+    'setup.clear-assets': 'Cancella selezione',
     'setup.parameters': 'Parametri',
     'setup.from': 'Da',
     'setup.to': 'A',
@@ -402,6 +432,7 @@ const i18n = {
     'nav.portfolios': 'Портфели',
     'nav.broker': 'Профиль брокера',
     'nav.native-cost': 'Нативные издержки',
+    'nav.implantacao': 'Развёртывание',
     'campaign.robustness': 'Диагностика устойчивости',
     'campaign.asset-map': 'Карта активов по классам',
     'campaign.progress': 'Прогресс по системам',
@@ -423,6 +454,10 @@ const i18n = {
     'setup.systems': 'Системы',
     'setup.assets': 'Активы',
     'setup.detect': 'Определить доступные сейчас',
+    'setup.select-all-systems': 'Выбрать все системы',
+    'setup.clear-systems': 'Очистить выбор',
+    'setup.select-all-assets': 'Выбрать все активы',
+    'setup.clear-assets': 'Очистить выбор',
     'setup.parameters': 'Параметры',
     'setup.from': 'С',
     'setup.to': 'По',
@@ -467,6 +502,7 @@ const i18n = {
     'nav.portfolios': '投资组合',
     'nav.broker': '经纪商配置',
     'nav.native-cost': '原生成本',
+    'nav.implantacao': '部署',
     'campaign.robustness': '稳健性诊断',
     'campaign.asset-map': '按类别划分的资产地图',
     'campaign.progress': '按系统划分的进度',
@@ -488,6 +524,10 @@ const i18n = {
     'setup.systems': '系统',
     'setup.assets': '资产',
     'setup.detect': '检测当前可用项',
+    'setup.select-all-systems': '选择所有系统',
+    'setup.clear-systems': '清除选择',
+    'setup.select-all-assets': '选择所有资产',
+    'setup.clear-assets': '清除选择',
     'setup.parameters': '参数',
     'setup.from': '起始',
     'setup.to': '结束',
@@ -532,6 +572,7 @@ const i18n = {
     'nav.portfolios': 'ポートフォリオ',
     'nav.broker': 'ブローカープロファイル',
     'nav.native-cost': 'ネイティブコスト',
+    'nav.implantacao': 'デプロイ',
     'campaign.robustness': 'ロバストネス診断',
     'campaign.asset-map': 'クラス別アセットマップ',
     'campaign.progress': 'システム別進捗',
@@ -553,6 +594,10 @@ const i18n = {
     'setup.systems': 'システム',
     'setup.assets': 'アセット',
     'setup.detect': '現在利用可能なものを検出',
+    'setup.select-all-systems': 'すべてのシステムを選択',
+    'setup.clear-systems': '選択を解除',
+    'setup.select-all-assets': 'すべての資産を選択',
+    'setup.clear-assets': '選択を解除',
     'setup.parameters': 'パラメータ',
     'setup.from': '開始',
     'setup.to': '終了',
@@ -597,6 +642,7 @@ const i18n = {
     'nav.portfolios': '포트폴리오',
     'nav.broker': '브로커 프로필',
     'nav.native-cost': '네이티브 비용',
+    'nav.implantacao': '배포',
     'campaign.robustness': '강건성 진단',
     'campaign.asset-map': '자산군별 자산 맵',
     'campaign.progress': '시스템별 진행 상황',
@@ -618,6 +664,10 @@ const i18n = {
     'setup.systems': '시스템',
     'setup.assets': '자산',
     'setup.detect': '현재 사용 가능한 항목 감지',
+    'setup.select-all-systems': '모든 시스템 선택',
+    'setup.clear-systems': '선택 해제',
+    'setup.select-all-assets': '모든 자산 선택',
+    'setup.clear-assets': '선택 해제',
     'setup.parameters': '파라미터',
     'setup.from': '시작일',
     'setup.to': '종료일',
@@ -662,6 +712,7 @@ const i18n = {
     'nav.portfolios': 'Portföyler',
     'nav.broker': 'Broker profili',
     'nav.native-cost': 'Native maliyet',
+    'nav.implantacao': 'Dağıtım',
     'campaign.robustness': 'Sağlamlık tanısı',
     'campaign.asset-map': 'Sınıfa göre varlık haritası',
     'campaign.progress': 'Sisteme göre ilerleme',
@@ -683,6 +734,10 @@ const i18n = {
     'setup.systems': 'Sistemler',
     'setup.assets': 'Varlıklar',
     'setup.detect': 'Şu an müsait olanları algıla',
+    'setup.select-all-systems': 'Tüm sistemleri seç',
+    'setup.clear-systems': 'Seçimi temizle',
+    'setup.select-all-assets': 'Tüm varlıkları seç',
+    'setup.clear-assets': 'Seçimi temizle',
     'setup.parameters': 'Parametreler',
     'setup.from': 'Başlangıç',
     'setup.to': 'Bitiş',
@@ -811,14 +866,23 @@ document.querySelectorAll("nav button[data-tab]").forEach((btn) => {
 // (que reconstroi #tbl-recentes do zero) porque o clique so muda este Set,
 // nao o DOM direto; o proximo carregarStatus() reaplica o estado.
 const linhasExpandidas = new Set();
+let recentesAtuais = [];
 document.querySelector("#tbl-recentes").addEventListener("click", (ev) => {
   const btn = ev.target.closest("button[data-chave]");
   if (!btn) return;
   const chave = btn.dataset.chave;
-  if (linhasExpandidas.has(chave)) linhasExpandidas.delete(chave);
-  else linhasExpandidas.add(chave);
+  const abrindo = !linhasExpandidas.has(chave);
+  if (abrindo) linhasExpandidas.add(chave);
+  else linhasExpandidas.delete(chave);
   const idLinha = "det-" + chave.replace(/[^a-zA-Z0-9]/g, "_");
   document.getElementById(idLinha)?.classList.toggle("linha-oculta");
+  if (abrindo) {
+    const r = recentesAtuais.find((x) =>
+      `${x.simbolo}|${x.sistema}|${x.variante}|${x.quando}` === chave);
+    if (r && r.relatorio_dir) {
+      carregarResumoRelatorio(r.relatorio_dir, "conf_wrx", "resumo-" + idLinha);
+    }
+  }
 });
 
 async function carregarStatus() {
@@ -870,6 +934,7 @@ async function carregarStatus() {
     <div class="diagnostic-row"><span>Average OOS retention</span><strong>${q.retencao_media ?? "-"}%</strong></div>
     <div class="diagnostic-row"><span>Average real tick profit</span><strong>${q.lucro_medio_tick_real ?? "-"}</strong></div>
     <div class="diagnostic-row"><span>Interpretation</span><strong>${narrativa}</strong></div>`;
+  recentesAtuais = d.recentes;
   document.querySelector("#tbl-recentes tbody").innerHTML = d.recentes.map((r) => {
     // Chave estavel por linha do ledger (nao por indice): o intervalo de 8s
     // reconstroi a tabela inteira, e um id por indice perderia o "expandido"
@@ -891,6 +956,7 @@ async function carregarStatus() {
       : "MC: não medido (fora de Fixed-R ou poucos trades)";
     const oculta = linhasExpandidas.has(chaveLinha) ? "" : "linha-oculta";
     const linhaDetalhe = `<tr id="${idLinha}" class="linha-detalhe ${oculta}"><td colspan="9">
+      ${r.relatorio_dir ? `<div id="resumo-${idLinha}" class="detalhe-grid"><span class="status-msg">loading summary...</span></div>` : ""}
       <div class="detalhe-grid">
         <span>lucro OHLC/busca: <b>${r.lucro_ohlc ?? "-"}</b></span>
         <span>lucro tick real: <b>${r.lucro_tick_real ?? "-"}</b></span>
@@ -899,7 +965,17 @@ async function carregarStatus() {
         <span>sizing entregue: <b>${r.sizing_entrega ?? "-"}</b></span>
         <span>${mc}</span>
         ${r.relatorio_dir ? `<span><a href="/relatorios/${r.relatorio_dir}/conf_wrx.htm" target="_blank">relatório completo ↗</a></span>` : ""}
-      </div></td></tr>`;
+      </div>
+      ${r.relatorio_dir ? `
+      <div class="detalhe-grid" style="margin-top:8px">
+        <span>Equity/balance history:</span>
+        <img src="/relatorios/${r.relatorio_dir}/conf_wrx-hst.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Equity/balance history" onerror="this.style.display='none'">
+        <span>MFE/MAE scatter:</span>
+        <img src="/relatorios/${r.relatorio_dir}/conf_wrx-mfemae.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="MFE/MAE scatter" onerror="this.style.display='none'">
+        <span>Position holding time:</span>
+        <img src="/relatorios/${r.relatorio_dir}/conf_wrx-holding.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Position holding time" onerror="this.style.display='none'">
+      </div>` : ""}
+      </td></tr>`;
     return linhaPrincipal + linhaDetalhe;
   }).join("");
 }
@@ -988,17 +1064,40 @@ function setModo(m) {
 
 async function carregarConfig() {
   CONFIG = await api("/api/config");
-  document.getElementById("check-sistemas").innerHTML = CONFIG.sistemas.map((s, i) =>
-    `<label><input type="checkbox" value="${s.code}" ${i < 2 ? "checked" : ""}> ${s.code} — ${s.label}</label>`
-  ).join("");
+  document.getElementById("check-sistemas").innerHTML = CONFIG.sistemas.map((s, i) => {
+    const nota = !s.capital_aplica ? "n/a (fixed lot)"
+      : s.capital_agregado > 0 ? `validated capital: ${s.capital_agregado.toLocaleString()}`
+      : "no validated capital yet";
+    return `<label><input type="checkbox" class="chk-sistema" value="${s.code}" ${i < 2 ? "checked" : ""}>
+      ${s.code} — ${s.label} <span class="capital-note">(${nota})</span></label>`;
+  }).join("");
   const grupos = document.getElementById("grupos-ativos");
   grupos.innerHTML = Object.entries(CONFIG.classes).map(([classe, info]) => `
-    <fieldset><legend>${classe} (capital base ${info.capital_base})</legend>
+    <fieldset><legend>${classe} (capital base ${info.capital_base})
+      <button type="button" class="btn-classe-todos">all</button>
+      <button type="button" class="btn-classe-nenhum">none</button>
+    </legend>
     <div class="grid-check">${info.ativos.map((a) =>
       `<label><input type="checkbox" class="chk-ativo" value="${a}"> ${a}</label>`).join("")}</div>
     </fieldset>`).join("");
 }
 carregarConfig();
+
+document.getElementById("btn-sistemas-todos").addEventListener("click", () =>
+  document.querySelectorAll(".chk-sistema").forEach((c) => { c.checked = true; }));
+document.getElementById("btn-sistemas-nenhum").addEventListener("click", () =>
+  document.querySelectorAll(".chk-sistema").forEach((c) => { c.checked = false; }));
+document.getElementById("btn-ativos-todos").addEventListener("click", () =>
+  document.querySelectorAll(".chk-ativo").forEach((c) => { c.checked = true; }));
+document.getElementById("btn-ativos-nenhum").addEventListener("click", () =>
+  document.querySelectorAll(".chk-ativo").forEach((c) => { c.checked = false; }));
+document.getElementById("grupos-ativos").addEventListener("click", (ev) => {
+  const todos = ev.target.closest(".btn-classe-todos");
+  const nenhum = ev.target.closest(".btn-classe-nenhum");
+  if (!todos && !nenhum) return;
+  ev.target.closest("fieldset").querySelectorAll(".chk-ativo")
+    .forEach((c) => { c.checked = !!todos; });
+});
 
 // Gradiente continuo por retencao, inspirado no densityClass() do dashboard
 // do Historical Tool Manager -- pass/fail sozinho nao diz SE vale a pena,
@@ -1121,6 +1220,7 @@ document.getElementById("btn-regenerar").addEventListener("click", async () => {
 
 let portfolioSistemas = {};
 let portfolioSelecionado = null;
+let portfolioCapital = {};
 
 function mostrarPortfolioIframe(url) {
   const frame = document.getElementById("portfolio-iframe");
@@ -1134,6 +1234,7 @@ async function carregarPortfolios() {
   const d = await api("/api/portfolios");
   document.getElementById("mapa-html").innerHTML = d.mapa_html || "sem MAPA.md ainda";
   portfolioSistemas = d.sistemas || {};
+  portfolioCapital = d.capital_por_sistema || {};
   const tabs = document.getElementById("tabs-sistemas-portfolio");
   const nomes = Object.keys(portfolioSistemas);
   tabs.innerHTML = nomes.map((n) => `<button data-sis="${n}">${n}</button>`).join("");
@@ -1158,6 +1259,14 @@ function selecionarPortfolio(nome) {
   document.querySelectorAll("#tabs-sistemas-portfolio button").forEach((b) =>
     b.classList.toggle("ativo", b.dataset.sis === nome));
   document.getElementById("portfolio-sistema-html").innerHTML = portfolioSistemas[nome] || "";
+  const capital = portfolioCapital[nome];
+  const badge = document.getElementById("portfolio-sistema-capital");
+  if (capital) {
+    badge.style.display = "";
+    badge.innerHTML = `<div class="metric-label">Validated capital</div><b>${capital.toLocaleString()}</b>`;
+  } else {
+    badge.style.display = "none";
+  }
 }
 document.getElementById("btn-gerar-portfolio").addEventListener("click", async () => {
   const msg = document.getElementById("msg-portfolio");
@@ -1238,15 +1347,38 @@ let implantacaoSets = [];
 // Sobrevive ao refresh (mesmo padrao de linhasExpandidas em tbl-recentes):
 // a chave e o proprio `chave` do set (simbolo__sistema__variante), ja
 // estavel por natureza.
+async function carregarResumoRelatorio(dir, nome, elId) {
+  const el = document.getElementById(elId);
+  if (!el || el.dataset.carregado) return;
+  el.dataset.carregado = "1";
+  const r = await api(`/api/relatorio/${encodeURIComponent(dir)}/resumo?nome=${nome}`);
+  if (!r.ok) { el.innerHTML = `<span class="status-msg">${r.erro || "summary unavailable"}</span>`; return; }
+  const m = r.resumo;
+  const linha = (rot, v) => `<span>${rot}: <b>${v ?? "-"}</b></span>`;
+  el.innerHTML = [
+    linha("Profit factor", m.profit_factor),
+    linha("Recovery factor", m.recovery_factor),
+    linha("Sharpe ratio", m.sharpe_ratio),
+    linha("Balance DD (rel.)", m.balance_dd_relative),
+    linha("Max consecutive wins", m.max_consecutive_wins),
+    linha("Max consecutive losses", m.max_consecutive_losses),
+  ].join("");
+}
+
 const implantacaoExpandida = new Set();
 document.querySelector("#tbl-implantacao").addEventListener("click", (ev) => {
   const btn = ev.target.closest("button[data-grafico]");
   if (!btn) return;
   const chave = btn.dataset.grafico;
-  if (implantacaoExpandida.has(chave)) implantacaoExpandida.delete(chave);
-  else implantacaoExpandida.add(chave);
-  document.getElementById("graf-" + chave.replace(/[^a-zA-Z0-9]/g, "_"))
-    ?.classList.toggle("linha-oculta");
+  const abrindo = !implantacaoExpandida.has(chave);
+  if (abrindo) implantacaoExpandida.add(chave);
+  else implantacaoExpandida.delete(chave);
+  const idGraf = "graf-" + chave.replace(/[^a-zA-Z0-9]/g, "_");
+  document.getElementById(idGraf)?.classList.toggle("linha-oculta");
+  if (abrindo) {
+    const set = implantacaoSets.find((s) => s.chave === chave);
+    if (set) carregarResumoRelatorio(set.relatorio_dir, "sobrevivencia", "resumo-" + idGraf);
+  }
 });
 
 async function carregarImplantacao() {
@@ -1266,7 +1398,7 @@ async function carregarImplantacao() {
       <td>${lucroCompleto}</td>
       <td>${s.lucro_oos != null ? s.lucro_oos.toFixed(2) : "-"}</td>
       <td>${s.certificado
-        ? `<span class="pill ok">certified</span>`
+        ? `<span class="pill gold">certified</span>`
         : `<span class="pill no">no report archived</span>`}</td>
       <td><label style="display:inline-flex;align-items:center;gap:4px">
         <input type="checkbox" class="chk-deployed" value="${s.chave}" ${s.implantado ? "checked" : ""}
@@ -1277,9 +1409,16 @@ async function carregarImplantacao() {
     </tr>`;
     const linhaGrafico = s.sobrevivencia_grafico ? `
     <tr id="${idGraf}" class="linha-detalhe ${oculta}"><td colspan="10">
-      <div class="detalhe-grid">
+      <div id="resumo-${idGraf}" class="detalhe-grid"><span class="status-msg">loading summary...</span></div>
+      <div class="detalhe-grid" style="margin-top:8px">
         <span>Full-period equity curve (the one the survival gate actually measured — not the short OOS window):</span>
         <img src="/relatorios/${s.relatorio_dir}/sobrevivencia.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Full-period equity curve">
+        <span>Equity/balance history:</span>
+        <img src="/relatorios/${s.relatorio_dir}/sobrevivencia-hst.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Equity/balance history" onerror="this.style.display='none'">
+        <span>MFE/MAE scatter:</span>
+        <img src="/relatorios/${s.relatorio_dir}/sobrevivencia-mfemae.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="MFE/MAE scatter" onerror="this.style.display='none'">
+        <span>Position holding time:</span>
+        <img src="/relatorios/${s.relatorio_dir}/sobrevivencia-holding.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Position holding time" onerror="this.style.display='none'">
         <span><a href="/relatorios/${s.relatorio_dir}/sobrevivencia.htm" target="_blank">full report ↗</a></span>
       </div></td></tr>` : "";
     return linhaPrincipal + linhaGrafico;

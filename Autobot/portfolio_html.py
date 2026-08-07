@@ -138,42 +138,42 @@ def _heatmap(correl: pd.DataFrame, escolhidas: list[str]) -> str:
 ESTILO = """
 :root{color-scheme:dark}
 *{box-sizing:border-box}
-body{margin:0;padding:32px;background:#0b1017;color:#e2e8f0;
+body{margin:0;padding:32px;background:#05080b;color:#e9edf1;
  font:15px/1.6 "Segoe UI",system-ui,sans-serif}
-h1{font-size:22px;margin:0 0 4px}
-h2{font-size:15px;margin:32px 0 12px;color:#94a3b8;font-weight:600;
+h1{font-size:22px;margin:0 0 4px;color:#d4af37}
+h2{font-size:15px;margin:32px 0 12px;color:#8ea0ad;font-weight:600;
  text-transform:uppercase;letter-spacing:.06em}
-.sub{color:#64748b;margin:0 0 28px;font-size:13px}
+.sub{color:#6b7684;margin:0 0 28px;font-size:13px}
 .cartoes{display:grid;gap:14px;
  grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
-.cartao{background:#131c2b;border:1px solid #24344d;border-radius:10px;
+.cartao{background:#0d151d;border:1px solid #1c2836;border-radius:10px;
  padding:16px}
-.cartao .rot{font-size:11px;color:#64748b;text-transform:uppercase;
+.cartao .rot{font-size:11px;color:#6b7684;text-transform:uppercase;
  letter-spacing:.07em}
 .cartao .val{font-size:26px;font-weight:600;margin-top:6px}
-.up{color:#34d399} .neg{color:#f87171}
-.grafico{width:100%;height:320px;background:#0e1622;border:1px solid #24344d;
+.up{color:#4caf50} .neg{color:#ef5350}
+.grafico{width:100%;height:320px;background:#0b131a;border:1px solid #1c2836;
  border-radius:10px;margin-top:8px}
-.zero{stroke:#334155;stroke-width:1;stroke-dasharray:4 4}
+.zero{stroke:#2a3441;stroke-width:1;stroke-dasharray:4 4}
 .bar-row{display:grid;grid-template-columns:minmax(160px,1fr) minmax(220px,1.5fr) 56px;align-items:center;gap:10px;margin:10px 0}
-.bar-meta{display:flex;align-items:center;color:#e2e8f0;font-size:12.5px}
-.bar-track{height:10px;background:#0e1622;border:1px solid #24344d;border-radius:999px;overflow:hidden}
+.bar-meta{display:flex;align-items:center;color:#e9edf1;font-size:12.5px}
+.bar-track{height:10px;background:#0b131a;border:1px solid #1c2836;border-radius:999px;overflow:hidden}
 .bar-fill{height:100%;border-radius:999px}
-.bar-pct{color:#94a3b8;font-size:11.5px;text-align:right}
+.bar-pct{color:#8ea0ad;font-size:11.5px;text-align:right}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
-th,td{padding:9px 10px;border-bottom:1px solid #1e293b;text-align:left}
-th{color:#64748b;font-weight:600;font-size:11px;text-transform:uppercase;
+th,td{padding:9px 10px;border-bottom:1px solid #1c2836;text-align:left}
+th{color:#8ea0ad;font-weight:600;font-size:11px;text-transform:uppercase;
  letter-spacing:.05em}
 .num{text-align:right;font-variant-numeric:tabular-nums}
 .bolinha{display:inline-block;width:9px;height:9px;border-radius:50%;
  margin-right:9px}
 .heat{font-size:11.5px}
 .heat th{font-size:10px}
-.heat td{text-align:center;padding:7px 4px;border:1px solid #0b1017;
+.heat td{text-align:center;padding:7px 4px;border:1px solid #05080b;
  font-variant-numeric:tabular-nums}
 .rolagem{overflow-x:auto}
-.legenda{color:#64748b;font-size:12.5px;margin-top:10px}
-.fora{color:#94a3b8;font-size:13.5px;margin:0;padding-left:20px}
+.legenda{color:#6b7684;font-size:12.5px;margin-top:10px}
+.fora{color:#8ea0ad;font-size:13.5px;margin:0;padding-left:20px}
 """
 
 
