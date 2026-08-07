@@ -1398,7 +1398,7 @@ async function carregarImplantacao() {
       <td>${lucroCompleto}</td>
       <td>${s.lucro_oos != null ? s.lucro_oos.toFixed(2) : "-"}</td>
       <td>${s.certificado
-        ? `<span class="pill gold">certified</span>`
+        ? `<span class="pill ok">certified</span>`
         : `<span class="pill no">no report archived</span>`}</td>
       <td><label style="display:inline-flex;align-items:center;gap:4px">
         <input type="checkbox" class="chk-deployed" value="${s.chave}" ${s.implantado ? "checked" : ""}
