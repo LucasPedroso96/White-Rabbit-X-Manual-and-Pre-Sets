@@ -963,8 +963,6 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
     Funcao separada de proposito, mesma razao do ler_metricas: testa em
     milissegundos contra um log gravado, sem precisar do MT5.
     """
-    completou = "automatic testing finished" in log
-    estourou = "stop out occurred" in log
     # retcode=10019 ("No money"): o broker recusa abrir posicao NOVA por
     # falta de margem -- achado do dono, 2026-08-04, testando manualmente
     # o EURUSD/BUY_MULTI que o gate tinha aprovado (saldo final saudavel,
@@ -976,13 +974,28 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
     sem_margem = len(re.findall(r"retcode=10019", log))
     m = re.search(r"final balance ([\d.]+)", log)
     saldo_final = float(m.group(1)) if m else None
+    # "automatic testing finished" e a linha de BOOKKEEPING do proprio
+    # Tester, escrita DEPOIS do "final balance" da EA -- achado do dono,
+    # 2026-08-07: gate reprovando em 2.1min (nada perto de qualquer
+    # timeout, seja o de 30min do gate seja o de 12h da campanha) com
+    # saldo final ja calculado e valido (881.15), mas sem essa linha no
+    # log. ShutdownTerminal=1 fecha o terminal assim que a EA termina, e
+    # essa corrida entre "Tester grava a propria linha de fechamento" e
+    # "processo e derrubado" as vezes perde -- o teste rodou o periodo
+    # inteiro de verdade (saldo final so existe se rodou), so a ultima
+    # linha de bookkeeping que nao chegou a tempo. Aceitar saldo_final
+    # como prova de conclusao tambem, nao so a string exata.
+    completou = "automatic testing finished" in log or saldo_final is not None
+    estourou = "stop out occurred" in log
     # Piso de 50%: nao e so o stop out literal que denuncia ruina -- uma conta
     # que termina o periodo perto de zero sem tecnicamente estourar margem
     # (ex.: liquidacao forcada no fim do teste) e o mesmo problema.
     sobreviveu = (completou and not estourou and sem_margem == 0
                  and saldo_final is not None and saldo_final >= 0.5 * deposito)
     if not completou:
-        motivo = "teste nao completou dentro do timeout"
+        motivo = ("teste nao completou -- nem 'automatic testing finished' "
+                  "nem saldo final apareceram no log (timeout de verdade, "
+                  "crash, ou log vazio)")
     elif estourou:
         motivo = "stop out (estouro de margem) durante o periodo completo"
     elif sem_margem > 0:

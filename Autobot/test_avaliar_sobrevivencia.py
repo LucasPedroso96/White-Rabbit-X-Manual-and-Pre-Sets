@@ -74,11 +74,32 @@ r = avaliar_sobrevivencia(QUASE_ZERO, 500)
 checar("quase zero: nao sobrevive (sem stop out literal)", r["sobreviveu"], False)
 checar("quase zero: motivo cita o piso", "50%" in r["motivo"], True)
 
-# --- teste nao completou (travou/timeout): nao e sobrevivencia, e ausencia --
-INCOMPLETO = "2026.07.20 23:59:58   position closed [#1 sell 0.01 AUDCHF]\nfinal balance 500.00 USD"
+# --- caso real: gate reprovado erroneamente por falta so da linha de
+# bookkeeping (achado do dono, 2026-08-07): EURUSD/BOTH_MULTI rodou o
+# periodo completo de verdade em 2.1min (nada perto de qualquer timeout),
+# saldo final ja calculado e saudavel, saem sem estouro nem sem-margem --
+# so a linha "automatic testing finished" do Tester nao chegou a tempo
+# antes do ShutdownTerminal=1 fechar o processo. saldo_final e prova mais
+# forte de conclusao que essa linha de bookkeeping: se o OnTester/deinit
+# calculou um saldo, o periodo inteiro ja foi simulado.
+SEM_LINHA_FINAL_MAS_COMPLETO = """
+2026.07.20 23:59:58   position closed [#900 sell 0.02 EURUSD 1.10000]
+final balance 881.15 USD
+OnTester result 881.15
+"""
+r = avaliar_sobrevivencia(SEM_LINHA_FINAL_MAS_COMPLETO, 500)
+checar("sem linha final mas com saldo: sobrevive", r["sobreviveu"], True)
+checar("sem linha final mas com saldo: saldo final", r["saldo_final"], 881.15)
+checar("sem linha final mas com saldo: sem motivo de reprovacao",
+       r["motivo"], None)
+
+# --- teste nao completou de verdade: nem a linha de bookkeeping nem saldo --
+INCOMPLETO = "2026.07.20 23:59:58   position closed [#1 sell 0.01 AUDCHF]"
 r = avaliar_sobrevivencia(INCOMPLETO, 500)
 checar("incompleto: nao sobrevive", r["sobreviveu"], False)
-checar("incompleto: motivo cita timeout", "timeout" in r["motivo"], True)
+checar("incompleto: saldo final ausente", r["saldo_final"], None)
+checar("incompleto: motivo nao inventa timeout literal",
+       "final" in r["motivo"], True)
 
 # --- log vazio: tudo cai pro caso seguro (reprovado), nada de excecao -------
 r = avaliar_sobrevivencia("", 500)
