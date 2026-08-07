@@ -131,7 +131,7 @@ input[type=text], input[type=date], input[type=number] {
 .linha { display: flex; gap: 12px; flex-wrap: wrap; }
 .linha > div { flex: 1; min-width: 160px; }
 button.acao {
-  background: linear-gradient(135deg, var(--accent-2), var(--accent)); color: var(--gold-ink); border: none; border-radius: 6px;
+  background: linear-gradient(135deg, #2f6c57, #1b4d5c); color: #eff8ff; border: none; border-radius: 6px;
   padding: 10px 18px; font-weight: 600; cursor: pointer; font-size: 13px;
 }
 button.acao.secundario { background: var(--bg3); color: var(--text); }
@@ -144,7 +144,7 @@ button.acao:disabled { opacity: .5; cursor: not-allowed; }
   flex: 1; padding: 10px; border-radius: 6px; border: 1px solid var(--line);
   background: var(--bg3); color: var(--text); cursor: pointer;
 }
-.modo-toggle button.ativo { background: linear-gradient(135deg, var(--accent-2), var(--accent)); color: var(--gold-ink); border-color: var(--accent-2); }
+.modo-toggle button.ativo { background: linear-gradient(135deg, #2f6c57, #1b4d5c); color: #eff8ff; border-color: #2f6c57; }
 .mapa-html table { background: var(--bg2); border-radius: 6px; overflow: hidden; }
 .mapa-html h1, .mapa-html h2, .mapa-html h3 { color: var(--accent-slate); }
 .tabs-sub { display: flex; gap: 6px; margin: 12px 0; flex-wrap: wrap; }
@@ -152,4 +152,4 @@ button.acao:disabled { opacity: .5; cursor: not-allowed; }
   background: var(--bg3); border: none; color: var(--muted); padding: 6px 12px;
   border-radius: 6px; cursor: pointer; font-size: 12px;
 }
-.tabs-sub button.ativo { background: linear-gradient(135deg, var(--accent-2), var(--accent)); color: var(--gold-ink); }
+.tabs-sub button.ativo { background: linear-gradient(135deg, #2f6c57, #1b4d5c); color: #eff8ff; }
