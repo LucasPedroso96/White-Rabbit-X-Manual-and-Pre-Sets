@@ -1206,7 +1206,13 @@ def main() -> int:
         print("    nenhum passe passou o piso no estagio 1")
         limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
-    limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
+    # NAO limpa o checkpoint aqui (achado do dono, 2026-08-06): as 3 rodadas
+    # do Estagio 1 sao a parte cara (pode passar de 2h num grid); o torneio
+    # de retencao e os estagios seguintes, logo depois, tambem levam tempo e
+    # podem ser interrompidos -- limpar o checkpoint assim que o Estagio 1
+    # termina joga fora exatamente o trabalho que ele existe pra proteger se
+    # a interrupcao cair um passo depois. So limpa no fim de verdade (sucesso
+    # no fim da funcao, ou reprovacao decidida em algum return abaixo).
     relatar_cobertura(cab, linhas, melhores)
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
         # Os pisos (trades/PF) ja filtraram; a formula de risco decide QUEM
@@ -1268,6 +1274,7 @@ def main() -> int:
                         args.fim, args.deposit, 1, args.timeout)
     if not linhas:
         print("    relatorio vazio no estagio 2")
+        limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
     finais = base.escolher_candidatos(cab, linhas, args.min_trades, args.min_pf)
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
@@ -1278,6 +1285,7 @@ def main() -> int:
           flush=True)
     if not finais:
         print("    nenhum candidato passou os pisos.")
+        limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 0
 
     cols = [c for c in ("Profit", "Profit Factor", "Trades", "Equity DD %",
@@ -1295,6 +1303,7 @@ def main() -> int:
                                  "numeros (OHLC, ~2s cada)")
     if not ordenados:
         print("    nenhum finalista dos numeros produziu medida de retencao.")
+        limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
     travados.update(ordenados[0][2])
     otimizados.update(ordenados[0][2])
@@ -1395,6 +1404,7 @@ def main() -> int:
                             args, 4, "vencedor (tick real)")
     if not conf:
         print("    a confirmacao em tick real nao produziu retencao.")
+        limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
     retencao_top, _, vencedor, oos = conf[0]
     lucro_ohlc = ordenados[0][1]
@@ -1510,6 +1520,7 @@ def main() -> int:
             faltando = conferir_set(trabalho, passo)
             if faltando:
                 print(f"    ABORTADO: o set em % saiu incompleto: {faltando}")
+                limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
                 return 1
             pct = passe_unico(trabalho, args.symbol, args.period, args.inicio,
                               args.fim, args.deposit, 4)
@@ -1582,6 +1593,7 @@ def main() -> int:
         if faltando:
             print(f"    ABORTADO: o set de entrega saiu incompleto antes do "
                   f"gate de sobrevivencia: {faltando}")
+            limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
             return 1
         t0 = time.time()
         sobrevivencia = verificar_sobrevivencia_completa(
@@ -1619,6 +1631,7 @@ def main() -> int:
     faltando = conferir_set(destino, entrega)
     if faltando:
         print(f"\n  ABORTADO: o set de entrega saiu incompleto: {faltando}")
+        limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
 
     print(f"\n    set gravado (WFO desligado): {destino.name}")
@@ -1654,6 +1667,7 @@ def main() -> int:
                       "relatorio_dir": relatorio_dir,
                       "parametros": {**otimizados, **vencedor}},
                      ensure_ascii=False))
+    limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
     return 0
 
 
