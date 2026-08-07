@@ -310,8 +310,13 @@ def config() -> JSONResponse:
         "capital_agregado": capital.get(s.code, 0.0),
         "capital_aplica": s.code in ready_library.SISTEMAS_R_CAPAZES,
     } for s in SYSTEMS]
+    # Desempate pelo CODIGO (01, 02, 03...), nao pelo label: com capital
+    # empatado -- o caso comum antes de haver sets validados, tudo em 0.0 --
+    # desempatar por label embaralhava a lista (ex.: 05, 10, 08, 07...) sem
+    # nenhuma ordem reconhecivel. Pelo codigo, o empate cai na ordem natural
+    # numerada em que os sistemas ja sao declarados.
     sistemas.sort(key=lambda s: (0 if s["capital_agregado"] > 0 else 1,
-                                  -s["capital_agregado"], s["label"]))
+                                  -s["capital_agregado"], s["code"]))
     classes = {
         codigo: {"capital_base": CLASSES[codigo].capital_base, "ativos": ativos}
         for codigo, ativos in ASSETS.items()
