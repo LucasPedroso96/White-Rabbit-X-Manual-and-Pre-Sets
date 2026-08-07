@@ -54,6 +54,16 @@ LEDGER = AQUI / "campanha_resultados.jsonl"
 LOG = AQUI / "campanha_run.log"
 LOCK = AQUI / "campanha_dashboard.lock.json"
 PERFIL_ATUAL = AQUI / "perfil_dashboard.json"
+# Escrito por optimize_two_stage.py (achado do dono, 2026-08-07): estagio/
+# rodada/finalista atual do combo em andamento, pra nao depender de abrir o
+# log bruto do MT5 pra saber se uma campanha lenta esta progredindo ou
+# travada.
+PROGRESSO = AQUI / "campanha_progresso.json"
+# Escrito por optimize_two_stage.py (achado do dono, 2026-08-07): estagio/
+# rodada/finalista atual do combo em andamento, pra nao depender de abrir o
+# log bruto do MT5 pra saber se uma campanha lenta esta progredindo ou
+# travada.
+PROGRESSO = AQUI / "campanha_progresso.json"
 CUSTO_CACHE = AQUI / "_custo_nativo.json"
 SETS_IMPLANTADOS = AQUI / "sets_implantados.json"
 RELATORIOS_DIR = AQUI / "campanha_relatorios"
@@ -390,7 +400,14 @@ def estado_campanha() -> dict:
         vivo = True
     elif info.get("pid") and _pid_vivo(info["pid"]):
         vivo = True
-    return {"rodando": vivo, "terminal_aberto": terminal_aberto(), **info}
+    progresso = None
+    if vivo and PROGRESSO.exists():
+        try:
+            progresso = json.loads(PROGRESSO.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            progresso = None
+    return {"rodando": vivo, "terminal_aberto": terminal_aberto(),
+           "progresso": progresso, **info}
 
 
 @app.get("/api/campanha/estado")

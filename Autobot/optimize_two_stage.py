@@ -141,6 +141,32 @@ def carregar_checkpoint_estagio1(symbol: str, sistema: str,
 def limpar_checkpoint_estagio1(symbol: str, sistema: str, variante: str) -> None:
     _checkpoint_estagio1(symbol, sistema, variante).unlink(missing_ok=True)
 
+
+PROGRESSO_PATH = AQUI / "campanha_progresso.json"
+
+
+def salvar_progresso(symbol: str, sistema: str, variante: str, **campos) -> None:
+    """Grava o progresso atual do combo (achado do dono, 2026-08-07): sem
+    isso, ninguem de fora consegue ver o combo avancando sem abrir o log
+    bruto do Tester -- um combo lento (grid pode passar de 2h so no
+    Estagio 1) fica indistinguivel de um combo travado. Best-effort: falha
+    de escrita aqui (disco cheio, permissao) nunca deve derrubar a
+    campanha, so perde a visibilidade.
+    """
+    try:
+        PROGRESSO_PATH.write_text(
+            json.dumps({"symbol": symbol, "sistema": sistema,
+                       "variante": variante,
+                       "atualizado_em": datetime.now().isoformat(timespec="seconds"),
+                       **campos}, ensure_ascii=False),
+            encoding="utf-8")
+    except OSError:
+        pass
+
+
+def limpar_progresso() -> None:
+    PROGRESSO_PATH.unlink(missing_ok=True)
+
 # FILE_COMMON (2026-08-04): a EA grava TODAS as 14 formulas aqui a cada
 # passe do genetico -- Print/PrintFormat dentro de OnTester() nao aparece
 # em log nenhum durante otimizacao (so em passe unico), confirmado com
@@ -541,6 +567,9 @@ def torneio_retencao(candidatos, cab, metricas, origem: Path, trabalho: Path,
               f"{'    n/d' if ret is None else f'{ret:>7.1f}%'} | "
               f"{trades_txt} | expectancy "
               f"{'n/d' if exp is None else f'{exp:+.3f}R'}", flush=True)
+        salvar_progresso(args.symbol, args.sistema, args.variante,
+                         estagio=f"torneio ({rotulo})",
+                         finalista_atual=f"{i}/{len(candidatos)}")
         saida.append((ret, lucro_is, cand, r))
     # Sem retencao medida vai para o fim: ausencia de medida nao e boa medida.
     saida.sort(key=lambda t: (t[0] is not None, t[0] or -9e9, t[1]), reverse=True)
@@ -1109,6 +1138,11 @@ def main() -> int:
     trabalho = base.DADOS / "MQL5" / "Profiles" / "Tester" / "_ETAPA.set"
     rotulo = f"{args.symbol} {args.sistema} {args.variante}"
     print(f"=== {rotulo} | {args.inicio} a {args.fim} ===", flush=True)
+    # Marca o inicio ja aqui -- sobrescreve qualquer progresso do combo
+    # anterior na hora, em vez de deixar dado velho parado ate a primeira
+    # rodada do Estagio 1 terminar (pode ser 45min+ em grid).
+    salvar_progresso(args.symbol, args.sistema, args.variante,
+                     estagio="iniciando")
 
     # ---- Estagio 1: REGIOES, no modelo rapido -------------------------------
     # O walk-forward interno entra JA na busca, nao so na conferencia depois:
@@ -1200,6 +1234,9 @@ def main() -> int:
         aptos_ant = max(aptos_ant, aptos)
         salvar_checkpoint_estagio1(args.symbol, args.sistema, args.variante,
                                    cab, linhas, rodada)
+        salvar_progresso(args.symbol, args.sistema, args.variante,
+                         estagio="1/5 (regioes)", rodada=f"{rodada}/3",
+                         melhor_lucro=melhor, indicadores_aptos=aptos)
 
     melhores = base.escolher_candidatos(cab, linhas, piso1, 1.0)
     if not melhores:

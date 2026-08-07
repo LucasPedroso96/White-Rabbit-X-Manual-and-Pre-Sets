@@ -21,6 +21,7 @@ import argparse
 import json
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -145,14 +146,46 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
     # CREATE_NO_WINDOW: so suprime a janela de console que este python.exe
     # filho abriria sozinho (achado do dono, 2026-08-06 -- cada combo novo
     # roubava foco/atrapalhava outros apps). Continua visivel no Task
-    # Manager e matavel normalmente; stdout/stderr ja vao capturados aqui
-    # em `p`, nunca pra um console de verdade.
-    p = subprocess.run(cmd, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace",
-                       timeout=args.timeout + 600,
-                       creationflags=subprocess.CREATE_NO_WINDOW)
-    saida = (p.stdout or "") + (p.stderr or "")
-    print(saida, flush=True)
+    # Manager e matavel normalmente.
+    #
+    # Popen + thread de leitura, nao mais subprocess.run(capture_output=True)
+    # (achado do dono, 2026-08-07): capture_output bufferiza TUDO em memoria
+    # e so devolve quando o filho termina -- durante um combo de horas (grid
+    # facilmente passa de 2h so no Estagio 1), campanha_run.log ficava sem
+    # NENHUMA linha nova ate o combo inteiro acabar, mesmo com
+    # optimize_two_stage.py imprimindo progresso o tempo todo por dentro.
+    # Sem visibilidade, um combo lento parece indistinguivel de travado --
+    # ja custou um combo de 135min morto por engano por parecer sem
+    # atividade. `print(linha, flush=True)` agora acontece LINHA A LINHA,
+    # assim que o filho escreve -- e dashboard_campanha.py ja grava o stdout
+    # deste script em tempo real no LOG, entao a linha aparece la na hora.
+    processo = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True,
+                                encoding="utf-8", errors="replace",
+                                creationflags=subprocess.CREATE_NO_WINDOW)
+    linhas: list[str] = []
+
+    def _ler_e_ecoar() -> None:
+        assert processo.stdout is not None
+        for linha in processo.stdout:
+            linha = linha.rstrip("\n")
+            print(linha, flush=True)
+            linhas.append(linha)
+
+    # Thread separada pra leitura: o timeout abaixo precisa disparar mesmo
+    # se o filho parar de escrever por completo (travado de verdade, nao so
+    # lento) -- `Popen.wait(timeout=...)` nao bloqueia esperando dado no
+    # pipe, ao contrario de iterar `processo.stdout` direto na thread
+    # principal.
+    leitor = threading.Thread(target=_ler_e_ecoar, daemon=True)
+    leitor.start()
+    try:
+        returncode = processo.wait(timeout=args.timeout + 600)
+    except subprocess.TimeoutExpired:
+        processo.kill()
+        returncode = processo.wait()
+    leitor.join(timeout=10)
+    saida = "\n".join(linhas)
 
     # O JSON final e a ULTIMA linha que abre com '{'. Procurar a primeira
     # pegaria qualquer dict impresso no meio do caminho (o sinal travado, por
@@ -167,7 +200,7 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
                 continue
     if reg is None:
         reg = {"simbolo": simbolo, "sistema": sistema, "variante": variante,
-               "erro": "sem JSON final", "returncode": p.returncode}
+               "erro": "sem JSON final", "returncode": returncode}
     reg["minutos"] = round((time.time() - t0) / 60, 1)
     reg["quando"] = datetime.now().isoformat(timespec="seconds")
     reg["aprovado"] = "VALIDADO" in saida and "REPROVADO: nao promova" not in saida

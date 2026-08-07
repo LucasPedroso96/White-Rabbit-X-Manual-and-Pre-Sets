@@ -914,6 +914,23 @@ async function carregarEstado() {
   badgeC.style.background = e.rodando ? "#14532d" : "#243047";
   document.getElementById("btn-stop").disabled = !e.rodando;
   document.getElementById("btn-iniciar").disabled = e.rodando;
+
+  // Progresso do combo atual (achado do dono, 2026-08-07): sem isso, uma
+  // campanha lenta (grid pode passar de 2h so no Estagio 1) e
+  // indistinguivel de travada -- so "rodando: true" sem nenhum detalhe.
+  const badgeP = document.getElementById("badge-progresso");
+  const p = e.progresso;
+  if (p && p.symbol) {
+    const partes = [p.symbol, p.sistema, p.variante, p.estagio,
+      p.rodada ? `rodada ${p.rodada}` : null,
+      p.finalista_atual ? `finalista ${p.finalista_atual}` : null,
+    ].filter(Boolean);
+    badgeP.textContent = partes.join(" | ");
+    badgeP.title = "atualizado " + (p.atualizado_em || "");
+    badgeP.style.display = "";
+  } else {
+    badgeP.style.display = "none";
+  }
 }
 
 document.getElementById("btn-stop").addEventListener("click", async () => {
