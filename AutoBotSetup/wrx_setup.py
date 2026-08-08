@@ -42,6 +42,32 @@ def titulo(texto: str) -> None:
     print("=" * 66)
 
 
+def desbloquear(destino: Path) -> None:
+    """Remove a marca "veio de outro computador" (NTFS Zone.Identifier) de
+    tudo que o instalador acabou de copiar.
+
+    Achado do dono, 2026-08-08: cliente instalando de verdade viu o Windows
+    pedir pra "desbloquear" o .bat manualmente (Propriedades > Desbloquear)
+    antes de rodar -- SmartScreen marca qualquer arquivo que passou por
+    download/rede com esse fluxo de zona, .bat nao aceita assinatura
+    Authenticode (isso e so pra .exe/.dll, e exige certificado comprado, so
+    o dono pode fazer isso). O que da pra fazer sem certificado: o Windows
+    grava a marca como um Alternate Data Stream (NOME:Zone.Identifier) --
+    apagar esse stream especifico e equivalente a marcar "Desbloquear" na
+    caixa de dialogo, sem o comprador precisar fazer nada. So funciona em
+    volume NTFS (sempre e o caso do Windows); FileNotFoundError e o normal
+    quando o arquivo nunca teve a marca.
+    """
+    alvos = [destino] if destino.is_file() else destino.rglob("*")
+    for item in alvos:
+        if not item.is_file():
+            continue
+        try:
+            os.remove(f"{item}:Zone.Identifier")
+        except OSError:
+            pass
+
+
 def tem_o_ea(terminal: Path) -> bool:
     """O White Rabbit X ja foi baixado neste terminal?"""
     experts = terminal / "MQL5" / "Experts"
@@ -119,6 +145,7 @@ def copiar_sets(origem: Path, terminal: Path) -> int:
         alvo.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(arquivo, alvo)
         total += 1
+    desbloquear(destino)
     return total
 
 
@@ -221,6 +248,7 @@ def copiar_autobot(origem: Path, icone: Path | None = None) -> Path | None:
     shutil.copytree(origem, destino)
     if icone and icone.is_file():
         shutil.copy2(icone, destino / icone.name)
+    desbloquear(destino)
     return destino
 
 
