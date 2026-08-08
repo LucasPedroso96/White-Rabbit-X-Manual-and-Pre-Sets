@@ -140,7 +140,15 @@ def feitos() -> set[tuple[str, str, str]]:
             continue
         if "erro" in r:
             continue
-        vistos.add((r["simbolo"], r["sistema"], r["variante"]))
+        chave = (r.get("simbolo"), r.get("sistema"), r.get("variante"))
+        if None in chave:
+            # Linha valida como JSON mas sem os campos de identidade --
+            # nao deveria acontecer (todo caminho que grava aqui, sucesso
+            # ou "erro", sempre inclui os tres), mas nao vale travar
+            # feitos() inteiro (e a campanha junto) por uma linha
+            # corrompida de um jeito que nao virou JSONDecodeError.
+            continue
+        vistos.add(chave)
     return vistos
 
 
