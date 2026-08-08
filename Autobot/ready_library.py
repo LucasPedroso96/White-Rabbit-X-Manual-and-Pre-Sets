@@ -54,6 +54,14 @@ AQUI = Path(__file__).resolve().parent
 DADOS = wrx_paths.data_dir()
 TESTER = DADOS / "MQL5" / "Profiles" / "Tester"
 BIBLIOTECA = TESTER / "White_Rabbit_X_Sets_templates"
+if not BIBLIOTECA.is_dir():
+    # Mesmo fallback de optimize_sets.py: comprador que instalou o Autobot
+    # completo tem White_Rabbit_X_Sets (sem "_templates"), nunca a copia de
+    # trabalho interna do dono -- sem isso o painel "Certified sets" fica
+    # sempre vazio, mesmo com sets de verdade instalados.
+    alternativa = TESTER / "White_Rabbit_X_Sets"
+    if alternativa.is_dir():
+        BIBLIOTECA = alternativa
 PRONTOS = TESTER / "White_Rabbit_X_Sets_Autobot"
 LEDGER = AQUI / "campanha_resultados.jsonl"
 

@@ -1,6 +1,6 @@
 # AutoBotSetup — installer for the buyer
 
-> **This is source code, not the installer.** `Instalar_White_Rabbit_X.py`
+> **This is source code, not the installer.** `Install_AutoBot_and_Sets.py`
 > only runs raw on the machine that builds it -- without the `Sets/` and
 > `AutobotRuntime/` folders (excluded from git on purpose, see
 > `.gitignore`) it ALWAYS fails with "the Sets folder didn't ship with the
@@ -105,7 +105,7 @@ cp wrx_icon.ico AutobotRuntime/
 ```
 
 `Iniciar_Dashboard.bat` and `wrx_icon.ico` **are** versioned (they live loose
-in `AutoBotSetup/`, next to `Instalar_White_Rabbit_X.py`) -- only the
+in `AutoBotSetup/`, next to `Install_AutoBot_and_Sets.py`) -- only the
 generated content (`AutobotRuntime/python-embed/`, the copy of the Autobot's
 `.py` files, `build/`) is excluded from git. If you edit the launcher, edit
 the one in `AutoBotSetup/`, not the copy inside `AutobotRuntime/` (that one
@@ -122,7 +122,7 @@ python -m PyInstaller --onefile --console \
   --hidden-import MetaTrader5 \
   --collect-all numpy \
   --distpath . --workpath build/tmp --specpath build --noconfirm \
-  Instalar_White_Rabbit_X.py
+  Install_AutoBot_and_Sets.py
 ```
 
 `--collect-all numpy` **is not optional**: `MetaTrader5` (a compiled module,

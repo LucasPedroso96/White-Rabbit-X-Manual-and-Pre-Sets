@@ -322,8 +322,8 @@ def main() -> int:
     if not source.is_dir():
         if not getattr(sys, "frozen", False):
             # Real finding, 2026-08-08: a client downloaded the GitHub ZIP
-            # and ran 'Instalar_White_Rabbit_X.py' directly, thinking it was
-            # the installer. The folder next to it (AutoBotSetup/Sets) only
+            # and ran this script directly, thinking it was the installer.
+            # The folder next to it (AutoBotSetup/Sets) only
             # exists inside the .exe, but the fallback above already covers
             # a normal clone -- if we got here, even the root Sets/ is
             # missing (partial ZIP, or wrong folder).

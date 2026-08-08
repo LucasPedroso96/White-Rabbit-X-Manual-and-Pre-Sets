@@ -48,6 +48,18 @@ from mt5_runner import garantir_terminal_livre, lancar_terminal
 TERMINAL = wrx_paths.terminal_exe()
 DADOS = wrx_paths.data_dir()
 SETS = DADOS / "MQL5" / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
+if not SETS.is_dir():
+    # White_Rabbit_X_Sets_templates e a copia de trabalho interna do dono
+    # (gerada localmente via generate_system_sets.py, nunca distribuida).
+    # Num comprador que instalou o Autobot completo pelo instalador,
+    # so existe White_Rabbit_X_Sets (sem "_templates") -- mesma biblioteca,
+    # so publicada com outro nome. Sem este fallback, achar_set() nunca
+    # encontra nada e a campanha do comprador sempre da "0 combos", mesmo
+    # com ativos elegiveis: parece que ela "nao chama o MT5", mas na
+    # verdade nunca chega perto -- a fila fica vazia antes disso.
+    alternativa = DADOS / "MQL5" / "Profiles" / "Tester" / "White_Rabbit_X_Sets"
+    if alternativa.is_dir():
+        SETS = alternativa
 CONTA_CACHE = Path(__file__).resolve().parent / "_conta_real.json"
 EA = r"White Rabbit X (Global Multi-Indicator).ex5"
 LOGS = DADOS / "Tester" / "logs"

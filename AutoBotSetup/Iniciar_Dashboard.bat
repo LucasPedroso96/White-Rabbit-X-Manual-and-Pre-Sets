@@ -22,7 +22,7 @@ echo ============================================================
 echo.
 
 if not exist "python-embed\python.exe" (
-    if exist "Instalar_White_Rabbit_X.py" (
+    if exist "Install_AutoBot_and_Sets.py" (
         echo [ERROR] This is the installer's source-code folder, not the
         echo ready-made install -- running this shortcut straight from here
         echo never works, because the embedded Python only exists inside
@@ -42,7 +42,7 @@ if not exist "python-embed\python.exe" (
 )
 
 if not exist "Autobot\dashboard_campanha.py" (
-    if exist "Instalar_White_Rabbit_X.py" (
+    if exist "Install_AutoBot_and_Sets.py" (
         echo [ERROR] This is the installer's source-code folder, not the
         echo ready-made install -- running this shortcut straight from here
         echo never works.

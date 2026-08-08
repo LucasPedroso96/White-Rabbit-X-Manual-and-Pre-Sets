@@ -28,7 +28,7 @@ folder step by step, in your own language. There is no shame in it — the
 interesting part of this project is the trading research, not the file
 management.
 
-> **Looking for the one-click installer?** `AutoBotSetup/Instalar_White_Rabbit_X.py`
+> **Looking for the one-click installer?** `AutoBotSetup/Install_AutoBot_and_Sets.py`
 > in this ZIP is the *source code* that builds it, not the installer itself.
 > It can run directly from this ZIP too — it installs the sets from the
 > `Sets/` folder below and offers to `pip install` the Autobot's own
