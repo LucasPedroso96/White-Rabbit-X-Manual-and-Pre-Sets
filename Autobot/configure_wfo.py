@@ -27,7 +27,7 @@ TODOS os passes valem zero. Por isso este script existe: a data tem que ser
 escrita nos arquivos, nao lembrada.
 
 Uso:
-    python configure_wfo.py --end-date 2026.07.21 --is-days 180 --oos-days 60
+    python configure_wfo.py --is-days 180 --oos-days 60         # fim = hoje
     python configure_wfo.py --off
     python configure_wfo.py --end-date 2026.07.21 --is-days 180 --oos-days 60 \\
         --mode validate --only 01_Forex/USDJPY
@@ -95,7 +95,14 @@ def patch(path: Path, changes: dict[str, str]) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--end-date", help="fim do teste, yyyy.mm.dd (igual ao tester)")
+    # Sem --end-date, calcula hoje na hora -- mesmo motivo do "From" do
+    # dashboard (app.js:hojeMT5()/anosAtrasMT5()): uma data literal aqui
+    # comeca a ficar velha no dia seguinte, e ninguem lembra de digitar a
+    # atual toda vez que precisa so republicar a biblioteca. --end-date
+    # continua aceito pra quem quiser uma data especifica (ex.: casar com
+    # um teste que ja rodou antes).
+    ap.add_argument("--end-date", help="fim do teste, yyyy.mm.dd (default: "
+                    "hoje, igual ao tester)")
     ap.add_argument("--is-days", type=int, help="dias da janela In-Sample")
     ap.add_argument("--oos-days", type=int, help="dias da janela Out-of-Sample")
     ap.add_argument("--mode", choices=("optimize", "validate"), default="optimize",
@@ -106,12 +113,14 @@ def main() -> int:
                     help="troca o criterio de otimizacao junto: 1 sinal, "
                          "2 filtros, 3 sessao")
     args = ap.parse_args()
+    if not args.end_date:
+        args.end_date = datetime.now().strftime("%Y.%m.%d")
 
     if args.off:
         changes = {"AtivarWFO": "false"}
         label = "WFO DESLIGADO"
     else:
-        missing = [f for f in ("end_date", "is_days", "oos_days")
+        missing = [f for f in ("is_days", "oos_days")
                    if getattr(args, f) is None]
         if missing:
             ap.error(f"faltam: {', '.join('--' + m.replace('_', '-') for m in missing)}")

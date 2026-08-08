@@ -29,6 +29,7 @@ import sys
 import re
 import shutil
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 import wrx_paths
@@ -478,14 +479,20 @@ def apply_defaults(p: Profile, ac: AssetClass, side: str, magic: int,
     # MetodoDeEntradawfo para 1 (IS+OOS).
     #
     # ⚠ input_end_date precisa BATER com o fim do teste (tolerancia 80h),
-    # senao o OnTester devolve 0 em todo passe, em silencio. Mudou o periodo
-    # da corrida? Rode configure_wfo.py --end-date <data> na biblioteca.
+    # senao o OnTester devolve 0 em todo passe, em silencio. Cravar uma data
+    # literal aqui e o mesmo erro que o "From" do dashboard tinha (2026-08-06,
+    # ~3 anos de defasagem) -- calculado sempre relativo a hoje, igual
+    # hojeMT5()/anosAtrasMT5() em app.js, entao toda regeneracao da biblioteca
+    # (mesmo dias/semanas depois) sai com a data certa sem ninguem lembrar de
+    # atualizar na mao. Regenerar sem rodar de novo e ficar defasado de novo;
+    # se so quer atualizar a data sem reconstruir tudo, configure_wfo.py
+    # (tambem calculado por padrao) e mais barato.
     # Em Custom, passo NEGATIVO = dias fixos; positivo = % do In-Sample.
     # (O set de ENTREGA continua saindo com WFO desligado -- andaime de
     # validacao nao vai para o comprador; ver optimize_two_stage.py.)
     p.fix("AtivarWFO", "true")
     p.fix("MetodoDeEntradawfo", 0)
-    p.raw("input_end_date", "2026.07.21")
+    p.raw("input_end_date", datetime.now().strftime("%Y.%m.%d"))
     p.fix("wfo_windowSize", -1)              # Custom
     p.fix("wfo_customWindowSizeDays", 122)   # In-Sample: 122 dias
     p.fix("wfo_stepSize", -1)                # Custom
