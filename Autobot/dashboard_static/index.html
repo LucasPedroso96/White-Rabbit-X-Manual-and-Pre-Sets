@@ -127,6 +127,34 @@
   </div>
 </section>
 
+<!-- ================= AUTOMATIC MODE EXPLAINER ================= -->
+<div id="modal-auto" class="modal-overlay" style="display:none">
+  <div class="modal-caixa">
+    <h3 data-i18n="auto-modal.title">What Automatic mode does</h3>
+    <p data-i18n="auto-modal.p1">Automatic mode evolves the training on its own: it tests every real
+      asset detected on this account/terminal, across all 11 systems, in
+      risk order (research systems first, then hedge-account grid, then
+      high-risk recovery systems last). It resumes from where it left off
+      using the existing ledger/cache — nothing already validated gets
+      redone.</p>
+    <p data-i18n="auto-modal.p2">This can run continuously for a very long time (a full sweep across
+      every asset and system is realistically weeks to months, not
+      hours). It follows the same risk-tiered methodology described in
+      <code>PLANO_TREINAMENTO_100_A_MILHAO.md</code>.</p>
+    <p data-i18n="auto-modal.p3">If you want to choose exactly which systems and assets run, use
+      Manual mode instead — nothing is removed, both modes stay
+      available.</p>
+    <label class="linha" style="margin-top:10px">
+      <input type="checkbox" id="chk-auto-nao-perguntar">
+      <span data-i18n="auto-modal.dont-ask">Don't show this again on this browser</span>
+    </label>
+    <div class="linha" style="margin-top:14px">
+      <button class="acao" id="btn-auto-confirmar" data-i18n="auto-modal.confirm">Understood, start Automatic</button>
+      <button class="acao secundario" id="btn-auto-manual" data-i18n="auto-modal.prefer-manual">I'd rather use Manual mode</button>
+    </div>
+  </div>
+</div>
+
 <!-- ================= SET LIBRARY ================= -->
 <section id="painel-biblioteca" class="painel">
   <div class="box">

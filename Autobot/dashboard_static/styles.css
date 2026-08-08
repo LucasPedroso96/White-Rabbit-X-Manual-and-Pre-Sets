@@ -137,6 +137,20 @@ button.acao.secundario { background: var(--bg3); color: var(--text); }
 button.acao.perigo { background: #6d0f1e; color: #fff; }
 button.acao:disabled { opacity: .5; cursor: not-allowed; }
 .status-msg { margin-top: 10px; font-size: 13px; color: var(--muted); }
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(2, 4, 6, 0.78);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; padding: 20px;
+}
+.modal-caixa {
+  background: linear-gradient(180deg, #141b24, #08090c); border: 1px solid var(--line);
+  border-radius: 10px; padding: 22px 26px; max-width: 560px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.modal-caixa h3 { color: var(--title-gold); margin: 0 0 12px; font-size: 16px; }
+.modal-caixa p { color: var(--text); font-size: 13px; line-height: 1.5; margin: 0 0 10px; }
+.modal-caixa code { color: var(--muted); font-size: 12px; }
+.modal-caixa label.linha { align-items: center; font-size: 13px; color: var(--muted); cursor: pointer; }
 .status-msg.ok { color: var(--ok); } .status-msg.no { color: var(--no); }
 .modo-toggle { display: flex; gap: 8px; margin: 12px 0; }
 .modo-toggle button {

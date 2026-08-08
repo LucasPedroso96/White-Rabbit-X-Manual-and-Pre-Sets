@@ -41,18 +41,21 @@ LEDGER = AQUI / "campanha_resultados.jsonl"
 # (nativo ou injetado via Historical Tool Manager, filtrado por saldo), a
 # menos que o usuario tenha gravado uma lista propria em campanha_ativos.json.
 
-# Grid primeiro: e o DEFAULT do autobot/repositorio a partir de 2026-08-02,
-# nao um pedido pontual desta campanha -- decisao assumida (dono topou
-# delegar o "padrao" pra ca: "padrao e seu com o do repositorio e o autobot
-# default"). Depois do grid, MESMO peso pros outros 9 -- acabou a hierarquia
-# antiga de "trailing antes de geometria fixa antes de recovery"; a ordem
-# restante e so a ordem numerica dos sistemas, sem prioridade implicita.
-# Continua sendo o DEFAULT (nenhuma flag = esta ordem, todos os 11); o modo
-# manual do dashboard so filtra/reordena por cima disso via --sistemas.
-SISTEMAS = ["07_GRID_SEPARATE", "08_GRID_UNIFIED",
-            "01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
-            "05_BE_TRAIL", "06_REVERSAL_EXIT", "09_MARTINGALE",
-            "10_DALEMBERT", "11_SIGNAL_ONLY"]
+# Ordem por TIER DE RISCO (dono, 2026-08-08, ver PLANO_TREINAMENTO_100_A_MILHAO.md
+# secao 5): substitui a ordem antiga "grid primeiro" (prioridade de produto,
+# 2026-08-02) porque o Modo Automatico precisa seguir a mesma diretriz que o
+# dono ja aplicou manualmente -- RESEARCH primeiro (Fixed-R, validado por
+# Monte Carlo, menor risco estrutural), HEDGE_ACCOUNT_REQUIRED depois (grid,
+# so promovivel ao vivo com conta de hedging confirmada), HIGH_RISK e
+# HIGH_RISK_RESEARCH por ultimo (o proprio status em generate_system_sets.py
+# ja avisa). Essa e a ordem de MEDICAO; a ordem de GRADUACAO pra capital ao
+# vivo e separada e documentada no plano. Continua sendo o DEFAULT (nenhuma
+# flag = esta ordem, todos os 11); o modo manual do dashboard so
+# filtra/reordena por cima disso via --sistemas.
+SISTEMAS = ["01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
+            "05_BE_TRAIL", "06_REVERSAL_EXIT",
+            "07_GRID_SEPARATE", "08_GRID_UNIFIED",
+            "09_MARTINGALE", "10_DALEMBERT", "11_SIGNAL_ONLY"]
 
 # 08_GRID_UNIFIED e bilateral: opera os dois lados no mesmo passe, entao o set
 # e BOTH_*. Os demais tem um set por lado.

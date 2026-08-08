@@ -44,6 +44,13 @@ const i18n = {
     'setup.deposit': 'Deposit',
     'setup.min-retention': 'Minimum retention %',
     'setup.start-run': 'Start run',
+    'auto-modal.title': 'What Automatic mode does',
+    'auto-modal.p1': 'Automatic mode evolves the training on its own: it tests every real asset detected on this account/terminal, across all 11 systems, in risk order (research systems first, then hedge-account grid, then high-risk recovery systems last). It resumes from where it left off using the existing ledger/cache -- nothing already validated gets redone.',
+    'auto-modal.p2': 'This can run continuously for a very long time (a full sweep across every asset and system is realistically weeks to months, not hours). It follows the same risk-tiered methodology described in PLANO_TREINAMENTO_100_A_MILHAO.md.',
+    'auto-modal.p3': "If you want to choose exactly which systems and assets run, use Manual mode instead -- nothing is removed, both modes stay available.",
+    'auto-modal.dont-ask': "Don't show this again on this browser",
+    'auto-modal.confirm': 'Understood, start Automatic',
+    'auto-modal.prefer-manual': "I'd rather use Manual mode",
     'library.current': 'Current library',
     'library.loading': 'loading...',
     'library.regenerate': 'Regenerate the full library',
@@ -114,6 +121,13 @@ const i18n = {
     'setup.deposit': 'Depósito',
     'setup.min-retention': 'Retenção mínima %',
     'setup.start-run': 'Iniciar corrida',
+    'auto-modal.title': 'O que o Modo Automático faz',
+    'auto-modal.p1': 'O Modo Automático evolui o treinamento sozinho: testa todo ativo real detectado nesta conta/terminal, nos 11 sistemas, em ordem de risco (sistemas de pesquisa primeiro, depois grid de conta com hedging, depois sistemas de recuperação de alto risco por último). Retoma de onde parou usando o ledger/cache existente -- nada já validado é refeito.',
+    'auto-modal.p2': 'Isso pode rodar continuamente por muito tempo (uma varredura completa por todos os ativos e sistemas é realisticamente semanas a meses, não horas). Segue a mesma metodologia por tier de risco descrita em PLANO_TREINAMENTO_100_A_MILHAO.md.',
+    'auto-modal.p3': 'Se quiser escolher exatamente quais sistemas e ativos rodam, use o Modo Manual -- nada é removido, os dois modos continuam disponíveis.',
+    'auto-modal.dont-ask': 'Não mostrar isso de novo neste navegador',
+    'auto-modal.confirm': 'Entendi, iniciar Automático',
+    'auto-modal.prefer-manual': 'Prefiro usar o Modo Manual',
     'library.current': 'Biblioteca atual',
     'library.loading': 'carregando...',
     'library.regenerate': 'Regenerar a biblioteca completa',
@@ -184,6 +198,13 @@ const i18n = {
     'setup.deposit': 'Depósito',
     'setup.min-retention': 'Retención mínima %',
     'setup.start-run': 'Iniciar corrida',
+    'auto-modal.title': 'Qué hace el Modo Automático',
+    'auto-modal.p1': 'El Modo Automático evoluciona el entrenamiento por sí solo: prueba cada activo real detectado en esta cuenta/terminal, en los 11 sistemas, en orden de riesgo (sistemas de investigación primero, luego grid de cuenta con hedging, luego sistemas de recuperación de alto riesgo al final). Retoma donde quedó usando el ledger/caché existente -- nada ya validado se repite.',
+    'auto-modal.p2': 'Esto puede ejecutarse continuamente durante mucho tiempo (un barrido completo por todos los activos y sistemas es realistamente semanas a meses, no horas). Sigue la misma metodología por nivel de riesgo descrita en PLANO_TREINAMENTO_100_A_MILHAO.md.',
+    'auto-modal.p3': 'Si quiere elegir exactamente qué sistemas y activos se ejecutan, use el Modo Manual -- nada se elimina, ambos modos siguen disponibles.',
+    'auto-modal.dont-ask': 'No mostrar esto de nuevo en este navegador',
+    'auto-modal.confirm': 'Entendido, iniciar Automático',
+    'auto-modal.prefer-manual': 'Prefiero usar el Modo Manual',
     'library.current': 'Biblioteca actual',
     'library.loading': 'cargando...',
     'library.regenerate': 'Regenerar la biblioteca completa',
@@ -254,6 +275,13 @@ const i18n = {
     'setup.deposit': 'Einzahlung',
     'setup.min-retention': 'Mindest-Retention %',
     'setup.start-run': 'Lauf starten',
+    'auto-modal.title': 'Was der Automatikmodus macht',
+    'auto-modal.p1': 'Der Automatikmodus entwickelt das Training selbstständig weiter: er testet jedes real erkannte Asset auf diesem Konto/Terminal, in allen 11 Systemen, in Risikoreihenfolge (Research-Systeme zuerst, dann Hedging-Konto-Grid, dann Hochrisiko-Recovery-Systeme zuletzt). Er setzt dort fort, wo er aufgehört hat, anhand des vorhandenen Ledgers/Caches -- bereits Validiertes wird nicht wiederholt.',
+    'auto-modal.p2': 'Das kann sehr lange durchgehend laufen (ein vollständiger Durchlauf über alle Assets und Systeme dauert realistisch Wochen bis Monate, nicht Stunden). Folgt derselben risikogestaffelten Methodik, die in PLANO_TREINAMENTO_100_A_MILHAO.md beschrieben ist.',
+    'auto-modal.p3': 'Wenn Sie genau festlegen möchten, welche Systeme und Assets laufen, nutzen Sie stattdessen den manuellen Modus -- nichts wird entfernt, beide Modi bleiben verfügbar.',
+    'auto-modal.dont-ask': 'Dies in diesem Browser nicht mehr anzeigen',
+    'auto-modal.confirm': 'Verstanden, Automatik starten',
+    'auto-modal.prefer-manual': 'Ich bevorzuge den manuellen Modus',
     'library.current': 'Aktuelle Bibliothek',
     'library.loading': 'lädt...',
     'library.regenerate': 'Gesamte Bibliothek neu generieren',
@@ -324,6 +352,13 @@ const i18n = {
     'setup.deposit': 'Dépôt',
     'setup.min-retention': 'Rétention minimale %',
     'setup.start-run': 'Démarrer la campagne',
+    'auto-modal.title': 'Ce que fait le Mode Automatique',
+    'auto-modal.p1': "Le Mode Automatique fait évoluer l'entraînement tout seul : il teste chaque actif réel détecté sur ce compte/terminal, sur les 11 systèmes, dans l'ordre de risque (systèmes de recherche d'abord, puis grid à compte de couverture, puis systèmes de récupération à haut risque en dernier). Il reprend là où il s'est arrêté grâce au registre/cache existant -- rien de déjà validé n'est refait.",
+    'auto-modal.p2': "Cela peut tourner en continu très longtemps (un balayage complet de tous les actifs et systèmes prend réalistement des semaines à des mois, pas des heures). Suit la même méthodologie par niveau de risque décrite dans PLANO_TREINAMENTO_100_A_MILHAO.md.",
+    'auto-modal.p3': "Si vous voulez choisir exactement quels systèmes et actifs sont exécutés, utilisez plutôt le Mode Manuel -- rien n'est supprimé, les deux modes restent disponibles.",
+    'auto-modal.dont-ask': 'Ne plus afficher ceci sur ce navigateur',
+    'auto-modal.confirm': 'Compris, démarrer Automatique',
+    'auto-modal.prefer-manual': 'Je préfère utiliser le Mode Manuel',
     'library.current': 'Bibliothèque actuelle',
     'library.loading': 'chargement...',
     'library.regenerate': 'Régénérer la bibliothèque complète',
@@ -394,6 +429,13 @@ const i18n = {
     'setup.deposit': 'Deposito',
     'setup.min-retention': 'Retention minima %',
     'setup.start-run': 'Avvia run',
+    'auto-modal.title': 'Cosa fa la Modalità Automatica',
+    'auto-modal.p1': "La Modalità Automatica fa evolvere l'addestramento da sola: testa ogni asset reale rilevato su questo account/terminale, su tutti gli 11 sistemi, in ordine di rischio (prima i sistemi di ricerca, poi il grid con conto hedging, infine i sistemi di recupero ad alto rischio). Riprende da dove si era interrotta usando il ledger/cache esistente -- nulla di già validato viene rifatto.",
+    'auto-modal.p2': "Questo può girare continuamente per molto tempo (una scansione completa di tutti gli asset e sistemi è realisticamente di settimane o mesi, non ore). Segue la stessa metodologia a livelli di rischio descritta in PLANO_TREINAMENTO_100_A_MILHAO.md.",
+    'auto-modal.p3': "Se vuoi scegliere esattamente quali sistemi e asset eseguire, usa invece la Modalità Manuale -- niente viene rimosso, entrambe le modalità restano disponibili.",
+    'auto-modal.dont-ask': 'Non mostrare più questo messaggio su questo browser',
+    'auto-modal.confirm': 'Capito, avvia Automatica',
+    'auto-modal.prefer-manual': 'Preferisco usare la Modalità Manuale',
     'library.current': 'Libreria attuale',
     'library.loading': 'caricamento...',
     'library.regenerate': "Rigenerare l'intera libreria",
@@ -464,6 +506,13 @@ const i18n = {
     'setup.deposit': 'Депозит',
     'setup.min-retention': 'Минимальный retention %',
     'setup.start-run': 'Запустить прогон',
+    'auto-modal.title': 'Что делает Автоматический режим',
+    'auto-modal.p1': 'Автоматический режим сам развивает обучение: он тестирует каждый реальный актив, обнаруженный на этом счёте/терминале, по всем 11 системам, в порядке риска (сначала исследовательские системы, затем grid с хедж-счётом, затем системы восстановления высокого риска в конце). Он продолжает с того места, где остановился, используя существующий журнал/кэш -- уже проверенное не повторяется.',
+    'auto-modal.p2': 'Это может работать непрерывно очень долго (полный проход по всем активам и системам реалистично занимает недели-месяцы, а не часы). Следует той же методологии по уровням риска, описанной в PLANO_TREINAMENTO_100_A_MILHAO.md.',
+    'auto-modal.p3': 'Если вы хотите точно выбрать, какие системы и активы запускать, используйте вместо этого Ручной режим -- ничего не удаляется, оба режима остаются доступны.',
+    'auto-modal.dont-ask': 'Больше не показывать это в этом браузере',
+    'auto-modal.confirm': 'Понятно, запустить Автоматический',
+    'auto-modal.prefer-manual': 'Предпочитаю Ручной режим',
     'library.current': 'Текущая библиотека',
     'library.loading': 'загрузка...',
     'library.regenerate': 'Перегенерировать всю библиотеку',
@@ -534,6 +583,13 @@ const i18n = {
     'setup.deposit': '入金',
     'setup.min-retention': '最低留存率 %',
     'setup.start-run': '开始运行',
+    'auto-modal.title': '自动模式的作用',
+    'auto-modal.p1': '自动模式会自行推进训练：它会测试此账户/终端上检测到的每一个真实资产，覆盖全部11个系统，按风险顺序进行(先测试研究类系统，然后是需要对冲账户的网格系统，最后是高风险的恢复类系统)。它会利用现有的台账/缓存从上次停止的地方继续 -- 已经验证过的内容不会重复测试。',
+    'auto-modal.p2': '此过程可能会持续运行很长时间(对所有资产和系统进行一次完整扫描现实上需要数周到数月，而不是几小时)。遵循 PLANO_TREINAMENTO_100_A_MILHAO.md 中描述的相同风险分级方法。',
+    'auto-modal.p3': '如果您想精确选择运行哪些系统和资产，请改用手动模式 -- 不会移除任何功能，两种模式都保持可用。',
+    'auto-modal.dont-ask': '此浏览器不再显示此提示',
+    'auto-modal.confirm': '知道了，启动自动模式',
+    'auto-modal.prefer-manual': '我更愿意使用手动模式',
     'library.current': '当前库',
     'library.loading': '加载中...',
     'library.regenerate': '重新生成完整库',
@@ -604,6 +660,13 @@ const i18n = {
     'setup.deposit': '入金額',
     'setup.min-retention': '最小リテンション %',
     'setup.start-run': '実行を開始',
+    'auto-modal.title': '自動モードの動作について',
+    'auto-modal.p1': '自動モードはトレーニングを自律的に進めます。このアカウント/端末で検出されたすべての実資産を、11のシステム全てにわたってリスク順(まずリサーチ系システム、次にヘッジ口座が必要なグリッド、最後に高リスクのリカバリー系システム)でテストします。既存の台帳/キャッシュを使って中断した箇所から再開します -- 既に検証済みのものはやり直しません。',
+    'auto-modal.p2': 'これは非常に長時間、継続的に実行される可能性があります(すべての資産とシステムを一巡するには、現実的には数時間ではなく数週間から数ヶ月かかります)。PLANO_TREINAMENTO_100_A_MILHAO.md に記載されているのと同じリスク階層別の方法論に従います。',
+    'auto-modal.p3': '実行するシステムと資産を正確に選びたい場合は、代わりに手動モードを使用してください -- 何も削除されず、両方のモードが引き続き利用可能です。',
+    'auto-modal.dont-ask': 'このブラウザでは今後表示しない',
+    'auto-modal.confirm': '理解しました、自動モードを開始',
+    'auto-modal.prefer-manual': '手動モードを使いたい',
     'library.current': '現在のライブラリ',
     'library.loading': '読み込み中...',
     'library.regenerate': 'ライブラリ全体を再生成',
@@ -674,6 +737,13 @@ const i18n = {
     'setup.deposit': '입금액',
     'setup.min-retention': '최소 리텐션 %',
     'setup.start-run': '실행 시작',
+    'auto-modal.title': '자동 모드가 하는 일',
+    'auto-modal.p1': '자동 모드는 트레이닝을 스스로 진행합니다: 이 계정/터미널에서 감지된 모든 실제 자산을 11개 시스템 전체에서, 위험 순서대로(연구용 시스템 먼저, 그다음 헤지 계좌가 필요한 그리드, 마지막으로 고위험 리커버리 시스템) 테스트합니다. 기존 원장/캐시를 사용하여 중단한 지점부터 재개합니다 -- 이미 검증된 항목은 다시 실행하지 않습니다.',
+    'auto-modal.p2': '이 작업은 매우 오랫동안 계속 실행될 수 있습니다(모든 자산과 시스템을 한 번 완전히 훑는 데 현실적으로 몇 시간이 아니라 몇 주에서 몇 달이 걸립니다). PLANO_TREINAMENTO_100_A_MILHAO.md에 설명된 것과 동일한 위험 등급별 방법론을 따릅니다.',
+    'auto-modal.p3': '정확히 어떤 시스템과 자산을 실행할지 직접 선택하고 싶다면 대신 수동 모드를 사용하세요 -- 아무것도 제거되지 않으며 두 모드 모두 계속 사용할 수 있습니다.',
+    'auto-modal.dont-ask': '이 브라우저에서 다시 표시하지 않음',
+    'auto-modal.confirm': '이해했습니다, 자동 모드 시작',
+    'auto-modal.prefer-manual': '수동 모드를 사용하고 싶습니다',
     'library.current': '현재 라이브러리',
     'library.loading': '로딩 중...',
     'library.regenerate': '전체 라이브러리 재생성',
@@ -744,6 +814,13 @@ const i18n = {
     'setup.deposit': 'Depozito',
     'setup.min-retention': 'Minimum retention %',
     'setup.start-run': 'Çalıştırmayı başlat',
+    'auto-modal.title': 'Otomatik Modun yaptığı şey',
+    'auto-modal.p1': 'Otomatik Mod, eğitimi kendi kendine geliştirir: bu hesapta/terminalde tespit edilen her gerçek varlığı, 11 sistemin tamamında, risk sırasına göre (önce araştırma sistemleri, ardından hedge hesabı gerektiren grid, en son yüksek riskli kurtarma sistemleri) test eder. Mevcut kayıt defteri/önbelleği kullanarak kaldığı yerden devam eder -- zaten doğrulanmış hiçbir şey tekrar yapılmaz.',
+    'auto-modal.p2': 'Bu, çok uzun süre kesintisiz çalışabilir (tüm varlıklar ve sistemler üzerinde tam bir tarama gerçekçi olarak saatler değil, haftalar-aylar sürer). PLANO_TREINAMENTO_100_A_MILHAO.md dosyasında açıklanan aynı risk katmanlı metodolojiyi izler.',
+    'auto-modal.p3': 'Tam olarak hangi sistemlerin ve varlıkların çalışacağını seçmek isterseniz, bunun yerine Manuel Modu kullanın -- hiçbir şey kaldırılmaz, her iki mod da kullanılabilir kalır.',
+    'auto-modal.dont-ask': 'Bu tarayıcıda bir daha gösterme',
+    'auto-modal.confirm': 'Anladım, Otomatiği başlat',
+    'auto-modal.prefer-manual': 'Manuel Modu tercih ederim',
     'library.current': 'Mevcut kütüphane',
     'library.loading': 'yükleniyor...',
     'library.regenerate': 'Tüm kütüphaneyi yeniden oluştur',
@@ -1181,7 +1258,7 @@ document.getElementById("btn-detectar").addEventListener("click", async () => {
   });
 });
 
-document.getElementById("btn-iniciar").addEventListener("click", async () => {
+async function iniciarCorridaReal() {
   const msg = document.getElementById("msg-iniciar");
   const body = {
     modo: modoAtual,
@@ -1198,6 +1275,32 @@ document.getElementById("btn-iniciar").addEventListener("click", async () => {
   msg.textContent = r.ok ? `iniciado (pid ${r.pid})` : r.erro;
   msg.className = "status-msg " + (r.ok ? "ok" : "no");
   carregarEstado();
+}
+
+// Modal do Modo Automatico (dono, 2026-08-08): explica o que o modo faz
+// (evolui sozinho, testa tudo, ordem de risco, pode levar semanas/meses)
+// ANTES de disparar -- so pra Automatico, nunca pro Manual, que ja e uma
+// escolha explicita passo a passo. "Nao mostrar de novo" fica por
+// navegador (localStorage), nao no servidor -- decisao do cliente que
+// esta na frente da tela, nao algo pra sincronizar entre maquinas.
+const CHAVE_AUTO_OK = "wrx_auto_modal_dispensado";
+document.getElementById("btn-iniciar").addEventListener("click", () => {
+  if (modoAtual === "auto" && localStorage.getItem(CHAVE_AUTO_OK) !== "1") {
+    document.getElementById("modal-auto").style.display = "flex";
+    return;
+  }
+  iniciarCorridaReal();
+});
+document.getElementById("btn-auto-confirmar").addEventListener("click", () => {
+  if (document.getElementById("chk-auto-nao-perguntar").checked) {
+    localStorage.setItem(CHAVE_AUTO_OK, "1");
+  }
+  document.getElementById("modal-auto").style.display = "none";
+  iniciarCorridaReal();
+});
+document.getElementById("btn-auto-manual").addEventListener("click", () => {
+  document.getElementById("modal-auto").style.display = "none";
+  setModo("manual");
 });
 
 // -------------------------------------------------------------- biblioteca
