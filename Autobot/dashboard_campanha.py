@@ -38,7 +38,23 @@ import time
 import uuid
 import zipfile
 from datetime import datetime
+from importlib.util import find_spec
 from pathlib import Path
+
+_FALTANDO = [pacote for pacote in
+             ("fastapi", "uvicorn", "numpy", "pandas", "MetaTrader5")
+             if find_spec(pacote) is None]
+if _FALTANDO:
+    # Rodando com o Python do proprio comprador (fora do .exe empacotado,
+    # que ja vem com tudo instalado) -- ModuleNotFoundError cru no meio de
+    # um import em cascata nao diz o que fazer nem o resto que falta. Checa
+    # tudo de uma vez, antes de qualquer import de terceiro, e manda o
+    # comando exato. Achado real, 2026-08-08: cliente rodou isto direto sem
+    # ter instalado as dependencias primeiro.
+    print(f"ERRO: dependencia(s) ausente(s): {', '.join(_FALTANDO)}")
+    print("Rode:")
+    print(f"  pip install -r \"{Path(__file__).resolve().parent / 'requirements.txt'}\"")
+    sys.exit(1)
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
