@@ -22,16 +22,37 @@ echo ============================================================
 echo.
 
 if not exist "python-embed\python.exe" (
-    echo [ERRO] python-embed\python.exe nao encontrado.
-    echo Reinstale o White Rabbit X - Autobot.
+    if exist "wrx_setup.py" (
+        echo [ERRO] Esta e a pasta de codigo-fonte do instalador, nao a
+        echo instalacao pronta -- rodar este atalho direto daqui nunca
+        echo funciona, porque o Python embutido so existe dentro do
+        echo instalador empacotado.
+        echo.
+        echo Baixe e rode o instalador de verdade: White Rabbit X - Instalador.exe
+        echo ^( https://t.me/MrRabbit_MT5 ^) -- ele cria a instalacao completa em
+        echo Documents\White Rabbit X - Autobot, com o atalho certo na area
+        echo de trabalho.
+    ) else (
+        echo [ERRO] python-embed\python.exe nao encontrado.
+        echo Reinstale o White Rabbit X - Autobot.
+    )
     echo.
     pause
     exit /b 1
 )
 
 if not exist "Autobot\dashboard_campanha.py" (
-    echo [ERRO] Autobot\dashboard_campanha.py nao encontrado.
-    echo Reinstale o White Rabbit X - Autobot.
+    if exist "wrx_setup.py" (
+        echo [ERRO] Esta e a pasta de codigo-fonte do instalador, nao a
+        echo instalacao pronta -- rodar este atalho direto daqui nunca
+        echo funciona.
+        echo.
+        echo Baixe e rode o instalador de verdade: White Rabbit X - Instalador.exe
+        echo ^( https://t.me/MrRabbit_MT5 ^)
+    ) else (
+        echo [ERRO] Autobot\dashboard_campanha.py nao encontrado.
+        echo Reinstale o White Rabbit X - Autobot.
+    )
     echo.
     pause
     exit /b 1
