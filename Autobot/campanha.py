@@ -111,6 +111,21 @@ def fila(simbolos: list[str], sistemas: list[str] | None = None) -> list[tuple[s
 
 
 def feitos() -> set[tuple[str, str, str]]:
+    """Combos ja com resultado definitivo no ledger.
+
+    Exclui entradas com "erro" (rodar_combo() grava isso quando o processo
+    nunca imprimiu um JSON final -- crash antes de qualquer resultado real,
+    ex.: cache de conta ausente antes do fix de 2026-08-08). Achado real,
+    2026-08-08: um comprador com combos travados assim antes do fix nunca
+    via a campanha tentar de novo mesmo depois de corrigido, porque
+    "feitos" nao distinguia "nunca rodou de verdade" de "rodou e foi
+    reprovado". Nao da pra usar retencao_oos=None como sinal disso: uma
+    reprovacao LEGITIMA do Estagio 1/2/4 (emitir_reprovado_cedo, sem
+    candidato que passasse o piso) tambem grava retencao_oos None, e essa
+    tem que continuar "feita" pra sempre -- repeti-la seria desperdicar
+    horas re-testando um combo que ja provou nao ter estrategia viavel.
+    "erro" so aparece na falha de infraestrutura, nunca na reprovacao.
+    """
     if not LEDGER.exists():
         return set()
     vistos = set()
@@ -122,6 +137,8 @@ def feitos() -> set[tuple[str, str, str]]:
         except json.JSONDecodeError:
             # Uma linha truncada (queda no meio da escrita) nao pode derrubar a
             # leitura do resto do ledger -- so aquele combo volta para a fila.
+            continue
+        if "erro" in r:
             continue
         vistos.add((r["simbolo"], r["sistema"], r["variante"]))
     return vistos
