@@ -255,6 +255,17 @@ SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE", "08_GRID_UNIFIED"}
 EIXOS_GEOMETRIA_TICK_REAL = ["Take", "DistanciaMinima", "VelaTake",
                             "UsarsomenteATRGRID"]
 
+# Gate de sobrevivencia de periodo completo (dono, 2026-08-08): mais amplo
+# que SISTEMAS_GEOMETRIA_TICK_REAL de proposito -- aquele e so sobre QUAIS
+# eixos reabrem em tick real no Estagio 3.5 (exclusivo do grid, sem
+# equivalente definido pra martingale/d'alembert/signal-only). Este
+# conjunto e sobre QUEM roda o Estagio 4.5 (verificar_sobrevivencia_completa,
+# ver docstring): todo sistema sem SL nativo por posicao, onde uma
+# sequencia de perdas/cesta pode crescer sem limite e travar ou estourar a
+# conta so no periodo continuo de verdade -- nao so grid.
+SISTEMAS_GATE_SOBREVIVENCIA = SISTEMAS_GEOMETRIA_TICK_REAL | {
+    "09_MARTINGALE", "10_DALEMBERT", "11_SIGNAL_ONLY"}
+
 # Parametro -> indicadores que REALMENTE o usam, lido na criacao dos handles
 # do EA (~1234-1290). Fora dessa lista o parametro nao entra no calculo, entao
 # otimiza-lo produz passes identicos -- o mesmo desperdicio de um eixo atras de
@@ -1033,8 +1044,20 @@ def verificar_sobrevivencia_completa(caminho_set: Path, symbol: str,
     nunca da tempo da cesta do grid (sem SL nativo por posicao, cesta manual
     via ManageGridBasket) crescer o bastante pra quebrar; so o periodo
     completo expoe isso. Monte Carlo nao cobre essa lacuna: e estruturalmente
-    isento pra grid (precisa de trades em R, grid usa lote fixo/monetario) --
-    esta funcao e o gate de ruina que faltava para esses sistemas.
+    isento pra grid/martingale/d'alembert/signal-only (precisa de trades em
+    R, esses sistemas usam lote fixo/monetario) -- esta funcao e o gate de
+    ruina que faltava para eles.
+
+    Extensao pra martingale/d'alembert/signal-only (dono, 2026-08-08): o
+    mesmo buraco existe fora do grid -- nenhum dos tres tem SL nativo
+    (martingale/d'alembert dobram/somam lote apos perda; signal-only sai
+    so por sinal), entao o mesmo "ficou preso sem margem" ou "estourou no
+    periodo completo" pode passar despercebido pela mesma razao: a janela
+    WFO (curta, rolante) nunca da tempo da sequencia de perdas crescer o
+    bastante pra quebrar. FORMULA_POR_SISTEMA ja guia a BUSCA destes dois
+    por ResilienceToDrawdown (drawdown real, via OnTester) -- isso reduz o
+    risco mas mede em janelas WFO, nao no periodo continuo; este gate
+    continua sendo a unica prova em cima do periodo inteiro de verdade.
     """
     rel = str(caminho_set.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
     antes = base.marcar_logs()
@@ -1686,11 +1709,12 @@ def main() -> int:
         # em Fixed-R seria entregar um modo que a ultima conferencia nao mediu.
         entrega["PositionSizeMode"] = "0"
 
-    # ---- Gate de sobrevivencia (grid): periodo completo, como o comprador
-    # roda de verdade -- achado do dono, 2026-08-03 (ver docstring da funcao).
+    # ---- Gate de sobrevivencia: periodo completo, como o comprador roda de
+    # verdade -- achado do dono, 2026-08-03 (grid), estendido 2026-08-08 pra
+    # martingale/d'alembert/signal-only (ver docstring da funcao).
     sobrevivencia = None
     sobrevivencia_relatorio_dir = None
-    if aprovado and args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+    if aprovado and args.sistema in SISTEMAS_GATE_SOBREVIVENCIA:
         print("\n    gate de sobrevivencia: rodando o set ENTREGUE no "
               "periodo completo (continuo, tick real)...", flush=True)
         reescrever(origem, trabalho, [], entrega)
@@ -1759,10 +1783,12 @@ def main() -> int:
                       # sao estruturalmente isentos de MC) -- sem isso o
                       # dashboard nao distingue "MC passou" de "MC nem rodou".
                       "mc_medido": mc is not None and mc.get("mc_dd_p95") is not None,
-                      # Gate de sobrevivencia (2026-08-03): so roda pra grid
-                      # (SISTEMAS_GEOMETRIA_TICK_REAL). None = nao se aplica a
-                      # este sistema, nao "passou sem medir" -- nao confundir
-                      # com o mesmo problema que mc_medido resolveu pro MC.
+                      # Gate de sobrevivencia (2026-08-03, estendido
+                      # 2026-08-08): so roda pra SISTEMAS_GATE_SOBREVIVENCIA
+                      # (grid + martingale + d'alembert + signal-only). None
+                      # = nao se aplica a este sistema, nao "passou sem
+                      # medir" -- nao confundir com o mesmo problema que
+                      # mc_medido resolveu pro MC.
                       "sobrevivencia_medida": sobrevivencia is not None,
                       "sobrevivencia_saldo_final": (
                           sobrevivencia["saldo_final"] if sobrevivencia else None),
