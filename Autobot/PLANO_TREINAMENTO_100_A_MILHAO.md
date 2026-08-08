@@ -144,11 +144,14 @@ implementar em cima de 4 combos de teste):
 5. Segundo desempate por `mc_prob_ruina` mais conservador (menor
    probabilidade de ruína) entre as linhas RESEARCH daquele símbolo.
 
-**Cuidado ao implementar**: `SISTEMAS_GEOMETRIA_TICK_REAL` hoje só cobre
-grid (07, 08) — martingale e d'alembert (09, 10) ainda não têm o gate de
-sobrevivência de período completo no código. Um script de ranking precisa
-tratar `sobrevivencia_medida == false` como normal pra esses dois
-sistemas, não como dado faltando/erro.
+**Atualizado 2026-08-08**: o gate de sobrevivência de período completo
+agora cobre grid (07, 08) **e também** martingale, d'alembert e
+signal-only (09, 10, 11) via `SISTEMAS_GATE_SOBREVIVENCIA` — os únicos
+sem essa checagem (por não serem Fixed-R, estruturalmente impossível)
+são os 6 RESEARCH, que em compensação já têm Monte Carlo e a prova em %
+do Estágio 5. Um script de ranking só precisa tratar
+`sobrevivencia_medida == false` como normal pros 6 RESEARCH, não mais
+como uma lacuna nos 3 sistemas de alto risco.
 
 Depois do ranking por ativo individual, o passo seguinte natural é
 `portfolio_builder.py` (correlação/diversificação entre os aprovados) —
@@ -179,3 +182,4 @@ Preenchido conforme decisões reais forem tomadas.
 | 2026-08-07/08 | Combo canário (EURUSD/01_SLTP) rodado antes da campanha completa: 92,0 min de ponta a ponta, reprovado por divergência OHLC vs tick real (63,7%) -- gate funcionando corretamente, retenção OOS tinha sido ótima (164,5%) | Confirma os 2 bugs corrigidos hoje sobrevivem à janela real de 3 anos, não só à janela curta de validação; dá a primeira referência real de tempo por combo completo |
 | 2026-08-08 | 85 símbolos auto-detectados (`/api/ativos/detectar`), campanha completa disparada com todos eles + os 11 sistemas em ordem de risco -- **3.570 combos na fila** | Cobertura real, sem curadoria manual, conforme seção 4. Escala real: a ~90min/combo (1 amostra), é uma campanha de MESES de execução contínua, não dias -- expectativa registrada aqui pra não surpreender depois |
 | 2026-08-08 | Campanha de 3.570 combos interrompida no meio (dono pediu, pra priorizar). Disparado foco só em `08_GRID_UNIFIED` em 10 ativos curados: os 7 majors de forex (EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD) + EURGBP/EURCHF (cruzamentos historicamente estáveis, clássicos em grid) + XAUUSD (ouro, ativo mais usado em grid comercial apesar da volatilidade maior) -- 20 combos na fila, ordenados por prioridade (XAUUSD e majors primeiro) | Dono quer ter um grid pronto pra considerar subir amanhã (2026-08-09). Cripto/energia/as 49 ações ficaram fora desta primeira leva -- tendência forte/gap não combina com grid. **Expectativa real**: nenhuma medição de grid na janela de 3 anos ainda existe pós-fix; a única referência de Estágio 1 de grid nesta sessão (antes de qualquer fix, janela de 3 anos) levou 2h24min só nas 3 rodadas genéticas -- plausível que cada combo de grid leve 3-5h de ponta a ponta agora. Com isso, é realista esperar só uns 3-5 combos (1-3 símbolos) prontos até amanhã, não os 20 -- os demais continuam depois. |
+| 2026-08-08 | Auditoria de justiça de metodologia: achado que 09_MARTINGALE/10_DALEMBERT/11_SIGNAL_ONLY (justo os tiers HIGH_RISK/HIGH_RISK_RESEARCH) não tinham NENHUMA das 3 checagens extras de robustez (MC e prova em % são estruturalmente impossíveis pra eles, e o gate de sobrevivência de período completo só cobria grid). Gate de sobrevivência estendido pra cobrir os 3 também (`SISTEMAS_GATE_SOBREVIVENCIA`, desacoplado de `SISTEMAS_GEOMETRIA_TICK_REAL` que continua só-grid) | Os sistemas com risco mais alto rotulado eram os com menos escrutínio real -- inconsistente com o próprio motivo que criou o gate (achado real de grid passando limpo em janela curta e estourando no período completo; o mesmo buraco existe em qualquer sistema sem SL nativo, não só grid). Não afeta a campanha de grid já rodando (só testa 08_GRID_UNIFIED); passa a valer quando a campanha completa chegar em 09/10/11. |
