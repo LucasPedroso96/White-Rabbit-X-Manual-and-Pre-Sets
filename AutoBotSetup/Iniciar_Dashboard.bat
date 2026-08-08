@@ -2,9 +2,9 @@
 REM ============================================================
 REM   WHITE RABBIT X - AUTOBOT DASHBOARD
 REM ============================================================
-REM   Inicia o painel de controle (app local, porta 8020).
-REM   Nao precisa de Python instalado -- vem embutido nesta pasta.
-REM   Para PARAR: feche esta janela, ou Ctrl+C.
+REM   Starts the control panel (local app, port 8020).
+REM   No need for Python installed -- it's embedded in this folder.
+REM   To STOP: close this window, or Ctrl+C.
 REM ============================================================
 
 title White Rabbit X - Autobot Dashboard
@@ -17,24 +17,24 @@ echo ============================================================
 echo   WHITE RABBIT X - AUTOBOT DASHBOARD
 echo ============================================================
 echo   Dashboard: http://localhost:8020
-echo   Para PARAR: feche esta janela, ou Ctrl+C
+echo   To STOP: close this window, or Ctrl+C
 echo ============================================================
 echo.
 
 if not exist "python-embed\python.exe" (
-    if exist "wrx_setup.py" (
-        echo [ERRO] Esta e a pasta de codigo-fonte do instalador, nao a
-        echo instalacao pronta -- rodar este atalho direto daqui nunca
-        echo funciona, porque o Python embutido so existe dentro do
-        echo instalador empacotado.
+    if exist "Instalar_White_Rabbit_X.py" (
+        echo [ERROR] This is the installer's source-code folder, not the
+        echo ready-made install -- running this shortcut straight from here
+        echo never works, because the embedded Python only exists inside
+        echo the packaged installer.
         echo.
-        echo Baixe e rode o instalador de verdade: White Rabbit X - Instalador.exe
-        echo ^( https://t.me/MrRabbit_MT5 ^) -- ele cria a instalacao completa em
-        echo Documents\White Rabbit X - Autobot, com o atalho certo na area
-        echo de trabalho.
+        echo Download and run the real installer: White Rabbit X - Instalador.exe
+        echo ^( https://t.me/MrRabbit_MT5 ^) -- it creates the full install at
+        echo Documents\White Rabbit X - Autobot, with the correct desktop
+        echo shortcut.
     ) else (
-        echo [ERRO] python-embed\python.exe nao encontrado.
-        echo Reinstale o White Rabbit X - Autobot.
+        echo [ERROR] python-embed\python.exe not found.
+        echo Reinstall White Rabbit X - Autobot.
     )
     echo.
     pause
@@ -42,16 +42,16 @@ if not exist "python-embed\python.exe" (
 )
 
 if not exist "Autobot\dashboard_campanha.py" (
-    if exist "wrx_setup.py" (
-        echo [ERRO] Esta e a pasta de codigo-fonte do instalador, nao a
-        echo instalacao pronta -- rodar este atalho direto daqui nunca
-        echo funciona.
+    if exist "Instalar_White_Rabbit_X.py" (
+        echo [ERROR] This is the installer's source-code folder, not the
+        echo ready-made install -- running this shortcut straight from here
+        echo never works.
         echo.
-        echo Baixe e rode o instalador de verdade: White Rabbit X - Instalador.exe
+        echo Download and run the real installer: White Rabbit X - Instalador.exe
         echo ^( https://t.me/MrRabbit_MT5 ^)
     ) else (
-        echo [ERRO] Autobot\dashboard_campanha.py nao encontrado.
-        echo Reinstale o White Rabbit X - Autobot.
+        echo [ERROR] Autobot\dashboard_campanha.py not found.
+        echo Reinstall White Rabbit X - Autobot.
     )
     echo.
     pause
@@ -59,20 +59,20 @@ if not exist "Autobot\dashboard_campanha.py" (
 )
 
 REM ------------------------------------------------------------
-REM Libera a porta 8020 se uma execucao anterior ficou pendurada
+REM Frees port 8020 if a previous run was left hanging
 REM ------------------------------------------------------------
 for /f "tokens=5" %%P in ('netstat -aon ^| findstr ":8020" ^| findstr "LISTENING"') do (
-    echo Liberando processo %%P que ja usa a porta 8020...
+    echo Freeing process %%P that's already using port 8020...
     taskkill /PID %%P /F >nul 2>nul
 )
 
 REM ------------------------------------------------------------
-REM Abre o navegador alguns segundos depois de iniciar
+REM Opens the browser a few seconds after starting
 REM ------------------------------------------------------------
 timeout /t 3 /nobreak >nul
 start "" http://localhost:8020/
 
-echo Log do dashboard (ao vivo):
+echo Dashboard log (live):
 echo ------------------------------------------------------------
 echo.
 
@@ -82,6 +82,6 @@ popd
 
 echo.
 echo ============================================================
-echo   DASHBOARD PARADO
+echo   DASHBOARD STOPPED
 echo ============================================================
 pause

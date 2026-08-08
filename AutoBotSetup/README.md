@@ -1,74 +1,78 @@
-# AutoBotSetup — instalador para o comprador
+# AutoBotSetup — installer for the buyer
 
-> **Isto e codigo-fonte, nao o instalador.** `wrx_setup.py` roda cru so na
-> maquina de quem builda -- sem a pasta `Sets/` e `AutobotRuntime/` (fora do
-> git de proposito, veja `.gitignore`) ele SEMPRE falha com "a pasta Sets nao
-> veio junto". Cliente que baixou o repositorio pelo GitHub e caiu aqui: o
-> arquivo certo e `White Rabbit X - Instalador.exe`, distribuido pelo
-> Telegram (<https://t.me/MrRabbit_MT5>), nunca pelo "Download ZIP" do
-> repositorio. Aconteceu de verdade com um comprador em 2026-08-08.
+> **This is source code, not the installer.** `Instalar_White_Rabbit_X.py`
+> only runs raw on the machine that builds it -- without the `Sets/` and
+> `AutobotRuntime/` folders (excluded from git on purpose, see
+> `.gitignore`) it ALWAYS fails with "the Sets folder didn't ship with the
+> installer". If you downloaded the repository from GitHub and ended up
+> here: the right file is `White Rabbit X - Instalador.exe`, distributed
+> through Telegram (<https://t.me/MrRabbit_MT5>), never through the
+> repository's "Download ZIP". This really happened to a buyer on
+> 2026-08-08.
 
-O MQL5 Market entrega o `.ex5` e mais nada. Os 3.738 sets de otimização ficam
-de fora, e sem eles o comprador teria de descobrir a pasta de dados do
-terminal, copiar os arquivos no lugar certo e ainda perceber sozinho que o
-corretor dele chama `EURUSD` de `EURUSDm` — porque um `.set` com o símbolo
-errado simplesmente não carrega, sem dizer o motivo.
+The MQL5 Market ships the `.ex5` and nothing else. The 3,738 optimization
+sets are left out, and without them the buyer would have to find the
+terminal's data folder, copy the files into the right place, and still
+notice on their own that their broker calls `EURUSD` `EURUSDm` — because a
+`.set` with the wrong symbol simply doesn't load, without saying why.
 
-Este instalador resolve isso em um clique duplo — e desde 2026-08-06 também
-instala o Autobot (o mesmo painel de controle usado internamente), com um
-Python próprio embutido, pra quem quiser rodar campanhas de otimização na
-própria conta.
+This installer solves that in a double-click — and since 2026-08-06 it also
+installs the Autobot (the same control panel used internally), with its own
+embedded Python, for anyone who wants to run optimization campaigns on their
+own account.
 
-## O que ele faz
+## What it does
 
-1. **Acha o MetaTrader.** Os dados do MT5 ficam num diretório cujo nome é um
-   hash, fora da pasta de instalação. O instalador varre e, quando há mais de
-   um, coloca **primeiro aquele onde o White Rabbit X já está baixado** — que
-   é quase sempre o certo.
-2. **Copia os sets** para `MQL5\Profiles\Tester\White_Rabbit_X_Sets`.
-3. **Ajusta ao corretor**: descobre o sufixo real de cada símbolo, aplica o
-   lote mínimo de cada um e avisa quais ativos aquele corretor não oferece.
-4. **Instala o Autobot** (dashboard + circuito de otimização) em
-   `Documents\White Rabbit X - Autobot`, com Python embutido — e cria um
-   atalho "White Rabbit X - Autobot" na área de trabalho.
-5. **Grava `INSTALACAO.json`** com o que foi feito, para suporte.
+1. **Finds MetaTrader.** MT5's data lives in a directory whose name is a
+   hash, outside the install folder. The installer scans for it and, when
+   there's more than one, puts **the one where White Rabbit X is already
+   downloaded first** — which is almost always the right one.
+2. **Copies the sets** to `MQL5\Profiles\Tester\White_Rabbit_X_Sets`.
+3. **Adjusts to the broker**: finds each symbol's real suffix, applies each
+   one's minimum lot, and warns which assets that broker doesn't offer.
+4. **Installs the Autobot** (dashboard + optimization circuit) at
+   `Documents\White Rabbit X - Autobot`, with embedded Python — and creates
+   a "White Rabbit X - Autobot" desktop shortcut.
+5. **Writes `INSTALACAO.json`** with what was done, for support.
 
-Se o terminal estiver fechado, ele copia os sets no padrão e avisa que o
-ajuste ao corretor precisa de uma segunda passada com o MT5 aberto.
+If the terminal is closed, it copies the sets at their defaults and warns
+that the broker adjustment needs a second pass with MT5 open.
 
-## Para o comprador
+## For the buyer
 
-Um arquivo só. Não precisa de Python nem de nada instalado — nem pros sets,
-nem pro Autobot:
+Just one file. No Python or anything else to install — neither for the
+sets, nor for the Autobot:
 
 ```
 White Rabbit X - Instalador.exe
 ```
 
-Abrir o MetaTrader e fazer login **antes** de rodar dá o resultado completo,
-porque só assim o instalador enxerga o corretor.
+Opening MetaTrader and logging in **before** running it gives the full
+result, because that's the only way the installer can see the broker.
 
-## Para gerar o executável
+## To build the executable
 
-Duas partes: montar a pasta `AutobotRuntime` (Python embutido + Autobot) uma
-vez, depois compilar o `.exe` (essa parte sim, toda vez que algo mudar).
+Two parts: assemble the `AutobotRuntime` folder (embedded Python + Autobot)
+once, then compile the `.exe` (this part, every time something changes).
 
-### 1. Montar `AutobotRuntime/` (só precisa refazer se as dependências do
-   Autobot mudarem — numpy/pandas/fastapi/uvicorn/MetaTrader5)
+### 1. Assemble `AutobotRuntime/`
+
+Only needs redoing if the Autobot's dependencies change —
+numpy/pandas/fastapi/uvicorn/MetaTrader5.
 
 ```bash
-# Baixa o Python embeddable oficial (mesma versao do Python usado aqui: 3.13.6)
+# Download the official embeddable Python (same version used here: 3.13.6)
 curl -LO https://www.python.org/ftp/python/3.13.6/python-3.13.6-embed-amd64.zip
 mkdir -p AutobotRuntime/python-embed
 unzip python-3.13.6-embed-amd64.zip -d AutobotRuntime/python-embed
 
-# Habilita Lib\site-packages no ._pth (SEM habilitar "import site" -- isso
-# faria o embeddable enxergar %APPDATA%\Python\PythonXXX\site-packages, ou
-# seja, os pacotes pessoais de quem builda, o que quebra no cliente).
-# E adiciona "..\Autobot" -- e assim que os scripts do Autobot (irmao de
-# python-embed\) ficam importaveis sem PYTHONPATH, porque um arquivo ._pth
-# ignora tanto PYTHONPATH quanto o "adiciona o diretorio do script" padrao
-# do Python normal.
+# Enables Lib\site-packages in ._pth (WITHOUT enabling "import site" -- that
+# would make the embeddable see %APPDATA%\Python\PythonXXX\site-packages,
+# i.e. the personal packages of whoever is building it, which breaks on the
+# client). And adds "..\Autobot" -- that's how the Autobot scripts (sibling
+# of python-embed\) become importable without PYTHONPATH, because a ._pth
+# file ignores both PYTHONPATH and the normal Python's default "add the
+# script's directory".
 cat > AutobotRuntime/python-embed/python313._pth <<'EOF'
 python313.zip
 .
@@ -77,72 +81,74 @@ Lib\site-packages
 #import site
 EOF
 
-# Bootstrap do pip (o embeddable nao vem com pip)
+# Bootstrap pip (the embeddable doesn't ship with it)
 curl -LO https://bootstrap.pypa.io/get-pip.py
 AutobotRuntime/python-embed/python.exe get-pip.py --no-warn-script-location
 
-# Dependencias do Autobot, DENTRO do Python embutido
+# Autobot dependencies, INSIDE the embedded Python
 AutobotRuntime/python-embed/python.exe -m pip install --no-warn-script-location \
   fastapi uvicorn MetaTrader5 numpy pandas
 
-# Autobot: so o subconjunto operacional (dashboard + circuito de 5 estagios +
-# geracao/validacao de sets) -- NAO as ferramentas de manutencao de manual
+# Autobot: only the operational subset (dashboard + 5-stage circuit +
+# set generation/validation) -- NOT the manual-maintenance tools
 # (align_manuals, audit_manuals, enrich_manuals, render_manuals,
 # sync_input_reference, sync_set_count, update_indicator_lists,
-# write_library_docs, build_br_version) nem os *.ps1/test_*.py.
+# write_library_docs, build_br_version) nor the *.ps1/test_*.py files.
 mkdir -p AutobotRuntime/Autobot
-# copie os .py operacionais + dashboard_static/ de ../Autobot/
+# copy the operational .py files + dashboard_static/ from ../Autobot/
 
-# Launcher e icone: fonte rastreado no git, fica em AutoBotSetup/ mesmo
-# (nao dentro de AutobotRuntime/, que e so pasta gerada) -- copia pra
-# dentro do runtime a cada build.
+# Launcher and icon: source tracked in git, they live in AutoBotSetup/
+# itself (not inside AutobotRuntime/, which is a generated folder only) --
+# copied into the runtime on every build.
 cp Iniciar_Dashboard.bat AutobotRuntime/
 cp wrx_icon.ico AutobotRuntime/
 ```
 
-`Iniciar_Dashboard.bat` e `wrx_icon.ico` **sao** versionados (ficam soltos em
-`AutoBotSetup/`, ao lado de `wrx_setup.py`) -- so o conteudo gerado
-(`AutobotRuntime/python-embed/`, a copia dos `.py` do Autobot, `build/`) fica
-de fora do git. Se editar o launcher, edite o de `AutoBotSetup/`, nao a copia
-dentro de `AutobotRuntime/` (essa e descartavel, recriada a cada build).
+`Iniciar_Dashboard.bat` and `wrx_icon.ico` **are** versioned (they live loose
+in `AutoBotSetup/`, next to `Instalar_White_Rabbit_X.py`) -- only the
+generated content (`AutobotRuntime/python-embed/`, the copy of the Autobot's
+`.py` files, `build/`) is excluded from git. If you edit the launcher, edit
+the one in `AutoBotSetup/`, not the copy inside `AutobotRuntime/` (that one
+is disposable, recreated on every build).
 
-### 2. Compilar o `.exe`
+### 2. Compile the `.exe`
 
 ```bash
 python -m pip install pyinstaller
 python -m PyInstaller --onefile --console \
   --name "White Rabbit X - Instalador" \
-  --add-data "<caminho absoluto>/Sets;Sets" \
-  --add-data "<caminho absoluto>/AutobotRuntime;AutobotRuntime" \
+  --add-data "<absolute path>/Sets;Sets" \
+  --add-data "<absolute path>/AutobotRuntime;AutobotRuntime" \
   --hidden-import MetaTrader5 \
   --collect-all numpy \
   --distpath . --workpath build/tmp --specpath build --noconfirm \
-  wrx_setup.py
+  Instalar_White_Rabbit_X.py
 ```
 
-`--collect-all numpy` **não é opcional**: o `MetaTrader5` (módulo compilado,
-não Python puro) usa numpy internamente, e o PyInstaller não enxerga essa
-dependência sozinho — sem isso o instalador roda, copia os sets, mas a
-etapa de ajuste ao corretor falha com
+`--collect-all numpy` **is not optional**: `MetaTrader5` (a compiled module,
+not pure Python) uses numpy internally, and PyInstaller can't see that
+dependency on its own — without it the installer runs, copies the sets, but
+the broker-adjustment step fails with
 `ModuleNotFoundError: No module named 'numpy'` / `numpy._core.multiarray
-failed to import`, silenciosamente (cai no fallback "sets no padrão").
+failed to import`, silently (it falls back to "sets at their defaults").
 
-As pastas `Sets` e `AutobotRuntime` vão embutidas. Uma pasta colocada **ao
-lado do .exe** tem precedência sobre a embutida — é assim que se entrega uma
-versão atualizada sem gerar um instalador novo.
+The `Sets` and `AutobotRuntime` folders get embedded. A folder placed **next
+to the .exe** takes precedence over the embedded one — that's how an updated
+version is shipped without generating a new installer.
 
-Detalhe que quebra silenciosamente se esquecido: com `--onefile`, `__file__`
-aponta para o diretório temporário que o PyInstaller extrai, não para onde o
-comprador colocou o programa. O caminho "ao lado do exe" precisa sair de
+Detail that breaks silently if forgotten: with `--onefile`, `__file__`
+points to the temp directory that PyInstaller extracts to, not to where the
+buyer placed the program. The "next to the exe" path needs to come from
 `sys.executable`.
 
-Tamanho esperado do `.exe`: ~150-220MB (`AutobotRuntime` sozinho já é
-~176MB antes de compressão — numpy+pandas dominam).
+Expected `.exe` size: ~150-220MB (`AutobotRuntime` alone is already ~176MB
+before compression — numpy+pandas dominate).
 
-## Distribuição
+## Distribution
 
-O executável vai no RAR do canal do Telegram, em paralelo à venda no Market.
-Antes de publicar uma versão nova, regere os sets e reconstrua o `.exe`:
+The executable goes into the Telegram channel's RAR, alongside the Market
+listing. Before publishing a new version, regenerate the sets and rebuild
+the `.exe`:
 
 ```bash
 python ../Autobot/generate_system_sets.py
