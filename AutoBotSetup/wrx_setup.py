@@ -418,13 +418,29 @@ def main() -> int:
         fonte_autobot = ao_lado.parent / "Autobot"
         if not getattr(sys, "frozen", False) and fonte_autobot.is_dir():
             requirements = fonte_autobot / "requirements.txt"
+            script_dashboard = fonte_autobot / "dashboard_campanha.py"
             print("O Autobot embutido (Python proprio) nao veio -- normal")
             print("rodando o codigo-fonte direto, ele so existe dentro do")
-            print(".exe. Mas o codigo esta aqui do lado, e roda com seu")
-            print("proprio Python (3.11+):\n")
-            print(f"  pip install -r \"{requirements}\"")
-            print(f"  python \"{fonte_autobot / 'dashboard_campanha.py'}\"")
-            print(f"\nOu, se preferir o instalador pronto: {TELEGRAM}")
+            print(".exe. Instalando as dependencias no seu Python agora")
+            print("(pode levar alguns minutos, numpy/pandas sao pesados):\n")
+            # Chama o pip de verdade em vez de so imprimir o comando -- um
+            # comprador zerado nao devia ter que copiar/colar nada. Usa
+            # sys.executable (o MESMO Python que esta rodando este instalador
+            # agora, sem frozen) pra garantir que instala no interpretador
+            # certo, o mesmo que vai rodar o dashboard depois. Sem capturar
+            # stdout/stderr: o pip fica visivel rodando, senao numpy/pandas
+            # parecem travados por 1-2 minutos sem nenhuma saida.
+            resultado = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-r", str(requirements)])
+            if resultado.returncode == 0:
+                print("\nDependencias instaladas. Pra abrir o painel:")
+                print(f"  python \"{script_dashboard}\"")
+            else:
+                print("\nNao consegui instalar sozinho (erro do pip acima).")
+                print("Rode manualmente:")
+                print(f"  pip install -r \"{requirements}\"")
+                print(f"  python \"{script_dashboard}\"")
+            print(f"\nDuvidas, ou se preferir o instalador pronto: {TELEGRAM}")
         else:
             print("O pacote do Autobot nao veio junto com este instalador --")
             print("so os sets foram instalados. Baixe o pacote completo em")
