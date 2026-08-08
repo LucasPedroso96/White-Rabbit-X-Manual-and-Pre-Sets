@@ -1,5 +1,13 @@
 # AutoBotSetup — instalador para o comprador
 
+> **Isto e codigo-fonte, nao o instalador.** `wrx_setup.py` roda cru so na
+> maquina de quem builda -- sem a pasta `Sets/` e `AutobotRuntime/` (fora do
+> git de proposito, veja `.gitignore`) ele SEMPRE falha com "a pasta Sets nao
+> veio junto". Cliente que baixou o repositorio pelo GitHub e caiu aqui: o
+> arquivo certo e `White Rabbit X - Instalador.exe`, distribuido pelo
+> Telegram (<https://t.me/MrRabbit_MT5>), nunca pelo "Download ZIP" do
+> repositorio. Aconteceu de verdade com um comprador em 2026-08-08.
+
 O MQL5 Market entrega o `.ex5` e mais nada. Os 3.738 sets de otimização ficam
 de fora, e sem eles o comprador teria de descobrir a pasta de dados do
 terminal, copiar os arquivos no lugar certo e ainda perceber sozinho que o

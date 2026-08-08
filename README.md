@@ -28,6 +28,14 @@ folder step by step, in your own language. There is no shame in it — the
 interesting part of this project is the trading research, not the file
 management.
 
+> **Looking for the one-click installer?** `AutoBotSetup/wrx_setup.py` in
+> this ZIP is the *source code* that builds it, not the installer itself —
+> running it directly always fails, because the folders it needs are not
+> part of the repository. The ready-to-run installer
+> (`White Rabbit X - Instalador.exe`) is distributed separately through
+> [Telegram](https://t.me/MrRabbit_MT5). If you just want the `.set` files,
+> the ZIP you already downloaded is everything you need — see below.
+
 ## Using the library
 
 ```text

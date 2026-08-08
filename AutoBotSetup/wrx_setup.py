@@ -305,8 +305,23 @@ def main() -> int:
     if not origem.is_dir():
         origem = Path(getattr(sys, "_MEIPASS", ao_lado)) / "Sets"
     if not origem.is_dir():
-        print("\nERRO: a pasta 'Sets' nao veio junto com o instalador.")
-        print(f"Baixe o pacote completo em {TELEGRAM}")
+        if not getattr(sys, "frozen", False):
+            # Rodando o .py cru (sys.frozen == False): quase sempre e alguem
+            # que baixou o ZIP do repositorio no GitHub e caiu direto nesta
+            # pasta, achando que "wrx_setup.py" e o instalador. Nao e -- e o
+            # CODIGO-FONTE do instalador. A pasta Sets (3.738 arquivos) e o
+            # runtime Python embutido ficam de fora do repositorio de
+            # proposito (.gitignore) e so existem dentro do .exe empacotado.
+            # Achado real, 2026-08-08: cliente reproduziu exatamente isso.
+            print("\nERRO: voce esta rodando o codigo-fonte, nao o instalador.")
+            print("\n'wrx_setup.py' e o programa-fonte que GERA o instalador --")
+            print("baixar o ZIP do GitHub e rodar este arquivo direto nunca vai")
+            print("funcionar, porque a pasta 'Sets' nao fica no repositorio")
+            print("(sao milhares de arquivos, ela so existe dentro do .exe pronto).")
+            print(f"\nBaixe o instalador pronto (arquivo .exe) em: {TELEGRAM}")
+        else:
+            print("\nERRO: a pasta 'Sets' nao veio junto com o instalador.")
+            print(f"Baixe o pacote completo em {TELEGRAM}")
         input("\nEnter para sair.")
         return 1
 
