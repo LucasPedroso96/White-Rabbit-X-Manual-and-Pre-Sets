@@ -156,7 +156,10 @@ def conectar_mt5() -> tuple[object | None, str]:
     try:
         import MetaTrader5 as mt5
     except ImportError as erro:
-        return None, f"biblioteca ausente no instalador ({erro})"
+        if getattr(sys, "frozen", False):
+            return None, f"biblioteca ausente no instalador ({erro})"
+        return None, (f"MetaTrader5 nao instalado no seu Python ({erro}) -- "
+                       f"rode: pip install -r requirements.txt")
     if not mt5.initialize():
         return None, f"terminal fechado ou sem login ({mt5.last_error()})"
     return mt5, ""
@@ -304,21 +307,31 @@ def main() -> int:
     origem = ao_lado / "Sets"
     if not origem.is_dir():
         origem = Path(getattr(sys, "_MEIPASS", ao_lado)) / "Sets"
+    if not origem.is_dir() and not getattr(sys, "frozen", False):
+        # Rodando o .py cru dentro de um clone/ZIP do repositorio:
+        # AutoBotSetup/Sets e gitignored (so existe dentro do .exe), mas a
+        # Sets/ da RAIZ do repositorio E versionada -- mesma biblioteca,
+        # publicada pra quem so quer copiar manualmente. Um clone puro, que
+        # nunca passou pelo build do instalador, ja basta pra instalar --
+        # nao devia depender de baixar o .exe separado so pra isso funcionar.
+        candidata = ao_lado.parent / "Sets"
+        if candidata.is_dir():
+            origem = candidata
     if not origem.is_dir():
         if not getattr(sys, "frozen", False):
-            # Rodando o .py cru (sys.frozen == False): quase sempre e alguem
-            # que baixou o ZIP do repositorio no GitHub e caiu direto nesta
-            # pasta, achando que "wrx_setup.py" e o instalador. Nao e -- e o
-            # CODIGO-FONTE do instalador. A pasta Sets (3.738 arquivos) e o
-            # runtime Python embutido ficam de fora do repositorio de
-            # proposito (.gitignore) e so existem dentro do .exe empacotado.
-            # Achado real, 2026-08-08: cliente reproduziu exatamente isso.
-            print("\nERRO: voce esta rodando o codigo-fonte, nao o instalador.")
-            print("\n'wrx_setup.py' e o programa-fonte que GERA o instalador --")
-            print("baixar o ZIP do GitHub e rodar este arquivo direto nunca vai")
-            print("funcionar, porque a pasta 'Sets' nao fica no repositorio")
-            print("(sao milhares de arquivos, ela so existe dentro do .exe pronto).")
-            print(f"\nBaixe o instalador pronto (arquivo .exe) em: {TELEGRAM}")
+            # Achado real, 2026-08-08: cliente baixou o ZIP do GitHub e
+            # rodou 'wrx_setup.py' direto, achando que era o instalador. A
+            # pasta ao lado (AutoBotSetup/Sets) so existe dentro do .exe, mas
+            # o fallback acima ja cobre o clone normal -- se chegou aqui,
+            # falta ate a Sets/ da raiz (ZIP parcial, ou pasta errada).
+            print("\nERRO: nao achei a pasta 'Sets', nem ao lado nem na raiz")
+            print("do repositorio.")
+            print("\n'wrx_setup.py' e o programa-fonte do instalador -- rodando")
+            print("assim ele tambem sabe instalar direto da Sets/ da raiz do")
+            print("repositorio, mas ela precisa estar no lugar certo: baixe o")
+            print("ZIP COMPLETO do repositorio no GitHub (nao so a pasta")
+            print("AutoBotSetup/) e rode a partir dai.")
+            print(f"\nSe preferir o instalador pronto (.exe): {TELEGRAM}")
         else:
             print("\nERRO: a pasta 'Sets' nao veio junto com o instalador.")
             print(f"Baixe o pacote completo em {TELEGRAM}")
@@ -396,9 +409,26 @@ def main() -> int:
     titulo("4. Instalando o Autobot (painel de controle)")
     pasta_autobot = copiar_autobot(origem_autobot, origem_icone)
     if pasta_autobot is None:
-        print("O pacote do Autobot nao veio junto com este instalador --")
-        print("so os sets foram instalados. Baixe o pacote completo em")
-        print(f"{TELEGRAM} se quiser o painel de campanhas.")
+        # O Python embutido (AutobotRuntime/python-embed) so existe dentro do
+        # .exe -- nao tem como empacotar isso no repositorio. Mas o CODIGO do
+        # Autobot (Autobot/) e versionado e roda com qualquer Python 3.11+ do
+        # comprador, desde que instale as mesmas dependencias. Dizer isso em
+        # vez de so mandar comprar o .exe: quem ja tem Python (como quem
+        # criou um .venv pra rodar isto) consegue seguir sem esperar nada.
+        fonte_autobot = ao_lado.parent / "Autobot"
+        if not getattr(sys, "frozen", False) and fonte_autobot.is_dir():
+            requirements = fonte_autobot / "requirements.txt"
+            print("O Autobot embutido (Python proprio) nao veio -- normal")
+            print("rodando o codigo-fonte direto, ele so existe dentro do")
+            print(".exe. Mas o codigo esta aqui do lado, e roda com seu")
+            print("proprio Python (3.11+):\n")
+            print(f"  pip install -r \"{requirements}\"")
+            print(f"  python \"{fonte_autobot / 'dashboard_campanha.py'}\"")
+            print(f"\nOu, se preferir o instalador pronto: {TELEGRAM}")
+        else:
+            print("O pacote do Autobot nao veio junto com este instalador --")
+            print("so os sets foram instalados. Baixe o pacote completo em")
+            print(f"{TELEGRAM} se quiser o painel de campanhas.")
     else:
         print(f"Autobot instalado em:\n  {pasta_autobot}")
         icone_instalado = pasta_autobot / origem_icone.name
