@@ -7,11 +7,14 @@ simbolos nao existem, o `/config:` do Strategy Tester falha em silencio, e
 o combo sai com "sem JSON final" -- foi exatamente o que aconteceu com um
 usuario externo rodando o Autobot publicado (2026-08-02).
 
-Prioridade por ativo: prefere o INJETADO (sufixo `.HT` do Historical Tool
-Manager -- historico mais profundo, tick real garantido) quando existe no
-terminal; cai pro NATIVO da corretora quando nao. O Historical Tool Manager
-e OPCIONAL -- quem nao quiser instalar roda so com o que a corretora ja
-oferece.
+Prioridade por ativo: prefere o NATIVO da corretora (dono, 2026-08-08 --
+medido que o dado diverge entre as duas fontes, e o nativo saiu melhor);
+cai pro INJETADO (sufixo `.HT` do Historical Tool Manager) so quando o
+nativo nao existe no terminal. Nativo tambem e o que qualquer cliente ja
+tem sem instalar nada extra -- um set validado em `.HT` nao carrega numa
+conta sem Historical Tool Manager, porque o simbolo gravado no arquivo e
+literalmente "SIMBOLO.HT". O Historical Tool Manager continua OPCIONAL,
+so como fallback agora, nao mais preferencia.
 
 Saldo NUNCA bloqueia backtest -- regra do projeto (saldo governa so a
 EXECUCAO ao vivo, nunca pesquisa/treino/promocao). Descobrimos isso na
@@ -84,7 +87,7 @@ def descobrir() -> list[str]:
             print(f"  {classe_codigo}: capital_base={capital:.0f} "
                   f"| saldo={saldo:.2f} -> {acessivel}", flush=True)
             for ativo in ativos:
-                for candidato in (f"{ativo}.HT", ativo):
+                for candidato in (ativo, f"{ativo}.HT"):
                     if candidato not in todos:
                         continue
                     if not mt5.symbol_select(candidato, True):
