@@ -108,18 +108,28 @@ def leverage_conta() -> str:
     Nunca um numero digitado: alavancagem errada no .ini muda o comportamento
     de MARGEM da simulacao (chamada de margem, stop-out), e isso e
     path-dependent -- pode divergir entre o passe OHLC e o tick real sem que
-    nada mais tenha mudado. Falha alto se o cache nao existe em vez de supor
-    um valor (mesma regra de `src/risk/margin_calculator.py`: sem dado real,
-    sem numero fictício).
+    nada mais tenha mudado. Falha alto se nao conseguir um valor real em vez
+    de supor um (mesma regra de `src/risk/margin_calculator.py`: sem dado
+    real, sem numero fictício) -- a diferenca e que "nao conseguir" so
+    acontece se a consulta automatica abaixo tambem falhar (terminal sem
+    login, por exemplo), nao mais por falta de rodar um script a parte.
     """
     global _leverage_cache
     cache = _leverage_cache
     if cache is None:
         if not CONTA_CACHE.is_file():
-            raise SystemExit(
-                "Sem cache de conta real (_conta_real.json). Rode "
-                "`python atualizar_conta_real.py` com o terminal fechado "
-                "antes de otimizar.")
+            # Achado real, 2026-08-08: comprador rodando pelo dashboard
+            # nunca saberia que precisava rodar atualizar_conta_real.py na
+            # mao antes -- todo combo de sistema que precisa de alavancagem
+            # real (grid, por exemplo) reprovava na hora com "sem cache",
+            # sem nunca chegar perto de testar a estrategia de verdade.
+            # Consulta agora em vez de so avisar.
+            from atualizar_conta_real import atualizar
+            if atualizar() is None:
+                raise SystemExit(
+                    "Sem cache de conta real, e nao consegui consultar "
+                    "agora (terminal sem login?). Abra o MetaTrader, faca "
+                    "login, e tente de novo.")
         cache = json.loads(CONTA_CACHE.read_text(encoding="utf-8"))["leverage"]
         _leverage_cache = cache
     return cache

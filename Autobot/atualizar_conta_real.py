@@ -12,6 +12,14 @@ passe: a conexao Python (mt5.initialize) e o `/config:...` do tester nao
 coexistem com o mesmo terminal (ver mt5_runner.py) -- por isso fecha o
 terminal no fim, deixando o caminho livre pro `/config:` de cada combo.
 
+`atualizar()` tambem e chamada automaticamente por `optimize_sets.
+leverage_conta()` na primeira vez que o cache nao existe (achado real,
+2026-08-08: um comprador rodando pelo dashboard nunca saberia que
+precisava rodar este script na mao antes -- a campanha simplesmente
+reprovava todo combo de sistemas que precisam de alavancagem real, tipo
+grid, com "sem cache de conta real"). Continua dando pra rodar solto
+tambem, pra atualizar o cache sem esperar a campanha precisar dele.
+
 Uso:
     python atualizar_conta_real.py
 """
@@ -24,24 +32,25 @@ from pathlib import Path
 
 import MetaTrader5 as mt5
 
+import wrx_paths
 from mt5_runner import fechar_terminal, garantir_terminal_livre
 
 AQUI = Path(__file__).resolve().parent
 CACHE = AQUI / "_conta_real.json"
-TERMINAL = Path(r"C:\Program Files\RoboForex MT5 Terminal (WhiteRabbitEA)"
-                r"\terminal64.exe")
+TERMINAL = wrx_paths.terminal_exe()
 
 
-def main() -> int:
+def atualizar() -> dict | None:
+    """Consulta a conta real e grava o cache. Devolve os dados gravados, ou
+    None se a consulta falhar (terminal sem login, por exemplo) -- quem
+    chama decide como reagir a None, nunca supoe um valor no lugar."""
     garantir_terminal_livre(fechar=True)
     if not mt5.initialize(path=str(TERMINAL)):
-        print(f"Falha ao conectar: {mt5.last_error()}")
-        return 1
+        return None
     try:
         conta = mt5.account_info()
         if conta is None:
-            print(f"Sem account_info: {mt5.last_error()}")
-            return 1
+            return None
         dados = {
             "login": conta.login,
             "servidor": conta.server,
@@ -51,10 +60,18 @@ def main() -> int:
         }
         CACHE.write_text(json.dumps(dados, indent=2, ensure_ascii=False),
                          encoding="utf-8")
-        print(f"leverage real: {dados['leverage']} | conta {dados['login']} "
-              f"@ {dados['servidor']} | gravado em {CACHE.name}")
+        return dados
     finally:
         fechar_terminal()
+
+
+def main() -> int:
+    dados = atualizar()
+    if dados is None:
+        print(f"Falha ao conectar/ler conta: {mt5.last_error()}")
+        return 1
+    print(f"leverage real: {dados['leverage']} | conta {dados['login']} "
+          f"@ {dados['servidor']} | gravado em {CACHE.name}")
     return 0
 
 
