@@ -1117,6 +1117,38 @@ def arquivar_relatorio(symbol: str, sistema: str, variante: str,
         return None
 
 
+def emitir_reprovado_cedo(symbol: str, sistema: str, variante: str,
+                          motivo: str) -> None:
+    """Imprime o JSON final para uma reprovacao decidida ANTES do circuito
+    completo (nenhum candidato passou um piso, torneio sem medida, etc.).
+
+    Achado do dono, 2026-08-07: sem isso, `campanha.py` nao acha nenhuma
+    linha comecando com '{' na saida e registra a reprovacao como
+    "erro: sem JSON final" -- tecnicamente inofensivo (o combo nao repete a
+    toa, `aprovado` fica False do mesmo jeito), mas a razao real da
+    reprovacao se perde do ledger, e um combo interrompido de verdade fica
+    indistinguivel de uma reprovacao limpa. As chaves batem com o JSON
+    completo (linha ~1700) pra qualquer leitor do ledger (dashboard,
+    resumo) nao precisar de um caminho separado so pra este caso.
+    """
+    print(json.dumps({"simbolo": symbol, "sistema": sistema,
+                      "variante": variante, "lucro_ohlc": None,
+                      "lucro_tick_real": None,
+                      "lucro_ajustado_custo_nativo": None,
+                      "retencao_oos": None, "retencao_pct": None,
+                      "sizing_entrega": None, "expectancy_r": None,
+                      "trades_oos": None, "trades_is": None,
+                      "mc_dd_p95": None, "mc_dd_observado": None,
+                      "mc_prob_ruina": None, "mc_aprovado": True,
+                      "mc_medido": False, "sobrevivencia_medida": False,
+                      "sobrevivencia_saldo_final": None,
+                      "sobrevivencia_motivo_reprovacao": None,
+                      "sobrevivencia_relatorio_dir": None,
+                      "relatorio_dir": None, "parametros": {},
+                      "motivo_reprovacao_precoce": motivo},
+                     ensure_ascii=False))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
@@ -1223,6 +1255,9 @@ def main() -> int:
         if not linhas_r:
             if not linhas:
                 print("    relatorio vazio -- nenhum passe sobreviveu aos filtros")
+                emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
+                                      "estagio 1: relatorio vazio, nenhum "
+                                      "passe sobreviveu aos filtros")
                 limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
                 return 1
             print(f"    rodada {rodada}: relatorio vazio; sigo com as anteriores.",
@@ -1260,6 +1295,9 @@ def main() -> int:
     melhores = base.escolher_candidatos(cab, linhas, piso1, 1.0)
     if not melhores:
         print("    nenhum passe passou o piso no estagio 1")
+        emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
+                              "estagio 1: nenhum passe passou o piso apos "
+                              "as 3 rodadas")
         limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
     # NAO limpa o checkpoint aqui (achado do dono, 2026-08-06): as 3 rodadas
@@ -1330,6 +1368,8 @@ def main() -> int:
                         args.fim, args.deposit, 1, args.timeout)
     if not linhas:
         print("    relatorio vazio no estagio 2")
+        emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
+                              "estagio 2: relatorio vazio")
         limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
     finais = base.escolher_candidatos(cab, linhas, args.min_trades, args.min_pf)
@@ -1341,6 +1381,9 @@ def main() -> int:
           flush=True)
     if not finais:
         print("    nenhum candidato passou os pisos.")
+        emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
+                              "estagio 2: nenhum candidato passou os pisos "
+                              "de trades/profit factor")
         limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 0
 
@@ -1359,6 +1402,9 @@ def main() -> int:
                                  "numeros (OHLC, ~2s cada)")
     if not ordenados:
         print("    nenhum finalista dos numeros produziu medida de retencao.")
+        emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
+                              "estagio 2: nenhum finalista do torneio de "
+                              "numeros produziu medida de retencao")
         limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
     travados.update(ordenados[0][2])
@@ -1460,6 +1506,9 @@ def main() -> int:
                             args, 4, "vencedor (tick real)")
     if not conf:
         print("    a confirmacao em tick real nao produziu retencao.")
+        emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
+                              "estagio 4: a confirmacao em tick real nao "
+                              "produziu retencao")
         limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
     retencao_top, _, vencedor, oos = conf[0]
