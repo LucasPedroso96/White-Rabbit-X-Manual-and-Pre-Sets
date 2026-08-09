@@ -745,17 +745,22 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
             # ele representa. Pedido explicito do dono, 2026-08-08.
             p.opt("GridMode", 2, 1, 1, 2)
         p.fix("AtivarStop", "false")
-        p.fix("Stop", sl_mid)
+        # Grid nao tem SL nativo (a cesta e a gestao), mas Stop continua
+        # tendo efeito real: e a base que o breakeven do EA usa quando nao
+        # ha SL na posicao (ApplyBreakevenForSide, .mq5: slDistance =
+        # ATR[VelaStop] * Stop, multiplicado por BreakevenDistancia). Achado
+        # do dono, 2026-08-08: Stop estava fixo aqui enquanto os outros 6
+        # sistemas com breakeven o deixam otimizavel (p.opt, mesma faixa) --
+        # travado, o otimizador so podia variar a distancia do breakeven
+        # pelo multiplicador, nunca pela base. Mesmo caminho dos outros
+        # sistemas agora, sem excecao pro grid.
+        p.opt("Stop", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
         p.opt("VelaStop", 0, 0, 1, 3)
         p.fix("AtivarTake", "true")
         p.fix("TakeOrganico", "false")
         p.opt("VelaTake", 0, 0, 1, 3)
-        # Grid nao tem SL nativo (a cesta e a gestao), mas o breakeven do EA
-        # ja tem fallback pronto pra isso: sem SL na posicao, ele usa
-        # ATR*Stop como distancia de gatilho (ApplyBreakevenForSide, .mq5) --
-        # e Stop/VelaStop, 2 linhas acima, ja sao exatamente isso (fixo em
-        # sl_mid, VelaStop otimizado). Grid so precisava parar de cravar
-        # AtivarBreakeven em false pra herdar essa referencia de graca.
+        # Achado do dono, 2026-08-05: mesmo esquema dos outros 6 sistemas
+        # que oferecem BE (opt_bool + range), nao inventado pra grid.
         # Achado do dono, 2026-08-05: mesmo esquema dos outros 6 sistemas
         # que oferecem BE (opt_bool + range), nao inventado pra grid.
         p.opt_bool("AtivarBreakeven", "true")
