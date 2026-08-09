@@ -162,6 +162,24 @@ contas = aml.contas_necessarias([combo_desconhecido_isolado], saldo_conta=1000)
 checar("hedge totalmente sem classe resolvivel -> capital_minimo None (nao 0.0, que pareceria 'gratis')",
        contas[0]["capital_minimo"], None)
 
+# Caso G: conta de hedging com DUAS classes (achado 2026-08-09 -- antes usava
+# max() e reportava so 10000; capital real pra sustentar as duas posicoes ao
+# mesmo tempo e a SOMA, 500 + 10000).
+hedge_forex = {"chave": "S12", "simbolo": "AUDCAD", "sistema": "08_GRID_UNIFIED"}
+hedge_metais = {"chave": "S13", "simbolo": "XAUUSD", "sistema": "08_GRID_UNIFIED"}
+contas = aml.contas_necessarias([hedge_forex, hedge_metais], saldo_conta=1000)
+checar("caso G: 1 conta de hedging so (tier nao particiona por classe)", len(contas), 1)
+checar("caso G: capital minimo = soma das 2 classes (500 + 10000)",
+       contas[0]["capital_minimo"], 10500)
+checar("caso G: os 2 combos na mesma conta de hedging",
+       sorted(contas[0]["combos"]), ["S12", "S13"])
+
+# Caso H: 2 combos de hedging da MESMA classe nao duplicam o capital minimo.
+hedge_forex_b = {"chave": "S14", "simbolo": "EURUSD", "sistema": "07_GRID_SEPARATE"}
+contas = aml.contas_necessarias([hedge_forex, hedge_forex_b], saldo_conta=1000)
+checar("caso H: mesma classe nao soma duas vezes (500, nao 1000)",
+       contas[0]["capital_minimo"], 500)
+
 
 # --- montar_sugestoes (usa as mesmas series deterministicas do Task 3) -------
 combos_certificados = [

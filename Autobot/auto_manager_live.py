@@ -158,11 +158,23 @@ def contas_necessarias(combos: list[dict], saldo_conta: float) -> list[dict]:
 
     contas: list[dict] = []
     if hedge:
-        capitais_hedge = [capital_minimo_classe(c["simbolo"]) for c in hedge]
-        capitais_hedge = [v for v in capitais_hedge if v is not None]
+        # SOMA por classe DISTINTA presente, nao por combo (senao 2 combos
+        # Forex contariam capital_base 500 duas vezes) e nao max() (achado
+        # 2026-08-09: com combos de duas classes na mesma conta de hedging,
+        # ex. um grid Forex + um grid Metals, max() reportava so 10000 --
+        # capital real necessario pra sustentar as duas posicoes ao mesmo
+        # tempo e 10500. Mesma logica da conta "normal" abaixo.
+        classes_hedge = sorted({
+            classe for c in hedge
+            if (classe := _classe_do_simbolo(c["simbolo"])) is not None
+        })
+        capital_hedge = (
+            sum(CLASSES[classe].capital_base for classe in classes_hedge)
+            if classes_hedge else None
+        )
         contas.append({
             "tipo": "hedging",
-            "capital_minimo": max(capitais_hedge) if capitais_hedge else None,
+            "capital_minimo": capital_hedge,
             "combos": [c["chave"] for c in hedge],
         })
 
