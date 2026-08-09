@@ -734,19 +734,41 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
     elif system in ("07_GRID_SEPARATE", "08_GRID_UNIFIED"):
         # Grid: SL desligado (a cesta e a gestao), TP obrigatorio,
         # recovery off, lado >= 2, conta hedging.
-        p.fix("GridMode", 1 if system == "07_GRID_SEPARATE" else 2)
+        if system == "07_GRID_SEPARATE":
+            p.fix("GridMode", 1)
+        else:
+            # 08_GRID_UNIFIED: quem decide separado (1) vs unificado (2) e
+            # o proprio algoritmo por combo, nao um travamento de arquivo --
+            # "unificado" no nome e so o ponto de partida (current=2), nao
+            # a unica opcao. Nunca inclui 0 (Grid_Disabled): desligar o
+            # grid tornaria o arquivo incoerente com o proprio sistema que
+            # ele representa. Pedido explicito do dono, 2026-08-08.
+            p.opt("GridMode", 2, 1, 1, 2)
         p.fix("AtivarStop", "false")
-        p.fix("Stop", sl_mid)
+        # Grid nao tem SL nativo (a cesta e a gestao), mas Stop continua
+        # tendo efeito real: e a base que o breakeven do EA usa quando nao
+        # ha SL na posicao (ApplyBreakevenForSide, .mq5: slDistance =
+        # ATR[VelaStop] * Stop, multiplicado por BreakevenDistancia). Achado
+        # do dono, 2026-08-08: Stop estava fixo aqui enquanto os outros 6
+        # sistemas com breakeven o deixam otimizavel -- travado, o
+        # otimizador so podia variar a distancia do breakeven pelo
+        # multiplicador (BreakevenDistancia), nunca pela base.
+        #
+        # Faixa mais grossa que os outros 6 sistemas de proposito (3 passos
+        # -- lo/mid/hi -- em vez do passo 0.5 deles): la Stop e o SL de
+        # verdade, o eixo principal de risco, precisa de granularidade fina.
+        # Aqui e so a base do breakeven, papel secundario, e ja e
+        # multiplicativamente redundante com BreakevenDistancia (mesma
+        # distancia final sai de varios pares Stop/BreakevenDistancia
+        # diferentes) -- passo fino so inflaria o espaco de busca sem
+        # sinal novo. Pedido do dono, 2026-08-08.
+        p.opt("Stop", sl_mid, ac.sl_lo, (ac.sl_hi - ac.sl_lo) / 2, ac.sl_hi)
         p.opt("VelaStop", 0, 0, 1, 3)
         p.fix("AtivarTake", "true")
         p.fix("TakeOrganico", "false")
         p.opt("VelaTake", 0, 0, 1, 3)
-        # Grid nao tem SL nativo (a cesta e a gestao), mas o breakeven do EA
-        # ja tem fallback pronto pra isso: sem SL na posicao, ele usa
-        # ATR*Stop como distancia de gatilho (ApplyBreakevenForSide, .mq5) --
-        # e Stop/VelaStop, 2 linhas acima, ja sao exatamente isso (fixo em
-        # sl_mid, VelaStop otimizado). Grid so precisava parar de cravar
-        # AtivarBreakeven em false pra herdar essa referencia de graca.
+        # Achado do dono, 2026-08-05: mesmo esquema dos outros 6 sistemas
+        # que oferecem BE (opt_bool + range), nao inventado pra grid.
         # Achado do dono, 2026-08-05: mesmo esquema dos outros 6 sistemas
         # que oferecem BE (opt_bool + range), nao inventado pra grid.
         p.opt_bool("AtivarBreakeven", "true")

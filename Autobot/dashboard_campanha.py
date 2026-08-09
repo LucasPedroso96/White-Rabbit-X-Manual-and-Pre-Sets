@@ -64,6 +64,7 @@ from fastapi.staticfiles import StaticFiles
 import optimize_sets as base
 import ready_library
 import relatorio_resumo
+import auto_manager_live
 from generate_system_sets import ASSETS, CLASSES, SYSTEMS
 from mt5_runner import fechar_terminal, terminal_aberto
 
@@ -889,6 +890,24 @@ def _sets_certificados() -> list[dict]:
 @app.get("/api/implantacao")
 def implantacao() -> JSONResponse:
     return JSONResponse({"sets": _sets_certificados()})
+
+
+@app.get("/api/implantacao/sugestoes")
+def implantacao_sugestoes(saldo: float = 0.0) -> JSONResponse:
+    """Fila numerada de combinacoes sugeridas pra subir ao vivo -- so entre os
+    certificados que ainda NAO estao marcados como implantados. Aceitar uma
+    sugestao e o /api/implantacao/marcar de sempre, por chave -- este
+    endpoint so calcula a fila, nunca escreve em sets_implantados.json."""
+    disponiveis = [s for s in _sets_certificados()
+                  if s["certificado"] and not s["implantado"]]
+    series = auto_manager_live.carregar_series_certificadas(
+        disponiveis, RELATORIOS_DIR)
+    sugestoes = auto_manager_live.montar_sugestoes(disponiveis, series, saldo)
+    return JSONResponse({
+        "sugestoes": sugestoes,
+        "pool": len(disponiveis),
+        "com_serie": len(series),
+    })
 
 
 _NOMES_RELATORIO_VALIDOS = {"conf_wrx", "sobrevivencia"}
