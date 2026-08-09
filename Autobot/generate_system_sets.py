@@ -734,7 +734,16 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
     elif system in ("07_GRID_SEPARATE", "08_GRID_UNIFIED"):
         # Grid: SL desligado (a cesta e a gestao), TP obrigatorio,
         # recovery off, lado >= 2, conta hedging.
-        p.fix("GridMode", 1 if system == "07_GRID_SEPARATE" else 2)
+        if system == "07_GRID_SEPARATE":
+            p.fix("GridMode", 1)
+        else:
+            # 08_GRID_UNIFIED: quem decide separado (1) vs unificado (2) e
+            # o proprio algoritmo por combo, nao um travamento de arquivo --
+            # "unificado" no nome e so o ponto de partida (current=2), nao
+            # a unica opcao. Nunca inclui 0 (Grid_Disabled): desligar o
+            # grid tornaria o arquivo incoerente com o proprio sistema que
+            # ele representa. Pedido explicito do dono, 2026-08-08.
+            p.opt("GridMode", 2, 1, 1, 2)
         p.fix("AtivarStop", "false")
         p.fix("Stop", sl_mid)
         p.opt("VelaStop", 0, 0, 1, 3)
