@@ -72,3 +72,46 @@ def ordenar_candidatos(combos: list[dict]) -> list[dict]:
             mc if mc is not None else 1e18,
         )
     return sorted(combos, key=chave_ordenacao)
+
+
+def selecionar_ordenado(series: dict[str, pd.Series], ordem: list[str],
+                        maximo: int, teto: float,
+                        recuperacao_minima: float) -> tuple[list[str], list[str]]:
+    """Mesma elegibilidade e mesmo teto de correlacao POSITIVA de
+    portfolio_builder.selecionar() (correlacao negativa nunca exclui -- e o
+    melhor caso, ver a docstring de selecionar()), mas a ordem de escolha
+    segue `ordem` (graduacao de risco, ja despatada por retencao/mc) em vez
+    do maior fator de recuperacao. O resultado pode misturar tiers quando o
+    teto de correlacao permite -- e exatamente esse caso que aciona a regra
+    de "mistura de tier" de contas_necessarias().
+    """
+    quadro = pd.DataFrame(series).fillna(0.0)
+    correl = quadro.corr().fillna(0.0)
+
+    avaliacao = {nome: pb.metricas(serie) for nome, serie in series.items()}
+    elegiveis: list[str] = []
+    recusadas: list[str] = []
+    for nome in ordem:
+        m = avaliacao.get(nome)
+        if m is None:
+            continue
+        if m["resultado"] <= 0:
+            recusadas.append(f"{nome}: resultado negativo")
+        elif m["recuperacao"] < recuperacao_minima:
+            recusadas.append(
+                f"{nome}: recuperacao {m['recuperacao']:.2f} "
+                f"abaixo de {recuperacao_minima:g}")
+        else:
+            elegiveis.append(nome)
+
+    escolhidas: list[str] = []
+    for nome in elegiveis:
+        if len(escolhidas) >= maximo:
+            break
+        if not escolhidas:
+            escolhidas.append(nome)
+            continue
+        pior = max(correl.loc[nome, j] for j in escolhidas)
+        if pior <= teto:
+            escolhidas.append(nome)
+    return escolhidas, recusadas
