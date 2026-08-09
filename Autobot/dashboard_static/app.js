@@ -1162,7 +1162,9 @@ async function carregarConfig() {
         ${s.code} — ${s.label} <span class="capital-note">(${nota})</span></label>`;
     }).join("");
     const grupos = document.getElementById("grupos-ativos");
-    grupos.innerHTML = Object.entries(CONFIG.classes).map(([classe, info]) => `
+    grupos.innerHTML = Object.entries(CONFIG.classes)
+      .sort(([, a], [, b]) => a.capital_base - b.capital_base)
+      .map(([classe, info]) => `
       <fieldset data-capital-base="${info.capital_base}"><legend>${classe} (capital base ${info.capital_base})
         <button type="button" class="btn-classe-todos">all</button>
         <button type="button" class="btn-classe-nenhum">none</button>
