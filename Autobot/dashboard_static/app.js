@@ -1172,11 +1172,14 @@ async function carregarConfig() {
   atualizarDepositoSugerido();
 }
 
+const DEPOSITO_PADRAO = 500;
+
 function maiorCapitalBase(somenteMarcados) {
   let maior = null;
   document.querySelectorAll("#grupos-ativos fieldset").forEach((fs) => {
     if (somenteMarcados && !fs.querySelector(".chk-ativo:checked")) return;
     const base = Number(fs.dataset.capitalBase);
+    if (!Number.isFinite(base)) return;
     if (maior === null || base > maior) maior = base;
   });
   return maior;
@@ -1185,26 +1188,18 @@ function maiorCapitalBase(somenteMarcados) {
 function atualizarDepositoSugerido() {
   const chk = document.getElementById("chk-deposito-auto");
   const campo = document.getElementById("campo-deposito");
-  if (modoAtual === "auto") {
-    chk.checked = true;
-    chk.disabled = true;
-    campo.disabled = true;
-    const maior = maiorCapitalBase(false);
-    if (maior !== null) campo.value = maior;
-    return;
-  }
   chk.disabled = false;
   if (chk.checked) {
     campo.disabled = true;
-    const maior = maiorCapitalBase(true);
-    campo.value = maior !== null ? maior : 500;
+    const maior = maiorCapitalBase(modoAtual !== "auto");
+    campo.value = maior !== null ? maior : DEPOSITO_PADRAO;
   } else {
     campo.disabled = false;
   }
 }
 carregarConfig();
 document.getElementById("chk-deposito-auto").addEventListener("change", (ev) => {
-  if (!ev.target.checked) document.getElementById("campo-deposito").value = 500;
+  if (!ev.target.checked) document.getElementById("campo-deposito").value = DEPOSITO_PADRAO;
   atualizarDepositoSugerido();
 });
 
