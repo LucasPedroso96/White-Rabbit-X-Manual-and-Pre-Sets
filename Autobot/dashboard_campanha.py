@@ -477,8 +477,6 @@ def _lancar_campanha(body: dict) -> JSONResponse:
     cmd = [
         sys.executable,
         str(AQUI / "campanha.py"),
-        "--from",
-        body.get("inicio", "2023.08.01"),
         "--to",
         body.get("fim") or datetime.now().strftime("%Y.%m.%d"),
         "--deposit",
@@ -493,6 +491,15 @@ def _lancar_campanha(body: dict) -> JSONResponse:
         # regravando e seguindo em frente mesmo se um combo estourar isso.
         str(body.get("timeout", 43200)),
     ]
+    # --from so vai explicito se o chamador mandou um; sem isso, cai no
+    # default do proprio campanha.py (anos_atras(3) -- sempre 3 anos antes
+    # de HOJE). Achado 2026-08-09: aqui tinha um fallback "2023.08.01"
+    # cravado, que ficava mais desatualizado a cada dia e so nao aparecia
+    # pro usuario porque o dashboard SEMPRE manda campo-inicio preenchido
+    # (anosAtrasMT5(3) no app.js) -- so uma chamada direta na API (sem
+    # passar por essa tela) caia nesse fallback congelado.
+    if body.get("inicio"):
+        cmd += ["--from", body["inicio"]]
     limite = body.get("limite", 0)
     if limite:
         cmd += ["--limite", str(limite)]

@@ -32,6 +32,23 @@ import optimize_sets as base
 AQUI = Path(__file__).resolve().parent
 LEDGER = AQUI / "campanha_resultados.jsonl"
 
+
+def anos_atras(anos: int) -> str:
+    """Data de hoje menos `anos` anos, no formato do MT5 (YYYY.MM.DD).
+
+    Antes o default de --from vinha cravado em "2023.08.01" -- ficava mais
+    defasado a cada dia que passava (achado 2026-08-06, quase 3 anos de
+    atraso). Espelha o anosAtrasMT5() do dashboard (app.js), pra --from ficar
+    sempre alinhado com hoje, tanto rodando via painel quanto via CLI/API
+    direta sem passar --from explicito.
+    """
+    hoje = datetime.now()
+    try:
+        data = hoje.replace(year=hoje.year - anos)
+    except ValueError:
+        data = hoje.replace(month=2, day=28, year=hoje.year - anos)
+    return data.strftime("%Y.%m.%d")
+
 # Multi-ativo (dono, 2026-08-02): a lista de simbolos NUNCA e cravada aqui --
 # uma lista fixa (ex.: "os 9 .HT do dono") so funciona na maquina de quem a
 # escreveu. Em qualquer outro terminal os simbolos nao existem, o `/config:`
@@ -238,7 +255,7 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--from", dest="inicio", default="2023.08.01")
+    ap.add_argument("--from", dest="inicio", default=anos_atras(3))
     ap.add_argument("--to", dest="fim", default=datetime.now().strftime("%Y.%m.%d"))
     ap.add_argument("--deposit", type=int, default=500)
     ap.add_argument("--min-retencao", type=float, default=30.0)
