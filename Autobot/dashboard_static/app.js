@@ -1440,8 +1440,10 @@ async function carregarPortfolios() {
 
   const gerados = d.gerados || [];
   const tabsGerados = document.getElementById("tabs-portfolio-gerados");
-  tabsGerados.innerHTML = gerados.map((g) => `<button data-url="${g.url}">${g.nome}</button>`).join("")
-    || `<span class="status-msg">no correlation panel generated yet — pick a folder above.</span>`;
+  // Sem gerados, deixa vazio: "#msg-portfolio-iframe" ja mostra o aviso de
+  // vazio logo abaixo do iframe -- as duas mensagens juntas eram redundantes
+  // (achado 2026-08-09).
+  tabsGerados.innerHTML = gerados.map((g) => `<button data-url="${g.url}">${g.nome}</button>`).join("");
   tabsGerados.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     tabsGerados.querySelectorAll("button").forEach((x) => x.classList.toggle("ativo", x === b));
     mostrarPortfolioIframe(b.dataset.url);

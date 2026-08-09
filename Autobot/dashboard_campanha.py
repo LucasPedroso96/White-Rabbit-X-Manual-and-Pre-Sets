@@ -650,18 +650,36 @@ def _prontos_dir() -> Path:
 def _md_para_html(texto: str) -> str:
     """Conversor minimo: cabecalho, lista, tabela, negrito. O conteudo de
     MAPA.md/_PORTFOLIOS e sempre esses quatro elementos -- nao vale trazer a
-    dependencia `markdown` so pra isso."""
+    dependencia `markdown` so pra isso.
+
+    Linhas de texto puro se acumulam num paragrafo so ate a proxima linha em
+    branco ou bloco especial -- achado 2026-08-09: cada linha virava um <p>
+    separado, entao uma frase so quebrada em 3 linhas no .md (word wrap, sem
+    linha em branco entre elas) aparecia na tela como 3 paragrafos soltos.
+    Isso e o comportamento normal de markdown (CommonMark junta linhas
+    consecutivas no mesmo paragrafo), so faltava aqui."""
     linhas_html = []
     dentro_tabela = False
+    paragrafo: list[str] = []
+
+    def fechar_paragrafo() -> None:
+        if paragrafo:
+            linhas_html.append(f"<p>{' '.join(paragrafo)}</p>")
+            paragrafo.clear()
+
     for linha in texto.splitlines():
         bruta = linha.rstrip()
         if bruta.startswith("### "):
+            fechar_paragrafo()
             linhas_html.append(f"<h3>{bruta[4:]}</h3>")
         elif bruta.startswith("## "):
+            fechar_paragrafo()
             linhas_html.append(f"<h2>{bruta[3:]}</h2>")
         elif bruta.startswith("# "):
+            fechar_paragrafo()
             linhas_html.append(f"<h1>{bruta[2:]}</h1>")
         elif bruta.startswith("|"):
+            fechar_paragrafo()
             celulas = [c.strip() for c in bruta.strip("|").split("|")]
             if all(re.fullmatch(r":?-+:?", c) for c in celulas):
                 continue  # linha separadora do cabecalho da tabela
@@ -673,14 +691,17 @@ def _md_para_html(texto: str) -> str:
                 linhas_html.insert(-1, "<table>")
                 dentro_tabela = True
         elif bruta.startswith("- "):
+            fechar_paragrafo()
             linhas_html.append(f"<li>{bruta[2:]}</li>")
         elif not bruta.strip():
+            fechar_paragrafo()
             if dentro_tabela:
                 linhas_html.append("</table>")
                 dentro_tabela = False
             linhas_html.append("<br>")
         else:
-            linhas_html.append(f"<p>{bruta}</p>")
+            paragrafo.append(bruta)
+    fechar_paragrafo()
     if dentro_tabela:
         linhas_html.append("</table>")
     html = "\n".join(linhas_html)

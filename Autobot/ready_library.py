@@ -438,8 +438,9 @@ def _gerar_portfolios(destino: Path, prontos: list[dict]) -> None:
         linhas += [
             "",
             "Metricas do ledger da campanha; 'n/d' = corrida feita fora dela.",
-            "Pesos por correlacao: rode portfolio_builder.py com os",
-            "relatorios HTML dos membros -- correlacao pede a serie diaria,",
+            "",
+            "Pesos por correlacao: rode portfolio_builder.py com os "
+            "relatorios HTML dos membros -- correlacao pede a serie diaria, "
             "que o ledger nao guarda.",
         ]
         (pasta / f"{sistema}.md").write_text("\n".join(linhas),
