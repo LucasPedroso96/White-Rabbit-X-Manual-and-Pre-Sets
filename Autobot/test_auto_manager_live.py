@@ -78,6 +78,29 @@ escolhidas_lim, _ = aml.selecionar_ordenado(
     recuperacao_minima=1.0)
 checar("maximo=1 devolve so o primeiro", escolhidas_lim, ["s1"])
 
+# --- eligibilidade: recuperacao abaixo do minimo (branch elif nunca testada) ---
+s5_baixa_recuperacao = pd.Series([10.0, -8.0, 10.0, -8.0, 1.0])
+# resultado = soma = 5.0 (positivo, passa no primeiro filtro)
+# acumulado = [10,2,12,4,5], pico = [10,10,12,12,12], dd = min(acumulado-pico) = -8
+# recuperacao = 5/8 = 0.625, abaixo do recuperacao_minima=1.0padrão -> rejeitada no segundo filtro
+series_b = {"s5_baixa_recuperacao": s5_baixa_recuperacao}
+_, recusadas_b = aml.selecionar_ordenado(
+    series_b, ["s5_baixa_recuperacao"], maximo=1, teto=0.5, recuperacao_minima=1.0)
+checar("recuperacao abaixo do minimo tambem rejeita (resultado positivo, recuperacao baixa)",
+       any("recuperacao" in r for r in recusadas_b), True)
+
+# --- correlacao exatamente igual ao teto e aceita (limite inclusivo, <=) ---
+sA = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0])
+sB = pd.Series([3.0, 1.0, 5.0, 2.0, 9.0, 4.0, 8.0])
+# ambas so tem valores diarios positivos -> cumulativo monotonico -> dd=0 -> recuperacao=inf
+# em ambas, elegibilidade trivial garantida independente da correlacao entre elas.
+teto_exato = float(pd.DataFrame({"a": sA, "b": sB}).corr().loc["a", "b"])
+series_c = {"a": sA, "b": sB}
+escolhidas_c, _ = aml.selecionar_ordenado(
+    series_c, ["a", "b"], maximo=2, teto=teto_exato, recuperacao_minima=1.0)
+checar("correlacao exatamente igual ao teto e aceita (limite inclusivo, <=)",
+       escolhidas_c, ["a", "b"])
+
 
 if FALHAS:
     print(f"{len(FALHAS)} falha(s):")
