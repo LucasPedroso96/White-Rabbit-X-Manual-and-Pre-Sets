@@ -288,6 +288,7 @@ def sincronizar(biblioteca: Path = BIBLIOTECA, tester: Path = TESTER,
 
     total_templates = sum(1 for _ in biblioteca.rglob("*.set"))
     _gerar_mapa(destino, biblioteca, prontos, total_templates)
+    _gerar_mapa_json(destino, biblioteca, prontos, total_templates)
     _gerar_portfolios(destino, prontos)
 
     return {"prontos": len(prontos), "copiados": copiados,
@@ -331,6 +332,39 @@ def _gerar_mapa(destino: Path, biblioteca: Path, prontos: list[dict],
             linhas.append(f"- ({sem_nada} ativos sem set pronto)")
         linhas.append("")
     (destino / "MAPA.md").write_text("\n".join(linhas), encoding="utf-8")
+
+
+def _gerar_mapa_json(destino: Path, biblioteca: Path, prontos: list[dict],
+                     total_templates: int) -> None:
+    """MAPA.json: mesma informacao do MAPA.md, mas em grade completa (TODO
+    ativo da classe, pronto ou nao) para o heatmap ativo x sistema do
+    dashboard -- o .md deliberadamente omite ativo sem nada pronto (visao de
+    cima), o heatmap precisa da grade inteira pra desenhar as colunas vazias
+    (igual ao Historical Tool Manager, que mostra todo mes mesmo sem dado)."""
+    por_classe: dict[str, dict[str, list[dict]]] = {}
+    for p in prontos:
+        por_classe.setdefault(p["classe"], {}).setdefault(p["ativo"], []).append(p)
+
+    classes: dict[str, dict] = {}
+    for classe in sorted(c.name for c in biblioteca.iterdir() if c.is_dir()):
+        ativos_prontos = por_classe.get(classe, {})
+        ativos: dict[str, dict[str, list[str]]] = {}
+        for pasta_ativo in sorted(p.name for p in (biblioteca / classe).iterdir()
+                                  if p.is_dir()):
+            por_sistema: dict[str, list[str]] = {}
+            for item in ativos_prontos.get(pasta_ativo, []):
+                por_sistema.setdefault(item["sistema"], []).append(item["variante"])
+            ativos[pasta_ativo] = por_sistema
+        classes[classe] = ativos
+
+    dados = {
+        "atualizado_em": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "prontos": len(prontos),
+        "templates": total_templates,
+        "classes": classes,
+    }
+    (destino / "MAPA.json").write_text(
+        json.dumps(dados, ensure_ascii=False, indent=0), encoding="utf-8")
 
 
 def _gerar_portfolios(destino: Path, prontos: list[dict]) -> None:

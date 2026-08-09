@@ -692,9 +692,14 @@ def _md_para_html(texto: str) -> str:
 def portfolios() -> JSONResponse:
     pasta = _prontos_dir()
     mapa = pasta / "MAPA.md"
+    mapa_json = pasta / "MAPA.json"
     resultado = {
         "mapa_html": (
             _md_para_html(mapa.read_text(encoding="utf-8")) if mapa.exists() else None
+        ),
+        "mapa": (
+            json.loads(mapa_json.read_text(encoding="utf-8"))
+            if mapa_json.exists() else None
         ),
         "sistemas": {},
     }

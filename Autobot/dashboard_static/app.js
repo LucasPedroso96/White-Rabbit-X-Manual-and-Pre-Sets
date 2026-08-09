@@ -1393,9 +1393,43 @@ function mostrarPortfolioIframe(url) {
   msg.style.display = "none";
 }
 
+// Heatmap ativo x sistema pros sets JA PRONTOS (validados, no espelho) --
+// mesma grade do carregarHeatmap() acima (que mostra o que foi TESTADO),
+// so que binaria: pronto (hm-high) ou nao (hm-none), porque aqui nao ha
+// retencao continua, so "no espelho ou nao esta".
+function renderMapaProntos(mapa) {
+  const el = document.getElementById("mapa-html");
+  if (!mapa || !Object.keys(mapa.classes || {}).length) {
+    el.innerHTML = "sem MAPA.md ainda";
+    return;
+  }
+  const sistemas = (CONFIG?.sistemas || []).map((s) => s.code);
+  const resumo = `<p class="status-msg">Atualizado: ${mapa.atualizado_em} | prontos: `
+    + `<b>${mapa.prontos}</b> de ${mapa.templates} templates.</p>`;
+  const tabelas = Object.entries(mapa.classes).map(([classe, ativos]) => {
+    const header = `<th></th>` + sistemas.map((sc) => `<th title="${sc}">${sc.slice(0, 2)}</th>`).join("");
+    const linhas = Object.entries(ativos).map(([ativo, porSistema]) => {
+      const celulas = sistemas.map((sc) => {
+        const variantes = porSistema[sc];
+        const pronto = variantes && variantes.length;
+        const tom = pronto ? "hm-high" : "hm-none";
+        const dica = pronto ? `${ativo} ${sc}: ${variantes.join(", ")}` : `${ativo} ${sc}: not ready`;
+        return `<td><span class="hm-cell ${tom}" title="${dica}"></span></td>`;
+      }).join("");
+      return `<tr><th>${ativo}</th>${celulas}</tr>`;
+    }).join("");
+    return `<div class="hm-box">
+      <div class="hm-class-title">${classe} (${Object.keys(ativos).length} ativos)</div>
+      <div class="hm-scroll"><table class="hm-table"><thead><tr>${header}</tr></thead>
+      <tbody>${linhas}</tbody></table></div>
+    </div>`;
+  }).join("");
+  el.innerHTML = resumo + tabelas;
+}
+
 async function carregarPortfolios() {
   const d = await api("/api/portfolios");
-  document.getElementById("mapa-html").innerHTML = d.mapa_html || "sem MAPA.md ainda";
+  renderMapaProntos(d.mapa);
   portfolioSistemas = d.sistemas || {};
   portfolioCapital = d.capital_por_sistema || {};
   const tabs = document.getElementById("tabs-sistemas-portfolio");

@@ -127,6 +127,15 @@ with tempfile.TemporaryDirectory() as tmp:
     checar_contem("mapa: marca do EURUSD", mapa, "**EURUSD**: *01_SLTP/BUY_MULTI")
     checar_contem("mapa: ativos sem pronto", mapa, "(1 ativos sem set pronto)")
 
+    mapa_json = json.loads((destino / "MAPA.json").read_text(encoding="utf-8"))
+    checar("mapa.json: prontos", mapa_json["prontos"], 2)
+    checar("mapa.json: EURUSD pronto", mapa_json["classes"]["01_Forex"]["EURUSD"],
+           {"01_SLTP": ["BUY_MULTI"]})
+    checar("mapa.json: GBPUSD sem nada mas presente na grade",
+           mapa_json["classes"]["01_Forex"]["GBPUSD"], {})
+    checar("mapa.json: outra classe (XAUUSD) tambem entra",
+           mapa_json["classes"]["05_Metals"]["XAUUSD"], {"01_SLTP": ["BUY_MULTI"]})
+
     port = (destino / rl.PASTA_PORTFOLIOS / "01_SLTP.md").read_text(encoding="utf-8")
     checar_contem("portfolio: membro com metricas", port,
                   "| EURUSD.HT | BUY_MULTI | 41.5% | +0.157R | 410 | n/d "
