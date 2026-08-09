@@ -157,6 +157,63 @@ fake_conta = next(c for c in contas if "S10" in c["combos"])
 checar("caso F: combo desconhecido em conta separada com capital_minimo 0.0", fake_conta["capital_minimo"], 0.0)
 
 
+# --- montar_sugestoes (usa as mesmas series deterministicas do Task 3) -------
+combos_certificados = [
+    {"chave": "s1", "simbolo": "EURUSD", "sistema": "01_SLTP",
+     "variante": "BUY_MULTI", "retencao": 80.0, "mc_prob_ruina": 0.01},
+    {"chave": "s2", "simbolo": "GBPUSD", "sistema": "01_SLTP",
+     "variante": "BUY_MULTI", "retencao": 75.0, "mc_prob_ruina": 0.01},
+    {"chave": "s3", "simbolo": "USDJPY", "sistema": "02_SLTP_ORGANIC",
+     "variante": "BUY_MULTI", "retencao": 70.0, "mc_prob_ruina": 0.01},
+]
+series_por_chave = {"s1": s1, "s2": s2, "s3": s3}
+sugestoes = aml.montar_sugestoes(combos_certificados, series_por_chave,
+                                 saldo_conta=1000, teto_correlacao=0.5)
+checar("2 sugestoes (s2 fica pra segunda rodada)", len(sugestoes), 2)
+checar("numeracao sequencial", [s["numero"] for s in sugestoes], [1, 2])
+chaves_sug1 = sorted(c["chave"] for c in sugestoes[0]["combos"])
+checar("sugestao 1: s1 + s3 (s2 correlaciona +1.0 com s1)",
+       chaves_sug1, ["s1", "s3"])
+checar("sugestao 2: so s2, sozinho",
+       [c["chave"] for c in sugestoes[1]["combos"]], ["s2"])
+checar("toda sugestao tem contas calculadas",
+       all("contas" in s and s["contas"] for s in sugestoes), True)
+pesos_sug1 = {c["chave"]: c["peso"] for c in sugestoes[0]["combos"]}
+checar("pesos da sugestao 1 somam 1.0",
+       round(sum(pesos_sug1.values()), 6), 1.0)
+
+# --- carregar_series_certificadas --------------------------------------------
+import tempfile
+from pathlib import Path as _Path
+
+relatorio_html = pd.DataFrame({
+    "Order": [1, 2, 3, 4, 5, 6],
+    "Symbol": ["EURUSD"] * 6,
+    "Type": ["buy"] * 6,
+    "Volume": [0.01] * 6,
+    "Time": ["2026.01.01 00:00", "2026.01.01 01:00", "2026.01.02 00:00",
+             "2026.01.02 01:00", "2026.01.03 00:00", "2026.01.03 01:00"],
+    "Profit": [10.0, -2.0, 8.0, -1.0, 9.0, 3.0],
+}).to_html(index=False)
+
+with tempfile.TemporaryDirectory() as tmp:
+    relatorios_dir = _Path(tmp)
+    pasta_combo = relatorios_dir / "combo_1"
+    pasta_combo.mkdir()
+    (pasta_combo / "conf_wrx.htm").write_text(relatorio_html, encoding="utf-8")
+
+    pool = [
+        {"chave": "com_relatorio", "certificado": True, "relatorio_dir": "combo_1"},
+        {"chave": "sem_relatorio_dir", "certificado": True, "relatorio_dir": None},
+        {"chave": "nao_certificado", "certificado": False, "relatorio_dir": "combo_1"},
+        {"chave": "arquivo_ausente", "certificado": True, "relatorio_dir": "combo_2"},
+    ]
+    series = aml.carregar_series_certificadas(pool, relatorios_dir)
+    checar("so o combo com relatorio legivel entra", list(series.keys()),
+           ["com_relatorio"])
+    checar("serie tem 3 dias (resample diario)", len(series["com_relatorio"]), 3)
+
+
 if FALHAS:
     print(f"{len(FALHAS)} falha(s):")
     for f in FALHAS:

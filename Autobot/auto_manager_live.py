@@ -183,3 +183,66 @@ def contas_necessarias(combos: list[dict], saldo_conta: float) -> list[dict]:
                     "combos": [c["chave"] for c in sem_classe],
                 })
     return contas
+
+
+def carregar_series_certificadas(sets_certificados: list[dict],
+                                 relatorios_dir: Path) -> dict[str, pd.Series]:
+    """Serie diaria de lucro por combo certificado, extraida do relatorio de
+    confirmacao arquivado (conf_wrx.htm) -- mesmo parser que
+    portfolio_builder.py usa pra relatorio do Strategy Tester. Combo sem
+    relatorio legivel simplesmente nao entra: sem serie, sem correlacao pra
+    medir, nao da pra sugerir em combinacao."""
+    series: dict[str, pd.Series] = {}
+    for combo in sets_certificados:
+        if not combo.get("certificado") or not combo.get("relatorio_dir"):
+            continue
+        caminho = relatorios_dir / combo["relatorio_dir"] / "conf_wrx.htm"
+        if not caminho.is_file():
+            continue
+        trades = pb.ler_html(caminho)
+        if trades is None or trades.empty:
+            continue
+        series[combo["chave"]] = pb.serie_diaria(trades)
+    return series
+
+
+def montar_sugestoes(sets_certificados: list[dict],
+                     series_por_chave: dict[str, pd.Series],
+                     saldo_conta: float, max_por_sugestao: int = 8,
+                     teto_correlacao: float = 0.5,
+                     recuperacao_minima: float = 1.0) -> list[dict]:
+    """Fila numerada de sugestoes de combinacao pronta pra subir ao vivo.
+
+    Espera receber so combos AINDA NAO implantados (quem chama filtra --
+    mesmo escopo de _sets_certificados() do dashboard, sem os ja marcados).
+    Cada rodada tira do pool os combos escolhidos e tenta montar a proxima
+    sugestao com o que sobrou, ate esgotar os elegiveis."""
+    por_chave = {c["chave"]: c for c in sets_certificados}
+    pendentes = [c for c in sets_certificados if c["chave"] in series_por_chave]
+    sugestoes: list[dict] = []
+    numero = 1
+    while pendentes:
+        ordenados = ordenar_candidatos(pendentes)
+        ordem = [c["chave"] for c in ordenados]
+        series = {chave: series_por_chave[chave] for chave in ordem}
+        escolhidas, _recusadas = selecionar_ordenado(
+            series, ordem, max_por_sugestao, teto_correlacao,
+            recuperacao_minima)
+        if not escolhidas:
+            break
+        pesos = pb.alocar(series, escolhidas)
+        sugestoes.append({
+            "numero": numero,
+            "combos": [
+                {"chave": chave, "simbolo": por_chave[chave]["simbolo"],
+                 "sistema": por_chave[chave]["sistema"],
+                 "variante": por_chave[chave]["variante"],
+                 "peso": pesos[chave]}
+                for chave in escolhidas
+            ],
+            "contas": contas_necessarias(
+                [por_chave[chave] for chave in escolhidas], saldo_conta),
+        })
+        pendentes = [c for c in pendentes if c["chave"] not in escolhidas]
+        numero += 1
+    return sugestoes
