@@ -1212,16 +1212,24 @@ document.getElementById("btn-sistemas-todos").addEventListener("click", () =>
   document.querySelectorAll(".chk-sistema").forEach((c) => { c.checked = true; }));
 document.getElementById("btn-sistemas-nenhum").addEventListener("click", () =>
   document.querySelectorAll(".chk-sistema").forEach((c) => { c.checked = false; }));
-document.getElementById("btn-ativos-todos").addEventListener("click", () =>
-  document.querySelectorAll(".chk-ativo").forEach((c) => { c.checked = true; }));
-document.getElementById("btn-ativos-nenhum").addEventListener("click", () =>
-  document.querySelectorAll(".chk-ativo").forEach((c) => { c.checked = false; }));
+document.getElementById("btn-ativos-todos").addEventListener("click", () => {
+  document.querySelectorAll(".chk-ativo").forEach((c) => { c.checked = true; });
+  atualizarDepositoSugerido();
+});
+document.getElementById("btn-ativos-nenhum").addEventListener("click", () => {
+  document.querySelectorAll(".chk-ativo").forEach((c) => { c.checked = false; });
+  atualizarDepositoSugerido();
+});
 document.getElementById("grupos-ativos").addEventListener("click", (ev) => {
   const todos = ev.target.closest(".btn-classe-todos");
   const nenhum = ev.target.closest(".btn-classe-nenhum");
   if (!todos && !nenhum) return;
   ev.target.closest("fieldset").querySelectorAll(".chk-ativo")
     .forEach((c) => { c.checked = !!todos; });
+  atualizarDepositoSugerido();
+});
+document.getElementById("grupos-ativos").addEventListener("change", (ev) => {
+  if (ev.target.classList.contains("chk-ativo")) atualizarDepositoSugerido();
 });
 
 // Gradiente continuo por retencao, inspirado no densityClass() do dashboard
@@ -1303,6 +1311,7 @@ document.getElementById("btn-detectar").addEventListener("click", async () => {
         }
       }
     });
+    atualizarDepositoSugerido();
   });
 });
 
