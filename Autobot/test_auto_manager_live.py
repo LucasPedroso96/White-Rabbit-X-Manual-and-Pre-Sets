@@ -138,6 +138,24 @@ checar("caso C: capitais 500 e 10000", capitais, [500, 10000])
 contas = aml.contas_necessarias([forex_a, metais_a], saldo_conta=0)
 checar("caso D: 1 conta so quando saldo e desconhecido", len(contas), 1)
 
+# Caso E: sufixo de corretora em simbolo (EURUSD.HT) nunca e ignorado.
+forex_ht = {"chave": "S9", "simbolo": "EURUSD.HT", "sistema": "01_SLTP"}
+contas = aml.contas_necessarias([forex_ht, metais_a], saldo_conta=1000)
+checar("caso E: 2 contas por capital insuficiente", len(contas), 2)
+todos_combos = sorted([c for conta in contas for c in conta["combos"]])
+checar("caso E: nenhum combo desaparece (S9 e S4 presentes)", todos_combos, ["S4", "S9"])
+forex_ht_conta = next(c for c in contas if "S9" in c["combos"])
+checar("caso E: EURUSD.HT em conta Forex (capital_minimo 500)", forex_ht_conta["capital_minimo"], 500)
+
+# Caso F: simbolo genuinamente desconhecido nao desaparece, vai pra uma conta separada.
+fake = {"chave": "S10", "simbolo": "ZZZFAKE_NAO_EXISTE", "sistema": "01_SLTP"}
+contas = aml.contas_necessarias([fake, metais_a], saldo_conta=1000)
+checar("caso F: 2 contas (classe desconhecida + metais)", len(contas), 2)
+todos_combos_f = sorted([c for conta in contas for c in conta["combos"]])
+checar("caso F: nenhum combo desaparece (S10 e S4 presentes)", todos_combos_f, ["S10", "S4"])
+fake_conta = next(c for c in contas if "S10" in c["combos"])
+checar("caso F: combo desconhecido em conta separada com capital_minimo 0.0", fake_conta["capital_minimo"], 0.0)
+
 
 if FALHAS:
     print(f"{len(FALHAS)} falha(s):")

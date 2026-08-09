@@ -34,22 +34,31 @@ ASSET_CLASS_OF: dict[str, str] = {
 }
 
 
+def _classe_do_simbolo(simbolo: str) -> str | None:
+    """Resolve a classe de ativo do simbolo: exato primeiro, senao o radical
+    antes do primeiro separador -- mesma logica de capital_minimo_classe,
+    compartilhada aqui pra nunca perder um combo por causa de sufixo de
+    corretora na hora de agrupar por classe em contas_necessarias()."""
+    classe = ASSET_CLASS_OF.get(simbolo)
+    if classe is None:
+        radical = re.split(r"[.\-_]", simbolo)[0]
+        classe = ASSET_CLASS_OF.get(radical)
+    return classe
+
+
 def capital_minimo_classe(simbolo: str) -> float | None:
     """Capital minimo da classe do ativo (generate_system_sets.CLASSES).
 
     Tenta o simbolo exato primeiro (cobre casos como "BRK.B", que tem ponto
     proprio, nao sufixo de corretora); so cai pro radical antes do primeiro
     separador quando o simbolo exato nao bate -- mesma ideia de
-    ready_library.achar_ativo(), pra aceitar "EURUSD.HT" etc.
+    ready_library.achar_ativo(), pra aceitar "EURUSD.HT"/"EURUSD-ECN" etc.
 
-    Nota: nao resolve simbolos com sufixo bare-letter (glued, sem separador),
-    como "EURUSDm" -- retorna None. Precisaria validar contra mt5.symbols_get()
-    pra ser seguro (evita false positives em short tickers no ASSET_CLASS_OF).
+    Nao resolve um sufixo colado sem separador (ex: "EURUSDm") -- retorna None.
+    Precisaria validar contra mt5.symbols_get() pra ser seguro (evita false
+    positives em short tickers no ASSET_CLASS_OF).
     """
-    classe = ASSET_CLASS_OF.get(simbolo)
-    if classe is None:
-        radical = re.split(r"[.\-_]", simbolo)[0]
-        classe = ASSET_CLASS_OF.get(radical)
+    classe = _classe_do_simbolo(simbolo)
     if classe is None:
         return None
     return CLASSES[classe].capital_base
@@ -143,9 +152,15 @@ def contas_necessarias(combos: list[dict], saldo_conta: float) -> list[dict]:
         })
 
     if normais:
-        classes_presentes = sorted({
-            ASSET_CLASS_OF.get(c["simbolo"]) for c in normais
-            if ASSET_CLASS_OF.get(c["simbolo"])})
+        por_classe: dict[str, list[dict]] = {}
+        sem_classe: list[dict] = []
+        for c in normais:
+            classe = _classe_do_simbolo(c["simbolo"])
+            if classe is None:
+                sem_classe.append(c)
+            else:
+                por_classe.setdefault(classe, []).append(c)
+        classes_presentes = sorted(por_classe)
         capital_total = sum(CLASSES[classe].capital_base
                             for classe in classes_presentes)
         if saldo_conta <= 0 or capital_total <= saldo_conta or not classes_presentes:
@@ -156,11 +171,15 @@ def contas_necessarias(combos: list[dict], saldo_conta: float) -> list[dict]:
             })
         else:
             for classe in classes_presentes:
-                membros = [c for c in normais
-                          if ASSET_CLASS_OF.get(c["simbolo"]) == classe]
                 contas.append({
                     "tipo": "normal",
                     "capital_minimo": CLASSES[classe].capital_base,
-                    "combos": [c["chave"] for c in membros],
+                    "combos": [c["chave"] for c in por_classe[classe]],
+                })
+            if sem_classe:
+                contas.append({
+                    "tipo": "normal",
+                    "capital_minimo": 0.0,
+                    "combos": [c["chave"] for c in sem_classe],
                 })
     return contas
