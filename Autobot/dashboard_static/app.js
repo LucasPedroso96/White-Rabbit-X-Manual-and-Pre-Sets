@@ -1148,6 +1148,7 @@ function setModo(m) {
   document.getElementById("btn-modo-auto").classList.toggle("ativo", m === "auto");
   document.getElementById("btn-modo-manual").classList.toggle("ativo", m === "manual");
   document.getElementById("bloco-manual").style.display = m === "manual" ? "block" : "none";
+  atualizarDepositoSugerido();
 }
 
 async function carregarConfig() {
@@ -1161,15 +1162,51 @@ async function carregarConfig() {
   }).join("");
   const grupos = document.getElementById("grupos-ativos");
   grupos.innerHTML = Object.entries(CONFIG.classes).map(([classe, info]) => `
-    <fieldset><legend>${classe} (capital base ${info.capital_base})
+    <fieldset data-capital-base="${info.capital_base}"><legend>${classe} (capital base ${info.capital_base})
       <button type="button" class="btn-classe-todos">all</button>
       <button type="button" class="btn-classe-nenhum">none</button>
     </legend>
     <div class="grid-check">${info.ativos.map((a) =>
       `<label><input type="checkbox" class="chk-ativo" value="${a}"> ${a}</label>`).join("")}</div>
     </fieldset>`).join("");
+  atualizarDepositoSugerido();
+}
+
+function maiorCapitalBase(somenteMarcados) {
+  let maior = null;
+  document.querySelectorAll("#grupos-ativos fieldset").forEach((fs) => {
+    if (somenteMarcados && !fs.querySelector(".chk-ativo:checked")) return;
+    const base = Number(fs.dataset.capitalBase);
+    if (maior === null || base > maior) maior = base;
+  });
+  return maior;
+}
+
+function atualizarDepositoSugerido() {
+  const chk = document.getElementById("chk-deposito-auto");
+  const campo = document.getElementById("campo-deposito");
+  if (modoAtual === "auto") {
+    chk.checked = true;
+    chk.disabled = true;
+    campo.disabled = true;
+    const maior = maiorCapitalBase(false);
+    if (maior !== null) campo.value = maior;
+    return;
+  }
+  chk.disabled = false;
+  if (chk.checked) {
+    campo.disabled = true;
+    const maior = maiorCapitalBase(true);
+    campo.value = maior !== null ? maior : 500;
+  } else {
+    campo.disabled = false;
+  }
 }
 carregarConfig();
+document.getElementById("chk-deposito-auto").addEventListener("change", (ev) => {
+  if (!ev.target.checked) document.getElementById("campo-deposito").value = 500;
+  atualizarDepositoSugerido();
+});
 
 document.getElementById("btn-sistemas-todos").addEventListener("click", () =>
   document.querySelectorAll(".chk-sistema").forEach((c) => { c.checked = true; }));
