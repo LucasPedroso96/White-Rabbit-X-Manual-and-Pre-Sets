@@ -933,7 +933,7 @@ document.querySelectorAll("nav button[data-tab]").forEach((btn) => {
     if (btn.dataset.tab === "biblioteca") carregarBiblioteca();
     if (btn.dataset.tab === "portfolios") carregarPortfolios();
     if (btn.dataset.tab === "custo") carregarCusto();
-    if (btn.dataset.tab === "implantacao") carregarImplantacao();
+    if (btn.dataset.tab === "implantacao") { carregarImplantacao(); carregarSugestoes(); }
   });
 });
 
@@ -1566,4 +1566,77 @@ document.getElementById("btn-implantacao-exportar").addEventListener("click", as
   URL.revokeObjectURL(url);
   msg.textContent = `exported ${chaves.length} set(s).`;
   msg.className = "status-msg ok";
+});
+
+// -------------------------------------------------------- sugestoes (AutoManagerLive)
+
+let sugestoesFila = [];
+let sugestaoCursor = 0;
+
+function renderizarSugestao() {
+  const caixa = document.getElementById("caixa-sugestao");
+  const posicao = document.getElementById("sugestao-posicao");
+  if (!sugestoesFila.length) {
+    caixa.innerHTML = `<span class="status-msg">no suggestion available -- every certified set is already deployed, or none has a readable report yet.</span>`;
+    posicao.textContent = "";
+    return;
+  }
+  if (sugestaoCursor >= sugestoesFila.length) sugestaoCursor = sugestoesFila.length - 1;
+  const s = sugestoesFila[sugestaoCursor];
+  const combosHtml = s.combos.map((c) =>
+    `<li>${c.simbolo} / ${c.sistema} / ${c.variante} — weight ${(c.peso * 100).toFixed(1)}%</li>`
+  ).join("");
+  const contasHtml = s.contas.map((c) =>
+    `<li>${c.tipo === "hedging" ? "Hedging account" : "Account"} (min. capital $${c.capital_minimo.toFixed(0)}): ${c.combos.length} combo(s)</li>`
+  ).join("");
+  caixa.innerHTML = `
+    <h3>Suggestion #${s.numero}</h3>
+    <p><b>${s.contas.length} account(s) needed:</b></p>
+    <ul>${contasHtml}</ul>
+    <p><b>Combos:</b></p>
+    <ul>${combosHtml}</ul>
+    <button class="acao" id="btn-sugestao-marcar">Mark this suggestion as deployed</button>`;
+  posicao.textContent = `${sugestaoCursor + 1} / ${sugestoesFila.length}`;
+  document.getElementById("btn-sugestao-marcar").addEventListener("click", async () => {
+    const chaves = s.combos.map((c) => c.chave);
+    await post("/api/implantacao/marcar", { chaves, implantado: true });
+    await carregarImplantacao();
+    await carregarSugestoes();
+  });
+}
+
+async function carregarSugestoes() {
+  const saldo = parseFloat(document.getElementById("sugestoes-saldo").value) || 0;
+  const d = await api(`/api/implantacao/sugestoes?saldo=${saldo}`);
+  sugestoesFila = d.sugestoes || [];
+  sugestaoCursor = 0;
+  renderizarSugestao();
+}
+
+document.getElementById("btn-sugestoes-recarregar").addEventListener("click", carregarSugestoes);
+document.getElementById("btn-sugestao-proxima").addEventListener("click", () => {
+  if (sugestaoCursor < sugestoesFila.length - 1) sugestaoCursor++;
+  renderizarSugestao();
+});
+document.getElementById("btn-sugestao-anterior").addEventListener("click", () => {
+  if (sugestaoCursor > 0) sugestaoCursor--;
+  renderizarSugestao();
+});
+document.getElementById("btn-implantacao-marcar-tudo").addEventListener("click", async () => {
+  const msg = document.getElementById("msg-sugestoes");
+  const chaves = implantacaoSets.filter((s) => s.certificado).map((s) => s.chave);
+  await post("/api/implantacao/marcar", { chaves, implantado: true });
+  msg.textContent = `marked ${chaves.length} certified set(s) as deployed.`;
+  msg.className = "status-msg ok";
+  await carregarImplantacao();
+  await carregarSugestoes();
+});
+document.getElementById("btn-implantacao-desmarcar-tudo").addEventListener("click", async () => {
+  const msg = document.getElementById("msg-sugestoes");
+  const chaves = implantacaoSets.filter((s) => s.certificado).map((s) => s.chave);
+  await post("/api/implantacao/marcar", { chaves, implantado: false });
+  msg.textContent = `cleared deployed flag on ${chaves.length} set(s).`;
+  msg.className = "status-msg ok";
+  await carregarImplantacao();
+  await carregarSugestoes();
 });

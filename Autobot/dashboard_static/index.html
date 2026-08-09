@@ -263,6 +263,27 @@
       <tbody></tbody>
     </table>
   </div>
+
+  <div class="box">
+    <h2>Deployment suggestions</h2>
+    <p class="status-msg">Combinations of certified, not-yet-deployed sets that fit
+      together (low correlation), ordered by risk tier first (research systems
+      before grid/martingale). Each suggestion states how many live accounts it
+      needs — never assumes just one.</p>
+    <div class="linha" style="margin:10px 0">
+      <label>Account balance: $<input type="number" id="sugestoes-saldo" value="100" style="width:90px"></label>
+      <button class="acao secundario" id="btn-sugestoes-recarregar">Recalculate</button>
+      <button class="acao secundario" id="btn-implantacao-marcar-tudo">Mark all certified as deployed</button>
+      <button class="acao secundario" id="btn-implantacao-desmarcar-tudo">Mark none as deployed</button>
+    </div>
+    <div id="caixa-sugestao"><span class="status-msg">no suggestion loaded yet — click Recalculate.</span></div>
+    <div class="linha" style="margin-top:10px;align-items:center;gap:10px">
+      <button class="acao secundario" id="btn-sugestao-anterior">&larr; Previous</button>
+      <span id="sugestao-posicao" class="status-msg"></span>
+      <button class="acao secundario" id="btn-sugestao-proxima">Next suggestion &rarr;</button>
+    </div>
+    <span class="status-msg" id="msg-sugestoes"></span>
+  </div>
 </section>
 
 </main>
