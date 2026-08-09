@@ -36,8 +36,8 @@ hand (`Y` -> `N`) what you have already settled before the next round.
 | `04_SLTP_TRAIL` | SL + TP with trailing behind | Stop, Take, Trail, BE | 2.40e+23 |
 | `05_BE_TRAIL` | Mandatory breakeven + trailing, no TP | Stop, BE distance, trailing source, Trail | 1.20e+21 |
 | `06_REVERSAL_EXIT` | Closes on the indicator's opposite signal | Stop, trailing on/off, Trail, BE, exit filters | 9.61e+21 |
-| `07_GRID_SEPARATE` | Grid, one target per side | Take, Multiplier, MinimumDistance, number of legs | 1.44e+22 |
-| `08_GRID_UNIFIED` | Grid, single basket target, both sides open | Take, Multiplier, MinimumDistance, legs per side | 5.77e+22 |
+| `07_GRID_SEPARATE` | Grid, one target per side | Take, Multiplier, MinimumDistance, number of legs | 2.88e+21 |
+| `08_GRID_UNIFIED` | Grid, single basket target, both sides open | Take, Multiplier, MinimumDistance, legs per side | 1.15e+22 |
 | `09_MARTINGALE` | Lot grows after a loss, 1 position per side | Stop, Take, Multiplier, maximum steps, BE | 3.20e+21 |
 | `10_DALEMBERT` | Lot grows in arithmetic steps after a loss | Stop, Take, lot step, maximum steps, BE | 1.60e+22 |
 | `11_SIGNAL_ONLY` | No SL and no TP: measures the raw signal | entry and filters only (negative coverage) | 2.23e+16 |

@@ -750,11 +750,19 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         # ha SL na posicao (ApplyBreakevenForSide, .mq5: slDistance =
         # ATR[VelaStop] * Stop, multiplicado por BreakevenDistancia). Achado
         # do dono, 2026-08-08: Stop estava fixo aqui enquanto os outros 6
-        # sistemas com breakeven o deixam otimizavel (p.opt, mesma faixa) --
-        # travado, o otimizador so podia variar a distancia do breakeven
-        # pelo multiplicador, nunca pela base. Mesmo caminho dos outros
-        # sistemas agora, sem excecao pro grid.
-        p.opt("Stop", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
+        # sistemas com breakeven o deixam otimizavel -- travado, o
+        # otimizador so podia variar a distancia do breakeven pelo
+        # multiplicador (BreakevenDistancia), nunca pela base.
+        #
+        # Faixa mais grossa que os outros 6 sistemas de proposito (3 passos
+        # -- lo/mid/hi -- em vez do passo 0.5 deles): la Stop e o SL de
+        # verdade, o eixo principal de risco, precisa de granularidade fina.
+        # Aqui e so a base do breakeven, papel secundario, e ja e
+        # multiplicativamente redundante com BreakevenDistancia (mesma
+        # distancia final sai de varios pares Stop/BreakevenDistancia
+        # diferentes) -- passo fino so inflaria o espaco de busca sem
+        # sinal novo. Pedido do dono, 2026-08-08.
+        p.opt("Stop", sl_mid, ac.sl_lo, (ac.sl_hi - ac.sl_lo) / 2, ac.sl_hi)
         p.opt("VelaStop", 0, 0, 1, 3)
         p.fix("AtivarTake", "true")
         p.fix("TakeOrganico", "false")
