@@ -78,6 +78,45 @@ const i18n = {
     'cost.when': 'Measured on',
     'cost.measure-new': 'Measure a new symbol',
     'cost.measure-now': 'Measure now',
+    'portfolio.correlation-panel': 'Correlation panel',
+    'deploy.certified-title': 'Certified sets',
+    'deploy.certified-note': 'Only sets with an archived validation report (equity curve, trade blotter, Monte Carlo) count as certified — a bare .set without evidence is not exportable. This panel never touches a live/VPS account: it only prepares a download; taking it there is up to you.',
+    'deploy.select-all-certified': 'Select all certified',
+    'deploy.clear-selection': 'Clear selection',
+    'deploy.export-selected': 'Export selected (.zip)',
+    'deploy.sort-note': 'Sorted by full-period survival balance first (the number that matters — see "Profit" tooltips below), OOS-window profit as tie-break. A set that only looks good in the OOS window can still blow up over the long run — that is exactly why the survival gate exists.',
+    'deploy.col-profit-full': 'Profit (full period)',
+    'deploy.col-profit-full-tip': "Balance from the full continuous period, deposit 500 baseline — the survival gate's own measurement",
+    'deploy.col-profit-oos': 'Profit (OOS)',
+    'deploy.col-profit-oos-tip': 'Profit measured only in the short OOS window — can look great and still hide a long-run blowup',
+    'deploy.col-certificate': 'Certificate',
+    'deploy.col-deployed': 'Deployed',
+    'deploy.suggestions-title': 'Deployment suggestions',
+    'deploy.suggestions-note': 'Combinations of certified, not-yet-deployed sets that fit together (low correlation), ordered by risk tier first (research systems before grid/martingale). Each suggestion states how many live accounts it needs — never assumes just one.',
+    'deploy.account-balance': 'Account balance: $',
+    'deploy.recalculate': 'Recalculate',
+    'deploy.mark-all-deployed': 'Mark all certified as deployed',
+    'deploy.mark-none-deployed': 'Mark none as deployed',
+    'deploy.no-suggestion-yet': 'no suggestion loaded yet — click Recalculate.',
+    'deploy.previous': '← Previous',
+    'deploy.next-suggestion': 'Next suggestion →',
+    'deploy.dyn.no-pool': 'no certified, undeployed set found.',
+    'deploy.dyn.no-parseable': '{pool} certified set(s) found, but none has a parseable archived report yet.',
+    'deploy.dyn.no-bar': '{serie} report(s) parsed, but none met the profitability/recovery bar for a suggestion.',
+    'deploy.dyn.suggestion-num': 'Suggestion #{n}',
+    'deploy.dyn.accounts-needed': '{n} account(s) needed:',
+    'deploy.dyn.combos-label': 'Combos:',
+    'deploy.dyn.weight': 'weight',
+    'deploy.dyn.hedging-account': 'Hedging account',
+    'deploy.dyn.account': 'Account',
+    'deploy.dyn.capital-floor': 'capital floor {amount}',
+    'deploy.dyn.capital-unknown': 'unknown',
+    'deploy.dyn.combo-count': '{n} combo(s)',
+    'deploy.dyn.mark-suggestion': 'Mark this suggestion as deployed',
+    'deploy.dyn.calculating': 'calculating...',
+    'deploy.dyn.failed': 'failed to calculate suggestions: {err}',
+    'deploy.dyn.marked-n': 'marked {n} certified set(s) as deployed.',
+    'deploy.dyn.cleared-n': 'cleared deployed flag on {n} set(s).',
   },
   pt: {
     'badge.mt5': 'MT5: ',
@@ -156,6 +195,45 @@ const i18n = {
     'cost.when': 'Medido em',
     'cost.measure-new': 'Medir um novo símbolo',
     'cost.measure-now': 'Medir agora',
+    'portfolio.correlation-panel': 'Painel de correlação',
+    'deploy.certified-title': 'Sets certificados',
+    'deploy.certified-note': 'Só sets com relatório de validação arquivado (curva de capital, extrato de trades, Monte Carlo) contam como certificados — um .set puro sem evidência não é exportável. Este painel nunca toca uma conta ao vivo/VPS: só prepara um download; levar até lá é por sua conta.',
+    'deploy.select-all-certified': 'Selecionar todos os certificados',
+    'deploy.clear-selection': 'Limpar seleção',
+    'deploy.export-selected': 'Exportar selecionados (.zip)',
+    'deploy.sort-note': 'Ordenado primeiro pelo saldo de sobrevivência do período completo (o número que importa — veja os tooltips de "Lucro" abaixo), lucro da janela OOS como desempate. Um set que só parece bom na janela OOS ainda pode estourar no longo prazo — é exatamente por isso que o gate de sobrevivência existe.',
+    'deploy.col-profit-full': 'Lucro (período completo)',
+    'deploy.col-profit-full-tip': 'Saldo do período contínuo completo, depósito base 500 — a própria medição do gate de sobrevivência',
+    'deploy.col-profit-oos': 'Lucro (OOS)',
+    'deploy.col-profit-oos-tip': 'Lucro medido só na janela curta OOS — pode parecer ótimo e mesmo assim esconder um estouro de longo prazo',
+    'deploy.col-certificate': 'Certificado',
+    'deploy.col-deployed': 'Implantado',
+    'deploy.suggestions-title': 'Sugestões de implantação',
+    'deploy.suggestions-note': 'Combinações de sets certificados, ainda não implantados, que cabem juntos (baixa correlação), ordenadas primeiro por tier de risco (sistemas de pesquisa antes de grid/martingale). Cada sugestão declara quantas contas ao vivo precisa — nunca assume só uma.',
+    'deploy.account-balance': 'Saldo da conta: $',
+    'deploy.recalculate': 'Recalcular',
+    'deploy.mark-all-deployed': 'Marcar todos os certificados como implantados',
+    'deploy.mark-none-deployed': 'Desmarcar todos como implantados',
+    'deploy.no-suggestion-yet': 'nenhuma sugestão carregada ainda — clique em Recalcular.',
+    'deploy.previous': '← Anterior',
+    'deploy.next-suggestion': 'Próxima sugestão →',
+    'deploy.dyn.no-pool': 'nenhum set certificado e não implantado encontrado.',
+    'deploy.dyn.no-parseable': '{pool} set(s) certificado(s) encontrado(s), mas nenhum tem relatório arquivado legível ainda.',
+    'deploy.dyn.no-bar': '{serie} relatório(s) lido(s), mas nenhum atingiu o piso de lucratividade/recuperação para uma sugestão.',
+    'deploy.dyn.suggestion-num': 'Sugestão #{n}',
+    'deploy.dyn.accounts-needed': '{n} conta(s) necessária(s):',
+    'deploy.dyn.combos-label': 'Combinações:',
+    'deploy.dyn.weight': 'peso',
+    'deploy.dyn.hedging-account': 'Conta de hedging',
+    'deploy.dyn.account': 'Conta',
+    'deploy.dyn.capital-floor': 'piso de capital {amount}',
+    'deploy.dyn.capital-unknown': 'desconhecido',
+    'deploy.dyn.combo-count': '{n} combinação(ões)',
+    'deploy.dyn.mark-suggestion': 'Marcar esta sugestão como implantada',
+    'deploy.dyn.calculating': 'calculando...',
+    'deploy.dyn.failed': 'falha ao calcular sugestões: {err}',
+    'deploy.dyn.marked-n': '{n} set(s) certificado(s) marcado(s) como implantado(s).',
+    'deploy.dyn.cleared-n': 'marca de implantado removida de {n} set(s).',
   },
   es: {
     'badge.mt5': 'MT5: ',
@@ -234,6 +312,45 @@ const i18n = {
     'cost.when': 'Medido el',
     'cost.measure-new': 'Medir un nuevo símbolo',
     'cost.measure-now': 'Medir ahora',
+    'portfolio.correlation-panel': 'Panel de correlación',
+    'deploy.certified-title': 'Sets certificados',
+    'deploy.certified-note': 'Solo los sets con informe de validación archivado (curva de capital, registro de operaciones, Monte Carlo) cuentan como certificados — un .set puro sin evidencia no es exportable. Este panel nunca toca una cuenta en vivo/VPS: solo prepara una descarga; llevarla hasta allí depende de usted.',
+    'deploy.select-all-certified': 'Seleccionar todos los certificados',
+    'deploy.clear-selection': 'Borrar selección',
+    'deploy.export-selected': 'Exportar seleccionados (.zip)',
+    'deploy.sort-note': 'Ordenado primero por el saldo de supervivencia del período completo (el número que importa — vea los tooltips de "Ganancia" abajo), ganancia de la ventana OOS como desempate. Un set que solo se ve bien en la ventana OOS aún puede quebrar a largo plazo — por eso existe el filtro de supervivencia.',
+    'deploy.col-profit-full': 'Ganancia (período completo)',
+    'deploy.col-profit-full-tip': 'Saldo del período continuo completo, depósito base 500 — la propia medición del filtro de supervivencia',
+    'deploy.col-profit-oos': 'Ganancia (OOS)',
+    'deploy.col-profit-oos-tip': 'Ganancia medida solo en la ventana corta OOS — puede verse muy bien y aun así ocultar una quiebra a largo plazo',
+    'deploy.col-certificate': 'Certificado',
+    'deploy.col-deployed': 'Desplegado',
+    'deploy.suggestions-title': 'Sugerencias de despliegue',
+    'deploy.suggestions-note': 'Combinaciones de sets certificados, aún no desplegados, que encajan juntos (baja correlación), ordenadas primero por nivel de riesgo (sistemas de investigación antes de grid/martingale). Cada sugerencia indica cuántas cuentas en vivo necesita — nunca asume solo una.',
+    'deploy.account-balance': 'Saldo de la cuenta: $',
+    'deploy.recalculate': 'Recalcular',
+    'deploy.mark-all-deployed': 'Marcar todos los certificados como desplegados',
+    'deploy.mark-none-deployed': 'Desmarcar todos como desplegados',
+    'deploy.no-suggestion-yet': 'aún no hay sugerencia cargada — haga clic en Recalcular.',
+    'deploy.previous': '← Anterior',
+    'deploy.next-suggestion': 'Siguiente sugerencia →',
+    'deploy.dyn.no-pool': 'no se encontró ningún set certificado sin desplegar.',
+    'deploy.dyn.no-parseable': 'se encontraron {pool} set(s) certificado(s), pero ninguno tiene informe archivado legible todavía.',
+    'deploy.dyn.no-bar': 'se leyeron {serie} informe(s), pero ninguno alcanzó el umbral de rentabilidad/recuperación para una sugerencia.',
+    'deploy.dyn.suggestion-num': 'Sugerencia #{n}',
+    'deploy.dyn.accounts-needed': '{n} cuenta(s) necesaria(s):',
+    'deploy.dyn.combos-label': 'Combinaciones:',
+    'deploy.dyn.weight': 'peso',
+    'deploy.dyn.hedging-account': 'Cuenta de cobertura',
+    'deploy.dyn.account': 'Cuenta',
+    'deploy.dyn.capital-floor': 'capital mínimo {amount}',
+    'deploy.dyn.capital-unknown': 'desconocido',
+    'deploy.dyn.combo-count': '{n} combinación(es)',
+    'deploy.dyn.mark-suggestion': 'Marcar esta sugerencia como desplegada',
+    'deploy.dyn.calculating': 'calculando...',
+    'deploy.dyn.failed': 'error al calcular sugerencias: {err}',
+    'deploy.dyn.marked-n': '{n} set(s) certificado(s) marcado(s) como desplegado(s).',
+    'deploy.dyn.cleared-n': 'marca de desplegado eliminada de {n} set(s).',
   },
   de: {
     'badge.mt5': 'MT5: ',
@@ -312,6 +429,45 @@ const i18n = {
     'cost.when': 'Gemessen am',
     'cost.measure-new': 'Neues Symbol messen',
     'cost.measure-now': 'Jetzt messen',
+    'portfolio.correlation-panel': 'Korrelationspanel',
+    'deploy.certified-title': 'Zertifizierte Sets',
+    'deploy.certified-note': 'Nur Sets mit archiviertem Validierungsbericht (Kapitalkurve, Trade-Protokoll, Monte Carlo) gelten als zertifiziert — ein reines .set ohne Nachweis ist nicht exportierbar. Dieses Panel greift nie auf ein Live-/VPS-Konto zu: Es bereitet nur einen Download vor; der Weg dorthin liegt bei Ihnen.',
+    'deploy.select-all-certified': 'Alle Zertifizierten auswählen',
+    'deploy.clear-selection': 'Auswahl löschen',
+    'deploy.export-selected': 'Auswahl exportieren (.zip)',
+    'deploy.sort-note': 'Zuerst sortiert nach dem Überlebenssaldo des vollen Zeitraums (die entscheidende Zahl — siehe "Gewinn"-Tooltips unten), OOS-Fenster-Gewinn als Tiebreak. Ein Set, das nur im OOS-Fenster gut aussieht, kann langfristig trotzdem scheitern — genau dafür gibt es das Überlebens-Gate.',
+    'deploy.col-profit-full': 'Gewinn (voller Zeitraum)',
+    'deploy.col-profit-full-tip': 'Saldo aus dem vollen durchgehenden Zeitraum, Basiseinzahlung 500 — die eigene Messung des Überlebens-Gates',
+    'deploy.col-profit-oos': 'Gewinn (OOS)',
+    'deploy.col-profit-oos-tip': 'Gewinn nur im kurzen OOS-Fenster gemessen — kann großartig aussehen und trotzdem einen langfristigen Absturz verbergen',
+    'deploy.col-certificate': 'Zertifikat',
+    'deploy.col-deployed': 'Live geschaltet',
+    'deploy.suggestions-title': 'Vorschläge für den Live-Einsatz',
+    'deploy.suggestions-note': 'Kombinationen aus zertifizierten, noch nicht live geschalteten Sets, die zusammenpassen (niedrige Korrelation), zuerst nach Risikostufe geordnet (Research-Systeme vor Grid/Martingale). Jeder Vorschlag gibt an, wie viele Live-Konten benötigt werden — nie nur eines vorausgesetzt.',
+    'deploy.account-balance': 'Kontostand: $',
+    'deploy.recalculate': 'Neu berechnen',
+    'deploy.mark-all-deployed': 'Alle Zertifizierten als live markieren',
+    'deploy.mark-none-deployed': 'Alle als nicht live markieren',
+    'deploy.no-suggestion-yet': 'noch kein Vorschlag geladen — auf Neu berechnen klicken.',
+    'deploy.previous': '← Zurück',
+    'deploy.next-suggestion': 'Nächster Vorschlag →',
+    'deploy.dyn.no-pool': 'kein zertifiziertes, nicht live geschaltetes Set gefunden.',
+    'deploy.dyn.no-parseable': '{pool} zertifizierte(s) Set(s) gefunden, aber noch keines mit lesbarem archiviertem Bericht.',
+    'deploy.dyn.no-bar': '{serie} Bericht(e) gelesen, aber keiner hat die Rentabilitäts-/Erholungsschwelle für einen Vorschlag erreicht.',
+    'deploy.dyn.suggestion-num': 'Vorschlag Nr. {n}',
+    'deploy.dyn.accounts-needed': '{n} Konto/Konten benötigt:',
+    'deploy.dyn.combos-label': 'Kombinationen:',
+    'deploy.dyn.weight': 'Gewichtung',
+    'deploy.dyn.hedging-account': 'Hedging-Konto',
+    'deploy.dyn.account': 'Konto',
+    'deploy.dyn.capital-floor': 'Mindestkapital {amount}',
+    'deploy.dyn.capital-unknown': 'unbekannt',
+    'deploy.dyn.combo-count': '{n} Kombination(en)',
+    'deploy.dyn.mark-suggestion': 'Diesen Vorschlag als live markieren',
+    'deploy.dyn.calculating': 'wird berechnet...',
+    'deploy.dyn.failed': 'Berechnung der Vorschläge fehlgeschlagen: {err}',
+    'deploy.dyn.marked-n': '{n} zertifizierte(s) Set(s) als live markiert.',
+    'deploy.dyn.cleared-n': 'Live-Markierung bei {n} Set(s) entfernt.',
   },
   fr: {
     'badge.mt5': 'MT5 : ',
@@ -390,6 +546,45 @@ const i18n = {
     'cost.when': 'Mesuré le',
     'cost.measure-new': 'Mesurer un nouveau symbole',
     'cost.measure-now': 'Mesurer maintenant',
+    'portfolio.correlation-panel': 'Panneau de corrélation',
+    'deploy.certified-title': 'Sets certifiés',
+    'deploy.certified-note': 'Seuls les sets avec un rapport de validation archivé (courbe de capital, journal des trades, Monte Carlo) comptent comme certifiés — un .set brut sans preuve n\'est pas exportable. Ce panneau ne touche jamais un compte live/VPS : il ne fait que préparer un téléchargement ; l\'y amener vous revient.',
+    'deploy.select-all-certified': 'Sélectionner tous les certifiés',
+    'deploy.clear-selection': 'Effacer la sélection',
+    'deploy.export-selected': 'Exporter la sélection (.zip)',
+    'deploy.sort-note': 'Trié d\'abord par le solde de survie sur la période complète (le chiffre qui compte — voir les infobulles "Profit" ci-dessous), puis par le profit de la fenêtre OOS en cas d\'égalité. Un set qui semble bon seulement sur la fenêtre OOS peut quand même exploser sur le long terme — c\'est exactement pour cela que le filtre de survie existe.',
+    'deploy.col-profit-full': 'Profit (période complète)',
+    'deploy.col-profit-full-tip': 'Solde de la période continue complète, dépôt de base 500 — la mesure propre au filtre de survie',
+    'deploy.col-profit-oos': 'Profit (OOS)',
+    'deploy.col-profit-oos-tip': 'Profit mesuré uniquement sur la courte fenêtre OOS — peut sembler excellent tout en cachant un effondrement à long terme',
+    'deploy.col-certificate': 'Certificat',
+    'deploy.col-deployed': 'Déployé',
+    'deploy.suggestions-title': 'Suggestions de déploiement',
+    'deploy.suggestions-note': 'Combinaisons de sets certifiés, pas encore déployés, qui s\'accordent bien (faible corrélation), classées d\'abord par niveau de risque (systèmes de recherche avant grid/martingale). Chaque suggestion indique combien de comptes live sont nécessaires — jamais un seul par défaut.',
+    'deploy.account-balance': 'Solde du compte : $',
+    'deploy.recalculate': 'Recalculer',
+    'deploy.mark-all-deployed': 'Marquer tous les certifiés comme déployés',
+    'deploy.mark-none-deployed': 'Ne marquer aucun comme déployé',
+    'deploy.no-suggestion-yet': 'aucune suggestion chargée pour l\'instant — cliquez sur Recalculer.',
+    'deploy.previous': '← Précédent',
+    'deploy.next-suggestion': 'Suggestion suivante →',
+    'deploy.dyn.no-pool': 'aucun set certifié et non déployé trouvé.',
+    'deploy.dyn.no-parseable': '{pool} set(s) certifié(s) trouvé(s), mais aucun n\'a encore de rapport archivé lisible.',
+    'deploy.dyn.no-bar': '{serie} rapport(s) analysé(s), mais aucun n\'a atteint le seuil de rentabilité/récupération pour une suggestion.',
+    'deploy.dyn.suggestion-num': 'Suggestion n° {n}',
+    'deploy.dyn.accounts-needed': '{n} compte(s) nécessaire(s) :',
+    'deploy.dyn.combos-label': 'Combinaisons :',
+    'deploy.dyn.weight': 'poids',
+    'deploy.dyn.hedging-account': 'Compte de couverture',
+    'deploy.dyn.account': 'Compte',
+    'deploy.dyn.capital-floor': 'capital minimum {amount}',
+    'deploy.dyn.capital-unknown': 'inconnu',
+    'deploy.dyn.combo-count': '{n} combinaison(s)',
+    'deploy.dyn.mark-suggestion': 'Marquer cette suggestion comme déployée',
+    'deploy.dyn.calculating': 'calcul en cours...',
+    'deploy.dyn.failed': 'échec du calcul des suggestions : {err}',
+    'deploy.dyn.marked-n': '{n} set(s) certifié(s) marqué(s) comme déployé(s).',
+    'deploy.dyn.cleared-n': 'marque de déploiement retirée de {n} set(s).',
   },
   it: {
     'badge.mt5': 'MT5: ',
@@ -468,6 +663,45 @@ const i18n = {
     'cost.when': 'Misurato il',
     'cost.measure-new': 'Misura un nuovo simbolo',
     'cost.measure-now': 'Misura ora',
+    'portfolio.correlation-panel': 'Pannello di correlazione',
+    'deploy.certified-title': 'Set certificati',
+    'deploy.certified-note': 'Solo i set con un report di validazione archiviato (curva del capitale, registro delle operazioni, Monte Carlo) contano come certificati — un .set puro senza prove non è esportabile. Questo pannello non tocca mai un conto live/VPS: prepara solo un download; portarlo lì spetta a te.',
+    'deploy.select-all-certified': 'Seleziona tutti i certificati',
+    'deploy.clear-selection': 'Cancella selezione',
+    'deploy.export-selected': 'Esporta selezionati (.zip)',
+    'deploy.sort-note': 'Ordinato prima per il saldo di sopravvivenza sul periodo completo (il numero che conta — vedi i tooltip "Profitto" sotto), profitto della finestra OOS come spareggio. Un set che sembra buono solo nella finestra OOS può comunque esplodere nel lungo periodo — è esattamente per questo che esiste il gate di sopravvivenza.',
+    'deploy.col-profit-full': 'Profitto (periodo completo)',
+    'deploy.col-profit-full-tip': 'Saldo del periodo continuo completo, deposito base 500 — la misurazione propria del gate di sopravvivenza',
+    'deploy.col-profit-oos': 'Profitto (OOS)',
+    'deploy.col-profit-oos-tip': 'Profitto misurato solo nella breve finestra OOS — può sembrare ottimo e comunque nascondere un crollo a lungo termine',
+    'deploy.col-certificate': 'Certificato',
+    'deploy.col-deployed': 'Distribuito',
+    'deploy.suggestions-title': 'Suggerimenti di distribuzione',
+    'deploy.suggestions-note': 'Combinazioni di set certificati, non ancora distribuiti, che si abbinano bene (bassa correlazione), ordinate prima per livello di rischio (sistemi di ricerca prima di grid/martingale). Ogni suggerimento indica quanti conti live servono — non presuppone mai uno solo.',
+    'deploy.account-balance': 'Saldo del conto: $',
+    'deploy.recalculate': 'Ricalcola',
+    'deploy.mark-all-deployed': 'Segna tutti i certificati come distribuiti',
+    'deploy.mark-none-deployed': 'Nessuno come distribuito',
+    'deploy.no-suggestion-yet': 'nessun suggerimento caricato ancora — clicca su Ricalcola.',
+    'deploy.previous': '← Precedente',
+    'deploy.next-suggestion': 'Suggerimento successivo →',
+    'deploy.dyn.no-pool': 'nessun set certificato e non distribuito trovato.',
+    'deploy.dyn.no-parseable': 'trovato/i {pool} set certificato/i, ma nessuno ha ancora un report archiviato leggibile.',
+    'deploy.dyn.no-bar': 'letto/i {serie} report, ma nessuno ha raggiunto la soglia di redditività/recupero per un suggerimento.',
+    'deploy.dyn.suggestion-num': 'Suggerimento #{n}',
+    'deploy.dyn.accounts-needed': '{n} conto/i necessario/i:',
+    'deploy.dyn.combos-label': 'Combinazioni:',
+    'deploy.dyn.weight': 'peso',
+    'deploy.dyn.hedging-account': 'Conto di copertura',
+    'deploy.dyn.account': 'Conto',
+    'deploy.dyn.capital-floor': 'capitale minimo {amount}',
+    'deploy.dyn.capital-unknown': 'sconosciuto',
+    'deploy.dyn.combo-count': '{n} combinazione(i)',
+    'deploy.dyn.mark-suggestion': 'Segna questo suggerimento come distribuito',
+    'deploy.dyn.calculating': 'calcolo in corso...',
+    'deploy.dyn.failed': 'calcolo dei suggerimenti non riuscito: {err}',
+    'deploy.dyn.marked-n': '{n} set certificato/i segnato/i come distribuito/i.',
+    'deploy.dyn.cleared-n': 'marcatura di distribuzione rimossa da {n} set.',
   },
   ru: {
     'badge.mt5': 'MT5: ',
@@ -546,6 +780,45 @@ const i18n = {
     'cost.when': 'Измерено',
     'cost.measure-new': 'Измерить новый символ',
     'cost.measure-now': 'Измерить сейчас',
+    'portfolio.correlation-panel': 'Панель корреляции',
+    'deploy.certified-title': 'Сертифицированные наборы',
+    'deploy.certified-note': 'Сертифицированными считаются только наборы с архивным отчётом валидации (кривая капитала, журнал сделок, Монте-Карло) — голый .set без доказательств экспортировать нельзя. Эта панель никогда не трогает реальный/VPS-счёт: она только готовит загрузку; довести её до счёта — ваша задача.',
+    'deploy.select-all-certified': 'Выбрать все сертифицированные',
+    'deploy.clear-selection': 'Очистить выбор',
+    'deploy.export-selected': 'Экспортировать выбранные (.zip)',
+    'deploy.sort-note': 'Сортировка сначала по балансу выживания за весь период (это главное число — см. подсказки "Прибыль" ниже), прибыль окна OOS как тай-брейк. Набор, который выглядит хорошо только в окне OOS, всё равно может обанкротиться в долгосрочной перспективе — именно для этого существует барьер выживания.',
+    'deploy.col-profit-full': 'Прибыль (весь период)',
+    'deploy.col-profit-full-tip': 'Баланс за весь непрерывный период, базовый депозит 500 — собственное измерение барьера выживания',
+    'deploy.col-profit-oos': 'Прибыль (OOS)',
+    'deploy.col-profit-oos-tip': 'Прибыль, измеренная только в коротком окне OOS — может выглядеть отлично и всё же скрывать долгосрочный обвал',
+    'deploy.col-certificate': 'Сертификат',
+    'deploy.col-deployed': 'Развёрнут',
+    'deploy.suggestions-title': 'Предложения по развёртыванию',
+    'deploy.suggestions-note': 'Комбинации сертифицированных, ещё не развёрнутых наборов, которые сочетаются (низкая корреляция), упорядоченные сначала по уровню риска (исследовательские системы перед grid/мартингейлом). Каждое предложение указывает, сколько реальных счетов нужно — никогда не предполагает только один.',
+    'deploy.account-balance': 'Баланс счёта: $',
+    'deploy.recalculate': 'Пересчитать',
+    'deploy.mark-all-deployed': 'Отметить все сертифицированные как развёрнутые',
+    'deploy.mark-none-deployed': 'Снять отметку развёрнуто со всех',
+    'deploy.no-suggestion-yet': 'предложение ещё не загружено — нажмите Пересчитать.',
+    'deploy.previous': '← Назад',
+    'deploy.next-suggestion': 'Следующее предложение →',
+    'deploy.dyn.no-pool': 'сертифицированных неразвёрнутых наборов не найдено.',
+    'deploy.dyn.no-parseable': 'найдено сертифицированных наборов: {pool}, но ни один пока не имеет читаемого архивного отчёта.',
+    'deploy.dyn.no-bar': 'прочитано отчётов: {serie}, но ни один не достиг порога доходности/восстановления для предложения.',
+    'deploy.dyn.suggestion-num': 'Предложение №{n}',
+    'deploy.dyn.accounts-needed': 'нужно счетов: {n}:',
+    'deploy.dyn.combos-label': 'Комбинации:',
+    'deploy.dyn.weight': 'вес',
+    'deploy.dyn.hedging-account': 'Хедж-счёт',
+    'deploy.dyn.account': 'Счёт',
+    'deploy.dyn.capital-floor': 'минимальный капитал {amount}',
+    'deploy.dyn.capital-unknown': 'неизвестно',
+    'deploy.dyn.combo-count': 'комбинаций: {n}',
+    'deploy.dyn.mark-suggestion': 'Отметить это предложение как развёрнутое',
+    'deploy.dyn.calculating': 'расчёт...',
+    'deploy.dyn.failed': 'не удалось рассчитать предложения: {err}',
+    'deploy.dyn.marked-n': 'отмечено сертифицированных наборов как развёрнутые: {n}.',
+    'deploy.dyn.cleared-n': 'снята отметка развёрнуто с наборов: {n}.',
   },
   zh: {
     'badge.mt5': 'MT5：',
@@ -624,6 +897,45 @@ const i18n = {
     'cost.when': '测量时间',
     'cost.measure-new': '测量新品种',
     'cost.measure-now': '立即测量',
+    'portfolio.correlation-panel': '相关性面板',
+    'deploy.certified-title': '已认证的集合',
+    'deploy.certified-note': '只有带归档验证报告（资金曲线、交易流水、蒙特卡洛）的集合才算已认证——没有证据的纯 .set 文件不可导出。此面板从不接触实盘/VPS 账户：只准备下载文件，下载后如何部署由你决定。',
+    'deploy.select-all-certified': '全选已认证',
+    'deploy.clear-selection': '清除选择',
+    'deploy.export-selected': '导出所选 (.zip)',
+    'deploy.sort-note': '首先按完整周期生存余额排序（真正重要的数字——见下方"利润"提示），OOS 窗口利润作为并列决胜项。仅在 OOS 窗口表现好的集合仍可能在长期内爆仓——这正是生存关卡存在的原因。',
+    'deploy.col-profit-full': '利润（完整周期）',
+    'deploy.col-profit-full-tip': '完整连续周期的余额，基准存款 500 —— 生存关卡自身的测量结果',
+    'deploy.col-profit-oos': '利润（OOS）',
+    'deploy.col-profit-oos-tip': '仅在短 OOS 窗口测量的利润 —— 可能看起来很好，却仍掩盖了长期爆仓',
+    'deploy.col-certificate': '证书',
+    'deploy.col-deployed': '已部署',
+    'deploy.suggestions-title': '部署建议',
+    'deploy.suggestions-note': '尚未部署的已认证集合的组合（低相关性），首先按风险层级排序（研究类系统排在网格/马丁格尔之前）。每条建议都会说明需要多少个实盘账户——从不假设只需要一个。',
+    'deploy.account-balance': '账户余额：$',
+    'deploy.recalculate': '重新计算',
+    'deploy.mark-all-deployed': '将所有已认证标记为已部署',
+    'deploy.mark-none-deployed': '全部取消部署标记',
+    'deploy.no-suggestion-yet': '尚未加载建议 —— 点击"重新计算"。',
+    'deploy.previous': '← 上一条',
+    'deploy.next-suggestion': '下一条建议 →',
+    'deploy.dyn.no-pool': '未找到已认证且未部署的集合。',
+    'deploy.dyn.no-parseable': '找到 {pool} 个已认证集合，但尚无可解析的归档报告。',
+    'deploy.dyn.no-bar': '已解析 {serie} 份报告，但没有一份达到生成建议所需的盈利/恢复门槛。',
+    'deploy.dyn.suggestion-num': '建议 #{n}',
+    'deploy.dyn.accounts-needed': '需要 {n} 个账户：',
+    'deploy.dyn.combos-label': '组合：',
+    'deploy.dyn.weight': '权重',
+    'deploy.dyn.hedging-account': '对冲账户',
+    'deploy.dyn.account': '账户',
+    'deploy.dyn.capital-floor': '最低资金 {amount}',
+    'deploy.dyn.capital-unknown': '未知',
+    'deploy.dyn.combo-count': '{n} 个组合',
+    'deploy.dyn.mark-suggestion': '将此建议标记为已部署',
+    'deploy.dyn.calculating': '计算中...',
+    'deploy.dyn.failed': '计算建议失败：{err}',
+    'deploy.dyn.marked-n': '已将 {n} 个已认证集合标记为已部署。',
+    'deploy.dyn.cleared-n': '已清除 {n} 个集合的部署标记。',
   },
   ja: {
     'badge.mt5': 'MT5: ',
@@ -702,6 +1014,45 @@ const i18n = {
     'cost.when': '測定日時',
     'cost.measure-new': '新しいシンボルを測定',
     'cost.measure-now': '今すぐ測定',
+    'portfolio.correlation-panel': '相関パネル',
+    'deploy.certified-title': '認証済みセット',
+    'deploy.certified-note': 'アーカイブされた検証レポート（資金曲線、トレード記録、モンテカルロ）があるセットのみが認証済みとみなされます — 証拠のない単なる .set はエクスポートできません。このパネルはライブ/VPSアカウントに一切触れません：ダウンロードを準備するだけで、そこから先はご自身の判断です。',
+    'deploy.select-all-certified': '認証済みをすべて選択',
+    'deploy.clear-selection': '選択をクリア',
+    'deploy.export-selected': '選択項目をエクスポート (.zip)',
+    'deploy.sort-note': 'まず全期間の生存残高（重要な数値 — 下の「利益」ツールチップ参照）で並べ替え、OOSウィンドウの利益をタイブレークとして使用します。OOSウィンドウだけ良く見えるセットでも、長期的には破綻することがあります — だからこそ生存ゲートが存在します。',
+    'deploy.col-profit-full': '利益（全期間）',
+    'deploy.col-profit-full-tip': '連続する全期間の残高、基準デポジット500 — 生存ゲート自身の測定値',
+    'deploy.col-profit-oos': '利益（OOS）',
+    'deploy.col-profit-oos-tip': '短いOOSウィンドウのみで測定した利益 — 見た目が良くても長期的な破綻を隠している場合があります',
+    'deploy.col-certificate': '証明書',
+    'deploy.col-deployed': '展開済み',
+    'deploy.suggestions-title': '展開の提案',
+    'deploy.suggestions-note': '相性の良い（相関の低い）、まだ展開されていない認証済みセットの組み合わせを、まずリスク層で並べ替えます（リサーチ系システムをグリッド/マルチンゲールより先に）。各提案は必要なライブアカウント数を明示します — 1つとは限りません。',
+    'deploy.account-balance': '口座残高：$',
+    'deploy.recalculate': '再計算',
+    'deploy.mark-all-deployed': '認証済みをすべて展開済みにする',
+    'deploy.mark-none-deployed': 'すべて展開済み解除',
+    'deploy.no-suggestion-yet': 'まだ提案が読み込まれていません — 「再計算」をクリックしてください。',
+    'deploy.previous': '← 前へ',
+    'deploy.next-suggestion': '次の提案 →',
+    'deploy.dyn.no-pool': '認証済みで未展開のセットが見つかりません。',
+    'deploy.dyn.no-parseable': '認証済みセットが{pool}件見つかりましたが、まだ読み取り可能なアーカイブレポートがありません。',
+    'deploy.dyn.no-bar': '{serie}件のレポートを解析しましたが、提案に必要な収益性/回復性の基準を満たすものはありませんでした。',
+    'deploy.dyn.suggestion-num': '提案 #{n}',
+    'deploy.dyn.accounts-needed': '必要なアカウント数：{n}件：',
+    'deploy.dyn.combos-label': '組み合わせ：',
+    'deploy.dyn.weight': '比重',
+    'deploy.dyn.hedging-account': 'ヘッジ口座',
+    'deploy.dyn.account': '口座',
+    'deploy.dyn.capital-floor': '最低資金 {amount}',
+    'deploy.dyn.capital-unknown': '不明',
+    'deploy.dyn.combo-count': '{n}件の組み合わせ',
+    'deploy.dyn.mark-suggestion': 'この提案を展開済みにする',
+    'deploy.dyn.calculating': '計算中...',
+    'deploy.dyn.failed': '提案の計算に失敗しました：{err}',
+    'deploy.dyn.marked-n': '{n}件の認証済みセットを展開済みにしました。',
+    'deploy.dyn.cleared-n': '{n}件のセットの展開済みマークを解除しました。',
   },
   ko: {
     'badge.mt5': 'MT5: ',
@@ -780,6 +1131,45 @@ const i18n = {
     'cost.when': '측정 시점',
     'cost.measure-new': '새 심볼 측정',
     'cost.measure-now': '지금 측정',
+    'portfolio.correlation-panel': '상관관계 패널',
+    'deploy.certified-title': '인증된 세트',
+    'deploy.certified-note': '보관된 검증 보고서(자본 곡선, 거래 내역, 몬테카를로)가 있는 세트만 인증된 것으로 간주됩니다 — 증거 없는 순수한 .set 파일은 내보낼 수 없습니다. 이 패널은 실계좌/VPS 계좌에 절대 접근하지 않습니다: 다운로드만 준비할 뿐, 그다음은 사용자의 몫입니다.',
+    'deploy.select-all-certified': '인증된 항목 모두 선택',
+    'deploy.clear-selection': '선택 해제',
+    'deploy.export-selected': '선택 항목 내보내기 (.zip)',
+    'deploy.sort-note': '먼저 전체 기간 생존 잔고(가장 중요한 수치 — 아래 "수익" 툴팁 참고)로 정렬하고, OOS 구간 수익을 동점자 기준으로 사용합니다. OOS 구간에서만 좋아 보이는 세트도 장기적으로는 파산할 수 있습니다 — 바로 이 때문에 생존 게이트가 존재합니다.',
+    'deploy.col-profit-full': '수익(전체 기간)',
+    'deploy.col-profit-full-tip': '연속된 전체 기간의 잔고, 기준 예치금 500 — 생존 게이트 자체의 측정값',
+    'deploy.col-profit-oos': '수익(OOS)',
+    'deploy.col-profit-oos-tip': '짧은 OOS 구간에서만 측정한 수익 — 좋아 보여도 장기적인 파산을 숨기고 있을 수 있습니다',
+    'deploy.col-certificate': '인증서',
+    'deploy.col-deployed': '배포됨',
+    'deploy.suggestions-title': '배포 제안',
+    'deploy.suggestions-note': '아직 배포되지 않은 인증된 세트 중 서로 잘 맞는(낮은 상관관계) 조합을, 위험 등급 순으로 먼저 정렬합니다(연구용 시스템이 그리드/마틴게일보다 먼저). 각 제안은 필요한 실계좌 수를 명시합니다 — 항상 하나라고 가정하지 않습니다.',
+    'deploy.account-balance': '계좌 잔고: $',
+    'deploy.recalculate': '다시 계산',
+    'deploy.mark-all-deployed': '인증된 항목 모두 배포됨으로 표시',
+    'deploy.mark-none-deployed': '배포됨 표시 모두 해제',
+    'deploy.no-suggestion-yet': '아직 불러온 제안이 없습니다 — 다시 계산을 클릭하세요.',
+    'deploy.previous': '← 이전',
+    'deploy.next-suggestion': '다음 제안 →',
+    'deploy.dyn.no-pool': '인증되었으나 배포되지 않은 세트를 찾을 수 없습니다.',
+    'deploy.dyn.no-parseable': '인증된 세트 {pool}개를 찾았지만, 아직 읽을 수 있는 보관 보고서가 없습니다.',
+    'deploy.dyn.no-bar': '{serie}개의 보고서를 분석했지만, 제안에 필요한 수익성/회복 기준을 충족한 항목이 없습니다.',
+    'deploy.dyn.suggestion-num': '제안 #{n}',
+    'deploy.dyn.accounts-needed': '필요한 계좌 수: {n}개:',
+    'deploy.dyn.combos-label': '조합:',
+    'deploy.dyn.weight': '비중',
+    'deploy.dyn.hedging-account': '헤징 계좌',
+    'deploy.dyn.account': '계좌',
+    'deploy.dyn.capital-floor': '최소 자본 {amount}',
+    'deploy.dyn.capital-unknown': '알 수 없음',
+    'deploy.dyn.combo-count': '{n}개 조합',
+    'deploy.dyn.mark-suggestion': '이 제안을 배포됨으로 표시',
+    'deploy.dyn.calculating': '계산 중...',
+    'deploy.dyn.failed': '제안 계산 실패: {err}',
+    'deploy.dyn.marked-n': '인증된 세트 {n}개를 배포됨으로 표시했습니다.',
+    'deploy.dyn.cleared-n': '세트 {n}개의 배포됨 표시를 해제했습니다.',
   },
   tr: {
     'badge.mt5': 'MT5: ',
@@ -858,10 +1248,68 @@ const i18n = {
     'cost.when': 'Ölçüm tarihi',
     'cost.measure-new': 'Yeni sembol ölç',
     'cost.measure-now': 'Şimdi ölç',
+    'portfolio.correlation-panel': 'Korelasyon paneli',
+    'deploy.certified-title': 'Sertifikalı setler',
+    'deploy.certified-note': 'Yalnızca arşivlenmiş doğrulama raporu (özkaynak eğrisi, işlem dökümü, Monte Carlo) olan setler sertifikalı sayılır — kanıtsız yalın bir .set dışa aktarılamaz. Bu panel hiçbir zaman canlı/VPS hesabına dokunmaz: yalnızca bir indirme hazırlar; oraya taşımak size kalmıştır.',
+    'deploy.select-all-certified': 'Tüm sertifikalıları seç',
+    'deploy.clear-selection': 'Seçimi temizle',
+    'deploy.export-selected': 'Seçilenleri dışa aktar (.zip)',
+    'deploy.sort-note': 'Önce tam dönem hayatta kalma bakiyesine göre sıralanır (önemli olan sayı — aşağıdaki "Kâr" ipuçlarına bakın), OOS penceresi kârı eşitlik bozucu olarak kullanılır. Yalnızca OOS penceresinde iyi görünen bir set uzun vadede yine de patlayabilir — hayatta kalma kapısının var olma nedeni tam olarak budur.',
+    'deploy.col-profit-full': 'Kâr (tam dönem)',
+    'deploy.col-profit-full-tip': 'Tam kesintisiz dönemden bakiye, taban depozito 500 — hayatta kalma kapısının kendi ölçümü',
+    'deploy.col-profit-oos': 'Kâr (OOS)',
+    'deploy.col-profit-oos-tip': 'Yalnızca kısa OOS penceresinde ölçülen kâr — harika görünüp yine de uzun vadeli bir çöküşü gizleyebilir',
+    'deploy.col-certificate': 'Sertifika',
+    'deploy.col-deployed': 'Devreye alındı',
+    'deploy.suggestions-title': 'Devreye alma önerileri',
+    'deploy.suggestions-note': 'Henüz devreye alınmamış, birbirine uyan (düşük korelasyonlu) sertifikalı setlerin kombinasyonları, önce risk kademesine göre sıralanır (araştırma sistemleri grid/martingale\'den önce). Her öneri kaç canlı hesap gerektiğini belirtir — asla yalnızca birini varsaymaz.',
+    'deploy.account-balance': 'Hesap bakiyesi: $',
+    'deploy.recalculate': 'Yeniden hesapla',
+    'deploy.mark-all-deployed': 'Tüm sertifikalıları devreye alındı olarak işaretle',
+    'deploy.mark-none-deployed': 'Hiçbirini devreye alındı olarak işaretleme',
+    'deploy.no-suggestion-yet': 'henüz öneri yüklenmedi — Yeniden hesapla\'ya tıklayın.',
+    'deploy.previous': '← Önceki',
+    'deploy.next-suggestion': 'Sonraki öneri →',
+    'deploy.dyn.no-pool': 'sertifikalı ve devreye alınmamış set bulunamadı.',
+    'deploy.dyn.no-parseable': '{pool} sertifikalı set bulundu, ancak henüz okunabilir arşivlenmiş raporu olan yok.',
+    'deploy.dyn.no-bar': '{serie} rapor okundu, ancak hiçbiri bir öneri için gereken kârlılık/toparlanma eşiğini karşılamadı.',
+    'deploy.dyn.suggestion-num': 'Öneri #{n}',
+    'deploy.dyn.accounts-needed': '{n} hesap gerekli:',
+    'deploy.dyn.combos-label': 'Kombinasyonlar:',
+    'deploy.dyn.weight': 'ağırlık',
+    'deploy.dyn.hedging-account': 'Hedge hesabı',
+    'deploy.dyn.account': 'Hesap',
+    'deploy.dyn.capital-floor': 'asgari sermaye {amount}',
+    'deploy.dyn.capital-unknown': 'bilinmiyor',
+    'deploy.dyn.combo-count': '{n} kombinasyon',
+    'deploy.dyn.mark-suggestion': 'Bu öneriyi devreye alındı olarak işaretle',
+    'deploy.dyn.calculating': 'hesaplanıyor...',
+    'deploy.dyn.failed': 'öneriler hesaplanamadı: {err}',
+    'deploy.dyn.marked-n': '{n} sertifikalı set devreye alındı olarak işaretlendi.',
+    'deploy.dyn.cleared-n': '{n} setin devreye alındı işareti kaldırıldı.',
   }
 };
 
 const langPicker = document.getElementById('lang-picker');
+
+// Traduz texto MONTADO em runtime (mensagens de status, cartao de sugestao)
+// -- applyTranslations() so cobre elemento estatico com [data-i18n], carregado
+// uma vez na largada. {chave} em vars faz interpolacao simples.
+function t(key, vars) {
+  const data = i18n[langPicker?.value || 'en'] || i18n.en;
+  let texto = data[key] ?? i18n.en[key] ?? key;
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) {
+      texto = texto.replaceAll(`{${k}}`, v);
+    }
+  }
+  return texto;
+}
+
+// Callbacks pra re-renderizar conteudo dinamico (montado por t()) quando o
+// idioma muda -- sem isso, um cartao de sugestao ja aberto ficava preso no
+// idioma de quando foi montado, mesmo com o resto da tela trocando na hora.
+const _reRenderNaTroca = [];
 
 function applyTranslations(locale = 'en') {
   const data = i18n[locale] || i18n.en;
@@ -869,6 +1317,11 @@ function applyTranslations(locale = 'en') {
     const key = el.dataset.i18n;
     if (data[key]) el.textContent = data[key];
   });
+  document.querySelectorAll('[data-i18n-title]').forEach((el) => {
+    const key = el.dataset.i18nTitle;
+    if (data[key]) el.title = data[key];
+  });
+  _reRenderNaTroca.forEach((fn) => fn());
 }
 
 langPicker?.addEventListener('change', (event) => {
@@ -1677,11 +2130,11 @@ function renderizarSugestao() {
   if (!sugestoesFila.length) {
     let motivo;
     if (ultimoPool === 0) {
-      motivo = "no certified, undeployed set found.";
+      motivo = t("deploy.dyn.no-pool");
     } else if (ultimoComSerie === 0) {
-      motivo = `${ultimoPool} certified set(s) found, but none has a parseable archived report yet.`;
+      motivo = t("deploy.dyn.no-parseable", { pool: ultimoPool });
     } else {
-      motivo = `${ultimoComSerie} report(s) parsed, but none met the profitability/recovery bar for a suggestion.`;
+      motivo = t("deploy.dyn.no-bar", { serie: ultimoComSerie });
     }
     caixa.innerHTML = `<span class="status-msg">${motivo}</span>`;
     posicao.textContent = "";
@@ -1690,19 +2143,20 @@ function renderizarSugestao() {
   if (sugestaoCursor >= sugestoesFila.length) sugestaoCursor = sugestoesFila.length - 1;
   const s = sugestoesFila[sugestaoCursor];
   const combosHtml = s.combos.map((c) =>
-    `<li>${c.simbolo} / ${c.sistema} / ${c.variante} — weight ${(c.peso * 100).toFixed(1)}%</li>`
+    `<li>${c.simbolo} / ${c.sistema} / ${c.variante} — ${t("deploy.dyn.weight")} ${(c.peso * 100).toFixed(1)}%</li>`
   ).join("");
   const contasHtml = s.contas.map((c) => {
-    const capital = c.capital_minimo != null ? `$${c.capital_minimo.toFixed(0)}` : "unknown";
-    return `<li>${c.tipo === "hedging" ? "Hedging account" : "Account"} (capital floor ${capital}): ${c.combos.length} combo(s)</li>`;
+    const capital = c.capital_minimo != null ? `$${c.capital_minimo.toFixed(0)}` : t("deploy.dyn.capital-unknown");
+    const tipo = c.tipo === "hedging" ? t("deploy.dyn.hedging-account") : t("deploy.dyn.account");
+    return `<li>${tipo} (${t("deploy.dyn.capital-floor", { amount: capital })}): ${t("deploy.dyn.combo-count", { n: c.combos.length })}</li>`;
   }).join("");
   caixa.innerHTML = `
-    <h3>Suggestion #${s.numero}</h3>
-    <p><b>${s.contas.length} account(s) needed:</b></p>
+    <h3>${t("deploy.dyn.suggestion-num", { n: s.numero })}</h3>
+    <p><b>${t("deploy.dyn.accounts-needed", { n: s.contas.length })}</b></p>
     <ul>${contasHtml}</ul>
-    <p><b>Combos:</b></p>
+    <p><b>${t("deploy.dyn.combos-label")}</b></p>
     <ul>${combosHtml}</ul>
-    <button class="acao" id="btn-sugestao-marcar">Mark this suggestion as deployed</button>`;
+    <button class="acao" id="btn-sugestao-marcar">${t("deploy.dyn.mark-suggestion")}</button>`;
   posicao.textContent = `${sugestaoCursor + 1} / ${sugestoesFila.length}`;
   document.getElementById("btn-sugestao-marcar").addEventListener("click", async () => {
     const chaves = s.combos.map((c) => c.chave);
@@ -1711,11 +2165,12 @@ function renderizarSugestao() {
     await carregarSugestoes();
   });
 }
+_reRenderNaTroca.push(renderizarSugestao);
 
 async function carregarSugestoes() {
   const saldo = parseFloat(document.getElementById("sugestoes-saldo").value) || 0;
   const msg = document.getElementById("msg-sugestoes");
-  msg.textContent = "calculating...";
+  msg.textContent = t("deploy.dyn.calculating");
   msg.className = "status-msg";
   try {
     const d = await api(`/api/implantacao/sugestoes?saldo=${saldo}`);
@@ -1726,7 +2181,7 @@ async function carregarSugestoes() {
     renderizarSugestao();
     msg.textContent = "";
   } catch (e) {
-    msg.textContent = "failed to calculate suggestions: " + e;
+    msg.textContent = t("deploy.dyn.failed", { err: e });
     msg.className = "status-msg no";
   }
 }
@@ -1744,7 +2199,7 @@ document.getElementById("btn-implantacao-marcar-tudo").addEventListener("click",
   const msg = document.getElementById("msg-sugestoes");
   const chaves = implantacaoSets.filter((s) => s.certificado).map((s) => s.chave);
   await post("/api/implantacao/marcar", { chaves, implantado: true });
-  msg.textContent = `marked ${chaves.length} certified set(s) as deployed.`;
+  msg.textContent = t("deploy.dyn.marked-n", { n: chaves.length });
   msg.className = "status-msg ok";
   await carregarImplantacao();
   await carregarSugestoes();
@@ -1753,7 +2208,7 @@ document.getElementById("btn-implantacao-desmarcar-tudo").addEventListener("clic
   const msg = document.getElementById("msg-sugestoes");
   const chaves = implantacaoSets.filter((s) => s.certificado).map((s) => s.chave);
   await post("/api/implantacao/marcar", { chaves, implantado: false });
-  msg.textContent = `cleared deployed flag on ${chaves.length} set(s).`;
+  msg.textContent = t("deploy.dyn.cleared-n", { n: chaves.length });
   msg.className = "status-msg ok";
   await carregarImplantacao();
   await carregarSugestoes();

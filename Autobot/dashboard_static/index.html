@@ -184,7 +184,7 @@
     <span class="status-msg" id="msg-portfolio"></span>
   </div>
   <div class="box">
-    <h2>Correlation panel</h2>
+    <h2 data-i18n="portfolio.correlation-panel">Correlation panel</h2>
     <div class="tabs-sub" id="tabs-portfolio-gerados"></div>
     <iframe id="portfolio-iframe" style="display:none;width:100%;height:640px;border:1px solid var(--line);border-radius:8px;background:var(--bg)"></iframe>
     <span class="status-msg" id="msg-portfolio-iframe">No correlation panel generated yet.</span>
@@ -244,45 +244,45 @@
 <!-- ================= DEPLOYMENT ================= -->
 <section id="painel-implantacao" class="painel">
   <div class="box">
-    <h2>Certified sets</h2>
-    <p class="status-msg">Only sets with an archived validation report (equity curve, trade blotter, Monte Carlo)
-      count as certified — a bare <code>.set</code> without evidence is not exportable. This panel never touches a
+    <h2 data-i18n="deploy.certified-title">Certified sets</h2>
+    <p class="status-msg" data-i18n="deploy.certified-note">Only sets with an archived validation report (equity curve, trade blotter, Monte Carlo)
+      count as certified — a bare .set without evidence is not exportable. This panel never touches a
       live/VPS account: it only prepares a download; taking it there is up to you.</p>
     <div class="linha" style="margin:10px 0">
-      <button class="acao secundario" id="btn-implantacao-todos">Select all certified</button>
-      <button class="acao secundario" id="btn-implantacao-nenhum">Clear selection</button>
-      <button class="acao" id="btn-implantacao-exportar">Export selected (.zip)</button>
+      <button class="acao secundario" id="btn-implantacao-todos" data-i18n="deploy.select-all-certified">Select all certified</button>
+      <button class="acao secundario" id="btn-implantacao-nenhum" data-i18n="deploy.clear-selection">Clear selection</button>
+      <button class="acao" id="btn-implantacao-exportar" data-i18n="deploy.export-selected">Export selected (.zip)</button>
     </div>
     <span class="status-msg" id="msg-implantacao"></span>
-    <p class="status-msg">Sorted by full-period survival balance first (the number that matters —
+    <p class="status-msg" data-i18n="deploy.sort-note">Sorted by full-period survival balance first (the number that matters —
       see "Profit" tooltips below), OOS-window profit as tie-break. A set that only looks good in
       the OOS window can still blow up over the long run — that is exactly why the survival gate exists.</p>
     <table id="tbl-implantacao">
-      <thead><tr><th></th><th>Symbol</th><th>System</th><th>Variant</th><th>Retention</th>
-      <th title="Balance from the full continuous period, deposit 500 baseline — the survival gate's own measurement">Profit (full period)</th>
-      <th title="Profit measured only in the short OOS window — can look great and still hide a long-run blowup">Profit (OOS)</th>
-      <th>Certificate</th><th>Deployed</th><th></th></tr></thead>
+      <thead><tr><th></th><th data-i18n="table.symbol">Symbol</th><th data-i18n="table.system">System</th><th data-i18n="table.variant">Variant</th><th data-i18n="table.retention">Retention</th>
+      <th data-i18n="deploy.col-profit-full" data-i18n-title="deploy.col-profit-full-tip" title="Balance from the full continuous period, deposit 500 baseline — the survival gate's own measurement">Profit (full period)</th>
+      <th data-i18n="deploy.col-profit-oos" data-i18n-title="deploy.col-profit-oos-tip" title="Profit measured only in the short OOS window — can look great and still hide a long-run blowup">Profit (OOS)</th>
+      <th data-i18n="deploy.col-certificate">Certificate</th><th data-i18n="deploy.col-deployed">Deployed</th><th></th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
 
   <div class="box">
-    <h2>Deployment suggestions</h2>
-    <p class="status-msg">Combinations of certified, not-yet-deployed sets that fit
+    <h2 data-i18n="deploy.suggestions-title">Deployment suggestions</h2>
+    <p class="status-msg" data-i18n="deploy.suggestions-note">Combinations of certified, not-yet-deployed sets that fit
       together (low correlation), ordered by risk tier first (research systems
       before grid/martingale). Each suggestion states how many live accounts it
       needs — never assumes just one.</p>
     <div class="linha" style="margin:10px 0">
-      <label>Account balance: $<input type="number" id="sugestoes-saldo" value="100" style="width:90px"></label>
-      <button class="acao secundario" id="btn-sugestoes-recarregar">Recalculate</button>
-      <button class="acao secundario" id="btn-implantacao-marcar-tudo">Mark all certified as deployed</button>
-      <button class="acao secundario" id="btn-implantacao-desmarcar-tudo">Mark none as deployed</button>
+      <label><span data-i18n="deploy.account-balance">Account balance: $</span><input type="number" id="sugestoes-saldo" value="100" style="width:90px"></label>
+      <button class="acao secundario" id="btn-sugestoes-recarregar" data-i18n="deploy.recalculate">Recalculate</button>
+      <button class="acao secundario" id="btn-implantacao-marcar-tudo" data-i18n="deploy.mark-all-deployed">Mark all certified as deployed</button>
+      <button class="acao secundario" id="btn-implantacao-desmarcar-tudo" data-i18n="deploy.mark-none-deployed">Mark none as deployed</button>
     </div>
-    <div id="caixa-sugestao"><span class="status-msg">no suggestion loaded yet — click Recalculate.</span></div>
+    <div id="caixa-sugestao"><span class="status-msg" data-i18n="deploy.no-suggestion-yet">no suggestion loaded yet — click Recalculate.</span></div>
     <div class="linha" style="margin-top:10px;align-items:center;gap:10px">
-      <button class="acao secundario" id="btn-sugestao-anterior">&larr; Previous</button>
+      <button class="acao secundario" id="btn-sugestao-anterior" data-i18n="deploy.previous">&larr; Previous</button>
       <span id="sugestao-posicao" class="status-msg"></span>
-      <button class="acao secundario" id="btn-sugestao-proxima">Next suggestion &rarr;</button>
+      <button class="acao secundario" id="btn-sugestao-proxima" data-i18n="deploy.next-suggestion">Next suggestion &rarr;</button>
     </div>
     <span class="status-msg" id="msg-sugestoes"></span>
   </div>
