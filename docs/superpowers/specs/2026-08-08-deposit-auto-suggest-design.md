@@ -33,23 +33,31 @@ passa a controlar se o valor é calculado ou digitado.
 
 | | Modo Manual | Modo Automático |
 |---|---|---|
-| Estado da caixa | Marcada por padrão; usuário pode desmarcar | Sempre marcada; **sem opção de desmarcar** (checkbox disabled) |
-| Base do cálculo | Maior `capital_base` entre as classes com ≥1 ativo marcado em `.chk-ativo` | Maior `capital_base` entre **todas** as classes do catálogo (hoje 10.000, Metais) |
-| Campo Deposit | `disabled` enquanto a caixa estiver marcada, mostrando o valor calculado | Sempre `disabled`, mostrando o valor calculado |
-| Se desmarcar (só Manual) | Campo volta a `disabled=false` e o valor reseta para 500 (mesmo default de hoje) | N/A |
-| Nenhuma classe marcada ainda (Manual) | Cai no fallback 500 | N/A |
+| Estado da caixa | Marcada por padrão; usuário pode desmarcar | Marcada por padrão; usuário pode desmarcar (igual ao Manual) |
+| Base do cálculo | Maior `capital_base` entre as classes com ≥1 ativo marcado em `.chk-ativo` | Maior `capital_base` entre **todas** as classes do catálogo (hoje 10.000, Metais) — não há seleção de classe nesse modo, então a base é o catálogo inteiro |
+| Campo Deposit | `disabled` enquanto a caixa estiver marcada, mostrando o valor calculado | `disabled` enquanto a caixa estiver marcada, mostrando o valor calculado |
+| Se desmarcar | Campo volta a `disabled=false` e o valor reseta para 500 (mesmo default de hoje) | Campo volta a `disabled=false` e o valor reseta para 500 (mesmo mecanismo do Manual) |
+| Nenhuma classe marcada ainda (Manual) | Cai no fallback 500 | N/A (Automático sempre calcula sobre o catálogo inteiro, nunca fica sem base) |
 
-Justificativa do "maior valor" quando várias classes estão marcadas: o
-Deposit é um parâmetro único por campanha (`--deposit`), não por
-símbolo — usar o maior garante que o valor sugerido respeita a classe
-mais exigente da seleção, em vez de subestimar risco para ela.
+Justificativa do "maior valor" quando várias classes estão marcadas, ou
+no Automático: o Deposit é um parâmetro único por campanha (`--deposit`),
+não por símbolo — usar o maior garante que o valor sugerido respeita a
+classe mais exigente em jogo, em vez de subestimar risco para ela.
 
-Justificativa do travamento total no Modo Automático: esse modo já
-esconde toda a seleção manual de ativo/sistema (`bloco-manual`
-com `display:none`) porque testa o catálogo inteiro sozinho — não faz
-sentido oferecer um override que não tem uma seleção específica por
-trás. A base do cálculo vira "pior caso entre todas as classes", já que
-o Automático eventualmente passa por todas.
+**Correção 2026-08-08** (revisão final da branch): a primeira versão
+deste spec travava a caixa no Modo Automático (sem opção de desmarcar),
+lendo "sempre vai ser automático nesse sentido" como "sem override
+manual nesse modo". O dono corrigiu: "automático" ali descrevia o
+**cálculo** continuar automático (maior `capital_base` do catálogo
+inteiro, já que não há seleção de classe nesse modo) — não que a opção
+de trocar pra um valor manual devesse sumir. Travar o campo também
+eliminava uma capacidade que o dashboard já tinha (digitar qualquer
+depósito em Modo Automático), mudando o depósito de toda campanha
+automática futura de 500 pra 10.000 sem escape a não ser trocar de modo
+inteiro. Modo Automático passa a se comportar exatamente como o Manual
+nesse controle — a única diferença real entre os dois modos é a BASE do
+cálculo (catálogo inteiro vs. só as classes marcadas), não a
+travabilidade da caixa.
 
 **Onde recalcular** (sem mudança de backend — `capital_base` por classe
 já está em `CONFIG.classes` desde `carregarConfig()`):
