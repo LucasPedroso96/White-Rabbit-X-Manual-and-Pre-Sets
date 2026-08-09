@@ -847,7 +847,11 @@ def implantacao_sugestoes(saldo: float = 0.0) -> JSONResponse:
     series = auto_manager_live.carregar_series_certificadas(
         disponiveis, RELATORIOS_DIR)
     sugestoes = auto_manager_live.montar_sugestoes(disponiveis, series, saldo)
-    return JSONResponse({"sugestoes": sugestoes})
+    return JSONResponse({
+        "sugestoes": sugestoes,
+        "pool": len(disponiveis),
+        "com_serie": len(series),
+    })
 
 
 _NOMES_RELATORIO_VALIDOS = {"conf_wrx", "sobrevivencia"}

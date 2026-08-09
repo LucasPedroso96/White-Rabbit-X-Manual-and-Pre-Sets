@@ -15,6 +15,7 @@ ver secao 8 do plano, "Fora de escopo por enquanto".
 """
 from __future__ import annotations
 
+import html
 import re
 from pathlib import Path
 
@@ -26,6 +27,11 @@ from generate_system_sets import ASSETS, CLASSES, SYSTEMS
 # Mesma ordem de graduacao pra capital ao vivo da secao 5 do plano.
 TIER_ORDEM = ["RESEARCH", "HEDGE_ACCOUNT_REQUIRED", "HIGH_RISK",
              "HIGH_RISK_RESEARCH"]
+
+_TITULO_SECAO = re.compile(r'colspan="13"[^>]*>\s*<div[^>]*>\s*<b>[^<]*</b>')
+_LINHA_HTML = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S)
+_CELULA_HTML = re.compile(r"<td[^>]*>(.*?)</td>", re.S)
+_TAG_HTML = re.compile(r"<[^>]+>")
 
 SYSTEM_STATUS: dict[str, str] = {s.code: s.status for s in SYSTEMS}
 
@@ -136,6 +142,15 @@ def contas_necessarias(combos: list[dict], saldo_conta: float) -> list[dict]:
                         presentes no resto excede `saldo_conta` -> particiona
                         por classe ate caber. saldo_conta<=0 (desconhecido)
                         nunca forca split -- assume que cabe.
+
+    NOTA sobre capital_minimo: vem sempre de CLASSES[...].capital_base, que
+    generate_system_sets.py documenta como "capital sobre o qual 1R e
+    calculado (Fixed-R)" -- so se aplica de verdade aos sistemas 01-06. Pra
+    07-11 (grid/martingale/dalembert/signal-only), que usam lote fixo e
+    nunca essa constante em producao, o valor aqui e usado como PROXY do
+    piso de capital da classe de ativo (Metais exige mais que Forex
+    independente do modo de sizing) -- nao e uma garantia Fixed-R, so a
+    melhor estimativa disponivel sem esse dado.
     """
     hedge = [c for c in combos
             if SYSTEM_STATUS.get(c["sistema"]) == "HEDGE_ACCOUNT_REQUIRED"]
@@ -143,11 +158,11 @@ def contas_necessarias(combos: list[dict], saldo_conta: float) -> list[dict]:
 
     contas: list[dict] = []
     if hedge:
-        capital_hedge = max(
-            (capital_minimo_classe(c["simbolo"]) or 0.0) for c in hedge)
+        capitais_hedge = [capital_minimo_classe(c["simbolo"]) for c in hedge]
+        capitais_hedge = [v for v in capitais_hedge if v is not None]
         contas.append({
             "tipo": "hedging",
-            "capital_minimo": capital_hedge,
+            "capital_minimo": max(capitais_hedge) if capitais_hedge else None,
             "combos": [c["chave"] for c in hedge],
         })
 
@@ -179,10 +194,59 @@ def contas_necessarias(combos: list[dict], saldo_conta: float) -> list[dict]:
             if sem_classe:
                 contas.append({
                     "tipo": "normal",
-                    "capital_minimo": 0.0,
+                    "capital_minimo": None,
                     "combos": [c["chave"] for c in sem_classe],
                 })
     return contas
+
+
+def _trades_do_relatorio(caminho_htm: Path) -> pd.DataFrame | None:
+    """(tempo, lucro) por trade, extraidos da secao Transacoes do relatorio
+    arquivado (.htm, UTF-16, "Salvar como Relatorio" do MT5).
+
+    Mesma tecnica de relatorio_resumo.py: a secao e achada pela POSICAO
+    estrutural (sempre a ULTIMA das 6 secoes com titulo colspan="13" --
+    Relatorio, Corretora, Configuracao, Resultados, Ordens, Transacoes,
+    nessa ordem fixa em qualquer idioma do terminal), nao pelo texto do
+    titulo nem pelo nome das colunas -- portfolio_builder.ler_html() foi
+    escrito pra relatorio exportado a mao (UTF-8, nomes de coluna em
+    ingles/portugues sem acento) e nao serve pra este arquivo: o MT5 grava
+    em UTF-16, com cabecalho acentuado ("Horario") e a tabela de
+    negociacoes so comeca depois da secao Resultados -- achado revisando
+    contra relatorios reais, nao contra o fixture sintetico do Task 5.
+
+    As colunas de Horario/Lucro sao sempre a 1a e a 11a de cada linha
+    (Horario, Oferta, Ativo, Tipo, Direcao, Volume, Preco, Ordem, Comissao,
+    Swap, Lucro, Saldo, Comentario) -- fixas pela ordem do relatorio, o MT5
+    nao muda a ordem entre idiomas, so o texto do cabecalho. Linhas de
+    operacao de conta (deposito inicial etc, nao um trade real) tem a
+    coluna Ativo vazia -- ignoradas, senao o deposito entraria como "lucro"
+    do primeiro dia e inflaria a serie.
+    """
+    try:
+        texto = caminho_htm.read_text(encoding="utf-16", errors="replace")
+    except OSError:
+        return None
+    titulos = list(_TITULO_SECAO.finditer(texto))
+    if not titulos:
+        return None
+    secao = texto[titulos[-1].end():]
+    tempos, lucros = [], []
+    for linha in _LINHA_HTML.findall(secao):
+        celulas = [html.unescape(_TAG_HTML.sub("", c)).strip()
+                  for c in _CELULA_HTML.findall(linha)]
+        if len(celulas) < 11 or not celulas[2]:
+            continue
+        tempo = pd.to_datetime(celulas[0], errors="coerce")
+        lucro = pd.to_numeric(
+            celulas[10].replace(" ", "").replace(",", "."), errors="coerce")
+        if pd.isna(tempo) or pd.isna(lucro):
+            continue
+        tempos.append(tempo)
+        lucros.append(lucro)
+    if len(tempos) < 5:
+        return None
+    return pd.DataFrame({"tempo": tempos, "lucro": lucros})
 
 
 def carregar_series_certificadas(sets_certificados: list[dict],
@@ -199,7 +263,7 @@ def carregar_series_certificadas(sets_certificados: list[dict],
         caminho = relatorios_dir / combo["relatorio_dir"] / "conf_wrx.htm"
         if not caminho.is_file():
             continue
-        trades = pb.ler_html(caminho)
+        trades = _trades_do_relatorio(caminho)
         if trades is None or trades.empty:
             continue
         series[combo["chave"]] = pb.serie_diaria(trades)

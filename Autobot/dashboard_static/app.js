@@ -1572,12 +1572,22 @@ document.getElementById("btn-implantacao-exportar").addEventListener("click", as
 
 let sugestoesFila = [];
 let sugestaoCursor = 0;
+let ultimoPool = 0;
+let ultimoComSerie = 0;
 
 function renderizarSugestao() {
   const caixa = document.getElementById("caixa-sugestao");
   const posicao = document.getElementById("sugestao-posicao");
   if (!sugestoesFila.length) {
-    caixa.innerHTML = `<span class="status-msg">no suggestion available -- every certified set is already deployed, or none has a readable report yet.</span>`;
+    let motivo;
+    if (ultimoPool === 0) {
+      motivo = "no certified, undeployed set found.";
+    } else if (ultimoComSerie === 0) {
+      motivo = `${ultimoPool} certified set(s) found, but none has a parseable archived report yet.`;
+    } else {
+      motivo = `${ultimoComSerie} report(s) parsed, but none met the profitability/recovery bar for a suggestion.`;
+    }
+    caixa.innerHTML = `<span class="status-msg">${motivo}</span>`;
     posicao.textContent = "";
     return;
   }
@@ -1586,9 +1596,10 @@ function renderizarSugestao() {
   const combosHtml = s.combos.map((c) =>
     `<li>${c.simbolo} / ${c.sistema} / ${c.variante} — weight ${(c.peso * 100).toFixed(1)}%</li>`
   ).join("");
-  const contasHtml = s.contas.map((c) =>
-    `<li>${c.tipo === "hedging" ? "Hedging account" : "Account"} (min. capital $${c.capital_minimo.toFixed(0)}): ${c.combos.length} combo(s)</li>`
-  ).join("");
+  const contasHtml = s.contas.map((c) => {
+    const capital = c.capital_minimo != null ? `$${c.capital_minimo.toFixed(0)}` : "unknown";
+    return `<li>${c.tipo === "hedging" ? "Hedging account" : "Account"} (capital floor ${capital}): ${c.combos.length} combo(s)</li>`;
+  }).join("");
   caixa.innerHTML = `
     <h3>Suggestion #${s.numero}</h3>
     <p><b>${s.contas.length} account(s) needed:</b></p>
@@ -1607,10 +1618,21 @@ function renderizarSugestao() {
 
 async function carregarSugestoes() {
   const saldo = parseFloat(document.getElementById("sugestoes-saldo").value) || 0;
-  const d = await api(`/api/implantacao/sugestoes?saldo=${saldo}`);
-  sugestoesFila = d.sugestoes || [];
-  sugestaoCursor = 0;
-  renderizarSugestao();
+  const msg = document.getElementById("msg-sugestoes");
+  msg.textContent = "calculating...";
+  msg.className = "status-msg";
+  try {
+    const d = await api(`/api/implantacao/sugestoes?saldo=${saldo}`);
+    sugestoesFila = d.sugestoes || [];
+    ultimoPool = d.pool ?? 0;
+    ultimoComSerie = d.com_serie ?? 0;
+    sugestaoCursor = 0;
+    renderizarSugestao();
+    msg.textContent = "";
+  } catch (e) {
+    msg.textContent = "failed to calculate suggestions: " + e;
+    msg.className = "status-msg no";
+  }
 }
 
 document.getElementById("btn-sugestoes-recarregar").addEventListener("click", carregarSugestoes);

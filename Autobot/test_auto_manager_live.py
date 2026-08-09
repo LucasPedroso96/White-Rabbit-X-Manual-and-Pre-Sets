@@ -154,7 +154,13 @@ checar("caso F: 2 contas (classe desconhecida + metais)", len(contas), 2)
 todos_combos_f = sorted([c for conta in contas for c in conta["combos"]])
 checar("caso F: nenhum combo desaparece (S10 e S4 presentes)", todos_combos_f, ["S10", "S4"])
 fake_conta = next(c for c in contas if "S10" in c["combos"])
-checar("caso F: combo desconhecido em conta separada com capital_minimo 0.0", fake_conta["capital_minimo"], 0.0)
+checar("caso F: combo desconhecido em conta separada com capital_minimo None (nao 0.0, que pareceria 'gratis')",
+       fake_conta["capital_minimo"], None)
+
+combo_desconhecido_isolado = {"chave": "S11", "simbolo": "ZZZ_NAO_EXISTE_NENHUMA_CLASSE", "sistema": "07_GRID_SEPARATE"}
+contas = aml.contas_necessarias([combo_desconhecido_isolado], saldo_conta=1000)
+checar("hedge totalmente sem classe resolvivel -> capital_minimo None (nao 0.0, que pareceria 'gratis')",
+       contas[0]["capital_minimo"], None)
 
 
 # --- montar_sugestoes (usa as mesmas series deterministicas do Task 3) -------
@@ -186,21 +192,61 @@ checar("pesos da sugestao 1 somam 1.0",
 import tempfile
 from pathlib import Path as _Path
 
-relatorio_html = pd.DataFrame({
-    "Order": [1, 2, 3, 4, 5, 6],
-    "Symbol": ["EURUSD"] * 6,
-    "Type": ["buy"] * 6,
-    "Volume": [0.01] * 6,
-    "Time": ["2026.01.01 00:00", "2026.01.01 01:00", "2026.01.02 00:00",
-             "2026.01.02 01:00", "2026.01.03 00:00", "2026.01.03 01:00"],
-    "Profit": [10.0, -2.0, 8.0, -1.0, 9.0, 3.0],
-}).to_html(index=False)
+
+def _relatorio_sintetico_mt5(pares_tempo_lucro: list[tuple[str, str]]) -> str:
+    """Relatorio .htm minimo, mas estruturalmente identico ao formato real
+    do MT5 (6 secoes com titulo colspan=13, tabela de Transacoes com 13
+    colunas) -- ao contrario do fixture antigo (pd.DataFrame.to_html(), que
+    nao reproduzia o formato real e por isso nao pegou o bug do leitor
+    anterior)."""
+    linhas_trade = "".join(
+        f'<tr><td>{tempo}</td><td>{i}</td><td>EURUSD</td><td>buy</td>'
+        f'<td>in</td><td>0.01</td><td>1.10000</td><td>{i}</td>'
+        f'<td>0.00</td><td>0.00</td><td>{lucro}</td><td>0.00</td><td></td></tr>'
+        for i, (tempo, lucro) in enumerate(pares_tempo_lucro, start=1))
+    secoes = "".join(
+        f'<tr><td colspan="13"><div><b>{nome}</b></div></td></tr>'
+        for nome in ("Relatorio", "Corretora", "Configuracao", "Resultados", "Ordens"))
+    return (
+        f'<html><body><table>{secoes}'
+        f'<tr><td colspan="13"><div><b>Transacoes</b></div></td></tr>'
+        f'<tr><td>Horario</td><td>Oferta</td><td>Ativo</td><td>Tipo</td>'
+        f'<td>Direcao</td><td>Volume</td><td>Preco</td><td>Ordem</td>'
+        f'<td>Comissao</td><td>Swap</td><td>Lucro</td><td>Saldo</td>'
+        f'<td>Comentario</td></tr>'
+        f'{linhas_trade}</table></body></html>')
+
+
+# --- _trades_do_relatorio isolado -----------------------------------------
+with tempfile.TemporaryDirectory() as tmp:
+    caminho = _Path(tmp) / "conf_wrx.htm"
+    caminho.write_text(_relatorio_sintetico_mt5([
+        ("2026.01.01 00:00:00", "5.00"), ("2026.01.01 01:00:00", "5.00"),
+        ("2026.01.02 00:00:00", "5.00"), ("2026.01.02 01:00:00", "5.00"),
+        ("2026.01.03 00:00:00", "5.00"),
+    ]), encoding="utf-16")
+    trades = aml._trades_do_relatorio(caminho)
+    checar("_trades_do_relatorio: numero de trades extraidos", len(trades), 5)
+    checar("_trades_do_relatorio: soma do lucro", float(trades["lucro"].sum()), 25.0)
+
+    caminho_vazio = _Path(tmp) / "vazio.htm"
+    caminho_vazio.write_text("<html><body>nada aqui</body></html>", encoding="utf-16")
+    checar("_trades_do_relatorio: sem secoes colspan=13 -> None",
+           aml._trades_do_relatorio(caminho_vazio), None)
+
+
+# --- _trades_do_relatorio / carregar_series_certificadas (formato real MT5) --
+relatorio_html = _relatorio_sintetico_mt5([
+    ("2026.01.01 00:00:00", "10.00"), ("2026.01.01 01:00:00", "-2.00"),
+    ("2026.01.02 00:00:00", "8.00"), ("2026.01.02 01:00:00", "-1.00"),
+    ("2026.01.03 00:00:00", "9.00"), ("2026.01.03 01:00:00", "3.00"),
+])
 
 with tempfile.TemporaryDirectory() as tmp:
     relatorios_dir = _Path(tmp)
     pasta_combo = relatorios_dir / "combo_1"
     pasta_combo.mkdir()
-    (pasta_combo / "conf_wrx.htm").write_text(relatorio_html, encoding="utf-8")
+    (pasta_combo / "conf_wrx.htm").write_text(relatorio_html, encoding="utf-16")
 
     pool = [
         {"chave": "com_relatorio", "certificado": True, "relatorio_dir": "combo_1"},
@@ -209,9 +255,11 @@ with tempfile.TemporaryDirectory() as tmp:
         {"chave": "arquivo_ausente", "certificado": True, "relatorio_dir": "combo_2"},
     ]
     series = aml.carregar_series_certificadas(pool, relatorios_dir)
-    checar("so o combo com relatorio legivel entra", list(series.keys()),
-           ["com_relatorio"])
+    checar("so o combo com relatorio legivel entra (formato real MT5, UTF-16)",
+           list(series.keys()), ["com_relatorio"])
     checar("serie tem 3 dias (resample diario)", len(series["com_relatorio"]), 3)
+    checar("soma da serie bate com os lucros do fixture (10-2+8-1+9+3)",
+           round(float(series["com_relatorio"].sum()), 2), 27.0)
 
 
 if FALHAS:
