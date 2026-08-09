@@ -31,6 +31,7 @@ import argparse
 import io
 import json
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -172,11 +173,26 @@ def ler_ledger() -> list[dict]:
 def limpar_ledger_incompleto() -> int:
     """Remove entradas 'sem JSON final' (combo interrompido no meio) -- sem
     isso o combo fica preso como 'feito' e nunca e refeito de verdade. Mesma
-    limpeza que tive que fazer a mao repetidas vezes nesta sessao."""
+    limpeza que tive que fazer a mao repetidas vezes nesta sessao.
+
+    Guarda de seguranca (achado 2026-08-09): um dia inteiro de resultados
+    aprovados (XAUUSD.HT/08_GRID_UNIFIED, madrugada de 08/08 -- retencao
+    361% e 143%, sobreviveram ao periodo completo) sumiu do ledger em algum
+    momento sem deixar rastro de erro. Esta e a UNICA funcao do projeto que
+    reescreve o arquivo inteiro (tudo o resto so acrescenta linha por linha
+    via campanha.registrar()); se ela rodar contra uma leitura ruim (corrida
+    concorrente com o subprocesso da campanha ainda escrevendo, por exemplo)
+    o resultado antigo era sobrescrever tudo silenciosamente, sem copia pra
+    recuperar. Agora: sempre faz backup antes de escrever, e recusa a
+    escrita se o corte pareceria remover mais de 20% das linhas de uma vez
+    (isso nunca deveria acontecer so por combos incompletos -- normalmente
+    0 ou 1 por Stop; um corte grande e sinal de leitura ruim, nao de ledger
+    sujo de verdade)."""
     if not LEDGER.exists():
         return 0
+    todas = LEDGER.read_text(encoding="utf-8").splitlines()
     boas, removidas = [], 0
-    for linha in LEDGER.read_text(encoding="utf-8").splitlines():
+    for linha in todas:
         if not linha.strip():
             continue
         try:
@@ -188,8 +204,15 @@ def limpar_ledger_incompleto() -> int:
             removidas += 1
             continue
         boas.append(linha)
-    if removidas:
-        LEDGER.write_text("\n".join(boas) + ("\n" if boas else ""), encoding="utf-8")
+    if not removidas:
+        return 0
+    if len(todas) >= 10 and removidas > len(todas) * 0.2:
+        print(f"limpar_ledger_incompleto: recusando remover {removidas}/"
+              f"{len(todas)} linhas de uma vez (parece leitura ruim, nao "
+              "combos incompletos) -- ledger nao mexido.", flush=True)
+        return 0
+    shutil.copy2(LEDGER, LEDGER.with_suffix(".jsonl.bak"))
+    LEDGER.write_text("\n".join(boas) + ("\n" if boas else ""), encoding="utf-8")
     return removidas
 
 
