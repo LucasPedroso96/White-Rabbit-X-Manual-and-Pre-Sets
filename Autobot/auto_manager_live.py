@@ -115,3 +115,52 @@ def selecionar_ordenado(series: dict[str, pd.Series], ordem: list[str],
         if pior <= teto:
             escolhidas.append(nome)
     return escolhidas, recusadas
+
+
+def contas_necessarias(combos: list[dict], saldo_conta: float) -> list[dict]:
+    """Particiona os combos de uma sugestao em contas, so por restricao dura
+    (secao 8 do plano -- nunca por preferencia de diversificacao):
+
+      MISTURA DE TIER   combo HEDGE_ACCOUNT_REQUIRED (07/08) sempre isolado
+                        numa conta de hedging separada dos demais tiers.
+      CAPITAL MINIMO    soma dos capitais minimos das classes de ativo
+                        presentes no resto excede `saldo_conta` -> particiona
+                        por classe ate caber. saldo_conta<=0 (desconhecido)
+                        nunca forca split -- assume que cabe.
+    """
+    hedge = [c for c in combos
+            if SYSTEM_STATUS.get(c["sistema"]) == "HEDGE_ACCOUNT_REQUIRED"]
+    normais = [c for c in combos if c not in hedge]
+
+    contas: list[dict] = []
+    if hedge:
+        capital_hedge = max(
+            (capital_minimo_classe(c["simbolo"]) or 0.0) for c in hedge)
+        contas.append({
+            "tipo": "hedging",
+            "capital_minimo": capital_hedge,
+            "combos": [c["chave"] for c in hedge],
+        })
+
+    if normais:
+        classes_presentes = sorted({
+            ASSET_CLASS_OF.get(c["simbolo"]) for c in normais
+            if ASSET_CLASS_OF.get(c["simbolo"])})
+        capital_total = sum(CLASSES[classe].capital_base
+                            for classe in classes_presentes)
+        if saldo_conta <= 0 or capital_total <= saldo_conta or not classes_presentes:
+            contas.append({
+                "tipo": "normal",
+                "capital_minimo": capital_total,
+                "combos": [c["chave"] for c in normais],
+            })
+        else:
+            for classe in classes_presentes:
+                membros = [c for c in normais
+                          if ASSET_CLASS_OF.get(c["simbolo"]) == classe]
+                contas.append({
+                    "tipo": "normal",
+                    "capital_minimo": CLASSES[classe].capital_base,
+                    "combos": [c["chave"] for c in membros],
+                })
+    return contas

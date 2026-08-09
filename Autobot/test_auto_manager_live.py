@@ -102,6 +102,43 @@ checar("correlacao exatamente igual ao teto e aceita (limite inclusivo, <=)",
        escolhidas_c, ["a", "b"])
 
 
+# --- contas_necessarias -------------------------------------------------------
+forex_a = {"chave": "S1", "simbolo": "EURUSD", "sistema": "01_SLTP"}
+forex_b = {"chave": "S2", "simbolo": "GBPUSD", "sistema": "02_SLTP_ORGANIC"}
+metais_a = {"chave": "S4", "simbolo": "XAUUSD", "sistema": "01_SLTP"}
+hedge_a = {"chave": "S3", "simbolo": "XAUUSD", "sistema": "07_GRID_SEPARATE"}
+
+# Caso A: so RESEARCH, uma classe, saldo cobre -> 1 conta.
+contas = aml.contas_necessarias([forex_a, forex_b], saldo_conta=1000)
+checar("caso A: 1 conta so", len(contas), 1)
+checar("caso A: tipo normal", contas[0]["tipo"], "normal")
+checar("caso A: capital minimo = 500 (Forex)", contas[0]["capital_minimo"], 500)
+checar("caso A: os 2 combos na mesma conta",
+       sorted(contas[0]["combos"]), ["S1", "S2"])
+
+# Caso B: mistura de tier (HEDGE_ACCOUNT_REQUIRED junto com RESEARCH) -> 2 contas.
+contas = aml.contas_necessarias([forex_a, forex_b, hedge_a], saldo_conta=1000)
+checar("caso B: 2 contas (hedge isolado)", len(contas), 2)
+tipos = sorted(c["tipo"] for c in contas)
+checar("caso B: uma hedging, uma normal", tipos, ["hedging", "normal"])
+hedge_conta = next(c for c in contas if c["tipo"] == "hedging")
+checar("caso B: hedge sozinho na conta de hedging", hedge_conta["combos"], ["S3"])
+checar("caso B: capital minimo da hedge = 10000 (Metais)",
+       hedge_conta["capital_minimo"], 10000)
+
+# Caso C: capital minimo combinado estoura o saldo -> particiona por classe.
+contas = aml.contas_necessarias([forex_a, metais_a], saldo_conta=1000)
+checar("caso C: 2 contas normais (uma por classe)", len(contas), 2)
+checar("caso C: nenhuma e hedging",
+       all(c["tipo"] == "normal" for c in contas), True)
+capitais = sorted(c["capital_minimo"] for c in contas)
+checar("caso C: capitais 500 e 10000", capitais, [500, 10000])
+
+# Caso D: saldo desconhecido (0) -> nao forca split.
+contas = aml.contas_necessarias([forex_a, metais_a], saldo_conta=0)
+checar("caso D: 1 conta so quando saldo e desconhecido", len(contas), 1)
+
+
 if FALHAS:
     print(f"{len(FALHAS)} falha(s):")
     for f in FALHAS:
