@@ -12,3 +12,6 @@ AutoBotSetup/AutobotRuntime/
 AutoBotSetup/build/
 AutoBotSetup/__pycache__/
 AutoBotSetup/.mypy_cache/
+
+# Worktrees isolados (scratch, nunca commitar)
+.worktrees/
