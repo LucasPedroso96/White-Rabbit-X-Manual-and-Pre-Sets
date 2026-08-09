@@ -248,10 +248,10 @@ class AssetClass:
 
 CLASSES = {
     "01_Forex": AssetClass("01_Forex", 2, 1, 5, 1.0, 6.0, 9.0, 5, False, "", 500),
-    "02_Metals": AssetClass("02_Metals", 2, 1, 5, 1.5, 7.0, 10.0, 10, False, "USD,EUR", 10000),
-    "03_Cryptocurrencies": AssetClass("03_Cryptocurrencies", 4, 2, 6, 2.0, 9.0, 14.0, 20, True, "USD", 2500),
-    "04_Indices_Energies": AssetClass("04_Indices_Energies", 3, 1, 5, 1.5, 8.0, 12.0, 15, False, "USD,EUR,JPY", 2500),
-    "05_US_Stocks_CFD": AssetClass("05_US_Stocks_CFD", 4, 2, 6, 1.5, 8.0, 12.0, 10, False, "USD", 5000),
+    "02_Cryptocurrencies": AssetClass("02_Cryptocurrencies", 4, 2, 6, 2.0, 9.0, 14.0, 20, True, "USD", 2500),
+    "03_Indices_Energies": AssetClass("03_Indices_Energies", 3, 1, 5, 1.5, 8.0, 12.0, 15, False, "USD,EUR,JPY", 2500),
+    "04_US_Stocks_CFD": AssetClass("04_US_Stocks_CFD", 4, 2, 6, 1.5, 8.0, 12.0, 10, False, "USD", 5000),
+    "05_Metals": AssetClass("05_Metals", 2, 1, 5, 1.5, 7.0, 10.0, 10, False, "USD,EUR", 10000),
 }
 
 ASSETS: dict[str, list[str]] = {
@@ -260,16 +260,16 @@ ASSETS: dict[str, list[str]] = {
         "CHFJPY", "EURAUD", "EURCAD", "EURCHF", "EURGBP", "EURJPY", "EURNZD",
         "EURUSD", "GBPAUD", "GBPCAD", "GBPCHF", "GBPJPY", "GBPNZD", "GBPUSD",
         "NZDCAD", "NZDCHF", "NZDJPY", "NZDUSD", "USDCAD", "USDCHF", "USDJPY"],
-    "02_Metals": ["XAGUSD", "XAUEUR", "XAUUSD"],
-    "03_Cryptocurrencies": ["ADAUSD", "BTCUSD", "DOGEUSD", "ETHUSD", "SOLUSD", "XRPUSD"],
-    "04_Indices_Energies": ["BRENT", "WTI"],
-    "05_US_Stocks_CFD": [
+    "02_Cryptocurrencies": ["ADAUSD", "BTCUSD", "DOGEUSD", "ETHUSD", "SOLUSD", "XRPUSD"],
+    "03_Indices_Energies": ["BRENT", "WTI"],
+    "04_US_Stocks_CFD": [
         "AAPL", "ADBE", "AMZN", "BA", "BAC", "BRK.B", "C", "CAT", "CMCSA",
         "CSCO", "CVX", "DAL", "DIS", "EA", "EBAY", "FOXA", "GE", "GM", "GOOGL",
         "GS", "HPE", "IBM", "INTC", "JNJ", "JPM", "KO", "LLY", "MCD", "META",
         "MMM", "MSFT", "NEM", "NFLX", "NKE", "NVDA", "ORCL", "PEP", "PFE",
         "PG", "PM", "PRU", "PYPL", "SBUX", "TSLA", "UPS", "V", "VZ", "WFC",
         "WMT", "XOM"],
+    "05_Metals": ["XAGUSD", "XAUEUR", "XAUUSD"],
 }
 
 # --------------------------------------------------------------- nucleo comum

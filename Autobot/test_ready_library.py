@@ -89,7 +89,7 @@ with tempfile.TemporaryDirectory() as tmp:
     ledger = raiz / "ledger.jsonl"
 
     for no in ("01_Forex/EURUSD/01_SLTP", "01_Forex/EURUSD/03_TRAIL_ONLY",
-               "01_Forex/GBPUSD/01_SLTP", "02_Metals/XAUUSD/01_SLTP"):
+               "01_Forex/GBPUSD/01_SLTP", "05_Metals/XAUUSD/01_SLTP"):
         (bib / no).mkdir(parents=True)
         (bib / no / "BUY_MULTI.set").write_text(CONTEUDO, encoding=UTF16)
     tester.mkdir()
@@ -120,7 +120,7 @@ with tempfile.TemporaryDirectory() as tmp:
     checar("sync: ativo sem nada pronto fica sem marca",
            (destino / f"{m}01_Forex" / "GBPUSD" / "01_SLTP").is_dir(), True)
     checar("sync: outra classe com set pronto tambem marca",
-           (destino / f"{m}02_Metals" / f"{m}XAUUSD" / f"{m}01_SLTP" /
+           (destino / f"{m}05_Metals" / f"{m}XAUUSD" / f"{m}01_SLTP" /
             f"{m}BUY_MULTI.set").is_file(), True)
 
     mapa = (destino / "MAPA.md").read_text(encoding="utf-8")
@@ -146,9 +146,9 @@ with tempfile.TemporaryDirectory() as tmp:
     checar("rebaixado: removido do espelho", r3["removidos"], 1)
     checar("rebaixado: prontos", r3["prontos"], 1)
     checar("rebaixado: pasta ancestral perde a marca (nada mais embaixo)",
-           (destino / "02_Metals").is_dir(), True)
+           (destino / "05_Metals").is_dir(), True)
     checar("rebaixado: pasta marcada antiga nao sobrevive",
-           (destino / f"{m}02_Metals").exists(), False)
+           (destino / f"{m}05_Metals").exists(), False)
     port = (destino / rl.PASTA_PORTFOLIOS / "01_SLTP.md").read_text(encoding="utf-8")
     checar("rebaixado: fora do portfolio", "XAUUSD" in port, False)
 

@@ -45,8 +45,8 @@ SETS = DADOS / "MQL5" / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
 EA = r"White Rabbit X (Global Multi-Indicator).ex5"
 LOGS = DADOS / "Tester" / "logs"
 
-CLASSES = ("01_Forex", "02_Metals", "03_Cryptocurrencies",
-           "04_Indices_Energies", "05_US_Stocks_CFD")
+CLASSES = ("01_Forex", "02_Cryptocurrencies", "03_Indices_Energies",
+           "04_US_Stocks_CFD", "05_Metals")
 
 
 def pasta_do_ativo(symbol: str) -> Path | None:

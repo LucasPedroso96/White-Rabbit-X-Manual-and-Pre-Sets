@@ -64,8 +64,8 @@ CONTA_CACHE = Path(__file__).resolve().parent / "_conta_real.json"
 EA = r"White Rabbit X (Global Multi-Indicator).ex5"
 LOGS = DADOS / "Tester" / "logs"
 
-CLASSES = ("01_Forex", "02_Metals", "03_Cryptocurrencies",
-           "04_Indices_Energies", "05_US_Stocks_CFD")
+CLASSES = ("01_Forex", "02_Cryptocurrencies", "03_Indices_Energies",
+           "04_US_Stocks_CFD", "05_Metals")
 
 # Criterios de otimizacao do MT5 (aba Settings).
 CRITERIOS = {0: "Saldo max", 1: "Profit Factor max", 2: "Payoff esperado max",

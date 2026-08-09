@@ -23,10 +23,10 @@ from datetime import datetime, timedelta
 
 CLASSES = {
     "01_Forex": (["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "EURJPY"], "H1"),
-    "02_Metals": (["XAUUSD", "XAGUSD"], "H1"),
-    "03_Cryptocurrencies": (["BTCUSD", "ETHUSD"], "H4"),
-    "04_Indices_Energies": (["BRENT", "WTI"], "M30"),
-    "05_US_Stocks_CFD": (["AAPL", "MSFT", "TSLA"], "H4"),
+    "02_Cryptocurrencies": (["BTCUSD", "ETHUSD"], "H4"),
+    "03_Indices_Energies": (["BRENT", "WTI"], "M30"),
+    "04_US_Stocks_CFD": (["AAPL", "MSFT", "TSLA"], "H4"),
+    "05_Metals": (["XAUUSD", "XAGUSD"], "H1"),
 }
 STOP_ATR = 3.0        # sl_mid dos sets fica em torno disso
 ATR_PERIODO = 14
