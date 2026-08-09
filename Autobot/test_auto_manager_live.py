@@ -28,9 +28,11 @@ checar("classe com ponto proprio (nao e sufixo)",
        aml.capital_minimo_classe("BRK.B"), 5000)
 checar("sufixo de corretora/HT cai pro radical",
        aml.capital_minimo_classe("EURUSD.HT"), 500)
-checar("sufixo bare de broker (sem separador)",
-       aml.capital_minimo_classe("EURUSDm"), 500)
+checar("sufixo bare de broker (sem separador) -- nao resolvido (limitacao conhecida)",
+       aml.capital_minimo_classe("EURUSDm"), None)
 checar("simbolo desconhecido", aml.capital_minimo_classe("NAOEXISTE"), None)
+checar("regressao: simbolo real nao misclassificado por short ticker (V = Visa stock)",
+       aml.capital_minimo_classe("VETUSD"), None)
 
 
 if FALHAS:

@@ -37,37 +37,19 @@ ASSET_CLASS_OF: dict[str, str] = {
 def capital_minimo_classe(simbolo: str) -> float | None:
     """Capital minimo da classe do ativo (generate_system_sets.CLASSES).
 
-    Tenta em tres estagios:
-    1. Simbolo exato (cobre "BRK.B" com ponto proprio, nao sufixo de corretora)
-    2. Radical antes do primeiro separador (cobre "EURUSD.HT")
-    3. Simbolo conhecido mais longo que eh prefixo do input, seguido apenas
-       por caracteres de sufixo de broker (cobre "EURUSDm" com bare suffixes)
+    Tenta o simbolo exato primeiro (cobre casos como "BRK.B", que tem ponto
+    proprio, nao sufixo de corretora); so cai pro radical antes do primeiro
+    separador quando o simbolo exato nao bate -- mesma ideia de
+    ready_library.achar_ativo(), pra aceitar "EURUSD.HT" etc.
+
+    Nota: nao resolve simbolos com sufixo bare-letter (glued, sem separador),
+    como "EURUSDm" -- retorna None. Precisaria validar contra mt5.symbols_get()
+    pra ser seguro (evita false positives em short tickers no ASSET_CLASS_OF).
     """
-    # Stage 1: Exact match
     classe = ASSET_CLASS_OF.get(simbolo)
-    if classe is not None:
-        return CLASSES[classe].capital_base
-
-    # Stage 2: Radical before first separator
-    radical = re.split(r"[.\-_]", simbolo)[0]
-    classe = ASSET_CLASS_OF.get(radical)
-    if classe is not None:
-        return CLASSES[classe].capital_base
-
-    # Stage 3: Longest known symbol as prefix (handles bare broker suffixes)
-    longest_known = None
-    for known_symbol in ASSET_CLASS_OF.keys():
-        if simbolo.startswith(known_symbol):
-            # Check that after the known symbol, we only have valid broker-suffix chars
-            suffix = simbolo[len(known_symbol):]
-            # Allow alphanumeric, dots, dashes, underscores for broker suffixes
-            if re.match(r'^[a-zA-Z0-9.\-_]*$', suffix):
-                if longest_known is None or len(known_symbol) > len(longest_known):
-                    longest_known = known_symbol
-
-    if longest_known is not None:
-        classe = ASSET_CLASS_OF.get(longest_known)
-        if classe is not None:
-            return CLASSES[classe].capital_base
-
-    return None
+    if classe is None:
+        radical = re.split(r"[.\-_]", simbolo)[0]
+        classe = ASSET_CLASS_OF.get(radical)
+    if classe is None:
+        return None
+    return CLASSES[classe].capital_base
