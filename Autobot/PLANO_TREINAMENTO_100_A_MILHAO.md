@@ -171,7 +171,91 @@ tempo:
    de validação arquivado contam — gate que já existe, não precisa
    inventar outro).
 
-## 8. Diário de decisões
+## 8. Deployment: AutoManagerLive
+
+Este documento até aqui descreve como um combo chega a `aprovado == true` e some
+dele até "Certified sets" (§7). O que falta é o próximo passo — pegar o que já
+está certificado e decidir *o quê* vai pra capital real, *em quantas contas*, e
+*como* o resultado ao vivo retroalimenta essa decisão. É esse o papel do
+AutoManagerLive.
+
+**Desacoplar de "conta".** A unidade de decisão não é a conta, é o *grupo de
+implantação*: um conjunto de combos certificados (símbolo+sistema+variante) que
+cabem juntos por risco e por correlação. Conta é só o alvo de execução que
+recebe um subconjunto desse grupo. Duas ou mais contas reais rodando fatias
+diferentes da mesma biblioteca certificada são *contas-irmãs* — o mesmo
+catálogo, sistemas diferentes escolhidos por conta.
+
+**Motor de sugestão.** Reaproveita a seleção gulosa por correlação que já existe
+em `portfolio_builder.py` (hoje aplicada a relatórios de backtest), agora sobre
+o pool de "Certified sets" do `/api/implantacao` (§7 — só combos com
+`relatorio_dir` arquivado entram). Cada rodada do motor produz uma fila
+**numerada** de sugestões (Sugestão #1, #2, #3...), ordenada primeiro pela
+ordem de graduação por risco da §5 (RESEARCH antes de HEDGE_ACCOUNT_REQUIRED
+antes de HIGH_RISK/HIGH_RISK_RESEARCH) e desempatada pelo mesmo critério de
+`retencao_oos`/`mc_prob_ruina` da §6. Um número, uma vez atribuído, só muda se
+a sugestão for invalidada (um combo dela perde a certificação — ex: relatório
+arquivado removido/revalidado).
+
+**Quantas contas são necessárias.** Só dispara conta adicional por restrição
+dura, nunca por preferência de diversificação — correlação alta entre sistemas
+na mesma conta é risco do dono, não impedimento estrutural:
+
+| Gatilho | Regra |
+|---|---|
+| Mistura de tier | Sugestão contém combo `HEDGE_ACCOUNT_REQUIRED` (07/08) junto com RESEARCH/HIGH_RISK/HIGH_RISK_RESEARCH → exige conta de hedging separada pros combos 07/08 |
+| Capital mínimo | Soma dos mínimos por classe de ativo (`calc_capital_base.py`) dos combos da sugestão excede o saldo informado da conta → particiona por classe até caber |
+
+O resultado de cada sugestão sempre é declarado por extenso: "Sugestão #N cabe
+em 1 conta de $X" ou "Sugestão #N precisa de 2 contas: Conta A (hedging, $Y) +
+Conta B (normal, $Z)" — nunca assume 1 sugestão = 1 conta.
+
+**Contas-irmãs na prática.** AutoManagerLive fica numa camada acima do
+`auto_set_manager.py` existente: decide *o quê* e *pra qual conta*; o
+`auto_set_manager` continua fazendo o encaixe físico (símbolo com sufixo do
+broker, lote mínimo, risco por saldo) numa conta real específica, um
+`PERFIL_MODELO` por conta. N contas reais podem existir, cada uma com seu
+próprio perfil derivado de uma fatia diferente da mesma sugestão ou de
+sugestões diferentes — o motor nunca assume uma cardinalidade fixa de contas.
+
+**Medição ao vivo e critério de promoção/rebaixamento.** O baseline de
+comparação é sempre o `retencao_oos`/`expectancy_r` já gravado no ledger
+*daquele combo específico* (nunca uma média de tier — o mesmo motivo do
+desempate por combo individual da §6: agregar mascara o que importa). Todo
+combo recém-implantado entra em status `EM_PROVA`, com alocação reduzida em
+relação ao que o `auto_set_manager` calcularia em regime normal, até acumular
+um número mínimo de trades ao vivo — o valor exato do mínimo e da alocação
+reduzida fica em aberto pra quando houver semanas de dado ao vivo de verdade,
+mesmo espírito do "script a construir depois" da §6: não faz sentido cravar um
+número sem nenhum trade real pra calibrar contra. Passada a prova, a
+comparação é contínua: `expectancy_r` ao vivo (janela móvel) vs. `expectancy_r`
+OOS do ledger, dentro de uma faixa de tolerância. Dentro da faixa mantém a
+alocação atual; abaixo da faixa por N trades/dias seguidos rebaixa (reduz
+alocação ou tira do live — o combo continua elegível pra reentrar numa
+sugestão futura, nunca é descartado permanentemente); acima da faixa promove
+(aumenta alocação até o teto que o capital/risco da conta permite). Igual à
+distinção que `campanha.py:feitos()` já faz entre `"erro"` (falha de
+infraestrutura) e reprovação real (entrada de 2026-08-08 no diário abaixo):
+uma sequência ruim causada por fechamento do terminal, erro de conexão ou
+outro evento de infraestrutura não conta como amostra pro rebaixamento.
+
+**Fluxo de uso.** Estende o painel "Certified sets" (`/api/implantacao`) já
+existente em vez de criar um painel novo. Cada sugestão numerada aparece como
+um bloco expansível com os combos que a compõem e a(s) conta(s) que ela exige.
+Três ações, reaproveitando o `/api/implantacao/marcar` que já existe (toggle
+por chave): marcar a sugestão inteira como implantada de uma vez (uma chamada
+com todas as chaves da sugestão); marcar tudo que já está ao vivo hoje, pra
+sincronizar o painel com a realidade sem reclicar combo por combo; "próxima
+sugestão", que só avança o cursor sem marcar nada. Toda marcação recalcula a
+fila — o que já foi implantado sai do pool de candidatos a nova combinação.
+
+**Fora de escopo por enquanto.** Execução automática de ordens ao vivo
+continua fora — o export do painel já é manual (cópia pro VPS/conta), e isso
+não muda. Os números exatos de tolerância, janela de prova e alocação
+reduzida também ficam pra depois: exigem trades ao vivo reais pra calibrar,
+não dado de backtest.
+
+## 9. Diário de decisões
 
 Preenchido conforme decisões reais forem tomadas.
 
@@ -191,3 +275,4 @@ Preenchido conforme decisões reais forem tomadas.
 | 2026-08-08 | `atualizar_conta_real.py` tinha o caminho do terminal do dono cravado no código (só essa máquina) -- corrigido pra `wrx_paths.terminal_exe()`, e `optimize_sets.leverage_conta()` agora chama a consulta sozinha na primeira vez que falta o cache, em vez de só avisar "rode isso na mão" | Todo combo de sistema que precisa de alavancagem real (grid) reprovava instantaneamente em qualquer PC que não fosse o do dono -- achado a partir do log de campanha do próprio `osmar` |
 | 2026-08-08 | `campanha.py:feitos()` passou a ignorar entradas do ledger com `"erro"` (combo que nunca produziu JSON final -- crash de infraestrutura, não reprovação de verdade) | Combos que travaram pelo bug do cache de conta real acima ficaram marcados "feitos" pra sempre, mesmo depois do bug corrigido -- a campanha nunca tentava de novo. Não dá pra usar `retencao_oos=None` como sinal (reprovação legítima do Estágio 1/2/4 também grava isso) -- só `"erro"` distingue infraestrutura de reprovação real |
 | 2026-08-08 | Biblioteca `Sets/` (3.738 arquivos) regenerada e republicada -- estava parada em 2026-08-02, 3 dias sem o fix de `AtivarBreakeven` do grid (commit `49828f95`, 2026-08-05) e sem qualquer outra mudança do gerador desde então | Achado ao conferir por que um comprador via grid sem breakeven mesmo com o código já corrigido: o código tinha o fix, a biblioteca publicada nunca foi regenerada pra pegá-lo. Sets já `VALIDADO_*` (aprovados por uma campanha real) continuam intocados de propósito -- são resultado de teste, não template, e só se corrigem re-testando o combo |
+| 2026-08-09 | Seção "Deployment: AutoManagerLive" adicionada (§8): motor de sugestão de combinações certificadas (reaproveita `portfolio_builder.py` sobre o pool de "Certified sets"), regra de quantas contas são necessárias (só restrição dura: mistura de tier HEDGE_ACCOUNT_REQUIRED ou capital mínimo por classe excedido), suporte a contas-irmãs (mesma biblioteca, sistemas diferentes por conta), e critério de promoção/rebaixamento ao vivo (faixa de tolerância + período de prova, baseline por combo específico vs. tier) | Dono pediu desacoplar a implantação da ideia de 1 conta só, com sugestão numerada e fluxo de marcar (individual, tudo que já é live, ou pular pra próxima sugestão). Metodologia documentada primeiro, sem script ainda, mesmo padrão da §6 -- os números exatos de tolerância e janela de prova esperam trade ao vivo real pra calibrar, não existe esse dado ainda |
