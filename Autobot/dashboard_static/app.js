@@ -1152,23 +1152,27 @@ function setModo(m) {
 }
 
 async function carregarConfig() {
-  CONFIG = await api("/api/config");
-  document.getElementById("check-sistemas").innerHTML = CONFIG.sistemas.map((s, i) => {
-    const nota = !s.capital_aplica ? "n/a (fixed lot)"
-      : s.capital_agregado > 0 ? `validated capital: ${s.capital_agregado.toLocaleString()}`
-      : "no validated capital yet";
-    return `<label><input type="checkbox" class="chk-sistema" value="${s.code}" ${i < 2 ? "checked" : ""}>
-      ${s.code} — ${s.label} <span class="capital-note">(${nota})</span></label>`;
-  }).join("");
-  const grupos = document.getElementById("grupos-ativos");
-  grupos.innerHTML = Object.entries(CONFIG.classes).map(([classe, info]) => `
-    <fieldset data-capital-base="${info.capital_base}"><legend>${classe} (capital base ${info.capital_base})
-      <button type="button" class="btn-classe-todos">all</button>
-      <button type="button" class="btn-classe-nenhum">none</button>
-    </legend>
-    <div class="grid-check">${info.ativos.map((a) =>
-      `<label><input type="checkbox" class="chk-ativo" value="${a}"> ${a}</label>`).join("")}</div>
-    </fieldset>`).join("");
+  try {
+    CONFIG = await api("/api/config");
+    document.getElementById("check-sistemas").innerHTML = CONFIG.sistemas.map((s, i) => {
+      const nota = !s.capital_aplica ? "n/a (fixed lot)"
+        : s.capital_agregado > 0 ? `validated capital: ${s.capital_agregado.toLocaleString()}`
+        : "no validated capital yet";
+      return `<label><input type="checkbox" class="chk-sistema" value="${s.code}" ${i < 2 ? "checked" : ""}>
+        ${s.code} — ${s.label} <span class="capital-note">(${nota})</span></label>`;
+    }).join("");
+    const grupos = document.getElementById("grupos-ativos");
+    grupos.innerHTML = Object.entries(CONFIG.classes).map(([classe, info]) => `
+      <fieldset data-capital-base="${info.capital_base}"><legend>${classe} (capital base ${info.capital_base})
+        <button type="button" class="btn-classe-todos">all</button>
+        <button type="button" class="btn-classe-nenhum">none</button>
+      </legend>
+      <div class="grid-check">${info.ativos.map((a) =>
+        `<label><input type="checkbox" class="chk-ativo" value="${a}"> ${a}</label>`).join("")}</div>
+      </fieldset>`).join("");
+  } catch (erro) {
+    console.error("Falha ao carregar /api/config:", erro);
+  }
   atualizarDepositoSugerido();
 }
 
@@ -1178,8 +1182,10 @@ function maiorCapitalBase(somenteMarcados) {
   let maior = null;
   document.querySelectorAll("#grupos-ativos fieldset").forEach((fs) => {
     if (somenteMarcados && !fs.querySelector(".chk-ativo:checked")) return;
-    const base = Number(fs.dataset.capitalBase);
-    if (!Number.isFinite(base)) return;
+    const raw = fs.dataset.capitalBase;
+    if (raw == null || raw.trim() === "") return;
+    const base = Number(raw);
+    if (!Number.isFinite(base) || base <= 0) return;
     if (maior === null || base > maior) maior = base;
   });
   return maior;
