@@ -53,3 +53,22 @@ def capital_minimo_classe(simbolo: str) -> float | None:
     if classe is None:
         return None
     return CLASSES[classe].capital_base
+
+
+def ordenar_candidatos(combos: list[dict]) -> list[dict]:
+    """Ordem de graduacao por risco (secao 5 do plano) primeiro; dentro do
+    mesmo tier, maior retencao_oos primeiro, depois menor mc_prob_ruina --
+    mesmo desempate que a secao 6 ja usa pro ranking por ativo. Combo sem
+    retencao/mc conhecido fica no fim do proprio tier, nunca no comeco."""
+    def chave_ordenacao(c: dict) -> tuple:
+        tier = SYSTEM_STATUS.get(c["sistema"], "HIGH_RISK_RESEARCH")
+        indice_tier = (TIER_ORDEM.index(tier) if tier in TIER_ORDEM
+                      else len(TIER_ORDEM))
+        retencao = c.get("retencao")
+        mc = c.get("mc_prob_ruina")
+        return (
+            indice_tier,
+            -(retencao if retencao is not None else -1e18),
+            mc if mc is not None else 1e18,
+        )
+    return sorted(combos, key=chave_ordenacao)

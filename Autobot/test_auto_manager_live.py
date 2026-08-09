@@ -35,6 +35,19 @@ checar("regressao: simbolo real nao misclassificado por short ticker (V = Visa s
        aml.capital_minimo_classe("VETUSD"), None)
 
 
+# --- ordenar_candidatos -------------------------------------------------------
+combos = [
+    {"chave": "hedge_alta", "sistema": "07_GRID_SEPARATE", "retencao": 90.0, "mc_prob_ruina": 0.01},
+    {"chave": "research_baixa", "sistema": "01_SLTP", "retencao": 10.0, "mc_prob_ruina": 0.04},
+    {"chave": "research_alta", "sistema": "02_SLTP_ORGANIC", "retencao": 80.0, "mc_prob_ruina": 0.02},
+    {"chave": "research_sem_retencao", "sistema": "03_TRAIL_ONLY", "retencao": None, "mc_prob_ruina": None},
+]
+ordenados = [c["chave"] for c in aml.ordenar_candidatos(combos)]
+checar("tier RESEARCH antes de HEDGE, e dentro do tier maior retencao primeiro",
+       ordenados,
+       ["research_alta", "research_baixa", "research_sem_retencao", "hedge_alta"])
+
+
 if FALHAS:
     print(f"{len(FALHAS)} falha(s):")
     for f in FALHAS:
