@@ -61,6 +61,13 @@ def feitos() -> set[tuple[str, str, str]]:
             r = json.loads(linha)
         except json.JSONDecodeError:
             continue
+        # "erro" (set nao encontrado, timeout...) nao e resultado de
+        # verdade -- mesmo criterio de campanha.feitos(), so que aqui
+        # faltava (achado do dono, 2026-08-10: uma corrida contra o
+        # terminal MT5 errado gravou 154 erros que o relance seguinte
+        # tratou como "ja feito").
+        if "erro" in r:
+            continue
         vistos.add((r["fase"], r["sistema"], str(r["formula"])))
     return vistos
 
