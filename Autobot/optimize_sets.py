@@ -64,6 +64,25 @@ CONTA_CACHE = Path(__file__).resolve().parent / "_conta_real.json"
 EA = r"White Rabbit X (Global Multi-Indicator).ex5"
 LOGS = DADOS / "Tester" / "logs"
 
+# Sinal de pausa (dono, 2026-08-09): so a PRESENCA do arquivo importa, nunca o
+# conteudo -- ver pausa_solicitada(). Fica na mesma pasta dos outros arquivos
+# de estado da campanha (LOCK/PROGRESSO em dashboard_campanha.py), nao aqui
+# dentro por acidente: qualquer chamador (campanha.py, optimize_two_stage.py,
+# dashboard_campanha.py) resolve o mesmo caminho porque todos moram nesta
+# mesma pasta.
+PAUSA = Path(__file__).resolve().parent / "campanha_pausa.json"
+CODIGO_PAUSA = 2  # exit code distinto de 0 (sucesso) e 1 (erro de verdade)
+
+
+def pausa_solicitada() -> bool:
+    """Alguem pediu pra campanha pausar no proximo ponto seguro?
+
+    Nunca interrompe no meio de uma rodada/combo em andamento -- so os
+    chamadores em pontos ja seguros (fim de rodada do Estagio 1, entre
+    combos) checam isto. Ver PLANO_TREINAMENTO_100_A_MILHAO.md.
+    """
+    return PAUSA.exists()
+
 CLASSES = ("01_Forex", "02_Cryptocurrencies", "03_Indices_Energies",
            "04_US_Stocks_CFD", "05_Metals")
 

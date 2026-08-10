@@ -11,6 +11,7 @@ _custo_nativo.json
 # Estado local de dashboard / perfil, nunca publicar no repo publico
 campanha_dashboard.lock.json
 campanha_progresso.json
+campanha_pausa.json
 perfil_dashboard.json
 campanha_relatorios/
 campanha_checkpoints/

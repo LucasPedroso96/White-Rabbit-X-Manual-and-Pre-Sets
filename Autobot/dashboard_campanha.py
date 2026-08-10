@@ -454,13 +454,23 @@ def estado_campanha() -> dict:
     elif info.get("pid") and _pid_vivo(info["pid"]):
         vivo = True
     progresso = None
-    if vivo and PROGRESSO.exists():
+    if PROGRESSO.exists():
         try:
             progresso = json.loads(PROGRESSO.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             progresso = None
+    # "pausado": ultimo progresso gravado foi exatamente o marcador que
+    # optimize_two_stage.py escreve ao honrar uma pausa (estagio="pausado",
+    # ver linha ~1327 la) -- mais confiavel que so "LOCK existe e nao esta
+    # rodando", que tambem seria verdade apos uma campanha terminar todos
+    # os combos sozinha (LOCK so e apagado pelo Stop, nunca ao concluir).
+    pausado = (not vivo and LOCK.exists() and bool(progresso)
+              and progresso.get("estagio") == "pausado")
     return {"rodando": vivo, "terminal_aberto": terminal_aberto(),
-           "progresso": progresso, **info}
+           "progresso": progresso if vivo else None,
+           "pausando": vivo and base.PAUSA.exists(),
+           "pausado": pausado,
+           **info}
 
 
 @app.get("/api/campanha/estado")
@@ -559,6 +569,19 @@ def _lancar_campanha(body: dict) -> JSONResponse:
                 "pid": _processo.pid,
                 "modo": modo,
                 "iniciado_em": datetime.now().isoformat(timespec="seconds"),
+                # Parametros de lancamento, guardados pra Resume relancar
+                # IDENTICO sem o usuario reconfigurar tudo de novo (achado
+                # 2026-08-09, feature de pausa) -- mesmos campos que
+                # montaram `cmd` acima, ja resolvidos (nao os defaults
+                # crus do body, que podem estar ausentes).
+                "sistemas": body.get("sistemas") or [],
+                "simbolos": body.get("simbolos") or [],
+                "deposit": body.get("deposit", 500),
+                "min_retencao": body.get("min_retencao", 30.0),
+                "timeout": body.get("timeout", 43200),
+                "inicio": body.get("inicio"),
+                "fim": body.get("fim") or datetime.now().strftime("%Y.%m.%d"),
+                "limite": body.get("limite", 0),
             },
             ensure_ascii=False,
         ),
@@ -594,6 +617,11 @@ def campanha_stop() -> JSONResponse:
     # pode reabrir o terminal entre o fechamento gracioso e o taskkill acima.
     fechado = fechar_terminal()
     LOCK.unlink(missing_ok=True)
+    # Stop cancela tudo, inclusive um pedido de pausa pendente -- sem isto,
+    # um Pause seguido de Stop (em vez de Resume) deixava o sinal no disco
+    # e o PROXIMO Start (uma corrida nova, sem relacao com a pausada)
+    # pausava sozinho antes do primeiro combo.
+    base.PAUSA.unlink(missing_ok=True)
     removidas = limpar_ledger_incompleto()
     return JSONResponse(
         {
@@ -602,6 +630,73 @@ def campanha_stop() -> JSONResponse:
             "entradas_incompletas_removidas": removidas,
         }
     )
+
+
+@app.post("/api/campanha/pausar")
+def campanha_pausar() -> JSONResponse:
+    # So grava o sinal (optimize_sets.pausa_solicitada() olha so a
+    # PRESENCA do arquivo) -- quem realmente para e' o proprio processo da
+    # campanha, no proximo ponto seguro (fim de rodada do Estagio 1 ou
+    # antes do proximo combo). Idempotente: pedir pausa duas vezes nao e'
+    # erro.
+    if not estado_campanha()["rodando"]:
+        return JSONResponse(
+            {"ok": False, "erro": "nenhuma corrida rodando pra pausar"},
+            status_code=409,
+        )
+    base.PAUSA.touch()
+    return JSONResponse({"ok": True, "pausando": True})
+
+
+@app.post("/api/campanha/retomar")
+def campanha_retomar() -> JSONResponse:
+    # Retomar so faz sentido depois que o processo pausado de fato
+    # terminou (estado_campanha()["rodando"] passa a False sozinho quando
+    # o PID some do tasklist) -- LOCK continua no disco com o PID antigo
+    # ate aqui de proposito, so pra guardar os parametros da corrida
+    # pausada (ver _lancar_campanha).
+    if estado_campanha()["rodando"]:
+        return JSONResponse(
+            {"ok": False, "erro": "corrida ainda rodando -- espere pausar antes"},
+            status_code=409,
+        )
+    if not LOCK.exists():
+        return JSONResponse(
+            {"ok": False, "erro": "nada pra retomar (nenhuma corrida pausada)"},
+            status_code=409,
+        )
+    if not _lock_start.acquire(blocking=False):
+        return JSONResponse(
+            {"ok": False, "erro": "outro start ja esta em andamento"},
+            status_code=409,
+        )
+    try:
+        if terminal_aberto():
+            return JSONResponse(
+                {"ok": False, "erro": "MT5 ocupado por outra acao -- espere terminar"},
+                status_code=409,
+            )
+        try:
+            info = json.loads(LOCK.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            info = {}
+        # Sinal precisa sumir ANTES de relancar -- senao campanha.py le o
+        # arquivo ainda presente e pausa de novo antes do primeiro combo.
+        base.PAUSA.unlink(missing_ok=True)
+        body = {
+            "modo": info.get("modo", "auto"),
+            "sistemas": info.get("sistemas") or [],
+            "simbolos": info.get("simbolos") or [],
+            "deposit": info.get("deposit", 500),
+            "min_retencao": info.get("min_retencao", 30.0),
+            "timeout": info.get("timeout", 43200),
+            "inicio": info.get("inicio"),
+            "fim": info.get("fim"),
+            "limite": info.get("limite", 0),
+        }
+        return _lancar_campanha(body)
+    finally:
+        _lock_start.release()
 
 
 # ---------------------------------------------------------- deteccao de ativos

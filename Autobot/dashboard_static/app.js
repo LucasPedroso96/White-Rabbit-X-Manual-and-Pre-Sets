@@ -4,6 +4,12 @@ const i18n = {
   en: {
     'badge.mt5': 'MT5: ',
     'badge.campaign': 'Campaign: ',
+    'campaign.status-running': 'running',
+    'campaign.status-stopped': 'stopped',
+    'campaign.status-paused': 'paused',
+    'campaign.status-pausing': 'pausing…',
+    'mt5.status-busy': 'busy',
+    'mt5.status-free': 'free',
     'install.button': 'Install app',
     'lang.label': 'Language',
     'nav.live': 'Live campaign',
@@ -18,6 +24,13 @@ const i18n = {
     'campaign.progress': 'Progress by system',
     'campaign.reports': 'Reports and status',
     'campaign.stop-run': 'Stop run',
+    'campaign.pause-run': 'Pause run',
+    'campaign.resume-run': 'Resume run',
+    'campaign.msg-pausing': 'pausing… (stops at the next safe checkpoint)',
+    'campaign.msg-paused': 'paused — click Resume to continue',
+    'campaign.msg-pause-error': 'pause error',
+    'campaign.msg-resuming': 'resuming…',
+    'campaign.msg-resume-error': 'resume error',
     'campaign.by-system': 'By system',
     'campaign.recent-combos': 'Latest combos',
     'table.system': 'System',
@@ -121,6 +134,12 @@ const i18n = {
   pt: {
     'badge.mt5': 'MT5: ',
     'badge.campaign': 'Campanha: ',
+    'campaign.status-running': 'rodando',
+    'campaign.status-stopped': 'parada',
+    'campaign.status-paused': 'pausada',
+    'campaign.status-pausing': 'pausando…',
+    'mt5.status-busy': 'ocupado',
+    'mt5.status-free': 'livre',
     'install.button': 'Instalar app',
     'lang.label': 'Idioma',
     'nav.live': 'Campanha ao vivo',
@@ -135,6 +154,13 @@ const i18n = {
     'campaign.progress': 'Progresso por sistema',
     'campaign.reports': 'Relatórios e status',
     'campaign.stop-run': 'Parar corrida',
+    'campaign.pause-run': 'Pausar corrida',
+    'campaign.resume-run': 'Retomar corrida',
+    'campaign.msg-pausing': 'pausando… (para no próximo ponto seguro)',
+    'campaign.msg-paused': 'pausada — clique em Retomar para continuar',
+    'campaign.msg-pause-error': 'erro ao pausar',
+    'campaign.msg-resuming': 'retomando…',
+    'campaign.msg-resume-error': 'erro ao retomar',
     'campaign.by-system': 'Por sistema',
     'campaign.recent-combos': 'Últimas combinações',
     'table.system': 'Sistema',
@@ -238,6 +264,12 @@ const i18n = {
   es: {
     'badge.mt5': 'MT5: ',
     'badge.campaign': 'Campaña: ',
+    'campaign.status-running': 'en ejecución',
+    'campaign.status-stopped': 'detenida',
+    'campaign.status-paused': 'pausada',
+    'campaign.status-pausing': 'pausando…',
+    'mt5.status-busy': 'ocupado',
+    'mt5.status-free': 'libre',
     'install.button': 'Instalar app',
     'lang.label': 'Idioma',
     'nav.live': 'Campaña en vivo',
@@ -252,6 +284,13 @@ const i18n = {
     'campaign.progress': 'Progreso por sistema',
     'campaign.reports': 'Informes y estado',
     'campaign.stop-run': 'Detener corrida',
+    'campaign.pause-run': 'Pausar corrida',
+    'campaign.resume-run': 'Reanudar corrida',
+    'campaign.msg-pausing': 'pausando… (se detiene en el próximo punto seguro)',
+    'campaign.msg-paused': 'pausada — haz clic en Reanudar para continuar',
+    'campaign.msg-pause-error': 'error al pausar',
+    'campaign.msg-resuming': 'reanudando…',
+    'campaign.msg-resume-error': 'error al reanudar',
     'campaign.by-system': 'Por sistema',
     'campaign.recent-combos': 'Últimas combinaciones',
     'table.system': 'Sistema',
@@ -355,6 +394,12 @@ const i18n = {
   de: {
     'badge.mt5': 'MT5: ',
     'badge.campaign': 'Kampagne: ',
+    'campaign.status-running': 'läuft',
+    'campaign.status-stopped': 'gestoppt',
+    'campaign.status-paused': 'pausiert',
+    'campaign.status-pausing': 'wird pausiert…',
+    'mt5.status-busy': 'belegt',
+    'mt5.status-free': 'frei',
     'install.button': 'App installieren',
     'lang.label': 'Sprache',
     'nav.live': 'Live-Kampagne',
@@ -369,6 +414,13 @@ const i18n = {
     'campaign.progress': 'Fortschritt nach System',
     'campaign.reports': 'Berichte und Status',
     'campaign.stop-run': 'Lauf stoppen',
+    'campaign.pause-run': 'Lauf pausieren',
+    'campaign.resume-run': 'Lauf fortsetzen',
+    'campaign.msg-pausing': 'wird pausiert… (stoppt am nächsten sicheren Punkt)',
+    'campaign.msg-paused': 'pausiert — auf Fortsetzen klicken, um weiterzumachen',
+    'campaign.msg-pause-error': 'Fehler beim Pausieren',
+    'campaign.msg-resuming': 'wird fortgesetzt…',
+    'campaign.msg-resume-error': 'Fehler beim Fortsetzen',
     'campaign.by-system': 'Nach System',
     'campaign.recent-combos': 'Neueste Kombinationen',
     'table.system': 'System',
@@ -472,6 +524,12 @@ const i18n = {
   fr: {
     'badge.mt5': 'MT5 : ',
     'badge.campaign': 'Campagne : ',
+    'campaign.status-running': 'en cours',
+    'campaign.status-stopped': 'arrêtée',
+    'campaign.status-paused': 'en pause',
+    'campaign.status-pausing': 'mise en pause…',
+    'mt5.status-busy': 'occupé',
+    'mt5.status-free': 'libre',
     'install.button': "Installer l'app",
     'lang.label': 'Langue',
     'nav.live': 'Campagne en direct',
@@ -486,6 +544,13 @@ const i18n = {
     'campaign.progress': 'Progression par système',
     'campaign.reports': 'Rapports et statut',
     'campaign.stop-run': 'Arrêter la campagne',
+    'campaign.pause-run': 'Mettre en pause',
+    'campaign.resume-run': 'Reprendre la campagne',
+    'campaign.msg-pausing': 'mise en pause… (s\'arrête au prochain point sûr)',
+    'campaign.msg-paused': 'en pause — cliquez sur Reprendre pour continuer',
+    'campaign.msg-pause-error': 'erreur de mise en pause',
+    'campaign.msg-resuming': 'reprise…',
+    'campaign.msg-resume-error': 'erreur de reprise',
     'campaign.by-system': 'Par système',
     'campaign.recent-combos': 'Dernières combinaisons',
     'table.system': 'Système',
@@ -589,6 +654,12 @@ const i18n = {
   it: {
     'badge.mt5': 'MT5: ',
     'badge.campaign': 'Campagna: ',
+    'campaign.status-running': 'in esecuzione',
+    'campaign.status-stopped': 'ferma',
+    'campaign.status-paused': 'in pausa',
+    'campaign.status-pausing': 'in pausa…',
+    'mt5.status-busy': 'occupato',
+    'mt5.status-free': 'libero',
     'install.button': "Installa l'app",
     'lang.label': 'Lingua',
     'nav.live': 'Campagna live',
@@ -603,6 +674,13 @@ const i18n = {
     'campaign.progress': 'Avanzamento per sistema',
     'campaign.reports': 'Report e stato',
     'campaign.stop-run': 'Ferma run',
+    'campaign.pause-run': 'Pausa run',
+    'campaign.resume-run': 'Riprendi run',
+    'campaign.msg-pausing': 'in pausa… (si ferma al prossimo punto sicuro)',
+    'campaign.msg-paused': 'in pausa — clicca su Riprendi per continuare',
+    'campaign.msg-pause-error': 'errore durante la pausa',
+    'campaign.msg-resuming': 'ripresa…',
+    'campaign.msg-resume-error': 'errore durante la ripresa',
     'campaign.by-system': 'Per sistema',
     'campaign.recent-combos': 'Ultime combinazioni',
     'table.system': 'Sistema',
@@ -706,6 +784,12 @@ const i18n = {
   ru: {
     'badge.mt5': 'MT5: ',
     'badge.campaign': 'Кампания: ',
+    'campaign.status-running': 'выполняется',
+    'campaign.status-stopped': 'остановлена',
+    'campaign.status-paused': 'приостановлена',
+    'campaign.status-pausing': 'приостановка…',
+    'mt5.status-busy': 'занят',
+    'mt5.status-free': 'свободен',
     'install.button': 'Установить приложение',
     'lang.label': 'Язык',
     'nav.live': 'Кампания в реальном времени',
@@ -720,6 +804,13 @@ const i18n = {
     'campaign.progress': 'Прогресс по системам',
     'campaign.reports': 'Отчёты и статус',
     'campaign.stop-run': 'Остановить прогон',
+    'campaign.pause-run': 'Приостановить прогон',
+    'campaign.resume-run': 'Возобновить прогон',
+    'campaign.msg-pausing': 'приостановка… (остановится в следующей безопасной точке)',
+    'campaign.msg-paused': 'приостановлено — нажмите «Возобновить», чтобы продолжить',
+    'campaign.msg-pause-error': 'ошибка приостановки',
+    'campaign.msg-resuming': 'возобновление…',
+    'campaign.msg-resume-error': 'ошибка возобновления',
     'campaign.by-system': 'По системам',
     'campaign.recent-combos': 'Последние комбинации',
     'table.system': 'Система',
@@ -823,6 +914,12 @@ const i18n = {
   zh: {
     'badge.mt5': 'MT5：',
     'badge.campaign': '活动：',
+    'campaign.status-running': '运行中',
+    'campaign.status-stopped': '已停止',
+    'campaign.status-paused': '已暂停',
+    'campaign.status-pausing': '暂停中…',
+    'mt5.status-busy': '占用',
+    'mt5.status-free': '空闲',
     'install.button': '安装应用',
     'lang.label': '语言',
     'nav.live': '实时活动',
@@ -837,6 +934,13 @@ const i18n = {
     'campaign.progress': '按系统划分的进度',
     'campaign.reports': '报告与状态',
     'campaign.stop-run': '停止运行',
+    'campaign.pause-run': '暂停运行',
+    'campaign.resume-run': '恢复运行',
+    'campaign.msg-pausing': '暂停中…（将在下一个安全点停止）',
+    'campaign.msg-paused': '已暂停 — 点击恢复以继续',
+    'campaign.msg-pause-error': '暂停出错',
+    'campaign.msg-resuming': '恢复中…',
+    'campaign.msg-resume-error': '恢复出错',
     'campaign.by-system': '按系统',
     'campaign.recent-combos': '最新组合',
     'table.system': '系统',
@@ -940,6 +1044,12 @@ const i18n = {
   ja: {
     'badge.mt5': 'MT5: ',
     'badge.campaign': 'キャンペーン: ',
+    'campaign.status-running': '実行中',
+    'campaign.status-stopped': '停止',
+    'campaign.status-paused': '一時停止',
+    'campaign.status-pausing': '一時停止中…',
+    'mt5.status-busy': '使用中',
+    'mt5.status-free': '空き',
     'install.button': 'アプリをインストール',
     'lang.label': '言語',
     'nav.live': 'ライブキャンペーン',
@@ -954,6 +1064,13 @@ const i18n = {
     'campaign.progress': 'システム別進捗',
     'campaign.reports': 'レポートとステータス',
     'campaign.stop-run': '実行を停止',
+    'campaign.pause-run': '実行を一時停止',
+    'campaign.resume-run': '実行を再開',
+    'campaign.msg-pausing': '一時停止中…（次の安全なポイントで停止します）',
+    'campaign.msg-paused': '一時停止しました — 再開をクリックして続行',
+    'campaign.msg-pause-error': '一時停止エラー',
+    'campaign.msg-resuming': '再開中…',
+    'campaign.msg-resume-error': '再開エラー',
     'campaign.by-system': 'システム別',
     'campaign.recent-combos': '最新の組み合わせ',
     'table.system': 'システム',
@@ -1057,6 +1174,12 @@ const i18n = {
   ko: {
     'badge.mt5': 'MT5: ',
     'badge.campaign': '캠페인: ',
+    'campaign.status-running': '실행 중',
+    'campaign.status-stopped': '중지됨',
+    'campaign.status-paused': '일시정지됨',
+    'campaign.status-pausing': '일시정지 중…',
+    'mt5.status-busy': '사용 중',
+    'mt5.status-free': '사용 가능',
     'install.button': '앱 설치',
     'lang.label': '언어',
     'nav.live': '실시간 캠페인',
@@ -1071,6 +1194,13 @@ const i18n = {
     'campaign.progress': '시스템별 진행 상황',
     'campaign.reports': '보고서 및 상태',
     'campaign.stop-run': '실행 중지',
+    'campaign.pause-run': '실행 일시정지',
+    'campaign.resume-run': '실행 재개',
+    'campaign.msg-pausing': '일시정지 중… (다음 안전 지점에서 중지됩니다)',
+    'campaign.msg-paused': '일시정지됨 — 계속하려면 재개를 클릭하세요',
+    'campaign.msg-pause-error': '일시정지 오류',
+    'campaign.msg-resuming': '재개 중…',
+    'campaign.msg-resume-error': '재개 오류',
     'campaign.by-system': '시스템별',
     'campaign.recent-combos': '최신 조합',
     'table.system': '시스템',
@@ -1174,6 +1304,12 @@ const i18n = {
   tr: {
     'badge.mt5': 'MT5: ',
     'badge.campaign': 'Kampanya: ',
+    'campaign.status-running': 'çalışıyor',
+    'campaign.status-stopped': 'durduruldu',
+    'campaign.status-paused': 'duraklatıldı',
+    'campaign.status-pausing': 'duraklatılıyor…',
+    'mt5.status-busy': 'meşgul',
+    'mt5.status-free': 'boş',
     'install.button': 'Uygulamayı yükle',
     'lang.label': 'Dil',
     'nav.live': 'Canlı kampanya',
@@ -1188,6 +1324,13 @@ const i18n = {
     'campaign.progress': 'Sisteme göre ilerleme',
     'campaign.reports': 'Raporlar ve durum',
     'campaign.stop-run': 'Çalıştırmayı durdur',
+    'campaign.pause-run': 'Çalıştırmayı duraklat',
+    'campaign.resume-run': 'Çalıştırmayı sürdür',
+    'campaign.msg-pausing': 'duraklatılıyor… (bir sonraki güvenli noktada durur)',
+    'campaign.msg-paused': 'duraklatıldı — devam etmek için Sürdür\'e tıklayın',
+    'campaign.msg-pause-error': 'duraklatma hatası',
+    'campaign.msg-resuming': 'sürdürülüyor…',
+    'campaign.msg-resume-error': 'sürdürme hatası',
     'campaign.by-system': 'Sisteme göre',
     'campaign.recent-combos': 'Son kombinasyonlar',
     'table.system': 'Sistem',
@@ -1524,13 +1667,33 @@ async function carregarStatus() {
 async function carregarEstado() {
   const e = await api("/api/campanha/estado");
   const badgeMt5 = document.getElementById("badge-mt5");
-  badgeMt5.textContent = "MT5: " + (e.terminal_aberto ? "busy" : "free");
+  badgeMt5.textContent = t("badge.mt5") + (e.terminal_aberto ? t("mt5.status-busy") : t("mt5.status-free"));
   badgeMt5.style.background = e.terminal_aberto ? "#3a1b1b" : "#14532d";
   const badgeC = document.getElementById("badge-campanha");
-  badgeC.textContent = "Campaign: " + (e.rodando ? "running (" + (e.modo || "?") + ")" : "stopped");
-  badgeC.style.background = e.rodando ? "#14532d" : "#243047";
+  // Tres estados possiveis, nao dois: rodando / pausada (processo ja saiu,
+  // mas ha uma corrida esperando Resume) / parada de vez -- ver
+  // estado_campanha() em dashboard_campanha.py, que e' quem decide
+  // "pausado" olhando o ultimo progresso gravado (nao so ausencia de
+  // LOCK), pra nao confundir com uma campanha que so terminou sozinha.
+  let statusTxt;
+  if (e.rodando) {
+    statusTxt = (e.pausando ? t("campaign.status-pausing") : t("campaign.status-running"))
+      + " (" + (e.modo || "?") + ")";
+  } else if (e.pausado) {
+    statusTxt = t("campaign.status-paused");
+  } else {
+    statusTxt = t("campaign.status-stopped");
+  }
+  badgeC.textContent = t("badge.campaign") + statusTxt;
+  badgeC.style.background = e.rodando
+    ? (e.pausando ? "#7c4a03" : "#14532d")
+    : (e.pausado ? "#4a3a03" : "#243047");
   document.getElementById("btn-stop").disabled = !e.rodando;
-  document.getElementById("btn-iniciar").disabled = e.rodando;
+  document.getElementById("btn-iniciar").disabled = e.rodando || e.pausado;
+  const btnPausar = document.getElementById("btn-pausar");
+  btnPausar.style.display = e.rodando ? "" : "none";
+  btnPausar.disabled = e.pausando;
+  document.getElementById("btn-retomar").style.display = e.pausado ? "" : "none";
 
   // Progresso do combo atual (achado do dono, 2026-08-07): sem isso, uma
   // campanha lenta (grid pode passar de 2h so no Estagio 1) e
@@ -1557,6 +1720,28 @@ document.getElementById("btn-stop").addEventListener("click", async () => {
   msg.textContent = r.ok
     ? `stopped. terminal closed: ${r.terminal_fechado}. incomplete entries removed: ${r.entradas_incompletas_removidas}`
     : "stop error";
+  msg.className = "status-msg " + (r.ok ? "ok" : "no");
+  carregarEstado();
+});
+
+document.getElementById("btn-pausar").addEventListener("click", async () => {
+  const msg = document.getElementById("msg-stop");
+  msg.textContent = t("campaign.msg-pausing");
+  msg.className = "status-msg";
+  const r = await post("/api/campanha/pausar");
+  if (!r.ok) {
+    msg.textContent = t("campaign.msg-pause-error") + (r.erro ? `: ${r.erro}` : "");
+    msg.className = "status-msg no";
+  }
+  carregarEstado();
+});
+
+document.getElementById("btn-retomar").addEventListener("click", async () => {
+  const msg = document.getElementById("msg-stop");
+  msg.textContent = t("campaign.msg-resuming");
+  msg.className = "status-msg";
+  const r = await post("/api/campanha/retomar");
+  msg.textContent = r.ok ? "" : t("campaign.msg-resume-error") + (r.erro ? `: ${r.erro}` : "");
   msg.className = "status-msg " + (r.ok ? "ok" : "no");
   carregarEstado();
 });

@@ -1314,6 +1314,19 @@ def main() -> int:
         salvar_progresso(args.symbol, args.sistema, args.variante,
                          estagio="1/5 (regioes)", rodada=f"{rodada}/3",
                          melhor_lucro=melhor, indicadores_aptos=aptos)
+        # Ponto seguro pra pausa (dono, 2026-08-09): o checkpoint desta
+        # rodada acabou de ser gravado, entao parar AQUI nunca perde
+        # trabalho -- retomar rele o mesmo checkpoint e segue da proxima
+        # rodada. Nao ha ponto seguro equivalente dentro dos Estagios 2-5
+        # (sem checkpoint proprio ainda), entao uma pausa pedida depois
+        # deste ponto so vale no fim do combo inteiro -- ver
+        # campanha.registrar_ou_pausar().
+        if base.pausa_solicitada():
+            print("    pausa solicitada -- parando apos esta rodada "
+                  "(checkpoint ja salvo, retoma daqui).", flush=True)
+            salvar_progresso(args.symbol, args.sistema, args.variante,
+                             estagio="pausado")
+            return base.CODIGO_PAUSA
 
     melhores = base.escolher_candidatos(cab, linhas, piso1, 1.0)
     if not melhores:

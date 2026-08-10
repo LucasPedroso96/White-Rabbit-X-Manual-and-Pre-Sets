@@ -243,6 +243,12 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
                 break
             except json.JSONDecodeError:
                 continue
+    if returncode == base.CODIGO_PAUSA:
+        # Pausa pedida, checkpoint da rodada ja salvo por dentro de
+        # optimize_two_stage.py -- isto NAO e um erro nem um veredito, entao
+        # nao pode cair no fallback "sem JSON final" abaixo (que registraria
+        # o combo no ledger como se tivesse falhado de verdade).
+        return {"pausado": True}
     if reg is None:
         reg = {"simbolo": simbolo, "sistema": sistema, "variante": variante,
                "erro": "sem JSON final", "returncode": returncode}
@@ -302,6 +308,14 @@ def main() -> int:
         if args.limite and feitos_agora >= args.limite:
             print(f"limite de {args.limite} atingido; parando.", flush=True)
             break
+        # Ponto seguro pra pausa (dono, 2026-08-09): entre combos, nenhum
+        # trabalho em andamento a perder -- checar ANTES de comecar o
+        # proximo evita iniciar um combo que pode levar horas so pra
+        # interromper ele por dentro logo em seguida.
+        if base.pausa_solicitada():
+            print("\npausa solicitada -- parando antes do proximo combo.",
+                  flush=True)
+            break
         print(f"\n{'=' * 70}\n[{feitos_agora + 1}/{len(pendentes)}] "
               f"{simbolo} {sistema} {variante}\n{'=' * 70}", flush=True)
         try:
@@ -309,6 +323,12 @@ def main() -> int:
         except subprocess.TimeoutExpired:
             reg = {"simbolo": simbolo, "sistema": sistema, "variante": variante,
                    "erro": "timeout", "quando": datetime.now().isoformat(timespec="seconds")}
+        if reg.get("pausado"):
+            print(f"\npausa solicitada -- {simbolo} {sistema} {variante} "
+                  "parado num ponto seguro (checkpoint salvo), nao entra "
+                  "no ledger. Retomar continua exatamente daqui.",
+                  flush=True)
+            break
         # Grava SEMPRE, inclusive erro: um combo que falha e informacao, e sem
         # registro ele voltaria para a fila em toda relancada, travando a
         # campanha no mesmo ponto para sempre.
