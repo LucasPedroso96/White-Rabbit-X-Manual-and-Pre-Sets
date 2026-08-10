@@ -23,11 +23,11 @@ def checar(rotulo: str, obtido, esperado) -> None:
 
 # --- capital_minimo_classe ---------------------------------------------------
 checar("classe direta: metais", aml.capital_minimo_classe("XAUUSD"), 10000)
-checar("classe direta: forex", aml.capital_minimo_classe("EURUSD"), 500)
+checar("classe direta: forex", aml.capital_minimo_classe("EURUSD"), 1000)
 checar("classe com ponto proprio (nao e sufixo)",
        aml.capital_minimo_classe("BRK.B"), 5000)
 checar("sufixo de corretora/HT cai pro radical",
-       aml.capital_minimo_classe("EURUSD.HT"), 500)
+       aml.capital_minimo_classe("EURUSD.HT"), 1000)
 checar("sufixo bare de broker (sem separador) -- nao resolvido (limitacao conhecida)",
        aml.capital_minimo_classe("EURUSDm"), None)
 checar("simbolo desconhecido", aml.capital_minimo_classe("NAOEXISTE"), None)
@@ -112,7 +112,7 @@ hedge_a = {"chave": "S3", "simbolo": "XAUUSD", "sistema": "07_GRID_SEPARATE"}
 contas = aml.contas_necessarias([forex_a, forex_b], saldo_conta=1000)
 checar("caso A: 1 conta so", len(contas), 1)
 checar("caso A: tipo normal", contas[0]["tipo"], "normal")
-checar("caso A: capital minimo = 500 (Forex)", contas[0]["capital_minimo"], 500)
+checar("caso A: capital minimo = 1000 (Forex)", contas[0]["capital_minimo"], 1000)
 checar("caso A: os 2 combos na mesma conta",
        sorted(contas[0]["combos"]), ["S1", "S2"])
 
@@ -132,7 +132,7 @@ checar("caso C: 2 contas normais (uma por classe)", len(contas), 2)
 checar("caso C: nenhuma e hedging",
        all(c["tipo"] == "normal" for c in contas), True)
 capitais = sorted(c["capital_minimo"] for c in contas)
-checar("caso C: capitais 500 e 10000", capitais, [500, 10000])
+checar("caso C: capitais 1000 e 10000", capitais, [1000, 10000])
 
 # Caso D: saldo desconhecido (0) -> nao forca split.
 contas = aml.contas_necessarias([forex_a, metais_a], saldo_conta=0)
@@ -145,7 +145,7 @@ checar("caso E: 2 contas por capital insuficiente", len(contas), 2)
 todos_combos = sorted([c for conta in contas for c in conta["combos"]])
 checar("caso E: nenhum combo desaparece (S9 e S4 presentes)", todos_combos, ["S4", "S9"])
 forex_ht_conta = next(c for c in contas if "S9" in c["combos"])
-checar("caso E: EURUSD.HT em conta Forex (capital_minimo 500)", forex_ht_conta["capital_minimo"], 500)
+checar("caso E: EURUSD.HT em conta Forex (capital_minimo 1000)", forex_ht_conta["capital_minimo"], 1000)
 
 # Caso F: simbolo genuinamente desconhecido nao desaparece, vai pra uma conta separada.
 fake = {"chave": "S10", "simbolo": "ZZZFAKE_NAO_EXISTE", "sistema": "01_SLTP"}
@@ -164,21 +164,21 @@ checar("hedge totalmente sem classe resolvivel -> capital_minimo None (nao 0.0, 
 
 # Caso G: conta de hedging com DUAS classes (achado 2026-08-09 -- antes usava
 # max() e reportava so 10000; capital real pra sustentar as duas posicoes ao
-# mesmo tempo e a SOMA, 500 + 10000).
+# mesmo tempo e a SOMA, 1000 + 10000).
 hedge_forex = {"chave": "S12", "simbolo": "AUDCAD", "sistema": "08_GRID_UNIFIED"}
 hedge_metais = {"chave": "S13", "simbolo": "XAUUSD", "sistema": "08_GRID_UNIFIED"}
 contas = aml.contas_necessarias([hedge_forex, hedge_metais], saldo_conta=1000)
 checar("caso G: 1 conta de hedging so (tier nao particiona por classe)", len(contas), 1)
-checar("caso G: capital minimo = soma das 2 classes (500 + 10000)",
-       contas[0]["capital_minimo"], 10500)
+checar("caso G: capital minimo = soma das 2 classes (1000 + 10000)",
+       contas[0]["capital_minimo"], 11000)
 checar("caso G: os 2 combos na mesma conta de hedging",
        sorted(contas[0]["combos"]), ["S12", "S13"])
 
 # Caso H: 2 combos de hedging da MESMA classe nao duplicam o capital minimo.
 hedge_forex_b = {"chave": "S14", "simbolo": "EURUSD", "sistema": "07_GRID_SEPARATE"}
 contas = aml.contas_necessarias([hedge_forex, hedge_forex_b], saldo_conta=1000)
-checar("caso H: mesma classe nao soma duas vezes (500, nao 1000)",
-       contas[0]["capital_minimo"], 500)
+checar("caso H: mesma classe nao soma duas vezes (1000, nao 2000)",
+       contas[0]["capital_minimo"], 1000)
 
 
 # --- montar_sugestoes (usa as mesmas series deterministicas do Task 3) -------

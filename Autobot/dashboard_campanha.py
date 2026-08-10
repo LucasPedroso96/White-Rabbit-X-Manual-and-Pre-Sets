@@ -513,8 +513,6 @@ def _lancar_campanha(body: dict) -> JSONResponse:
         str(AQUI / "campanha.py"),
         "--to",
         body.get("fim") or datetime.now().strftime("%Y.%m.%d"),
-        "--deposit",
-        str(body.get("deposit", 500)),
         "--min-retencao",
         str(body.get("min_retencao", 30.0)),
         "--timeout",
@@ -525,6 +523,18 @@ def _lancar_campanha(body: dict) -> JSONResponse:
         # regravando e seguindo em frente mesmo se um combo estourar isso.
         str(body.get("timeout", 43200)),
     ]
+    # --deposit so vai explicito se o chamador mandou um numero de verdade
+    # -- sem isso, cai no default do proprio campanha.py (None = automatico,
+    # resolve o capital minimo pela CLASSE de CADA simbolo). Achado do dono,
+    # 2026-08-10: o Auto-suggest do front mandava o MAIOR capital_base entre
+    # as classes marcadas como um numero fixo unico -- misturar Forex com
+    # Metais numa campanha manual testava Forex com deposito de Metais
+    # (10000), inflando a margem disponivel e aprovando no gate de
+    # sobrevivencia combos que nao aguentariam o capital real da propria
+    # classe. Cada combo resolve o proprio deposito agora (ver
+    # campanha.resolver_deposito).
+    if body.get("deposit") is not None:
+        cmd += ["--deposit", str(body["deposit"])]
     # --from so vai explicito se o chamador mandou um; sem isso, cai no
     # default do proprio campanha.py (anos_atras(3) -- sempre 3 anos antes
     # de HOJE). Achado 2026-08-09: aqui tinha um fallback "2023.08.01"
@@ -576,7 +586,10 @@ def _lancar_campanha(body: dict) -> JSONResponse:
                 # crus do body, que podem estar ausentes).
                 "sistemas": body.get("sistemas") or [],
                 "simbolos": body.get("simbolos") or [],
-                "deposit": body.get("deposit", 500),
+                # None (chave ausente ou nula) = automatico, preservado tal
+                # e qual pro Resume relancar com o MESMO comportamento
+                # (nunca forcar 500 aqui, senao Resume perderia o auto).
+                "deposit": body.get("deposit"),
                 "min_retencao": body.get("min_retencao", 30.0),
                 "timeout": body.get("timeout", 43200),
                 "inicio": body.get("inicio"),
@@ -687,7 +700,7 @@ def campanha_retomar() -> JSONResponse:
             "modo": info.get("modo", "auto"),
             "sistemas": info.get("sistemas") or [],
             "simbolos": info.get("simbolos") or [],
-            "deposit": info.get("deposit", 500),
+            "deposit": info.get("deposit"),
             "min_retencao": info.get("min_retencao", 30.0),
             "timeout": info.get("timeout", 43200),
             "inicio": info.get("inicio"),

@@ -99,7 +99,7 @@ const i18n = {
     'deploy.export-selected': 'Export selected (.zip)',
     'deploy.sort-note': 'Sorted by full-period survival balance first (the number that matters — see "Profit" tooltips below), OOS-window profit as tie-break. A set that only looks good in the OOS window can still blow up over the long run — that is exactly why the survival gate exists.',
     'deploy.col-profit-full': 'Profit (full period)',
-    'deploy.col-profit-full-tip': "Balance from the full continuous period, deposit 500 baseline — the survival gate's own measurement",
+    'deploy.col-profit-full-tip': "Balance from the full continuous period, deposit at the asset class's minimum — the survival gate's own measurement",
     'deploy.col-profit-oos': 'Profit (OOS)',
     'deploy.col-profit-oos-tip': 'Profit measured only in the short OOS window — can look great and still hide a long-run blowup',
     'deploy.col-certificate': 'Certificate',
@@ -229,7 +229,7 @@ const i18n = {
     'deploy.export-selected': 'Exportar selecionados (.zip)',
     'deploy.sort-note': 'Ordenado primeiro pelo saldo de sobrevivência do período completo (o número que importa — veja os tooltips de "Lucro" abaixo), lucro da janela OOS como desempate. Um set que só parece bom na janela OOS ainda pode estourar no longo prazo — é exatamente por isso que o gate de sobrevivência existe.',
     'deploy.col-profit-full': 'Lucro (período completo)',
-    'deploy.col-profit-full-tip': 'Saldo do período contínuo completo, depósito base 500 — a própria medição do gate de sobrevivência',
+    'deploy.col-profit-full-tip': 'Saldo do período contínuo completo, depósito no mínimo da classe do ativo — a própria medição do gate de sobrevivência',
     'deploy.col-profit-oos': 'Lucro (OOS)',
     'deploy.col-profit-oos-tip': 'Lucro medido só na janela curta OOS — pode parecer ótimo e mesmo assim esconder um estouro de longo prazo',
     'deploy.col-certificate': 'Certificado',
@@ -359,7 +359,7 @@ const i18n = {
     'deploy.export-selected': 'Exportar seleccionados (.zip)',
     'deploy.sort-note': 'Ordenado primero por el saldo de supervivencia del período completo (el número que importa — vea los tooltips de "Ganancia" abajo), ganancia de la ventana OOS como desempate. Un set que solo se ve bien en la ventana OOS aún puede quebrar a largo plazo — por eso existe el filtro de supervivencia.',
     'deploy.col-profit-full': 'Ganancia (período completo)',
-    'deploy.col-profit-full-tip': 'Saldo del período continuo completo, depósito base 500 — la propia medición del filtro de supervivencia',
+    'deploy.col-profit-full-tip': 'Saldo del período continuo completo, depósito en el mínimo de la clase del activo — la propia medición del filtro de supervivencia',
     'deploy.col-profit-oos': 'Ganancia (OOS)',
     'deploy.col-profit-oos-tip': 'Ganancia medida solo en la ventana corta OOS — puede verse muy bien y aun así ocultar una quiebra a largo plazo',
     'deploy.col-certificate': 'Certificado',
@@ -489,7 +489,7 @@ const i18n = {
     'deploy.export-selected': 'Auswahl exportieren (.zip)',
     'deploy.sort-note': 'Zuerst sortiert nach dem Überlebenssaldo des vollen Zeitraums (die entscheidende Zahl — siehe "Gewinn"-Tooltips unten), OOS-Fenster-Gewinn als Tiebreak. Ein Set, das nur im OOS-Fenster gut aussieht, kann langfristig trotzdem scheitern — genau dafür gibt es das Überlebens-Gate.',
     'deploy.col-profit-full': 'Gewinn (voller Zeitraum)',
-    'deploy.col-profit-full-tip': 'Saldo aus dem vollen durchgehenden Zeitraum, Basiseinzahlung 500 — die eigene Messung des Überlebens-Gates',
+    'deploy.col-profit-full-tip': 'Saldo aus dem vollen durchgehenden Zeitraum, Einzahlung zum Klassen-Minimum — die eigene Messung des Überlebens-Gates',
     'deploy.col-profit-oos': 'Gewinn (OOS)',
     'deploy.col-profit-oos-tip': 'Gewinn nur im kurzen OOS-Fenster gemessen — kann großartig aussehen und trotzdem einen langfristigen Absturz verbergen',
     'deploy.col-certificate': 'Zertifikat',
@@ -619,7 +619,7 @@ const i18n = {
     'deploy.export-selected': 'Exporter la sélection (.zip)',
     'deploy.sort-note': 'Trié d\'abord par le solde de survie sur la période complète (le chiffre qui compte — voir les infobulles "Profit" ci-dessous), puis par le profit de la fenêtre OOS en cas d\'égalité. Un set qui semble bon seulement sur la fenêtre OOS peut quand même exploser sur le long terme — c\'est exactement pour cela que le filtre de survie existe.',
     'deploy.col-profit-full': 'Profit (période complète)',
-    'deploy.col-profit-full-tip': 'Solde de la période continue complète, dépôt de base 500 — la mesure propre au filtre de survie',
+    'deploy.col-profit-full-tip': "Solde de la période continue complète, dépôt au minimum de la classe d'actif — la mesure propre au filtre de survie",
     'deploy.col-profit-oos': 'Profit (OOS)',
     'deploy.col-profit-oos-tip': 'Profit mesuré uniquement sur la courte fenêtre OOS — peut sembler excellent tout en cachant un effondrement à long terme',
     'deploy.col-certificate': 'Certificat',
@@ -749,7 +749,7 @@ const i18n = {
     'deploy.export-selected': 'Esporta selezionati (.zip)',
     'deploy.sort-note': 'Ordinato prima per il saldo di sopravvivenza sul periodo completo (il numero che conta — vedi i tooltip "Profitto" sotto), profitto della finestra OOS come spareggio. Un set che sembra buono solo nella finestra OOS può comunque esplodere nel lungo periodo — è esattamente per questo che esiste il gate di sopravvivenza.',
     'deploy.col-profit-full': 'Profitto (periodo completo)',
-    'deploy.col-profit-full-tip': 'Saldo del periodo continuo completo, deposito base 500 — la misurazione propria del gate di sopravvivenza',
+    'deploy.col-profit-full-tip': 'Saldo del periodo continuo completo, deposito al minimo della classe di asset — la misurazione propria del gate di sopravvivenza',
     'deploy.col-profit-oos': 'Profitto (OOS)',
     'deploy.col-profit-oos-tip': 'Profitto misurato solo nella breve finestra OOS — può sembrare ottimo e comunque nascondere un crollo a lungo termine',
     'deploy.col-certificate': 'Certificato',
@@ -879,7 +879,7 @@ const i18n = {
     'deploy.export-selected': 'Экспортировать выбранные (.zip)',
     'deploy.sort-note': 'Сортировка сначала по балансу выживания за весь период (это главное число — см. подсказки "Прибыль" ниже), прибыль окна OOS как тай-брейк. Набор, который выглядит хорошо только в окне OOS, всё равно может обанкротиться в долгосрочной перспективе — именно для этого существует барьер выживания.',
     'deploy.col-profit-full': 'Прибыль (весь период)',
-    'deploy.col-profit-full-tip': 'Баланс за весь непрерывный период, базовый депозит 500 — собственное измерение барьера выживания',
+    'deploy.col-profit-full-tip': 'Баланс за весь непрерывный период, депозит на минимуме класса актива — собственное измерение барьера выживания',
     'deploy.col-profit-oos': 'Прибыль (OOS)',
     'deploy.col-profit-oos-tip': 'Прибыль, измеренная только в коротком окне OOS — может выглядеть отлично и всё же скрывать долгосрочный обвал',
     'deploy.col-certificate': 'Сертификат',
@@ -1009,7 +1009,7 @@ const i18n = {
     'deploy.export-selected': '导出所选 (.zip)',
     'deploy.sort-note': '首先按完整周期生存余额排序（真正重要的数字——见下方"利润"提示），OOS 窗口利润作为并列决胜项。仅在 OOS 窗口表现好的集合仍可能在长期内爆仓——这正是生存关卡存在的原因。',
     'deploy.col-profit-full': '利润（完整周期）',
-    'deploy.col-profit-full-tip': '完整连续周期的余额，基准存款 500 —— 生存关卡自身的测量结果',
+    'deploy.col-profit-full-tip': '完整连续周期的余额，存款为资产类别的最低值 —— 生存关卡自身的测量结果',
     'deploy.col-profit-oos': '利润（OOS）',
     'deploy.col-profit-oos-tip': '仅在短 OOS 窗口测量的利润 —— 可能看起来很好，却仍掩盖了长期爆仓',
     'deploy.col-certificate': '证书',
@@ -1139,7 +1139,7 @@ const i18n = {
     'deploy.export-selected': '選択項目をエクスポート (.zip)',
     'deploy.sort-note': 'まず全期間の生存残高（重要な数値 — 下の「利益」ツールチップ参照）で並べ替え、OOSウィンドウの利益をタイブレークとして使用します。OOSウィンドウだけ良く見えるセットでも、長期的には破綻することがあります — だからこそ生存ゲートが存在します。',
     'deploy.col-profit-full': '利益（全期間）',
-    'deploy.col-profit-full-tip': '連続する全期間の残高、基準デポジット500 — 生存ゲート自身の測定値',
+    'deploy.col-profit-full-tip': '連続する全期間の残高、資産クラスの最低デポジット — 生存ゲート自身の測定値',
     'deploy.col-profit-oos': '利益（OOS）',
     'deploy.col-profit-oos-tip': '短いOOSウィンドウのみで測定した利益 — 見た目が良くても長期的な破綻を隠している場合があります',
     'deploy.col-certificate': '証明書',
@@ -1269,7 +1269,7 @@ const i18n = {
     'deploy.export-selected': '선택 항목 내보내기 (.zip)',
     'deploy.sort-note': '먼저 전체 기간 생존 잔고(가장 중요한 수치 — 아래 "수익" 툴팁 참고)로 정렬하고, OOS 구간 수익을 동점자 기준으로 사용합니다. OOS 구간에서만 좋아 보이는 세트도 장기적으로는 파산할 수 있습니다 — 바로 이 때문에 생존 게이트가 존재합니다.',
     'deploy.col-profit-full': '수익(전체 기간)',
-    'deploy.col-profit-full-tip': '연속된 전체 기간의 잔고, 기준 예치금 500 — 생존 게이트 자체의 측정값',
+    'deploy.col-profit-full-tip': '연속된 전체 기간의 잔고, 자산 클래스 최소 예치금 — 생존 게이트 자체의 측정값',
     'deploy.col-profit-oos': '수익(OOS)',
     'deploy.col-profit-oos-tip': '짧은 OOS 구간에서만 측정한 수익 — 좋아 보여도 장기적인 파산을 숨기고 있을 수 있습니다',
     'deploy.col-certificate': '인증서',
@@ -1399,7 +1399,7 @@ const i18n = {
     'deploy.export-selected': 'Seçilenleri dışa aktar (.zip)',
     'deploy.sort-note': 'Önce tam dönem hayatta kalma bakiyesine göre sıralanır (önemli olan sayı — aşağıdaki "Kâr" ipuçlarına bakın), OOS penceresi kârı eşitlik bozucu olarak kullanılır. Yalnızca OOS penceresinde iyi görünen bir set uzun vadede yine de patlayabilir — hayatta kalma kapısının var olma nedeni tam olarak budur.',
     'deploy.col-profit-full': 'Kâr (tam dönem)',
-    'deploy.col-profit-full-tip': 'Tam kesintisiz dönemden bakiye, taban depozito 500 — hayatta kalma kapısının kendi ölçümü',
+    'deploy.col-profit-full-tip': 'Tam kesintisiz dönemden bakiye, varlık sınıfının minimum depozitosu — hayatta kalma kapısının kendi ölçümü',
     'deploy.col-profit-oos': 'Kâr (OOS)',
     'deploy.col-profit-oos-tip': 'Yalnızca kısa OOS penceresinde ölçülen kâr — harika görünüp yine de uzun vadeli bir çöküşü gizleyebilir',
     'deploy.col-certificate': 'Sertifika',
@@ -1816,19 +1816,28 @@ async function carregarConfig() {
   atualizarDepositoSugerido();
 }
 
-const DEPOSITO_PADRAO = 500;
+const DEPOSITO_PADRAO = 1000;
 
-function maiorCapitalBase(somenteMarcados) {
-  let maior = null;
+// Achado do dono, 2026-08-10: isto ANTES devolvia so o MAIOR capital_base
+// entre as classes marcadas, e esse numero unico virava --deposit pra TODA
+// a campanha -- misturar Forex com Metais testava Forex com o deposito de
+// Metais (10000), inflando a margem disponivel e aprovando no gate de
+// sobrevivencia combos que nao aguentariam o capital real da propria
+// classe. Cada combo agora resolve o proprio deposito pela classe do
+// PROPRIO simbolo (campanha.resolver_deposito, backend) -- esta funcao so
+// mostra ao usuario quais valores estao em jogo, nunca escolhe um so pra
+// mandar pro servidor.
+function capitaisBaseDistintos(somenteMarcados) {
+  const vistos = new Set();
   document.querySelectorAll("#grupos-ativos fieldset").forEach((fs) => {
     if (somenteMarcados && !fs.querySelector(".chk-ativo:checked")) return;
     const raw = fs.dataset.capitalBase;
     if (raw == null || raw.trim() === "") return;
     const base = Number(raw);
     if (!Number.isFinite(base) || base <= 0) return;
-    if (maior === null || base > maior) maior = base;
+    vistos.add(base);
   });
-  return maior;
+  return [...vistos].sort((a, b) => a - b);
 }
 
 function atualizarDepositoSugerido() {
@@ -1837,10 +1846,25 @@ function atualizarDepositoSugerido() {
   chk.disabled = false;
   if (chk.checked) {
     campo.disabled = true;
-    const maior = maiorCapitalBase(modoAtual !== "auto");
-    campo.value = maior !== null ? maior : DEPOSITO_PADRAO;
+    const distintos = capitaisBaseDistintos(modoAtual !== "auto");
+    if (distintos.length === 1) {
+      // Uma classe so (ou todas as marcadas com o mesmo minimo): o numero
+      // e exato, so pra exibicao -- o request ainda manda deposit=null.
+      campo.type = "number";
+      campo.value = distintos[0];
+    } else if (distintos.length > 1) {
+      // Mais de uma classe com minimos diferentes: nao existe UM numero
+      // certo pra mostrar aqui -- cada combo vai usar o da propria classe.
+      campo.type = "text";
+      campo.value = `auto por classe (${distintos.join(" / ")})`;
+    } else {
+      campo.type = "number";
+      campo.value = DEPOSITO_PADRAO;
+    }
   } else {
+    campo.type = "number";
     campo.disabled = false;
+    if (!(Number(campo.value) > 0)) campo.value = DEPOSITO_PADRAO;
   }
 }
 carregarConfig();
@@ -1958,11 +1982,15 @@ document.getElementById("btn-detectar").addEventListener("click", async () => {
 
 async function iniciarCorridaReal() {
   const msg = document.getElementById("msg-iniciar");
+  // chk-deposito-auto marcado -> deposit null: o backend resolve o capital
+  // minimo pela classe de CADA simbolo (campanha.resolver_deposito), nunca
+  // um numero fixo unico pra campanha inteira (ver atualizarDepositoSugerido).
+  const depositoAuto = document.getElementById("chk-deposito-auto").checked;
   const body = {
     modo: modoAtual,
     inicio: document.getElementById("campo-inicio").value,
     fim: document.getElementById("campo-fim").value,
-    deposit: Number(document.getElementById("campo-deposito").value),
+    deposit: depositoAuto ? null : Number(document.getElementById("campo-deposito").value),
     min_retencao: Number(document.getElementById("campo-retencao").value),
   };
   if (modoAtual === "manual") {

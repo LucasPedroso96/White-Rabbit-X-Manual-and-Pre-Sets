@@ -26,6 +26,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import auto_manager_live
 import descobrir_ativos
 import optimize_sets as base
 
@@ -174,6 +175,32 @@ def registrar(reg: dict) -> None:
         fh.write(json.dumps(reg, ensure_ascii=False) + "\n")
 
 
+def resolver_deposito(simbolo: str, explicito: int | None) -> int:
+    """Deposito efetivo pra ESTE combo -- override explicito (usuario passou
+    --deposit) sempre vence; sem ele, usa o capital minimo da CLASSE do
+    proprio simbolo (Forex 1000, Metais 10000 etc.), nunca um numero fixo
+    pra campanha inteira.
+
+    Achado do dono, 2026-08-10: o Auto-suggest do dashboard calculava o
+    MAIOR capital_base entre as classes marcadas e mandava esse numero
+    unico pra TODOS os combos -- misturar Forex com Metais numa campanha
+    manual testava Forex com o deposito de Metais (10000), inflando a
+    margem disponivel e aprovando no gate de sobrevivencia combos que nao
+    aguentariam o capital real da propria classe.
+    """
+    if explicito is not None:
+        return explicito
+    capital = auto_manager_live.capital_minimo_classe(simbolo)
+    if capital is None:
+        raise SystemExit(
+            f"Nao consegui achar a classe de ativo de {simbolo} pra "
+            "resolver o deposito automatico -- passe --deposit explicito "
+            "pra este simbolo, ou confirme que ele esta em "
+            "generate_system_sets.ASSETS."
+        )
+    return int(capital)
+
+
 def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
     # --period M1 explicito (dono, 2026-07-31): obrigatorio em todos os
     # algoritmos porque cada indicador carrega o proprio TF via input -- com
@@ -184,7 +211,7 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
            "--symbol", simbolo, "--sistema", sistema, "--variante", variante,
            "--period", "M1",
            "--from", args.inicio, "--to", args.fim,
-           "--deposit", str(args.deposit),
+           "--deposit", str(resolver_deposito(simbolo, args.deposit)),
            "--min-retencao", str(args.min_retencao),
            "--fechar-terminal", "--timeout", str(args.timeout)]
     t0 = time.time()
@@ -263,7 +290,10 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--from", dest="inicio", default=anos_atras(3))
     ap.add_argument("--to", dest="fim", default=datetime.now().strftime("%Y.%m.%d"))
-    ap.add_argument("--deposit", type=int, default=500)
+    ap.add_argument("--deposit", type=int, default=None,
+                    help="vazio = automatico (capital minimo da classe de "
+                         "cada simbolo); um valor fixo forca esse deposito "
+                         "pra TODOS os combos, mesmo misturando classes")
     ap.add_argument("--min-retencao", type=float, default=30.0)
     ap.add_argument("--timeout", type=int, default=43200)
     ap.add_argument("--limite", type=int, default=0, help="0 = sem limite")
