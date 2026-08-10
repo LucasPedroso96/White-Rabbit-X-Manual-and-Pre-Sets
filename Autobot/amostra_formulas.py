@@ -136,7 +136,12 @@ def rodar_uma(trabalho: Path, args, formula: int) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--symbol", default="EURUSD.HT")
+    # Nativo, nao .HT (dono, 2026-08-10): descobrir_ativos.py ja documenta
+    # o achado de 2026-08-08 -- o dado injetado via Historical Tool Manager
+    # DIVERGE do nativo da corretora, e o nativo saiu melhor/mais
+    # representativo. .HT so deveria ser fallback quando o nativo nao
+    # existe no terminal, nunca o default de um teste de performance.
+    ap.add_argument("--symbol", default="EURUSD")
     ap.add_argument("--sistema", default="01_SLTP")
     ap.add_argument("--variante", default="BUY_MULTI")
     ap.add_argument("--period", default="M1")

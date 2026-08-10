@@ -108,7 +108,9 @@ def imprimir(r: dict) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--symbol", default="EURUSD.HT")
+    # Nativo, nao .HT -- ver comentario em amostra_formulas.py (mesmo
+    # achado do dono, 2026-08-10, mesmo motivo).
+    ap.add_argument("--symbol", default="EURUSD")
     ap.add_argument("--period", default="M1")
     ap.add_argument("--from", dest="inicio", required=True)
     ap.add_argument("--to", dest="fim", required=True)
