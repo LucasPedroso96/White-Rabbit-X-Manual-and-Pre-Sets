@@ -142,7 +142,7 @@ def main() -> int:
     ap.add_argument("--period", default="M1")
     ap.add_argument("--from", dest="inicio", required=True)
     ap.add_argument("--to", dest="fim", required=True)
-    ap.add_argument("--deposit", type=int, default=500)
+    ap.add_argument("--deposit", type=int, default=1000)
     ap.add_argument("--min-trades", type=int, default=15,
                     help="piso baixo de proposito -- periodo curto gera poucos trades")
     ap.add_argument("--min-pf", type=float, default=1.0)

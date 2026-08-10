@@ -1,21 +1,29 @@
 # -*- coding: utf-8 -*-
-"""Orquestra a noite de diagnostico: duas fases, tudo num periodo curto.
+"""Orquestra a noite de diagnostico.
 
-FASE 1 -- todas as 14 formulas, MESMO sistema (grid), MESMO periodo. Isola a
-formula como variavel: mostra o que CADA formula faria com a mesma estrategia,
-incluindo as 10 que hoje nenhum sistema usa (2,3,4,5,6,7,11,12,13,14).
+FULLTEST (dono, 2026-08-10) -- as 14 formulas, nos 11 sistemas, MESMO periodo
+curto, SEM WFO (fixar_formula ja desliga AtivarWFO). Extensao da FASE 1
+original (que so cobria o grid): antes so 1 sistema tinha contraprova real
+contra as outras 13 formulas que ninguem usa -- os outros 10 sistemas so
+tinham UMA corrida, com a formula ja escolhida, sem nada pra comparar (achado
+2026-08-10: FORMULA_POR_SISTEMA nunca teve validacao A/B pros indices 8, 9 e
+10, so raciocinio de design escrito no mesmo commit da atribuicao). Isto cobre
+o buraco: cada sistema roda as 14, entao da pra ver se a formula que ele usa
+hoje realmente ganha do resto no proprio terreno dele, nao so no do grid.
 
-FASE 2 -- os 11 sistemas, cada um com a formula que JA esta em
-FORMULA_POR_SISTEMA (generate_system_sets.py), mesmo periodo. Reavalia se o
-mapeamento atual (1=grid, 8=trailing, 9=geometria fixa/saida por sinal,
-10=recovery) se sustenta na pratica, nao so na intencao de design.
+Pedido explicito do dono: SEM WFO, periodo de 1-2 meses, so pra avaliar
+performance BRUTA (lucro puro) e tirar uma conclusao -- nao e validacao de
+estrategia (isso continua exigindo o circuito completo com WFO de varios
+ciclos e o gate de sobrevivencia), e sim diagnostico rapido de qual formula
+favorece qual tipo de sistema.
 
 So um MT5 por vez (mesma maquina que a campanha usa), entao roda tudo em
 SEQUENCIA, resumivel: grava cada resultado assim que sai, em JSONL, e pula o
-que ja foi feito se relancado.
+que ja foi feito se relancado. 11 sistemas x 14 formulas = 154 corridas;
+media historica de 6.2min/corrida (amostra do grid, 2026-08-02) da ~16h.
 
 Uso:
-    python amostra_noite.py --from 2026.05.01 --to 2026.07.06
+    python amostra_noite.py --from 2026.06.10 --to 2026.08.10
 """
 from __future__ import annotations
 
@@ -40,8 +48,6 @@ FORMULA_POR_SISTEMA = {
     "11_SIGNAL_ONLY": 9,
 }
 BILATERAL = {"08_GRID_UNIFIED"}
-SISTEMA_FASE1 = "07_GRID_SEPARATE"
-VARIANTE_FASE1 = "BUY_MULTI"
 
 
 def feitos() -> set[tuple[str, str, str]]:
@@ -99,7 +105,7 @@ def main() -> int:
     ap.add_argument("--period", default="M1")
     ap.add_argument("--from", dest="inicio", required=True)
     ap.add_argument("--to", dest="fim", required=True)
-    ap.add_argument("--deposit", type=int, default=500)
+    ap.add_argument("--deposit", type=int, default=1000)
     ap.add_argument("--min-trades", type=int, default=15)
     ap.add_argument("--min-pf", type=float, default=1.0)
     ap.add_argument("--timeout", type=int, default=1800)
@@ -107,11 +113,10 @@ def main() -> int:
 
     ja = feitos()
     itens: list[tuple[str, str, str, int]] = []
-    for formula in sorted(af.FORMULAS):
-        itens.append(("fase1", SISTEMA_FASE1, VARIANTE_FASE1, formula))
-    for sistema, formula in FORMULA_POR_SISTEMA.items():
+    for sistema in FORMULA_POR_SISTEMA:
         variante = "BOTH_MULTI" if sistema in BILATERAL else "BUY_MULTI"
-        itens.append(("fase2", sistema, variante, formula))
+        for formula in sorted(af.FORMULAS):
+            itens.append(("fulltest", sistema, variante, formula))
 
     pendentes = [it for it in itens if (it[0], it[1], str(it[3])) not in ja]
     print(f"{args.symbol} | {args.inicio} a {args.fim}")

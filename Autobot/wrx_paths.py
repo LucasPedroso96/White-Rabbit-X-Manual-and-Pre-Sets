@@ -38,18 +38,39 @@ ENV_INSTALL_DIR = "WRX_MT5_INSTALL_DIR"
 ENV_MANUALS_STAGING_DIR = "WRX_MANUALS_STAGING_DIR"
 
 
+def _tem_sets_gerados(terminal_dir: Path) -> bool:
+    tester = terminal_dir / "MQL5" / "Profiles" / "Tester"
+    return any((tester / nome).is_dir()
+               for nome in ("White_Rabbit_X_Sets_templates",
+                            "White_Rabbit_X_Sets"))
+
+
 def _autodetect_data_dir() -> Path | None:
     base = Path(os.environ.get("APPDATA", "")) / "MetaQuotes" / "Terminal"
     if not base.exists():
         return None
-    for terminal_dir in base.iterdir():
+    # sorted(): iterdir() nao tem ordem garantida (muda por SO/filesystem) --
+    # sem isso o candidato "vencedor" varia entre execucoes na mesma maquina.
+    candidatos = []
+    for terminal_dir in sorted(base.iterdir()):
         experts = terminal_dir / "MQL5" / "Experts"
         if not experts.exists():
             continue
         if any("White Rabbit X" in p.name
                for p in list(experts.glob("*.mq5")) + list(experts.glob("*.ex5"))):
-            return terminal_dir
-    return None
+            candidatos.append(terminal_dir)
+    if not candidatos:
+        return None
+    # Mais de uma instalacao com a EA presente (achado do dono, 2026-08-10:
+    # uma copia antiga de outro projeto -- Desktop/Levain 2.0 -- tambem
+    # tinha "White Rabbit X" copiada em MQL5/Experts, sem nenhum set
+    # gerado). Isso mandou um amostra_noite.py de 154 itens (~16h) inteiro
+    # contra o terminal errado -- "set nao encontrado" em toda corrida,
+    # "concluido" impresso como se tivesse dado certo. Preferir quem tem a
+    # biblioteca de fato gerada evita isso; so cai pro primeiro (ja
+    # ordenado, nao mais cru do iterdir) se ninguem tiver.
+    com_sets = [d for d in candidatos if _tem_sets_gerados(d)]
+    return com_sets[0] if com_sets else candidatos[0]
 
 
 def data_dir() -> Path:
