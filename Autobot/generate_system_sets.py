@@ -794,6 +794,20 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         # travado (N), sem eixo de busca 2..10 por cima (a cesta unificada
         # ("BOTH") ja recebe os dois lados de set_exposure).
         set_exposure(p, side, 999, hedging=True)
+        # MinFreeMarginPercent (dono, 2026-08-10): apply_defaults() zera isto
+        # pra todo mundo, neutro pros 6 sistemas Fixed-R (CapitalBaseR ja e a
+        # rede deles). Grid nao tem SL nativo e o dono decidiu deliberadamente
+        # NAO travar por contagem (MaxLongTrades/MaxShortTrades continuam
+        # 999, ver comentario acima) -- entao a margem livre real vira o
+        # UNICO freio que sobra contra cesta grande demais. A EA ja tem o
+        # guard (CanSendTradeRequest, .mq5: recusa ordem nova se a margem
+        # livre projetada cair abaixo disto) -- so estava desligado bem onde
+        # mais precisa dele. Fixo, nao otimizavel: um piso de seguranca nao
+        # pode virar eixo de busca, senao o genetico so escolheria o valor
+        # que rende mais no curto prazo, nao o que protege no periodo
+        # inteiro (a mesma lacuna que o gate de sobrevivencia existe pra
+        # cobrir).
+        p.fix("MinFreeMarginPercent", 20)
         # (criterio vem de FORMULA_POR_SISTEMA, aplicado depois deste bloco)
 
     elif system == "09_MARTINGALE":
@@ -823,6 +837,12 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt_bool("AtivarBreakeven", "true")
         p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
         set_exposure(p, side, 1, hedging=False)  # martingale: 1 por lado
+        # MinFreeMarginPercent (dono, 2026-08-10): mesmo raciocinio do grid
+        # -- o lote de recuperacao cresce pra cobrir o deficit acumulado, sem
+        # teto absoluto (MaxMartingaleLot continua 0), entao a margem livre
+        # real e o freio que falta durante a busca. Ver comentario completo
+        # no bloco do grid.
+        p.fix("MinFreeMarginPercent", 20)
 
     elif system == "10_DALEMBERT":
         p.fix("RecoveryMode", 2)
@@ -845,6 +865,9 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt_bool("AtivarBreakeven", "true")
         p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
         set_exposure(p, side, 1, hedging=False)
+        # MinFreeMarginPercent (dono, 2026-08-10): ver comentario completo no
+        # bloco do grid -- mesma lacuna, mesmo remedio.
+        p.fix("MinFreeMarginPercent", 20)
 
     elif system == "11_SIGNAL_ONLY":
         p.fix("AtivarStop", "false")
