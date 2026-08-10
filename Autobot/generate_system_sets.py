@@ -247,7 +247,7 @@ class AssetClass:
 
 
 CLASSES = {
-    "01_Forex": AssetClass("01_Forex", 2, 1, 5, 1.0, 6.0, 9.0, 5, False, "", 500),
+    "01_Forex": AssetClass("01_Forex", 2, 1, 5, 1.0, 6.0, 9.0, 5, False, "", 1000),
     "02_Cryptocurrencies": AssetClass("02_Cryptocurrencies", 4, 2, 6, 2.0, 9.0, 14.0, 20, True, "USD", 2500),
     "03_Indices_Energies": AssetClass("03_Indices_Energies", 3, 1, 5, 1.5, 8.0, 12.0, 15, False, "USD,EUR,JPY", 2500),
     "04_US_Stocks_CFD": AssetClass("04_US_Stocks_CFD", 4, 2, 6, 1.5, 8.0, 12.0, 10, False, "USD", 5000),
