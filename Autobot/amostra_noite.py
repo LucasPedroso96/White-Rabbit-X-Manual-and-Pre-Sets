@@ -42,14 +42,16 @@ LEDGER = AQUI / "amostra_noite_resultados.jsonl"
 # So usado aqui pra saber QUAIS sistemas iterar -- o valor de cada chave nao
 # importa pro fulltest (testa as 14 formulas em todos, independente do que
 # esta atribuido). Mantido em sincronia com generate_system_sets.py so por
-# documentacao/referencia (achado do proprio fulltest de 2026-08-10, que
-# gerou esses valores).
+# documentacao/referencia -- valores pos-revisao de peso/risco de
+# 2026-08-10 (ver comentario la: 02_SLTP_ORGANIC e 09_MARTINGALE corrigidos
+# pra fora do vencedor bruto do fulltest, que caiu numa formula diluida ou
+# cega a risco em cada caso).
 FORMULA_POR_SISTEMA = {
-    "01_SLTP": 10, "02_SLTP_ORGANIC": 7,
+    "01_SLTP": 10, "02_SLTP_ORGANIC": 4,
     "03_TRAIL_ONLY": 5, "04_SLTP_TRAIL": 5, "05_BE_TRAIL": 6,
     "06_REVERSAL_EXIT": 5,
     "07_GRID_SEPARATE": 1, "08_GRID_UNIFIED": 10,
-    "09_MARTINGALE": 2, "10_DALEMBERT": 5,
+    "09_MARTINGALE": 10, "10_DALEMBERT": 5,
     "11_SIGNAL_ONLY": 4,
 }
 BILATERAL = {"08_GRID_UNIFIED"}

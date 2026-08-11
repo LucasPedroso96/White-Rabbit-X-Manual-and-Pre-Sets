@@ -89,42 +89,69 @@ def steps(start: float, step: float, stop: float) -> int:
 # de provar. Todos passam por AdditionalFilters() no EA, entao o piso de
 # qualidade (trades, PF, DD) e o mesmo -- muda so o que e premiado acima dele.
 #
-# Revisado 2026-08-10 (dono): as atribuicoes antigas (9/8/10 por raciocinio
-# de design, nunca comparadas contra alternativa -- so o grid tinha A/B de
-# verdade, 2026-08-04) foram trocadas pelo vencedor de um fulltest -- as 14
-# formulas, nos 11 sistemas, mesmo periodo curto (2026.06.10-08.10), SEM WFO,
-# so lucro bruto (amostra_noite.py --from 2026.06.10 --to 2026.08.10,
-# resultados em amostra_noite_resultados.jsonl). So 07_GRID_SEPARATE manteve
-# a formula antiga -- foi o unico que ja vencia esse tipo de comparacao
-# (o proprio teste de 2026-08-04). Os outros 10 tinham 16-124% de lucro
-# bruto deixado na mesa na formula antiga.
+# Revisado 2026-08-10 (dono), em duas passadas:
 #
-# AVISO que continua valendo (o motivo do teste de 2026-08-04 existir): isto
-# e lucro bruto, SEM WFO e SEM o gate de sobrevivencia do periodo completo --
-# mede se o dinheiro esta na mesa, nao se perseguir ele e seguro. Profit puro
-# (2) venceu no MARTINGALE por essa mesma metrica -- e o padrao EXATO que
-# quebrou margem quando testado assim pro grid em 2026-08-04 (lucro curto
-# melhor, periodo completo estourou). Ainda nao validado pelo circuito
-# completo (WFO + gate de sobrevivencia) pra nenhum dos 10 -- proximo passo,
-# nao circulo fechado.
+# Passada 1 -- fulltest: as atribuicoes antigas (9/8/10 por raciocinio de
+# design, nunca comparadas contra alternativa -- so o grid tinha A/B de
+# verdade, 2026-08-04) foram trocadas pelo vencedor de lucro bruto de um
+# fulltest -- as 14 formulas, nos 11 sistemas, mesmo periodo curto
+# (2026.06.10-08.10), SEM WFO (amostra_noite.py, resultados em
+# amostra_noite_resultados.jsonl).
+#
+# Passada 2 -- peso estrutural do profit (dono: "MT5 evolui pelo OnTester",
+# entao o que importa nao e so quem ganhou UMA corrida curta, e sim o quanto
+# CADA formula pesa profit na propria conta -- isso e o que guia a evolucao
+# geracao apos geracao no circuito completo). Cada formula da passada 1 foi
+# reclassificada por peso de profit (forte: multiplica direto, sem dividir
+# por trades/deposito/stdev; moderado: pesa mas normaliza por deposito ou
+# balance; fraco/diluido: divide por trades E deposito antes de qualquer
+# peso) cruzado com risco (tem termo de DD/margem, ou e cega a risco). Dois
+# vencedores da passada 1 reprovaram nesse crivo e foram corrigidos:
+#
+#   02_SLTP_ORGANIC: vencedor era ProfitPerTradeAdjustedByDD (7) -- a MESMA
+#   formula que ja era o default antigo da EA, ja documentada noutro lugar
+#   deste arquivo como a mais diluida do catalogo (divide por trades E por
+#   deposito antes de pesar). Ganhou a corrida curta por 1.6% sobre o #2
+#   (EfficiencyRelativeToDeposit, 207.41 vs 210.87) -- dentro do ruido de um
+#   teste de amostra 1. Trocado pro #2: peso forte/moderado, sem a mesma
+#   diluicao.
+#
+#   09_MARTINGALE: vencedor era Profit puro (2) -- o MESMO padrao que ja
+#   quebrou margem quando testado assim pro grid em 2026-08-04 (lucro curto
+#   melhor, periodo completo estourou), agora aplicado a outro sistema sem
+#   SL nativo e sem teto de lote (MaxMartingaleLot ainda fixo em 0). Os TOP 5
+#   da corrida curta pra martingale sao todos formulas cegas a risco (Profit,
+#   SystemRobustness, ProfitWinTradeDD...) -- nenhuma delas tem termo de DD.
+#   Revertido pra ResilienceToDrawdown (10), a mesma formula que ja guiava
+#   martingale antes e que tem DD explicito na conta.
+#
+# AVISO que continua valendo pros outros 8 (o motivo do teste de 2026-08-04
+# existir): isto e lucro bruto, SEM WFO e SEM o gate de sobrevivencia do
+# periodo completo -- mede se o dinheiro esta na mesa, nao se perseguir ele
+# e seguro. Passaram no crivo de peso/risco desta revisao, mas nenhum tem
+# ainda o tipo de validacao que o grid tem (A/B no circuito completo) --
+# proximo passo, nao circulo fechado.
 #
 #  1 GridSurvivalScore    grid: cesta tem dinamica propria (sem SL, alvo
 #                         comum) -- unico com A/B real, mantido.
 # 10 ResilienceToDrawdown (lucro liquido / DD maximo) * 0,7 + bruto * 0,3 --
-#                         venceu em 01_SLTP e 08_GRID_UNIFIED no fulltest.
-#  7 ProfitPerTradeAdjustedByDD venceu em 02_SLTP_ORGANIC.
-#  5 AdjustedEfficiencyForGrid  venceu em 03_TRAIL_ONLY, 04_SLTP_TRAIL,
-#                         06_REVERSAL_EXIT e 10_DALEMBERT -- apesar do nome,
-#                         generalizou bem fora do grid no teste.
-#  6 ProfitRelativeToDDAndDeposit venceu em 05_BE_TRAIL.
-#  2 Profit (puro)        venceu em 09_MARTINGALE -- ver aviso acima.
-#  4 EfficiencyRelativeToDeposit venceu em 11_SIGNAL_ONLY.
+#                         peso forte, DD explicito. 01_SLTP, 08_GRID_UNIFIED,
+#                         09_MARTINGALE (revertido, ver acima).
+#  4 EfficiencyRelativeToDeposit peso moderado-forte, DD-penalty. 02_SLTP_
+#                         ORGANIC (trocado, ver acima), 11_SIGNAL_ONLY.
+#  5 AdjustedEfficiencyForGrid  peso moderado, DD-penalty. Venceu em
+#                         03_TRAIL_ONLY, 04_SLTP_TRAIL, 06_REVERSAL_EXIT e
+#                         10_DALEMBERT -- apesar do nome, generalizou bem
+#                         fora do grid no teste.
+#  6 ProfitRelativeToDDAndDeposit peso moderado, DD no denominador.
+#                         05_BE_TRAIL.
 #
 # Nao usados de proposito: 13 LevainComposite satura (todo passe bom devolve
-# 1.0 e o genetico perde gradiente no topo) e 11 ReturnUniformity ignora
-# tamanho (um sistema minusculo e suave venceria um bom).
+# 1.0 e o genetico perde gradiente no topo), 11 ReturnUniformity ignora
+# tamanho (um sistema minusculo e suave venceria um bom), e agora tambem
+# 7 ProfitPerTradeAdjustedByDD e 2 Profit puro -- ver correcoes acima.
 FORMULA_POR_SISTEMA = {
-    "01_SLTP": 10, "02_SLTP_ORGANIC": 7,
+    "01_SLTP": 10, "02_SLTP_ORGANIC": 4,
     "03_TRAIL_ONLY": 5, "04_SLTP_TRAIL": 5, "05_BE_TRAIL": 6,
     "06_REVERSAL_EXIT": 5,
     # 2026-08-04: testado Profit puro (2) guiando a busca do grid, com
@@ -140,7 +167,13 @@ FORMULA_POR_SISTEMA = {
     # optimize_two_stage.py) segue ligado, so vira redundante/confirmatorio
     # nesse modo em vez de decisivo.
     "07_GRID_SEPARATE": 1, "08_GRID_UNIFIED": 10,
-    "09_MARTINGALE": 2, "10_DALEMBERT": 5,
+    # 09_MARTINGALE: o fulltest de 2026-08-10 elegeu Profit puro (2), mas
+    # revertido pra ResilienceToDrawdown (10) na revisao de peso/risco --
+    # ver o bloco de comentario no topo deste dict. Profit puro e
+    # exatamente o padrao que ja estourou margem quando testado assim pro
+    # grid (2026-08-04); martingale tem o mesmo buraco estrutural (sem SL
+    # nativo, MaxMartingaleLot ainda 0/sem teto), entao herda o mesmo risco.
+    "09_MARTINGALE": 10, "10_DALEMBERT": 5,
     "11_SIGNAL_ONLY": 4,
 }
 
