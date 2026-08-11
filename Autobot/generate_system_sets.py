@@ -89,25 +89,44 @@ def steps(start: float, step: float, stop: float) -> int:
 # de provar. Todos passam por AdditionalFilters() no EA, entao o piso de
 # qualidade (trades, PF, DD) e o mesmo -- muda so o que e premiado acima dele.
 #
-#  9 PessimisticProfit    desconta dependencia de ganhos extremos. Para
-#                         geometria fixa (SL/TP) e saida por sinal, onde a
-#                         pergunta e "tem vantagem ou teve sorte concentrada?".
-#  8 SharpeAdjustedByDD   sharpe/stdev * lucro / (1 + ddrel). Trailing produz
-#                         muitas saidas pequenas: premia a suavidade, mas
-#                         multiplicada pelo lucro -- suave e pequeno nao vence.
-# 10 ResilienceToDrawdown (lucro liquido / DD maximo) * 0,7 + bruto * 0,3.
-#                         Martingale e d'Alembert vivem ou morrem pelo tamanho
-#                         do buraco que aguentam; lucro por unidade de DD e
-#                         literalmente a pergunta de sobrevivencia deles.
-#  1 GridSurvivalScore    a cesta tem dinamica propria (sem SL, alvo comum).
+# Revisado 2026-08-10 (dono): as atribuicoes antigas (9/8/10 por raciocinio
+# de design, nunca comparadas contra alternativa -- so o grid tinha A/B de
+# verdade, 2026-08-04) foram trocadas pelo vencedor de um fulltest -- as 14
+# formulas, nos 11 sistemas, mesmo periodo curto (2026.06.10-08.10), SEM WFO,
+# so lucro bruto (amostra_noite.py --from 2026.06.10 --to 2026.08.10,
+# resultados em amostra_noite_resultados.jsonl). So 07_GRID_SEPARATE manteve
+# a formula antiga -- foi o unico que ja vencia esse tipo de comparacao
+# (o proprio teste de 2026-08-04). Os outros 10 tinham 16-124% de lucro
+# bruto deixado na mesa na formula antiga.
+#
+# AVISO que continua valendo (o motivo do teste de 2026-08-04 existir): isto
+# e lucro bruto, SEM WFO e SEM o gate de sobrevivencia do periodo completo --
+# mede se o dinheiro esta na mesa, nao se perseguir ele e seguro. Profit puro
+# (2) venceu no MARTINGALE por essa mesma metrica -- e o padrao EXATO que
+# quebrou margem quando testado assim pro grid em 2026-08-04 (lucro curto
+# melhor, periodo completo estourou). Ainda nao validado pelo circuito
+# completo (WFO + gate de sobrevivencia) pra nenhum dos 10 -- proximo passo,
+# nao circulo fechado.
+#
+#  1 GridSurvivalScore    grid: cesta tem dinamica propria (sem SL, alvo
+#                         comum) -- unico com A/B real, mantido.
+# 10 ResilienceToDrawdown (lucro liquido / DD maximo) * 0,7 + bruto * 0,3 --
+#                         venceu em 01_SLTP e 08_GRID_UNIFIED no fulltest.
+#  7 ProfitPerTradeAdjustedByDD venceu em 02_SLTP_ORGANIC.
+#  5 AdjustedEfficiencyForGrid  venceu em 03_TRAIL_ONLY, 04_SLTP_TRAIL,
+#                         06_REVERSAL_EXIT e 10_DALEMBERT -- apesar do nome,
+#                         generalizou bem fora do grid no teste.
+#  6 ProfitRelativeToDDAndDeposit venceu em 05_BE_TRAIL.
+#  2 Profit (puro)        venceu em 09_MARTINGALE -- ver aviso acima.
+#  4 EfficiencyRelativeToDeposit venceu em 11_SIGNAL_ONLY.
 #
 # Nao usados de proposito: 13 LevainComposite satura (todo passe bom devolve
 # 1.0 e o genetico perde gradiente no topo) e 11 ReturnUniformity ignora
 # tamanho (um sistema minusculo e suave venceria um bom).
 FORMULA_POR_SISTEMA = {
-    "01_SLTP": 9, "02_SLTP_ORGANIC": 9,
-    "03_TRAIL_ONLY": 8, "04_SLTP_TRAIL": 8, "05_BE_TRAIL": 8,
-    "06_REVERSAL_EXIT": 9,
+    "01_SLTP": 10, "02_SLTP_ORGANIC": 7,
+    "03_TRAIL_ONLY": 5, "04_SLTP_TRAIL": 5, "05_BE_TRAIL": 6,
+    "06_REVERSAL_EXIT": 5,
     # 2026-08-04: testado Profit puro (2) guiando a busca do grid, com
     # GridSurvivalScore (1) so como filtro externo pos-busca -- comparado
     # ao vivo contra o metodo antigo no MESMO combo (EURUSD/
@@ -115,12 +134,14 @@ FORMULA_POR_SISTEMA = {
     # OOS 7x maior E sobreviveu ao periodo completo (saldo 3335.25);
     # Profit-guiado achou lucro OOS baixo E estourou margem (saldo 408.68,
     # REPROVADO). Amostra de 1 combo, mas a direcao foi clara -- revertido
-    # pro padrao. GridSurvivalScore continua guiando a busca; o filtro
-    # externo (ler_todas_formulas em optimize_two_stage.py) segue ligado,
-    # so vira redundante/confirmatorio nesse modo em vez de decisivo.
-    "07_GRID_SEPARATE": 1, "08_GRID_UNIFIED": 1,
-    "09_MARTINGALE": 10, "10_DALEMBERT": 10,
-    "11_SIGNAL_ONLY": 9,
+    # pro padrao, e confirmado de novo no fulltest de 2026-08-10 (venceu a
+    # comparacao com as outras 13 formulas tambem). GridSurvivalScore
+    # continua guiando a busca; o filtro externo (ler_todas_formulas em
+    # optimize_two_stage.py) segue ligado, so vira redundante/confirmatorio
+    # nesse modo em vez de decisivo.
+    "07_GRID_SEPARATE": 1, "08_GRID_UNIFIED": 10,
+    "09_MARTINGALE": 2, "10_DALEMBERT": 5,
+    "11_SIGNAL_ONLY": 4,
 }
 
 # Dependente -> chave que o liga, conforme o EA. Espelha os GATES do circuito

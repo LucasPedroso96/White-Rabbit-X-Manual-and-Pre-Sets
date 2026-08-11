@@ -39,13 +39,18 @@ import optimize_sets as base
 AQUI = Path(__file__).resolve().parent
 LEDGER = AQUI / "amostra_noite_resultados.jsonl"
 
+# So usado aqui pra saber QUAIS sistemas iterar -- o valor de cada chave nao
+# importa pro fulltest (testa as 14 formulas em todos, independente do que
+# esta atribuido). Mantido em sincronia com generate_system_sets.py so por
+# documentacao/referencia (achado do proprio fulltest de 2026-08-10, que
+# gerou esses valores).
 FORMULA_POR_SISTEMA = {
-    "01_SLTP": 9, "02_SLTP_ORGANIC": 9,
-    "03_TRAIL_ONLY": 8, "04_SLTP_TRAIL": 8, "05_BE_TRAIL": 8,
-    "06_REVERSAL_EXIT": 9,
-    "07_GRID_SEPARATE": 1, "08_GRID_UNIFIED": 1,
-    "09_MARTINGALE": 10, "10_DALEMBERT": 10,
-    "11_SIGNAL_ONLY": 9,
+    "01_SLTP": 10, "02_SLTP_ORGANIC": 7,
+    "03_TRAIL_ONLY": 5, "04_SLTP_TRAIL": 5, "05_BE_TRAIL": 6,
+    "06_REVERSAL_EXIT": 5,
+    "07_GRID_SEPARATE": 1, "08_GRID_UNIFIED": 10,
+    "09_MARTINGALE": 2, "10_DALEMBERT": 5,
+    "11_SIGNAL_ONLY": 4,
 }
 BILATERAL = {"08_GRID_UNIFIED"}
 
