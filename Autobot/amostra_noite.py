@@ -125,14 +125,28 @@ def main() -> int:
     ap.add_argument("--min-trades", type=int, default=15)
     ap.add_argument("--min-pf", type=float, default=1.0)
     ap.add_argument("--timeout", type=int, default=1800)
+    ap.add_argument("--sistemas", default="",
+                    help="lista separada por virgula (ex 07_GRID_SEPARATE,"
+                         "08_GRID_UNIFIED); vazio = os 11 default")
+    ap.add_argument("--fase", default="fulltest",
+                    help="tag gravada no ledger -- troque pra nao colidir "
+                         "com uma rodada anterior que usou EA diferente "
+                         "(feitos() so pula combos com a MESMA fase)")
     args = ap.parse_args()
+
+    sistemas = ([s.strip() for s in args.sistemas.split(",") if s.strip()]
+                if args.sistemas.strip() else list(FORMULA_POR_SISTEMA))
+    desconhecidos = [s for s in sistemas if s not in FORMULA_POR_SISTEMA]
+    if desconhecidos:
+        print(f"--sistemas com codigo(s) desconhecido(s): {desconhecidos}")
+        return 1
 
     ja = feitos()
     itens: list[tuple[str, str, str, int]] = []
-    for sistema in FORMULA_POR_SISTEMA:
+    for sistema in sistemas:
         variante = "BOTH_MULTI" if sistema in BILATERAL else "BUY_MULTI"
         for formula in sorted(af.FORMULAS):
-            itens.append(("fulltest", sistema, variante, formula))
+            itens.append((args.fase, sistema, variante, formula))
 
     pendentes = [it for it in itens if (it[0], it[1], str(it[3])) not in ja]
     print(f"{args.symbol} | {args.inicio} a {args.fim}")
