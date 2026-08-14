@@ -464,6 +464,15 @@ def apply_defaults(p: Profile, ac: AssetClass, side: str, magic: int,
     p.fix("MaxEquityDrawdownPercent", 0)
     p.fix("MinFreeMarginPercent", 0)
 
+    # Global Risk Protection (dono, 2026-08-14): soma a conta INTEIRA (todo
+    # simbolo, todo magic number) -- e uma trava de nivel de conta/prop firm,
+    # nao faz sentido por combo de otimizacao/backtest isolado. Desligado de
+    # proposito (0 = desativado), nunca otimizavel: e pra uso manual/ao vivo,
+    # nao pra a busca genetica mexer.
+    p.fix("Trava_Diaria_Percent", 0)
+    p.fix("Trava_Total_Percent", 0)
+    p.fix("Protecao_Fecha_Posicoes", "true")
+
     p.fix("ReversalExitUseEntryFilters", "false")
     p.fix("RecoveryMode", 0)
     p.fix("Multiplicador", 1)
