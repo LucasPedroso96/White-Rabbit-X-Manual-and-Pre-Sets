@@ -994,6 +994,17 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
     # parado. Sem SL nativo por posicao (grid usa cesta manual), qualquer
     # ocorrencia e sinal de que a cesta cresceu alem do que a conta aguenta.
     sem_margem = len(re.findall(r"retcode=10019", log))
+    # CheckStopTradingCondition() no EA: stop de emergencia por drawdown de
+    # equity, PERMANENTE (tradingStopped=true trava entrada pra sempre).
+    # Achado do dono, 2026-08-15, revisando aprovados apos o fix do swap:
+    # EURUSD/08_GRID_UNIFIED/BOTH_MULTI se autodesligou em 2025.04.03 (uma
+    # cesta cresceu perna de 25x/13x o FixedLot perseguindo o alvo, o preco
+    # nao voltou, o stop liquidou tudo com -1020 num tiro so) e ficou parado
+    # ~16 meses ate o fim do periodo -- saldo final congelado passou pelo
+    # piso de 50% porque nada mais mexeu nele depois. "stop out occurred" e
+    # mensagem da CORRETORA (margin call de verdade); esta e o EA se
+    # autodesligando por conta propria, saldo saudavel ou nao.
+    autodesligou = "Trading stopped: strategy equity=" in log
     m = re.search(r"final balance ([\d.]+)", log)
     saldo_final = float(m.group(1)) if m else None
     # Ver TESTE_CONCLUIDO no topo do arquivo -- o MT5 muda a grafia dessa
@@ -1007,7 +1018,8 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
     # Piso de 50%: nao e so o stop out literal que denuncia ruina -- uma conta
     # que termina o periodo perto de zero sem tecnicamente estourar margem
     # (ex.: liquidacao forcada no fim do teste) e o mesmo problema.
-    sobreviveu = (completou and not estourou and sem_margem == 0
+    sobreviveu = (completou and not estourou and not autodesligou
+                 and sem_margem == 0
                  and saldo_final is not None and saldo_final >= 0.5 * deposito)
     if not completou:
         motivo = ("teste nao completou -- nem a linha de bookkeeping do "
@@ -1015,6 +1027,11 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
                   "crash, ou log vazio)")
     elif estourou:
         motivo = "stop out (estouro de margem) durante o periodo completo"
+    elif autodesligou:
+        motivo = ("Trading stopped: a propria EA acionou o stop de "
+                  "emergencia por drawdown de equity e travou entrada pra "
+                  "sempre (tradingStopped permanente) -- saldo final pode "
+                  "parecer saudavel so porque nada mais mexeu nele depois")
     elif sem_margem > 0:
         motivo = (f"sem margem pra abrir posicao {sem_margem}x durante o "
                   "periodo completo (retcode=10019, No money) -- conta "

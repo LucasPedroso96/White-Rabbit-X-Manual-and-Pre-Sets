@@ -116,6 +116,32 @@ r = avaliar_sobrevivencia("", 500)
 checar("vazio: nao sobrevive", r["sobreviveu"], False)
 checar("vazio: saldo final", r["saldo_final"], None)
 
+# --- caso real: EURUSD/08_GRID_UNIFIED/BOTH_MULTI aprovado (saldo final
+# 1237.15, bem acima do piso de 50%, sem stop out nem retcode=10019) mas o
+# EA se autodesligou pra sempre em 2025.04.03 via CheckStopTradingCondition()
+# (stop de emergencia por drawdown de equity, tradingStopped=true permanente)
+# -- ficou ~16 meses parado ate o fim do periodo de 3 anos, e o saldo
+# congelado passou pelo piso porque nada mais mexeu nele depois. Achado do
+# dono, 2026-08-15, revisando os aprovados apos o fix do swap: a cesta
+# cresceu uma perna de 0.25/0.13 lote (25x/13x o FixedLot base) perseguindo
+# o alvo, e quando o preco nao voltou o stop de emergencia liquidou tudo de
+# uma vez (-1020.32 num so grupo de fechamentos "StopLoss triggered"). O
+# gate so olhava saldo final e "stop out occurred" (mensagem da CORRETORA);
+# nao enxergava o EA se autodesligando por conta propria.
+EMERGENCIA_REAL = """
+2025.04.03 11:40:40   Trading stopped: strategy equity=1318.38, initial capital=1000.00
+2025.04.03 11:40:40   deal #531 buy 0.13 EURUSD at 1.10181 done (based on order #531)
+final balance 1237.15 USD
+OnTester result 1237.15
+automatical testing finished
+"""
+r = avaliar_sobrevivencia(EMERGENCIA_REAL, 1000)
+checar("stop de emergencia: nao sobrevive apesar do saldo saudavel",
+       r["sobreviveu"], False)
+checar("stop de emergencia: saldo final ainda e lido", r["saldo_final"], 1237.15)
+checar("stop de emergencia: motivo cita o autodesligamento",
+       "Trading stopped" in r["motivo"], True)
+
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")
     for f in FALHAS:
