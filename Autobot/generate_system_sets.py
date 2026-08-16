@@ -829,24 +829,18 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
             # ele representa. Pedido explicito do dono, 2026-08-08.
             p.opt("GridMode", 2, 1, 1, 2)
         p.fix("AtivarStop", "false")
-        # Grid nao tem SL nativo (a cesta e a gestao), mas Stop continua
-        # tendo efeito real: e a base que o breakeven do EA usa quando nao
-        # ha SL na posicao (ApplyBreakevenForSide, .mq5: slDistance =
-        # ATR[VelaStop] * Stop, multiplicado por BreakevenDistancia). Achado
-        # do dono, 2026-08-08: Stop estava fixo aqui enquanto os outros 6
-        # sistemas com breakeven o deixam otimizavel -- travado, o
-        # otimizador so podia variar a distancia do breakeven pelo
-        # multiplicador (BreakevenDistancia), nunca pela base.
-        #
-        # Faixa mais grossa que os outros 6 sistemas de proposito (3 passos
-        # -- lo/mid/hi -- em vez do passo 0.5 deles): la Stop e o SL de
-        # verdade, o eixo principal de risco, precisa de granularidade fina.
-        # Aqui e so a base do breakeven, papel secundario, e ja e
-        # multiplicativamente redundante com BreakevenDistancia (mesma
-        # distancia final sai de varios pares Stop/BreakevenDistancia
-        # diferentes) -- passo fino so inflaria o espaco de busca sem
-        # sinal novo. Pedido do dono, 2026-08-08.
-        p.opt("Stop", sl_mid, ac.sl_lo, (ac.sl_hi - ac.sl_lo) / 2, ac.sl_hi)
+        # Travado de volta a fix (achado do dono, 2026-08-16, revertendo a
+        # otimizacao pedida em 2026-08-08): Stop virou busca morta pro grid
+        # depois do fix do breakeven no mesmo dia -- confirmado no .mq5,
+        # StopBuy/StopSell so sao lidos em dois lugares: no SL de ordem
+        # (sempre 0 aqui, AtivarStop=false) e no fallback de
+        # BreakevenReferenceDistance, que so cai nele se o Take (sempre
+        # ativo no grid, AtivarTake fixo true) resultar em distancia ATR
+        # zero -- caso extremo de dado ausente, nao cenario de operacao
+        # normal. Manter isso como eixo opt() gastava 3 passes (lo/mid/hi)
+        # por combo sem sinal real de retorno. sl_mid ainda cobre o
+        # fallback se o caso raro acontecer.
+        p.fix("Stop", sl_mid)
         p.opt("VelaStop", 0, 0, 1, 3)
         p.fix("AtivarTake", "true")
         p.fix("TakeOrganico", "false")
