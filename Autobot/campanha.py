@@ -68,16 +68,22 @@ def anos_atras(anos: int) -> str:
 # HIGH_RISK_RESEARCH por ultimo (o proprio status em generate_system_sets.py
 # ja avisa). Essa e a ordem de MEDICAO; a ordem de GRADUACAO pra capital ao
 # vivo e separada e documentada no plano. Continua sendo o DEFAULT (nenhuma
-# flag = esta ordem, todos os 11); o modo manual do dashboard so
+# flag = esta ordem, todos os 10); o modo manual do dashboard so
 # filtra/reordena por cima disso via --sistemas.
+#
+# 08_GRID_UNIFIED removido (achado do dono, 2026-08-16): depois do TP e do
+# dimensionamento do grid unificado convergirem pro mesmo esquema por lado
+# que o 07_GRID_SEPARATE ja usava, nao sobrou diferenca matematica entre os
+# dois -- ver o comentario completo em generate_system_sets.py:SYSTEMS.
 SISTEMAS = ["01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
             "05_BE_TRAIL", "06_REVERSAL_EXIT",
-            "07_GRID_SEPARATE", "08_GRID_UNIFIED",
+            "07_GRID_SEPARATE",
             "09_MARTINGALE", "10_DALEMBERT", "11_SIGNAL_ONLY"]
 
-# 08_GRID_UNIFIED e bilateral: opera os dois lados no mesmo passe, entao o set
-# e BOTH_*. Os demais tem um set por lado.
-BILATERAL = {"08_GRID_UNIFIED"}
+# Sistemas cuja gestao atravessa compra e venda, entao o set liga os dois
+# lados num arquivo unico ("BOTH") em vez de um por lado. Vazio de proposito
+# desde a remocao do 08_GRID_UNIFIED -- era o unico membro.
+BILATERAL: set[str] = set()
 
 # Cada "rodada" percorre os 11 sistemas com UMA variante antes de avancar. As
 # ICHIMOKU entram DEPOIS das MULTI de proposito, nao por esquecimento como
@@ -100,7 +106,7 @@ def fila(simbolos: list[str], sistemas: list[str] | None = None) -> list[tuple[s
 
     `simbolos` vem de `descobrir_ativos` (auto-detectado ou escolhido pelo
     usuario) -- nunca uma lista cravada aqui, ver comentario acima.
-    `sistemas` e opcional: None usa o SISTEMAS default (todos os 11, grid
+    `sistemas` e opcional: None usa o SISTEMAS default (todos os 10, grid
     primeiro); passado explicitamente (modo manual do dashboard, ou
     `--sistemas` na CLI), filtra E define a ordem -- quem chama decide a
     prioridade, a funcao so respeita.

@@ -73,7 +73,7 @@ def _cmd_usado_por_rodar_combo(simbolo: str, deposito_arg) -> list[str]:
         args = SimpleNamespace(inicio="2023.01.01", fim="2026.01.01",
                                deposit=deposito_arg, min_retencao=30.0,
                                timeout=1)
-        campanha.rodar_combo(simbolo, "08_GRID_UNIFIED", "BOTH_MULTI", args)
+        campanha.rodar_combo(simbolo, "07_GRID_SEPARATE", "BUY_MULTI", args)
     finally:
         campanha.subprocess.Popen = popen_original
     return capturado["cmd"]

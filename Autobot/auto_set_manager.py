@@ -208,11 +208,11 @@ def no_escopo(rel: Path, interesses: dict) -> bool:
         alvo = interesses.get(chave) or []
         if alvo and valor not in alvo:
             return False
-    # O lado "BOTH" (08_GRID_UNIFIED) cobre compra e venda no mesmo arquivo,
-    # entao satisfaz qualquer filtro de lado. Compara-lo literalmente contra
-    # ["BUY","SELL"] descartava o sistema inteiro em silencio.
+    # Nao existe mais lado "BOTH" desde a remocao do 08_GRID_UNIFIED
+    # (2026-08-16, era o unico sistema bilateral) -- todo arquivo agora e
+    # BUY ou SELL, comparado direto contra o filtro.
     lados = interesses.get("lados") or []
-    if lados and lado != "BOTH" and lado not in lados:
+    if lados and lado not in lados:
         return False
     return True
 

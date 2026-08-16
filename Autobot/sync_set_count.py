@@ -141,8 +141,11 @@ def main() -> int:
             if not regex.search(conteudo):
                 continue
             atingidos += 1
-            # Sinaliza quem descreve o padrao de nome dos arquivos: com o
-            # 08_GRID_UNIFIED bilateral, "BUY/SELL" deixou de cobrir todos.
+            # Sinaliza quem descreve o padrao de nome dos arquivos, pra
+            # revisao manual quando a convencao mudar de novo no futuro.
+            # Ate 2026-08-16 isto tambem avisava que "BUY/SELL" nao cobria o
+            # 08_GRID_UNIFIED (bilateral, "BOTH_*.set") -- removido, nenhum
+            # sistema tem excecao de lado agora.
             if re.search(r"BUY_|SELL_|<LADO>|_MULTI\.set", conteudo):
                 naming.append(arquivo)
             if not args.so_listar:
@@ -163,10 +166,8 @@ def main() -> int:
 
     if naming:
         print(f"\n{len(naming)} arquivos descrevem o padrao de nome dos sets.")
-        print("   Reveja a mao: o 08_GRID_UNIFIED agora e BOTH_*.set, porque")
-        print("   abre compra e venda juntas. 'BUY ou SELL' deixou de cobrir")
-        print("   todos os sistemas, e isso e prosa, nao um numero -- trocar")
-        print("   automaticamente em 11 idiomas daria frase errada.")
+        print("   Reveja a mao: e prosa, nao um numero -- trocar automaticamente")
+        print("   em 11 idiomas daria frase errada.")
     return 0
 
 

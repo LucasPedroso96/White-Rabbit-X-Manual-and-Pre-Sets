@@ -165,8 +165,8 @@ checar("hedge totalmente sem classe resolvivel -> capital_minimo None (nao 0.0, 
 # Caso G: conta de hedging com DUAS classes (achado 2026-08-09 -- antes usava
 # max() e reportava so 10000; capital real pra sustentar as duas posicoes ao
 # mesmo tempo e a SOMA, 1000 + 10000).
-hedge_forex = {"chave": "S12", "simbolo": "AUDCAD", "sistema": "08_GRID_UNIFIED"}
-hedge_metais = {"chave": "S13", "simbolo": "XAUUSD", "sistema": "08_GRID_UNIFIED"}
+hedge_forex = {"chave": "S12", "simbolo": "AUDCAD", "sistema": "07_GRID_SEPARATE"}
+hedge_metais = {"chave": "S13", "simbolo": "XAUUSD", "sistema": "07_GRID_SEPARATE"}
 contas = aml.contas_necessarias([hedge_forex, hedge_metais], saldo_conta=1000)
 checar("caso G: 1 conta de hedging so (tier nao particiona por classe)", len(contas), 1)
 checar("caso G: capital minimo = soma das 2 classes (1000 + 10000)",

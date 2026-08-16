@@ -136,7 +136,7 @@ def contas_necessarias(combos: list[dict], saldo_conta: float) -> list[dict]:
     """Particiona os combos de uma sugestao em contas, so por restricao dura
     (secao 8 do plano -- nunca por preferencia de diversificacao):
 
-      MISTURA DE TIER   combo HEDGE_ACCOUNT_REQUIRED (07/08) sempre isolado
+      MISTURA DE TIER   combo HEDGE_ACCOUNT_REQUIRED (07) sempre isolado
                         numa conta de hedging separada dos demais tiers.
       CAPITAL MINIMO    soma dos capitais minimos das classes de ativo
                         presentes no resto excede `saldo_conta` -> particiona

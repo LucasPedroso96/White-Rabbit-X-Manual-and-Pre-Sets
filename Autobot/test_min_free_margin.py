@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Testa MinFreeMarginPercent nos sistemas sem SL nativo (dono, 2026-08-10):
 apply_defaults() zera esse input pra todo mundo (neutro pros 6 sistemas
-Fixed-R, que ja tem CapitalBaseR como rede de risco). Mas grid (07/08),
+Fixed-R, que ja tem CapitalBaseR como rede de risco). Mas grid (07),
 martingale (09) e d'Alembert (10) NAO tem SL nativo -- a EA ja tem um guard
 de verdade (CanSendTradeRequest, .mq5) que recusa nova ordem se a margem
 livre projetada cair abaixo deste percentual, e ele ficava desligado (0)
@@ -34,8 +34,7 @@ def _min_free_margin(sistema: str) -> str:
     return p.values["MinFreeMarginPercent"]
 
 
-for sistema in ("07_GRID_SEPARATE", "08_GRID_UNIFIED",
-                "09_MARTINGALE", "10_DALEMBERT"):
+for sistema in ("07_GRID_SEPARATE", "09_MARTINGALE", "10_DALEMBERT"):
     valor_atual = _min_free_margin(sistema).split("||")[0]
     checar(f"{sistema}: MinFreeMarginPercent nao fica zerado",
            valor_atual != "0", True)
@@ -57,8 +56,8 @@ checar("11_SIGNAL_ONLY: continua sem rede, por decisao de tier",
 # do dono de NAO travar por contagem, so por margem real.
 ac = CLASSES["01_Forex"]
 p = Profile()
-apply_defaults(p, ac, "BOTH", magic=1, name="teste")
-apply_system(p, "08_GRID_UNIFIED", ac, "BOTH")
+apply_defaults(p, ac, "BUY", magic=1, name="teste")
+apply_system(p, "07_GRID_SEPARATE", ac, "BUY")
 checar("grid: MaxLongTrades continua 999 (sem teto de contagem)",
        p.values["MaxLongTrades"].split("||")[0], "999")
 

@@ -135,8 +135,9 @@ def steps(start: float, step: float, stop: float) -> int:
 #  1 GridSurvivalScore    grid: cesta tem dinamica propria (sem SL, alvo
 #                         comum) -- unico com A/B real, mantido.
 # 10 ResilienceToDrawdown (lucro liquido / DD maximo) * 0,7 + bruto * 0,3 --
-#                         peso forte, DD explicito. 01_SLTP, 08_GRID_UNIFIED,
-#                         09_MARTINGALE (revertido, ver acima).
+#                         peso forte, DD explicito. 01_SLTP, 09_MARTINGALE
+#                         (revertido, ver acima). 08_GRID_UNIFIED tambem
+#                         usava (removido, 2026-08-16 -- ver BILATERAL).
 #  4 EfficiencyRelativeToDeposit peso moderado-forte, DD-penalty. 02_SLTP_
 #                         ORGANIC (trocado, ver acima), 11_SIGNAL_ONLY.
 #  5 AdjustedEfficiencyForGrid  peso moderado, DD-penalty. Venceu em
@@ -166,7 +167,7 @@ FORMULA_POR_SISTEMA = {
     # continua guiando a busca; o filtro externo (ler_todas_formulas em
     # optimize_two_stage.py) segue ligado, so vira redundante/confirmatorio
     # nesse modo em vez de decisivo.
-    "07_GRID_SEPARATE": 1, "08_GRID_UNIFIED": 10,
+    "07_GRID_SEPARATE": 1,
     # 09_MARTINGALE: o fulltest de 2026-08-10 elegeu Profit puro (2), mas
     # revertido pra ResilienceToDrawdown (10) na revisao de peso/risco --
     # ver o bloco de comentario no topo deste dict. Profit puro e
@@ -610,11 +611,20 @@ SYSTEMS: list[System] = [
            "Breakeven cedo e trailing depois; sem TP fixo."),
     System("06_REVERSAL_EXIT", "Saida por sinal contrario", "RESEARCH",
            "A posicao fecha quando o indicador vira. SL como rede de seguranca."),
+    # 08_GRID_UNIFIED removido (achado do dono, 2026-08-16): depois do TP
+    # virar independente por lado dentro do modo unificado (2026-08-15) e do
+    # dimensionamento do proximo lote tambem convergir pro mesmo esquema por
+    # lado, nao sobrou NENHUMA diferenca matematica entre este e o
+    # 07_GRID_SEPARATE -- mesmo alvo por lote (GridProfitPerLot * baseVolume
+    # * Multiplicador em StartGridCycleIfNeeded, formula identica nos dois
+    # ramos), mesmo fechamento, mesmo dimensionamento. "Unificado" tinha
+    # sentido antes de v1.16 (cesta com um alvo agregado de verdade); depois
+    # das correcoes virou so um nome diferente pro mesmo sistema, rodando a
+    # campanha em dobro por nada. O numero 08 fica vago de proposito -- nao
+    # renumerado, pra nao invalidar sets/resultados historicos que ja usam
+    # 09/10/11.
     System("07_GRID_SEPARATE", "Grid com lucro separado por lado", "HEDGE_ACCOUNT_REQUIRED",
            "Cada lado tem alvo proprio. Exige conta hedging real."),
-    System("08_GRID_UNIFIED", "Grid com cesta unificada", "HEDGE_ACCOUNT_REQUIRED",
-           "Compra e venda abertas juntas sob UM alvo unico. Conta hedging "
-           "obrigatoria: em netting os lados se anulam."),
     System("09_MARTINGALE", "Martingale em lote fixo", "HIGH_RISK",
            "Uma posicao por lado; lote cresce apos perda. Curva de risco severa."),
     System("10_DALEMBERT", "D'Alembert em lote fixo", "HIGH_RISK",
@@ -624,10 +634,11 @@ SYSTEMS: list[System] = [
 ]
 
 # Sistemas cuja gestao atravessa compra e venda, entao o set liga os dois lados
-# num arquivo unico ("BOTH") em vez de um por lado. So a cesta unificada se
-# encaixa: o alvo dela e a soma dos dois lados. Um lado so a tornaria identica
-# ao 07_GRID_SEPARATE.
-BILATERAL = {"08_GRID_UNIFIED"}
+# num arquivo unico ("BOTH") em vez de um por lado. Vazio de proposito desde
+# a remocao do 08_GRID_UNIFIED (2026-08-16) -- era o unico membro. Mantido
+# como mecanismo (nao apagado) porque um sistema bilateral futuro so
+# precisaria entrar aqui de novo, sem reescrever quem consome este set.
+BILATERAL: set[str] = set()
 
 
 def apply_sizing_and_formula(p: Profile, system: str, ac: AssetClass) -> None:
@@ -815,19 +826,10 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt_bool("AtivarBreakeven", "true")
         p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
 
-    elif system in ("07_GRID_SEPARATE", "08_GRID_UNIFIED"):
+    elif system == "07_GRID_SEPARATE":
         # Grid: SL desligado (a cesta e a gestao), TP obrigatorio,
         # recovery off, lado >= 2, conta hedging.
-        if system == "07_GRID_SEPARATE":
-            p.fix("GridMode", 1)
-        else:
-            # 08_GRID_UNIFIED: quem decide separado (1) vs unificado (2) e
-            # o proprio algoritmo por combo, nao um travamento de arquivo --
-            # "unificado" no nome e so o ponto de partida (current=2), nao
-            # a unica opcao. Nunca inclui 0 (Grid_Disabled): desligar o
-            # grid tornaria o arquivo incoerente com o proprio sistema que
-            # ele representa. Pedido explicito do dono, 2026-08-08.
-            p.opt("GridMode", 2, 1, 1, 2)
+        p.fix("GridMode", 1)
         p.fix("AtivarStop", "false")
         # Travado de volta a fix (achado do dono, 2026-08-16, revertendo a
         # otimizacao pedida em 2026-08-08): Stop virou busca morta pro grid
@@ -885,8 +887,7 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         # Sem teto de posicoes por lado: o dono confia na distancia ATR
         # (DistanciaMinima) e no proximo sinal como freio, nao numa contagem
         # fixa. 999 e o "sem limite" pratico do MaxLongTrades/MaxShortTrades --
-        # travado (N), sem eixo de busca 2..10 por cima (a cesta unificada
-        # ("BOTH") ja recebe os dois lados de set_exposure).
+        # travado (N), sem eixo de busca 2..10 por cima.
         set_exposure(p, side, 999, hedging=True)
         # MinFreeMarginPercent (dono, 2026-08-10): apply_defaults() zera isto
         # pra todo mundo, neutro pros 6 sistemas Fixed-R (CapitalBaseR ja e a
@@ -1069,8 +1070,7 @@ def main() -> None:
                         p = Profile()
                         apply_defaults(p, ac, side, magic, name)
                         apply_core(p, ac, ichimoku,
-                                   grid=system.code in ("07_GRID_SEPARATE",
-                                                        "08_GRID_UNIFIED"))
+                                   grid=system.code == "07_GRID_SEPARATE")
                         apply_system(p, system.code, ac, side)
                         apply_sizing_and_formula(p, system.code, ac)
                         p.desativar_inertes()

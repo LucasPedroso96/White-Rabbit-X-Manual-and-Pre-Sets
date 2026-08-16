@@ -251,7 +251,8 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
 # real. GATES confirma que sao os unicos eixos de geometria do grid
 # realmente ativos (Trail/TrailVela/MetodoDeCalculo ficam mortos porque
 # AtivarTrailATR e cravado false; VelaStop morto porque AtivarStop e false).
-SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE", "08_GRID_UNIFIED"}
+# 08_GRID_UNIFIED removido (2026-08-16) -- ver generate_system_sets.py:SYSTEMS.
+SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE"}
 EIXOS_GEOMETRIA_TICK_REAL = ["Take", "DistanciaMinima", "VelaTake",
                             "UsarsomenteATRGRID"]
 

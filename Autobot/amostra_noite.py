@@ -50,11 +50,12 @@ FORMULA_POR_SISTEMA = {
     "01_SLTP": 10, "02_SLTP_ORGANIC": 4,
     "03_TRAIL_ONLY": 5, "04_SLTP_TRAIL": 5, "05_BE_TRAIL": 6,
     "06_REVERSAL_EXIT": 5,
-    "07_GRID_SEPARATE": 1, "08_GRID_UNIFIED": 10,
+    "07_GRID_SEPARATE": 1,
     "09_MARTINGALE": 10, "10_DALEMBERT": 5,
     "11_SIGNAL_ONLY": 4,
 }
-BILATERAL = {"08_GRID_UNIFIED"}
+# 08_GRID_UNIFIED removido (2026-08-16) -- ver generate_system_sets.py:SYSTEMS.
+BILATERAL: set[str] = set()
 
 
 def feitos() -> set[tuple[str, str, str]]:
@@ -127,7 +128,7 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=1800)
     ap.add_argument("--sistemas", default="",
                     help="lista separada por virgula (ex 07_GRID_SEPARATE,"
-                         "08_GRID_UNIFIED); vazio = os 11 default")
+                         "09_MARTINGALE); vazio = os 10 default")
     ap.add_argument("--fase", default="fulltest",
                     help="tag gravada no ledger -- troque pra nao colidir "
                          "com uma rodada anterior que usou EA diferente "

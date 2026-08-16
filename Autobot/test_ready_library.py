@@ -56,8 +56,17 @@ checar("nome fora do padrao", rl.analisar_nome("VALIDADO_qualquercoisa.set"),
 vs = campanha.variantes("01_SLTP")
 checar("variantes unilaterais", vs,
        ["BUY_MULTI", "SELL_MULTI", "BUY_ICHIMOKU", "SELL_ICHIMOKU"])
-vs = campanha.variantes("08_GRID_UNIFIED")
-checar("variantes bilaterais", vs, ["BOTH_MULTI", "BOTH_ICHIMOKU"])
+
+# BILATERAL esta vazio desde a remocao do 08_GRID_UNIFIED (2026-08-16, era o
+# unico membro) -- injeta uma entrada sintetica so pra este teste continuar
+# cobrindo o MECANISMO bilateral em variantes(), que continua no codigo
+# mesmo sem nenhum sistema real usando.
+campanha.BILATERAL.add("99_TESTE_BILATERAL")
+try:
+    vs = campanha.variantes("99_TESTE_BILATERAL")
+    checar("variantes bilaterais", vs, ["BOTH_MULTI", "BOTH_ICHIMOKU"])
+finally:
+    campanha.BILATERAL.discard("99_TESTE_BILATERAL")
 
 # --- melhor_por_indicador: um campeao por valor, ordem preservada ------------
 CAB = ["Pass", "Profit", "Trades", "EntryIndicator", "Fast_EMA"]
