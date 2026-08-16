@@ -849,7 +849,16 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         # produziria, e a matematica deixa de fechar. Fixo tambem tira um eixo
         # de 9 valores da busca.
         p.fix("Multiplicador", 1)
-        p.opt("DistanciaMinima", 2.0, 1.0, 0.5, 5.0)
+        # Piso subido de 1.0 para 2.5 (achado do dono, 2026-08-16): cesta
+        # densa demais (pernas abrindo com pouco movimento contra) e o que
+        # deixa o lote de recuperacao (CalculateGridVolume, sem teto) crescer
+        # rapido demais numa tendencia forte e estourar o stop de emergencia
+        # -- ja visto ao vivo (EURUSD 08_GRID_UNIFIED, saldo congelado apos
+        # tradingStopped permanente). Espacar mais ataca a causa (cesta
+        # cresce mais devagar) em vez de so limitar o sintoma (tamanho do
+        # lote). Teto tambem subiu (5.0 -> 6.0) pra manter faixa de busca
+        # comparavel.
+        p.opt("DistanciaMinima", 3.5, 2.5, 0.5, 6.0)
         p.opt_bool("UsarsomenteATRGRID")
         # Sem teto de posicoes por lado: o dono confia na distancia ATR
         # (DistanciaMinima) e no proximo sinal como freio, nao numa contagem
