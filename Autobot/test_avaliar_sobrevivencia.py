@@ -67,6 +67,36 @@ automatical testing finished
 r = avaliar_sobrevivencia(SAUDAVEL, 500)
 checar("saudavel: sobrevive", r["sobreviveu"], True)
 checar("saudavel: sem motivo de reprovacao", r["motivo"], None)
+checar("saudavel: zero fechamentos forcados no fim do teste",
+       r["fechados_fim_teste"], 0)
+
+# --- caso real: EURUSD/08_GRID_UNIFIED aprovado (saldo 1219.76, sem stop out,
+# sem tradingStopped) mas os ultimos 7 deals foram liquidacao forcada no
+# CORTE do calendario, nao a estrategia quebrando -- achado do dono,
+# 2026-08-16, revisando o grafico de saldo (queda de ~1494 pra ~1220 no
+# ultimo ponto). O gate continua aprovando (nao e culpa da estrategia: cesta
+# de recuperacao sem prazo fixo vs. data de corte fixa, pura sorte de onde a
+# borda cai), mas agora com o numero de fechamentos forcados visivel, em vez
+# de exigir abrir o log de deals na mao pra descobrir.
+FECHAMENTO_FORCADO_REAL = """
+2026.08.14 23:54:57   position closed due end of test at 1.16303 [#2287 sell 0.01 EURUSD 1.16460]
+2026.08.14 23:54:57   position closed due end of test at 1.16303 [#2288 sell 0.01 EURUSD 1.16074]
+2026.08.14 23:54:57   position closed due end of test at 1.16303 [#2289 buy 0.01 EURUSD 1.15930]
+2026.08.14 23:54:57   position closed due end of test at 1.16303 [#2290 sell 0.01 EURUSD 1.15891]
+2026.08.14 23:54:57   position closed due end of test at 1.16303 [#2291 sell 0.01 EURUSD 1.15841]
+2026.08.14 23:54:57   position closed due end of test at 1.16303 [#2292 buy 0.01 EURUSD 1.16939]
+2026.08.14 23:54:57   position closed due end of test at 1.16303 [#2293 buy 0.01 EURUSD 1.17641]
+final balance 1219.76 USD
+OnTester result 1219.76
+automatical testing finished
+"""
+r = avaliar_sobrevivencia(FECHAMENTO_FORCADO_REAL, 1000)
+checar("fechamento forcado: ainda sobrevive (nao e culpa da estrategia)",
+       r["sobreviveu"], True)
+checar("fechamento forcado: saldo final ainda e lido",
+       r["saldo_final"], 1219.76)
+checar("fechamento forcado: conta as 7 posicoes liquidadas no corte",
+       r["fechados_fim_teste"], 7)
 
 # --- a outra grafia: o MT5 se auto-atualizou no meio desta sessao
 # (2026-08-07, terminal64.exe trocou de mtime as 15:13:59) e passou a

@@ -1006,6 +1006,19 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
     # mensagem da CORRETORA (margin call de verdade); esta e o EA se
     # autodesligando por conta propria, saldo saudavel ou nao.
     autodesligou = "Trading stopped: strategy equity=" in log
+    # Liquidacao forcada no CORTE do calendario do teste (achado do dono,
+    # 2026-08-16, revisando o grafico de saldo de um aprovado -- queda de
+    # ~1494 pra ~1220 no ultimo ponto). Nao e a estrategia quebrando: cesta
+    # de recuperacao sem prazo fixo (grid/martingale/d'alembert) nao tem
+    # garantia de terminar exatamente na borda de uma data de corte fixa --
+    # o MT5 forca fechar tudo que ainda esta aberto, na hora que for, seja
+    # a cesta fundo no vermelho ou perto do lucro (pura sorte de onde a
+    # borda cai). Por isso NAO entra no calculo de `sobreviveu`/`motivo`
+    # (nao e culpa da estrategia) -- so fica visivel pra quem for avaliar o
+    # resultado, em vez de exigir abrir o log de deals na mao pra descobrir
+    # que o final estava contaminado por fechamento forcado.
+    fechados_fim_teste = len(re.findall(
+        r"position closed due end of test", log))
     m = re.search(r"final balance ([\d.]+)", log)
     saldo_final = float(m.group(1)) if m else None
     # Ver TESTE_CONCLUIDO no topo do arquivo -- o MT5 muda a grafia dessa
@@ -1044,7 +1057,7 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
     else:
         motivo = None
     return {"sobreviveu": sobreviveu, "saldo_final": saldo_final,
-            "motivo": motivo}
+            "motivo": motivo, "fechados_fim_teste": fechados_fim_teste}
 
 
 def verificar_sobrevivencia_completa(caminho_set: Path, symbol: str,
@@ -1184,6 +1197,7 @@ def emitir_reprovado_cedo(symbol: str, sistema: str, variante: str,
                       "mc_medido": False, "sobrevivencia_medida": False,
                       "sobrevivencia_saldo_final": None,
                       "sobrevivencia_motivo_reprovacao": None,
+                      "sobrevivencia_fechados_fim_teste": None,
                       "sobrevivencia_relatorio_dir": None,
                       "relatorio_dir": None, "parametros": {},
                       "motivo_reprovacao_precoce": motivo},
@@ -1825,6 +1839,14 @@ def main() -> int:
                           sobrevivencia["saldo_final"] if sobrevivencia else None),
                       "sobrevivencia_motivo_reprovacao": (
                           sobrevivencia["motivo"] if sobrevivencia else None),
+                      # So-informativo, igual mc_medido acima: quantas
+                      # posicoes o MT5 liquidou a forca no CORTE do periodo
+                      # (nao a estrategia quebrando -- ver comentario em
+                      # avaliar_sobrevivencia). Nao entra no veredito de
+                      # sobreviveu/motivo, so fica visivel pra quem avaliar.
+                      "sobrevivencia_fechados_fim_teste": (
+                          sobrevivencia["fechados_fim_teste"]
+                          if sobrevivencia else None),
                       "sobrevivencia_relatorio_dir": sobrevivencia_relatorio_dir,
                       "relatorio_dir": relatorio_dir,
                       "parametros": {**otimizados, **vencedor}},

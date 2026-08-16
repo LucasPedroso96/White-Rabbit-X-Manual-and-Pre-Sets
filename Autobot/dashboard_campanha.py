@@ -970,6 +970,14 @@ def _sets_certificados() -> list[dict]:
             "lucro_oos": reg.get("lucro_tick_real"),
             "sobrevivencia_medida": reg.get("sobrevivencia_medida", False),
             "sobrevivencia_saldo_final": reg.get("sobrevivencia_saldo_final"),
+            # Quantas posicoes o MT5 liquidou a forca no CORTE do periodo
+            # (achado do dono, 2026-08-16) -- nao e a estrategia quebrando,
+            # e uma cesta de recuperacao sem prazo fixo pega no meio do
+            # ciclo pela borda do calendario. Nao afeta o veredito de
+            # sobrevivencia, so avisa quem for avaliar que o saldo final
+            # pode ter uma fatia vinda de fechamento forcado, nao organico.
+            "sobrevivencia_fechados_fim_teste": reg.get(
+                "sobrevivencia_fechados_fim_teste"),
             "certificado": bool(relatorio_dir
                                 and (RELATORIOS_DIR / relatorio_dir).is_dir()),
             "relatorio_dir": relatorio_dir,
