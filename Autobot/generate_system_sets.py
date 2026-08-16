@@ -697,7 +697,14 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt("VelaTake", 0, 0, 1, 3)
         p.opt("Take", sl_mid, ac.sl_lo, 0.5, ac.tp_hi)
         p.opt_bool("AtivarBreakeven", "true")
-        p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
+        # Teto descido de 3.0 para 0.7 (achado do dono, 2026-08-16): o gatilho
+        # do breakeven e Stop*BreakevenDistancia (nao Take), entao nada aqui impede
+        # ele de cair ALEM do Take -- so reduz a chance. Sistema com Take real
+        # (este bloco): teto baixo o suficiente pra, no caso tipico (Stop~Take, os
+        # dois nascem do mesmo sl_mid), o gatilho ficar bem antes do alvo em vez
+        # de emparelhar com ele. Nao mexido em 05_BE_TRAIL/06_REVERSAL_EXIT: nenhum
+        # dos dois tem Take ativo, entao nao ha TP pra correr contra.
+        p.opt("BreakevenDistancia", 0.35, 0.2, 0.15, 0.7)
         p.opt("MetodoDeCalculo", 1, 0, 1, 4)
         p.opt("TrailVela", 0, 0, 1, 3)
         p.fix("Trail", sl_mid)
@@ -713,7 +720,14 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt("VelaTake", 0, 0, 1, 3)
         p.opt("Take", sl_mid, ac.sl_lo, 0.5, ac.tp_hi)
         p.opt_bool("AtivarBreakeven", "true")
-        p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
+        # Teto descido de 3.0 para 0.7 (achado do dono, 2026-08-16): o gatilho
+        # do breakeven e Stop*BreakevenDistancia (nao Take), entao nada aqui impede
+        # ele de cair ALEM do Take -- so reduz a chance. Sistema com Take real
+        # (este bloco): teto baixo o suficiente pra, no caso tipico (Stop~Take, os
+        # dois nascem do mesmo sl_mid), o gatilho ficar bem antes do alvo em vez
+        # de emparelhar com ele. Nao mexido em 05_BE_TRAIL/06_REVERSAL_EXIT: nenhum
+        # dos dois tem Take ativo, entao nao ha TP pra correr contra.
+        p.opt("BreakevenDistancia", 0.35, 0.2, 0.15, 0.7)
         p.opt("MetodoDeCalculo", 1, 0, 1, 4)
         p.opt("TrailVela", 0, 0, 1, 3)
         p.fix("Trail", sl_mid)
@@ -758,7 +772,14 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt("TrailVela", 0, 0, 1, 3)
         p.opt("Trail", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
         p.opt_bool("AtivarBreakeven", "true")
-        p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
+        # Teto descido de 3.0 para 0.7 (achado do dono, 2026-08-16): o gatilho
+        # do breakeven e Stop*BreakevenDistancia (nao Take), entao nada aqui impede
+        # ele de cair ALEM do Take -- so reduz a chance. Sistema com Take real
+        # (este bloco): teto baixo o suficiente pra, no caso tipico (Stop~Take, os
+        # dois nascem do mesmo sl_mid), o gatilho ficar bem antes do alvo em vez
+        # de emparelhar com ele. Nao mexido em 05_BE_TRAIL/06_REVERSAL_EXIT: nenhum
+        # dos dois tem Take ativo, entao nao ha TP pra correr contra.
+        p.opt("BreakevenDistancia", 0.35, 0.2, 0.15, 0.7)
 
     elif system == "05_BE_TRAIL":
         p.fix("AtivarStop", "true")
@@ -835,7 +856,14 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         # Achado do dono, 2026-08-05: mesmo esquema dos outros 6 sistemas
         # que oferecem BE (opt_bool + range), nao inventado pra grid.
         p.opt_bool("AtivarBreakeven", "true")
-        p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
+        # Teto descido de 3.0 para 0.7 (achado do dono, 2026-08-16): o gatilho
+        # do breakeven e Stop*BreakevenDistancia (nao Take), entao nada aqui impede
+        # ele de cair ALEM do Take -- so reduz a chance. Sistema com Take real
+        # (este bloco): teto baixo o suficiente pra, no caso tipico (Stop~Take, os
+        # dois nascem do mesmo sl_mid), o gatilho ficar bem antes do alvo em vez
+        # de emparelhar com ele. Nao mexido em 05_BE_TRAIL/06_REVERSAL_EXIT: nenhum
+        # dos dois tem Take ativo, entao nao ha TP pra correr contra.
+        p.opt("BreakevenDistancia", 0.35, 0.2, 0.15, 0.7)
         p.fix("AtivarTrailATR", "false")
         p.opt("MetodoDeCalculo", 1, 0, 1, 4)
         p.opt("TrailVela", 0, 0, 1, 3)
@@ -907,7 +935,14 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.fix("Multiplicador", 1)
         p.opt("MaxMartingaleSteps", 3, 2, 2, 8)
         p.opt_bool("AtivarBreakeven", "true")
-        p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
+        # Teto descido de 3.0 para 0.7 (achado do dono, 2026-08-16): o gatilho
+        # do breakeven e Stop*BreakevenDistancia (nao Take), entao nada aqui impede
+        # ele de cair ALEM do Take -- so reduz a chance. Sistema com Take real
+        # (este bloco): teto baixo o suficiente pra, no caso tipico (Stop~Take, os
+        # dois nascem do mesmo sl_mid), o gatilho ficar bem antes do alvo em vez
+        # de emparelhar com ele. Nao mexido em 05_BE_TRAIL/06_REVERSAL_EXIT: nenhum
+        # dos dois tem Take ativo, entao nao ha TP pra correr contra.
+        p.opt("BreakevenDistancia", 0.35, 0.2, 0.15, 0.7)
         set_exposure(p, side, 1, hedging=False)  # martingale: 1 por lado
         # MinFreeMarginPercent (dono, 2026-08-10): mesmo raciocinio do grid
         # -- o lote de recuperacao cresce pra cobrir o deficit acumulado, sem
@@ -935,7 +970,14 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt("DAlembertStep", 0.02, 0.01, 0.02, 0.09)
         p.opt("MaxMartingaleSteps", 3, 2, 2, 8)
         p.opt_bool("AtivarBreakeven", "true")
-        p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
+        # Teto descido de 3.0 para 0.7 (achado do dono, 2026-08-16): o gatilho
+        # do breakeven e Stop*BreakevenDistancia (nao Take), entao nada aqui impede
+        # ele de cair ALEM do Take -- so reduz a chance. Sistema com Take real
+        # (este bloco): teto baixo o suficiente pra, no caso tipico (Stop~Take, os
+        # dois nascem do mesmo sl_mid), o gatilho ficar bem antes do alvo em vez
+        # de emparelhar com ele. Nao mexido em 05_BE_TRAIL/06_REVERSAL_EXIT: nenhum
+        # dos dois tem Take ativo, entao nao ha TP pra correr contra.
+        p.opt("BreakevenDistancia", 0.35, 0.2, 0.15, 0.7)
         set_exposure(p, side, 1, hedging=False)
         # MinFreeMarginPercent (dono, 2026-08-10): ver comentario completo no
         # bloco do grid -- mesma lacuna, mesmo remedio.
