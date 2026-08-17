@@ -267,6 +267,28 @@ EIXOS_GEOMETRIA_TICK_REAL = ["Take", "DistanciaMinima", "VelaTake",
 SISTEMAS_GATE_SOBREVIVENCIA = SISTEMAS_GEOMETRIA_TICK_REAL | {
     "09_MARTINGALE", "10_DALEMBERT", "11_SIGNAL_ONLY"}
 
+# Camada de recuperacao buscada em ETAPA SEPARADA, depois da entrada/saida ja
+# estarem travadas no vencedor SEM recuperacao (achado do dono, 2026-08-16):
+# antes, MaxMartingaleSteps/DAlembertStep eram so mais um eixo dentro do
+# mesmo genetico do Estagio 1/2 -- o otimizador podia usar lote crescendo
+# depois de perda pra disfarcar um sinal de entrada mediocre dentro da
+# amostra, e isso so aparecia quebrado no gate de sobrevivencia (periodo
+# completo), nunca na janela curta de busca. Separar em duas etapas valida o
+# sinal honesto primeiro (RecoveryMode=0 travado, lote fixo puro, igual
+# 01_SLTP mede) e so DEPOIS liga a recuperacao e busca os eixos dela sozinhos,
+# em cima do vencedor ja validado. Ver Estagio 2.5 em main().
+#
+# MaxMartingaleSteps entra nos DOIS -- confirmado no .mq5 (RefreshDAlembertState,
+# g_dalembert_buy/sell = MathMin(..., MaxMartingaleSteps)): nao e exclusivo do
+# martingale classico, tambem tampa quantos passos o D'Alembert acumula antes
+# de resetar. Achado do dono, 2026-08-16, revisando o primeiro smoke test do
+# D'Alembert: o JSON de saida trazia MaxMartingaleSteps sem DAlembertStep ter
+# saido junto do Estagio 2.5 -- a lista tinha so 1 eixo, faltava o segundo.
+SISTEMAS_RECUPERACAO_DUAS_ETAPAS = {"09_MARTINGALE", "10_DALEMBERT"}
+EIXOS_RECUPERACAO = {"09_MARTINGALE": ["MaxMartingaleSteps"],
+                     "10_DALEMBERT": ["DAlembertStep", "MaxMartingaleSteps"]}
+RECOVERY_MODE_LIGADO = {"09_MARTINGALE": "1", "10_DALEMBERT": "2"}
+
 # Parametro -> indicadores que REALMENTE o usam, lido na criacao dos handles
 # do EA (~1234-1290). Fora dessa lista o parametro nao entra no calculo, entao
 # otimiza-lo produz passes identicos -- o mesmo desperdicio de um eixo atras de
@@ -1265,7 +1287,18 @@ def main() -> int:
     # (Portugues aqui) para o painel. A entrega (linha ~980) volta pra Auto --
     # so o nosso set de trabalho roda em EN.
     travados["InterfaceLanguage"] = "1"
-    n = reescrever(origem, trabalho, eixos_da_fase1(origem), travados)
+    duas_etapas = args.sistema in SISTEMAS_RECUPERACAO_DUAS_ETAPAS
+    eixos_recuperacao = EIXOS_RECUPERACAO.get(args.sistema, []) if duas_etapas else []
+    if duas_etapas:
+        # RecoveryMode=0 (Recovery_None) pelos Estagios 1-2: o vencedor de
+        # entrada/saida precisa nascer medido em lote fixo puro, sem a
+        # recuperacao amplificando (ou escondendo) o sinal. Volta a ligar no
+        # Estagio 2.5, depois do vencedor ja travado. Ver constante no topo.
+        travados["RecoveryMode"] = "0"
+    eixos_fase1 = eixos_da_fase1(origem)
+    if eixos_recuperacao:
+        eixos_fase1 = [e for e in eixos_fase1 if e not in eixos_recuperacao]
+    n = reescrever(origem, trabalho, eixos_fase1, travados)
     print(f"  [1/5] regioes em OHLC ({n} parametros: entradas completas + "
           f"saidas + flags) | WFO In-Sample: "
           f"IS {wfo['wfo_customWindowSizeDays']}d / "
@@ -1422,6 +1455,11 @@ def main() -> int:
     # Abre so os periodos que ESTE indicador usa: com o vencedor conhecido, os
     # eixos condicionais deixam de ser aposta e viram (ou nao) parte do ajuste.
     numeros = eixos_do_indicador(NUMEROS, ind)
+    if eixos_recuperacao:
+        # Fora do Estagio 2 pelo mesmo motivo do Estagio 1: RecoveryMode
+        # ainda esta em "0" aqui, os eixos nao tem efeito nenhum enquanto isso
+        # -- reabrem sozinhos no Estagio 2.5, com a entrada/saida ja travada.
+        numeros = [e for e in numeros if e not in eixos_recuperacao]
     cortados = [c for c in NUMEROS if c not in numeros]
     n = reescrever(origem, trabalho, numeros, travados)
     print(f"  [2/5] numeros em OHLC ({n} parametros, escrita travada)",
@@ -1477,6 +1515,53 @@ def main() -> int:
         return 1
     travados.update(ordenados[0][2])
     otimizados.update(ordenados[0][2])
+
+    # ---- Estagio 2.5: CAMADA DE RECUPERACAO (so Martingale/D'Alembert) ------
+    # Entrada/saida ja travadas no vencedor medido SEM recuperacao (Estagios
+    # 1-2, RecoveryMode="0"). Liga a recuperacao de verdade e busca SO o eixo
+    # dela em cima disso -- ver SISTEMAS_RECUPERACAO_DUAS_ETAPAS no topo do
+    # arquivo pro raciocinio completo. Falha aqui (relatorio vazio, ninguem
+    # passou o piso, ou torneio sem medida) NAO aborta o combo: o sinal base
+    # ja foi validado sozinho, entao mantem o valor padrao do eixo no set
+    # (RecoveryMode ja fica travado ligado de qualquer jeito) em vez de
+    # jogar fora um vencedor de entrada/saida bom por causa so da calibracao
+    # da recuperacao.
+    if duas_etapas:
+        assert eixos_recuperacao  # SISTEMAS_RECUPERACAO_DUAS_ETAPAS <= EIXOS_RECUPERACAO.keys()
+        nomes_rec = ", ".join(eixos_recuperacao)
+        travados["RecoveryMode"] = RECOVERY_MODE_LIGADO[args.sistema]
+        n = reescrever(origem, trabalho, eixos_recuperacao, travados)
+        print(f"\n  [2.5/5] camada de recuperacao em OHLC ({n} parametros: "
+              f"{nomes_rec}, entrada/saida ja travada no vencedor "
+              "sem recuperacao)", flush=True)
+        t0 = time.time()
+        cab_rec, linhas_rec = rodar(trabalho, args.symbol, args.period,
+                                    args.inicio, args.fim, args.deposit, 1,
+                                    args.timeout)
+        if not linhas_rec:
+            print("    relatorio vazio no estagio 2.5; mantendo o valor "
+                  f"padrao de {nomes_rec} no set.", flush=True)
+        else:
+            finais_rec = base.escolher_candidatos(
+                cab_rec, linhas_rec, args.min_trades, args.min_pf)
+            print(f"    {(time.time()-t0)/60:.0f} min | aptos: "
+                  f"{len(finais_rec)} de {len(linhas_rec)}", flush=True)
+            if not finais_rec:
+                print("    nenhum candidato de recuperacao passou os pisos; "
+                      f"mantendo o valor padrao de {nomes_rec} no "
+                      "set.", flush=True)
+            else:
+                ordenados_rec = torneio_retencao(
+                    finais_rec[:args.finalistas], cab_rec, metricas, origem,
+                    trabalho, travados, args, 1,
+                    "camada de recuperacao (OHLC, ~2s cada)")
+                if not ordenados_rec:
+                    print("    nenhum finalista da recuperacao produziu "
+                          f"medida de retencao; mantendo o valor padrao de "
+                          f"{nomes_rec} no set.", flush=True)
+                else:
+                    travados.update(ordenados_rec[0][2])
+                    otimizados.update(ordenados_rec[0][2])
 
     # ---- Estagio 3: FILTROS DE EXECUCAO (hora, dia, spread) -----------------
     # Ultimos a rodar, por ordem do dono. OTIMIZAM em IS+OOS
