@@ -102,7 +102,9 @@ def check(v: dict[str, float]) -> str | None:
         return "Percentage sem Stop Loss"
     if fixed_r and not sl:
         return "Fixed-R sem Stop Loss"
-    if fixed_r and (percentage or monetary or fixed_lot or grid):
+    # Classic grid tem SL zero (sem risco pra medir); Pyramid tem Stop real
+    # em cada perna, entao fica isento (espelha o OnInit, achado 2026-08-17).
+    if fixed_r and (percentage or monetary or fixed_lot or (grid and not pyramid)):
         return "Fixed-R combinado com outro modo"
     if fixed_r and dalembert:
         return "Fixed-R com D'Alembert"
@@ -113,7 +115,7 @@ def check(v: dict[str, float]) -> str | None:
     if dalembert and (not fixed_lot or grid or v["DAlembertStep"] <= 0):
         return "D'Alembert fora de Fixed Lot / grid ligado / passo <= 0"
     if grid:
-        if percentage or fixed_r or (not monetary and not fixed_lot):
+        if not pyramid and (percentage or fixed_r or (not monetary and not fixed_lot)):
             return "Grid com sizing incompativel"
         if v["RecoveryMode"] != 0:
             return "Grid com recovery ligado"

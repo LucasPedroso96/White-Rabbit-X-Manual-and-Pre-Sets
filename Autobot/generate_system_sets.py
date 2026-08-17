@@ -672,8 +672,15 @@ def apply_sizing_and_formula(p: Profile, system: str, ac: AssetClass) -> None:
     PF, lucro por trade ajustado por DD, Sharpe e recovery factor -- SomaR
     sozinho maximiza edge bruto e ignora drawdown.
     """
+    # 12_GRID_INVERSO entrou aqui em 2026-08-17 (achado do dono): ao contrario
+    # do grid classico (07, sem SL algum -- por isso NAO esta nesta lista),
+    # Pyramid mantem um Stop real em cada perna (AtivarStop=true, ver
+    # CalculatePyramidVolume no .mq5), entao R tem contra o que dimensionar.
+    # O .mq5 ja foi ajustado pra permitir RiscoRFixo com GridMode=Pyramid
+    # especificamente (classico continua bloqueado, sem SL pra medir risco).
     r_capable = system in ("01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY",
-                           "04_SLTP_TRAIL", "05_BE_TRAIL", "06_REVERSAL_EXIT")
+                           "04_SLTP_TRAIL", "05_BE_TRAIL", "06_REVERSAL_EXIT",
+                           "12_GRID_INVERSO")
     if r_capable:
         p.fix("PositionSizeMode", 3)     # Fixed-R
         p.fix("PositionSizeValue", 1.0)  # 1R = 1% do capital base
