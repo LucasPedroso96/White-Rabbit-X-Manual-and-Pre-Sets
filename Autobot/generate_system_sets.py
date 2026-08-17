@@ -488,6 +488,7 @@ def apply_defaults(p: Profile, ac: AssetClass, side: str, magic: int,
     p.fix("GridMode", 0)
     p.fix("UsarsomenteATRGRID", "false")
     p.fix("DistanciaMinima", 2)
+    p.fix("PyramidTrailSoLucro", "false")
 
     # FILTROS DE EXECUCAO (hora, dia, spread): faixas gravadas em N -- sao os
     # ULTIMOS a rodar no circuito (dono, 2026-07-31), em IS+OOS. O EA aceita
@@ -1046,6 +1047,13 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt("Multiplicador", 0.7, 0.3, 0.1, 1.0)
         p.opt("DistanciaMinima", 3.5, 2.5, 0.5, 6.0)
         p.opt_bool("UsarsomenteATRGRID")
+        # Trava opcional (achado do dono, 2026-08-17): grid classico so fecha
+        # no lucro (espera a meta); o trailing puro do Pyramid nao garante
+        # isso -- uma perna que anda a favor e reverte antes de piramidar
+        # pode fechar no prejuizo. Buscavel, nao travado, pra o genetico
+        # decidir por ativo/indicador se vale a troca (mais perto do "nunca
+        # perde" do grid, ao custo do mesmo tipo de espera).
+        p.opt_bool("PyramidTrailSoLucro")
         # Sem teto de posicoes por lado, mesmo raciocinio do grid classico:
         # a distancia ATR (DistanciaMinima) e o proprio trailing sao o
         # freio, nao uma contagem fixa.
