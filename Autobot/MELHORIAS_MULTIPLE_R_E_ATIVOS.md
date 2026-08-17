@@ -1,153 +1,145 @@
-# Melhorias e Ativos — a partir do documento "Multiple R White Rabbit"
+# Sugestões de Ativos por Sistema — White Rabbit X
 
-Fonte: `Multiple R White Rabbit.txt` (colado pelo dono em 2026-08-17). Este
-arquivo cruza as recomendações do documento contra o estado REAL do código
-nesta data — o que já está implementado, o que diverge, e o que é lacuna
-concreta. Não é um resumo do texto original, é uma auditoria em cima dele.
+Fonte: `Multiple R White Rabbit.txt` (colado pelo dono, 2026-08-17), incluindo
+o ranking de trend-following (5 níveis de estrela) e a lista de melhores
+candidatos pra grid. Este documento pega os **11 sistemas reais** do EA
+(`apply_system()` em `generate_system_sets.py`), agrupa os que têm a mesma
+mecânica de risco/saída, e mapeia cada grupo contra os ativos que o
+documento recomenda — cruzado com o universo atual de 89 símbolos em
+`ASSETS`. `✅` = já está no universo hoje. `🆕` = recomendado, mas ausente
+(precisa entrar em `ASSETS`, e confirmar antes se a RoboForex oferece).
 
-## 1. R Fixo vs Porcentagem — já implementado como o documento recomenda
+## Arquétipo A — Grid clássico, sem Stop, fecha só a cesta em lucro
+**Sistema: `07_GRID_SEPARATE`**
 
-O guard que bloqueia `RiscoRFixo` e `Porcentagem` simultâneos já existe no
-`OnInit` (mutuamente excludentes, confirmado). O padrão descrito no
-documento — **pesquisar em R Fixo, entregar em %** — já é exatamente o que
-`optimize_two_stage.py` faz no Stage 5 ("prova em %", `optimize_two_stage.py:1781-1819`):
-mede tudo em R durante a busca, troca pra Percentage, revalida em tick real
-com juros compostos, e só entrega se passar nos dois. Isso cobre os
-sistemas 01-06, e a partir de hoje também 12_GRID_INVERSO e 09_MARTINGALE
-(ver sessão de trabalho de 2026-08-17).
+`AtivarStop=false` sempre — não tem risco por posição, só a cesta
+inteira fechando quando bate a meta de lucro (`Multiplicador=1` fixo,
+`DistanciaMinima` busca 2.5–6.0 ATR). Uma tendência forte e sustentada é o
+pior cenário: a cesta continua abrindo pernas contra o movimento sem parar.
+Quer **ranging, reversão à média, volatilidade estável**.
 
-**Não implementado ainda**: o "meio-termo" que o documento recomenda pro
-live — R Fixo com re-base periódico do `CapitalBaseR` (mensal ou a cada
-±20-25% de variação de saldo) em vez de trocar pra % continuamente. Hoje
-`CapitalBaseR` é fixo por classe de ativo só na fase de pesquisa; não existe
-mecanismo de re-base automático pro live. Se for operar ao vivo em R puro
-(em vez de entregar em %), vale construir isso.
-
-## 2. Fórmula de otimização — achado real, não só confirmação
-
-O documento recomenda **Formula_SomaR como critério PRIMÁRIO** para
-sistemas de trailing (03/04/05/06), com cross-check via
-`SharpeAdjustedByDD`/`ResilienceToDrawdown`, e evitar `Formula_Profit`/
-`EfficiencyRelativeToDeposit` nesses sistemas por serem fáceis de overfitar.
-
-Rastreei o que o código realmente faz e a resposta é **em camadas, não uma
-fórmula só**:
-
-| Fase | O que decide o critério | Fórmula usada hoje (03/04/06) |
+| Estrelas do documento | Ativos | No universo? |
 |---|---|---|
-| Busca (Stage 1-2) | `FORMULA_POR_SISTEMA` em `generate_system_sets.py` | `5` = `Formula_AdjustedEfficiencyForGrid` |
-| Stage 3 (filtros de execução) | override explícito em `optimize_two_stage.py:1586` | `7` = `Formula_ProfitPerTradeAdjustedByDD` |
-| Entrega final (só sistemas R-capable aprovados) | override em `optimize_two_stage.py:1844` | `14` = `Formula_SomaR` |
+| ⭐⭐⭐⭐⭐ | EURUSD, EURGBP, AUDNZD, NZDCAD | ✅ todos (01_Forex) |
+| ⭐⭐⭐⭐ | USDCHF, AUDCAD, CADCHF, EURCHF | ✅ todos (01_Forex) |
+| ⭐⭐⭐ (utilizáveis) | USDCAD, AUDUSD, NZDUSD | ✅ todos (01_Forex) |
 
-Ou seja: `SomaR` já aparece, mas só como **rótulo do candidato final
-entregue**, não como o critério que guia a busca genética ao longo das
-fases 1-3 pros sistemas de trailing. O documento pede o oposto: SomaR como
-critério PRIMÁRIO da busca em si. Isso é uma divergência real entre a
-recomendação e a prática atual — vale uma decisão consciente (trocar
-`FORMULA_POR_SISTEMA` de 03/04/06 pra `14`, ou manter como está e entender
-por que `AdjustedEfficiencyForGrid` foi escolhido pra eles). Não mudei nada
-aqui ainda — é uma pergunta em aberto, não uma correção que já apliquei.
+Cobertura completa — nenhum ativo pra adicionar. É só questão de
+**priorizar** esses pares nas campanhas de `07_GRID_SEPARATE` em vez de
+rodar o sistema em ativos de tendência forte tipo XAUUSD.
 
-## 3. Timing de breakeven — parcialmente alinhado, parcialmente por design
+## Arquétipo B — Recuperação por escalonamento de lote, 1 posição por lado
+**Sistemas: `09_MARTINGALE`, `10_DALEMBERT`**
 
-Documento: breakeven cedo demais "mata a expectativa"; o ponto ideal é
-**+1R a +1.5R**, não +0.2R como muita gente faz.
+Diferente do grid: aqui existe SL+TP real e só 1 posição por lado
+(`set_exposure(..., 1, hedging=False)`). O lote da próxima entrada cresce
+pra cobrir o déficit acumulado (Martingale, `Multiplicador=1` exato) ou por
+um passo fixo (`DAlembertStep`). **O documento não cobre esse arquétipo
+diretamente** — isso aqui é inferência minha, não do texto original: o
+risco real é uma sequência longa de perdas na MESMA direção sem o sinal
+virar (`MaxMartingaleSteps` esgotando), o que é mecanicamente parecido com
+o problema do grid clássico (tendência sustentada contra a posição), então
+uso a mesma lista de ativos ranging/reversão à média do Arquétipo A como
+ponto de partida, com menos confiança que os outros arquétipos abaixo.
 
-Estado atual (`generate_system_sets.py`, `BreakevenDistancia`):
-- Sistemas SEM Take (03/05/06/12): faixa `0.5 – 3.0` (referência = distância
-  do Stop). Isso **já cobre** a faixa 1.0-1.5 que o documento recomenda, e
-  vai além (permite até 3R, mais conservador que o documento sugere).
-- Sistemas COM Take (01/02/04/09/10): faixa `0.15 – 0.7` — mas a referência
-  aqui é a distância do **Take**, não do Stop (mudança deliberada de
-  2026-08-16, documentada no código: garante matematicamente que o gatilho
-  cai antes do alvo). Não é diretamente comparável à recomendação do
-  documento, que fala em termos de SL. Não é uma divergência, é uma base de
-  cálculo diferente por razão própria — vale só ter isso claro.
+## Arquétipo C — Trailing puro, sem TP, deixa o vencedor correr
+**Sistemas: `03_TRAIL_ONLY`, `05_BE_TRAIL`**
 
-## 4. Hierarquia de saída — o EA tem o melhor da lista, não tem os do meio
+`AtivarTake=false` fixo nos dois — a ÚNICA saída em lucro é o trail (mais
+o breakeven em 05, sempre ligado). Sem alvo fixo, o sistema só ganha de
+verdade quando o movimento continua por muito tempo. Quer exatamente o que
+o documento chama de trend-following: tendências longas e sustentadas.
 
-Documento: `Trailing ATR (melhor) > Chandelier Exit > Donchian Exit >
-Breakeven puro > TP fixo`.
+| Estrelas do documento | Ativos | No universo? |
+|---|---|---|
+| ⭐⭐⭐⭐⭐ | XAUUSD, BTCUSD, WTI, BRENT | ✅ todos |
+| ⭐⭐⭐⭐⭐ | NAS100/USTECH, US500/SP500 | 🆕 ausentes |
+| ⭐⭐⭐⭐ | XAGUSD, ETHUSD | ✅ ambos |
+| ⭐⭐⭐⭐ | DE40/DAX, Nikkei225, Natural Gas | 🆕 ausentes |
+| ⭐⭐⭐ | USDJPY, EURJPY, GBPJPY | ✅ todos |
+| ⭐⭐⭐ | Cobre, Café, Cacau | 🆕 ausentes |
+| ⭐⭐ (evitar) | EURUSD, GBPUSD, AUDUSD | ✅ mas evitar aqui — sem TP, um par que fica lateral vira o trail te cortando repetidamente |
 
-O EA implementa Trailing ATR, Breakeven e TP fixo — os três extremos da
-lista. **Chandelier Exit e Donchian Exit não existem** como mecanismos
-alternativos (`Candlesticktype` só escolhe a FONTE de preço do trail
-existente — Open/Close/High/Low —, não um algoritmo diferente). Como o
-documento já classifica ATR Trail como o melhor da lista, isso não é
-urgente, mas é uma lacuna real se algum dia quiser comparar as três
-abordagens de trail entre si.
+## Arquétipo D — Pyramid a favor da tendência, saída por trailing na cesta
+**Sistema: `12_GRID_INVERSO`**
 
-## 5. Universo de ativos — a lacuna mais concreta deste documento
+O inverso do Arquétipo A: abre níveis A FAVOR do preço (anti-martingale),
+cada perna com Stop real, sai pelo trailing de pico/vale da cesta inteira.
+Ainda mais exigente que o Arquétipo C — cada novo nível pyramida só se o
+preço continuar favorável, então quer a tendência MAIS forte e persistente
+possível. Mesma lista do Arquétipo C, mas priorize o topo (⭐⭐⭐⭐⭐) primeiro:
+XAUUSD, BTCUSD, WTI/BRENT já cobertos; NAS100/US500 seriam os candidatos
+mais valiosos pra adicionar justamente pra este sistema.
 
-O documento lista repetidamente os mesmos nomes como topo de tabela pra
-trend-following/geral: **XAUUSD, NAS100, SP500 (US500), DE40 (DAX), WTI,
-BTCUSD, USDJPY, EURJPY, AUDJPY** — e separadamente, duas vezes, chama
-**Café, Cacau e Cobre** de "commodities esquecidas" que "frequentemente
-apresentam tendências mais limpas que moedas".
+## Arquétipo E — TP+SL com breakeven/trailing opcional (eficiência direcional)
+**Sistemas: `01_SLTP`, `02_SLTP_ORGANIC`, `04_SLTP_TRAIL`, `06_REVERSAL_EXIT`**
 
-Conferido contra `ASSETS` em `generate_system_sets.py` (89 símbolos, 5
-classes):
+Todos têm um alvo de lucro definido (TP fixo em 01/02/04, ou saída por
+sinal oposto em 06) — não precisam de uma tendência que dure meses, só de
+um movimento limpo até o alvo antes de reverter. É a categoria que o
+documento chama de "eficiência direcional": alterna consolidação e
+rompimento, não trend puro.
 
-| Ativo sugerido | Está no universo hoje? |
-|---|---|
-| XAUUSD, XAGUSD, XAUEUR | ✅ (05_Metals) |
-| EURUSD, USDJPY, EURJPY, GBPJPY, AUDJPY | ✅ (01_Forex) |
-| BTCUSD, ETHUSD | ✅ (02_Cryptocurrencies) |
-| WTI, BRENT | ✅ (03_Indices_Energies) |
-| **NAS100/USTECH, US500/SP500, DE40/DAX, Nikkei225** | ❌ **ausentes** |
-| **Café, Cacau, Cobre** | ❌ **ausentes** |
-| Natural Gas | ❌ ausente |
+| Categoria do documento | Ativos | No universo? |
+|---|---|---|
+| Categoria 1 (melhores EAs em geral) | XAUUSD | ✅ |
+| Categoria 1 | NAS100, US500 | 🆕 ausentes |
+| Categoria 2 (muito bons) | WTI, BTCUSD, ETHUSD | ✅ todos |
+| Categoria 2 | DE40/DAX | 🆕 ausente |
+| Categoria 3 (forex que ainda vale) | USDJPY, EURJPY, GBPJPY, AUDJPY | ✅ todos |
 
-`03_Indices_Energies` hoje só tem `BRENT` e `WTI` — **nenhum índice de
-ações de verdade**, apesar do nome da classe e apesar do documento chamar
-NAS100 de "talvez o melhor mercado para trailing stop" e "talvez o melhor
-ativo do mundo para trend following". Essa é a lacuna de maior impacto
-potencial identificada aqui.
+## Arquétipo F — Sem proteção nenhuma, só sinal
+**Sistema: `11_SIGNAL_ONLY`**
 
-**Ressalva do próprio documento, que vale repetir**: a inclusão de
-Café/Cacau/Cobre é condicionada a "se a RoboForex disponibilizar esses
-contratos com histórico suficiente" — preciso confirmar disponibilidade
-real na corretora antes de qualquer um desses símbolos entrar em
-`generate_system_sets.py`. Índices (NAS100/US500/DE40) são mais prováveis
-de já estarem disponíveis (RoboForex costuma oferecer os principais), mas
-também não confirmei o símbolo exato usado por essa corretora especificamente.
+`AtivarStop=false`, `AtivarTake=false`, `AtivarBreakeven=false`,
+`AtivarTrailATR=false` — literalmente zero gestão de risco além de fechar
+no sinal oposto. **Isso também é inferência minha, o documento não fala
+desse arquétipo**: sem nenhuma rede de segurança, este é o sistema mais
+sensível a ruído/whipsaw de todos — um sinal falso em ativo lateral não
+tem SL pra limitar o dano, só espera o próximo sinal virar. Eu priorizaria
+os ativos de maior "eficiência direcional" do documento (XAUUSD, BTCUSD,
+tendências limpas) e evitaria especificamente os pares que o próprio
+documento já marca como propensos a range (EURUSD, GBPUSD, AUDUSD) — aqui
+o custo de um whipsaw é maior que em qualquer outro sistema do EA.
 
-## 6. Afinidade sistema × classe de ativo — ideia nova, não implementada
+## Resumo executivo
 
-O documento separa claramente três perfis de ativo por TIPO de sistema:
+| Arquétipo | Sistemas | Quer | Ativo 🆕 mais valioso a adicionar |
+|---|---|---|---|
+| A — Grid clássico | 07 | Ranging | nenhum, cobertura completa |
+| B — Recuperação por lote | 09, 10 | Ranging (inferência) | nenhum, cobertura completa |
+| C — Trailing puro | 03, 05 | Tendência forte | NAS100/US500 |
+| D — Pyramid a favor | 12 | Tendência mais forte ainda | NAS100/US500 |
+| E — TP+SL direcional | 01, 02, 04, 06 | Eficiência direcional | NAS100/US500, DE40 |
+| F — Só sinal | 11 | Tendência limpa, sem ruído (inferência) | NAS100/US500 |
 
-- **Grid sem SL (só TP)**: quer ranging, reversão à média, sem tendências
-  extremas — EURUSD, EURGBP, AUDNZD, NZDCAD, USDCHF, AUDCAD, CADCHF, EURCHF.
-- **Trend-following puro (trail sem SL fixo apertado)**: quer tendências
-  macro fortes — XAUUSD, NAS100, US500, BTCUSD, WTI.
-- **TP+SL com breakeven/trailing**: quer eficiência direcional (alterna
-  consolidação e rompimento) — XAUUSD, NAS100, DE40, USDJPY, EURJPY.
+**NAS100/US500 aparecem como o `🆕` de maior impacto em 4 dos 6 arquétipos**
+— é o gap de ativo mais valioso do universo atual, seguido por DE40. Café,
+Cacau, Cobre e Natural Gas só aparecem em Arquétipo C, valor mais restrito.
+Antes de adicionar qualquer um, falta confirmar o símbolo exato que a
+RoboForex usa pra cada um.
 
-Hoje `generate_system_sets.py` gera a matriz **sistema × TODO o universo de
-ativos**, sem nenhum filtro de afinidade — 07_GRID_SEPARATE e
-12_GRID_INVERSO rodam em XAUUSD (ativo de tendência forte, o pior cenário
-pro grid clássico segundo o documento) tanto quanto 05_BE_TRAIL roda em
-EURGBP (par lateral, onde trailing tende a ficar te cortando sem tendência
-pra aproveitar). Isso não é um bug — é assim que o gate de sobrevivência
-(`SISTEMAS_GATE_SOBREVIVENCIA`) e a busca genética filtram o que não
-funciona, deixando o dado decidir em vez de um filtro manual a priori.
-Mas para **priorizar onde rodar campanhas primeiro** (em vez de deixar tudo
-pra trás igualmente), esse mapeamento do documento é um guia útil e
-gratuito — não precisa de código novo, só de critério na hora de escolher
-o próximo `--sistemas --simbolos` de uma campanha.
+---
 
-## Resumo de ações sugeridas (nenhuma aplicada ainda, aguardando decisão)
+## Outros achados (menos centrais, cruzando o documento contra o código)
 
-1. **Confirmar disponibilidade na RoboForex** de NAS100/US500/DE40 e, se
-   houver, Café/Cacau/Cobre/Natural Gas — maior potencial de impacto, menor
-   esforço de implementação (só adicionar símbolos em `ASSETS`).
-2. **Decidir sobre `FORMULA_POR_SISTEMA` de 03/04/06**: manter
-   `AdjustedEfficiencyForGrid` guiando a busca (estado atual) ou trocar pra
-   `SomaR` (`14`) como o documento recomenda para trailing.
-3. **Re-base periódico de `CapitalBaseR` no live**, se decidir operar em R
-   puro em vez de entregar em % — não existe hoje.
-4. Chandelier/Donchian Exit como alternativa ao trail ATR — baixa
-   prioridade, o documento já indica ATR como o melhor dos três.
-5. Usar o mapeamento sistema×ativo do documento como critério informal pra
-   priorizar campanhas (grid em pares laterais, trend/trail em
-   XAUUSD/NAS100/DE40/WTI/BTCUSD) — sem mudança de código, só de prática.
+**R Fixo vs Porcentagem**: já implementado como o documento recomenda —
+pesquisa em R Fixo, entrega em % (`optimize_two_stage.py`, Stage 5), agora
+cobrindo também 12_GRID_INVERSO e 09_MARTINGALE. Falta só o re-base
+periódico de `CapitalBaseR` pro live, que o documento sugere e não existe
+hoje.
+
+**Fórmula de otimização**: o documento recomenda `Formula_SomaR` como
+critério primário pra sistemas de trailing (03/04/05/06). Hoje eles
+buscam por `Formula_AdjustedEfficiencyForGrid` (`FORMULA_POR_SISTEMA`) —
+`SomaR` só aparece como rótulo do candidato final entregue
+(`optimize_two_stage.py:1844`), não como o que guia a busca genética.
+Divergência real, decisão em aberto.
+
+**Breakeven**: sistemas sem Take (03/05/06/12) já cobrem a faixa de
++1R a +1.5R que o documento recomenda como ideal.
+
+**Hierarquia de saída**: o EA tem Trailing ATR (o melhor da lista do
+documento), Breakeven e TP fixo. Chandelier Exit e Donchian Exit — os dois
+do meio da hierarquia do documento — não existem como mecanismos
+alternativos. Baixa prioridade, já que ATR Trail é o topo da lista mesmo.
