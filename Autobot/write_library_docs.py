@@ -160,6 +160,9 @@ DESC = {
                      "Stop, Take, lot step, maximum steps, BE"),
     "11_SIGNAL_ONLY": ("No SL and no TP: measures the raw signal",
                        "entry and filters only (negative coverage)"),
+    "12_GRID_INVERSO": ("Grid pyramid: opens levels WITH the price, exits by "
+                        "ATR trailing on the basket",
+                        "Stop, Trail, Multiplier, MinimumDistance, number of legs"),
 }
 
 for code in sorted(by_system):
@@ -170,7 +173,7 @@ for code in sorted(by_system):
 lines += [
     "",
     "Systems **01 to 06 use Fixed-R**: the lot is derived from the risk budget,",
-    "so the same file adapts itself to any account size. Systems **07 to 11 use",
+    "so the same file adapts itself to any account size. Systems **07 to 12 use",
     "a fixed lot** — their risk is whatever the minimum lot costs on that",
     "instrument, independent of your balance. Start with the Fixed-R ones.",
     "",

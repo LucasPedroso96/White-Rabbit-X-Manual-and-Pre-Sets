@@ -75,9 +75,14 @@ def anos_atras(anos: int) -> str:
 # dimensionamento do grid unificado convergirem pro mesmo esquema por lado
 # que o 07_GRID_SEPARATE ja usava, nao sobrou diferenca matematica entre os
 # dois -- ver o comentario completo em generate_system_sets.py:SYSTEMS.
+#
+# 12_GRID_INVERSO adicionado (achado do dono, 2026-08-16): grid piramide
+# (anti-martingale) -- abre niveis A FAVOR do preco, sai por trailing ATR
+# na cesta. Mesma tier HEDGE_ACCOUNT_REQUIRED do 07, entao entra logo
+# depois dele na ordem de medicao.
 SISTEMAS = ["01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
             "05_BE_TRAIL", "06_REVERSAL_EXIT",
-            "07_GRID_SEPARATE",
+            "07_GRID_SEPARATE", "12_GRID_INVERSO",
             "09_MARTINGALE", "10_DALEMBERT", "11_SIGNAL_ONLY"]
 
 # Sistemas cuja gestao atravessa compra e venda, entao o set liga os dois

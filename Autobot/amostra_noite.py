@@ -53,8 +53,10 @@ FORMULA_POR_SISTEMA = {
     "07_GRID_SEPARATE": 1,
     "09_MARTINGALE": 10, "10_DALEMBERT": 5,
     "11_SIGNAL_ONLY": 4,
+    "12_GRID_INVERSO": 1,
 }
 # 08_GRID_UNIFIED removido (2026-08-16) -- ver generate_system_sets.py:SYSTEMS.
+# 12_GRID_INVERSO adicionado (2026-08-16) -- ver generate_system_sets.py:SYSTEMS.
 BILATERAL: set[str] = set()
 
 

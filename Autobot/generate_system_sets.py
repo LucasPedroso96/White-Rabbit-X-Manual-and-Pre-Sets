@@ -176,6 +176,11 @@ FORMULA_POR_SISTEMA = {
     # nativo, MaxMartingaleLot ainda 0/sem teto), entao herda o mesmo risco.
     "09_MARTINGALE": 10, "10_DALEMBERT": 5,
     "11_SIGNAL_ONLY": 4,
+    # 12_GRID_INVERSO: mesma cesta multi-perna que o grid classico (07), so
+    # com a direcao da entrada e o mecanismo de saida invertidos -- herda o
+    # mesmo GridSurvivalScore por ser a mesma familia de risco (cesta que
+    # pode crescer), nao por medida propria ainda (sistema novo).
+    "12_GRID_INVERSO": 1,
 }
 
 # Dependente -> chave que o liga, conforme o EA. Espelha os GATES do circuito
@@ -631,6 +636,14 @@ SYSTEMS: list[System] = [
            "Incremento aritmetico de lote apos perda; menos agressivo."),
     System("11_SIGNAL_ONLY", "Signal only (sem SL/TP)", "HIGH_RISK_RESEARCH",
            "Cobertura negativa: mede o sinal cru, sem rede de protecao."),
+    # "Grid inverso" (achado do dono, 2026-08-16): abre niveis A FAVOR do
+    # preco (piramide/anti-martingale, estilo Turtle) em vez de contra ele
+    # como o grid classico -- sai por trailing ATR sobre a cesta, nao por
+    # meta de lucro. Ver GridMode=3/PyramidGrid/ManagePyramidBasket() no
+    # .mq5. Exige conta hedging igual o 07, por isso mesma tier.
+    System("12_GRID_INVERSO", "Grid inverso (piramide + trailing ATR)",
+           "HEDGE_ACCOUNT_REQUIRED",
+           "Abre niveis a favor do preco; sai por trailing ATR na cesta."),
 ]
 
 # Sistemas cuja gestao atravessa compra e venda, entao o set liga os dois lados
@@ -994,6 +1007,50 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.fix("Trail", sl_mid)
         p.fix("ReversalExitMode", 2)
         p.opt_bool("ReversalExitUseEntryFilters")
+
+    elif system == "12_GRID_INVERSO":
+        # Grid Pyramid ("grid inverso", achado do dono, 2026-08-16): abre
+        # niveis A FAVOR do preco (piramide/anti-martingale) em vez de contra
+        # ele, sai por trailing ATR sobre a cesta em vez de meta de lucro.
+        # Ver ManagePyramidBasket() no .mq5. Ao contrario do grid classico,
+        # cada perna tem Stop real (AtivarStop=true) -- nao ha meta monetaria
+        # de cesta que sirva de rede sozinha aqui, entao cada nivel fica
+        # protegido por conta propria alem do trailing de cesta.
+        p.fix("GridMode", 3)
+        p.fix("AtivarStop", "true")
+        p.opt("VelaStop", 0, 0, 1, 3)
+        p.opt("Stop", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
+        # Sem Take: a saida e so o trailing da cesta (AtivarTrailATR e
+        # obrigatorio nos dois lados -- o .mq5 rejeita Pyramid sem ele no
+        # OnInit, mesma exigencia que o grid classico tem de Take).
+        p.fix("AtivarTake", "false")
+        p.fix("TakeOrganico", "false")
+        p.fix("Take", sl_mid)
+        p.opt("VelaTake", 0, 0, 1, 3)
+        p.fix("AtivarTrailATR", "true")
+        p.opt("MetodoDeCalculo", 1, 0, 1, 4)
+        p.opt("TrailVela", 0, 0, 1, 3)
+        p.opt("Trail", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
+        # Sem Take ativo: mesma faixa larga de BreakevenDistancia que os
+        # outros sistemas sem TP real usam (03/05/06), nao a faixa apertada
+        # dos sistemas Take-relativos (01/02/04/07/09/10).
+        p.opt_bool("AtivarBreakeven", "true")
+        p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
+        p.fix("ReversalExitMode", 0)
+        p.fix("RecoveryMode", 0)
+        # Multiplicador aqui e GEOMETRICO (nextLot = lastLot * Multiplicador,
+        # CalculatePyramidVolume no .mq5) -- nao meta de lucro como no grid
+        # classico. Teto em 1.0 mantem a piramide plana ou decrescente;
+        # acima de 1 cada nivel novo ficaria maior que o anterior, crescendo
+        # exposicao em cima de uma sequencia que ainda pode reverter.
+        p.opt("Multiplicador", 0.7, 0.3, 0.1, 1.0)
+        p.opt("DistanciaMinima", 3.5, 2.5, 0.5, 6.0)
+        p.opt_bool("UsarsomenteATRGRID")
+        # Sem teto de posicoes por lado, mesmo raciocinio do grid classico:
+        # a distancia ATR (DistanciaMinima) e o proprio trailing sao o
+        # freio, nao uma contagem fixa.
+        set_exposure(p, side, 999, hedging=True)
+        p.fix("MinFreeMarginPercent", 20)
 
     else:
         raise ValueError(f"sistema desconhecido: {system}")

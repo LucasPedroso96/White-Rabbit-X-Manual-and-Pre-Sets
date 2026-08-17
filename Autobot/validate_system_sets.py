@@ -62,6 +62,7 @@ def check(v: dict[str, float]) -> str | None:
     fixed_lot = v["PositionSizeMode"] == 2
     fixed_r = v["PositionSizeMode"] == 3
     grid = v["GridMode"] != 0
+    pyramid = v["GridMode"] == 3  # Grid_Pyramid: sai por trail, nao TP
     martingale = v["RecoveryMode"] == 1
     dalembert = v["RecoveryMode"] == 2
     sl, tp = v["AtivarStop"] == 1, v["AtivarTake"] == 1
@@ -116,8 +117,15 @@ def check(v: dict[str, float]) -> str | None:
             return "Grid com sizing incompativel"
         if v["RecoveryMode"] != 0:
             return "Grid com recovery ligado"
-        if not tp or v["DistanciaMinima"] <= 0:
-            return "Grid sem TP ou sem distancia"
+        if v["DistanciaMinima"] <= 0:
+            return "Grid sem distancia"
+        # Pyramid ("grid inverso") sai por trailing na cesta, nao por TP --
+        # o inverso do grid classico logo abaixo. Espelha o OnInit (.mq5).
+        if pyramid:
+            if v["AtivarTrailATR"] != 1:
+                return "Grid Pyramid sem trailing ATR"
+        elif not tp:
+            return "Grid sem TP"
         if v["MaxLongTrades"] == 1 or v["MaxShortTrades"] == 1:
             return "Grid com lado == 1"
     if v["ReversalExitMode"] == 1 and (

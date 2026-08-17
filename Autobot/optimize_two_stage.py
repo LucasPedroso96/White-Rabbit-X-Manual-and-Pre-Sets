@@ -265,7 +265,15 @@ EIXOS_GEOMETRIA_TICK_REAL = ["Take", "DistanciaMinima", "VelaTake",
 # sequencia de perdas/cesta pode crescer sem limite e travar ou estourar a
 # conta so no periodo continuo de verdade -- nao so grid.
 SISTEMAS_GATE_SOBREVIVENCIA = SISTEMAS_GEOMETRIA_TICK_REAL | {
-    "09_MARTINGALE", "10_DALEMBERT", "11_SIGNAL_ONLY"}
+    "09_MARTINGALE", "10_DALEMBERT", "11_SIGNAL_ONLY",
+    # 12_GRID_INVERSO (achado do dono, 2026-08-16): unica excecao aqui que
+    # TEM SL nativo por perna (AtivarStop=true, ao contrario do resto deste
+    # conjunto) -- entra mesmo assim porque e cesta multi-perna com
+    # mecanismo de saida NOVO (trailing ATR sobre a cesta, nunca testado
+    # ao vivo) e Multiplicador geometrico podendo crescer exposicao numa
+    # sequencia que ainda pode reverter. Mesma familia de risco "cesta que
+    # so quebra no periodo continuo de verdade" que motivou este gate.
+    "12_GRID_INVERSO"}
 
 # Camada de recuperacao buscada em ETAPA SEPARADA, depois da entrada/saida ja
 # estarem travadas no vencedor SEM recuperacao (achado do dono, 2026-08-16):
