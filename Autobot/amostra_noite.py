@@ -130,7 +130,7 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=1800)
     ap.add_argument("--sistemas", default="",
                     help="lista separada por virgula (ex 07_GRID_SEPARATE,"
-                         "09_MARTINGALE); vazio = os 10 default")
+                         f"09_MARTINGALE); vazio = os {len(FORMULA_POR_SISTEMA)} default")
     ap.add_argument("--fase", default="fulltest",
                     help="tag gravada no ledger -- troque pra nao colidir "
                          "com uma rodada anterior que usou EA diferente "

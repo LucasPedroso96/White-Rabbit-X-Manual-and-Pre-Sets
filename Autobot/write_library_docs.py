@@ -104,8 +104,8 @@ status = Counter(row["Status"] for row in rows)
 lines = [
     "# White Rabbit X - Optimization sets, organized BY SYSTEM",
     "",
-    f"**{len(rows)} sets** = 89 symbols x 10 systems x 2 indicator variants x the "
-    "sides each system has.",
+    f"**{len(rows)} sets** = 89 symbols x {len(by_system)} systems x 2 indicator "
+    "variants x the sides each system has.",
     "",
     "Every file is a complete trading system, optimizable end to end: entry",
     "indicator, trigger method, timeframe, periods, ATR, filters and that",
@@ -133,7 +133,7 @@ lines = [
     "- **ICHIMOKU**: indicator fixed to Ichimoku (value 11), because it requires",
     "  Tenkan < Kijun < SenkouB and does not fit the other engines' period ranges.",
     "",
-    "## The 10 systems",
+    f"## The {len(by_system)} systems",
     "",
     "| System | Management skeleton | Own exit axes | Typical space |",
     "|---|---|---|---:|",

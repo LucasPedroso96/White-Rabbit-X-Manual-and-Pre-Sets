@@ -200,6 +200,7 @@ SYSTEMS = {
         ("09_MARTINGALE", "Lote dobra apos perda, 1 posicao por lado"),
         ("10_DALEMBERT", "Lote cresce em passo aritmetico apos perda"),
         ("11_SIGNAL_ONLY", "Sem SL e sem TP: mede o sinal cru"),
+        ("12_GRID_INVERSO", "Grid inverso: abre niveis a favor do preco, sai por trailing ATR na cesta"),
     ],
     "01_English": [
         ("01_SLTP", "Stop Loss + Take Profit as ATR multiples"),
@@ -212,6 +213,7 @@ SYSTEMS = {
         ("09_MARTINGALE", "Lot doubles after a loss, one position per side"),
         ("10_DALEMBERT", "Lot grows in arithmetic steps after a loss"),
         ("11_SIGNAL_ONLY", "No SL and no TP: measures the raw signal"),
+        ("12_GRID_INVERSO", "Reverse grid: opens levels with the price, exits by ATR trailing on the basket"),
     ],
 }
 
