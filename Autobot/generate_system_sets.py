@@ -490,6 +490,7 @@ def apply_defaults(p: Profile, ac: AssetClass, side: str, magic: int,
     p.fix("UsarsomenteATRGRID", "false")
     p.fix("DistanciaMinima", 2)
     p.fix("PyramidTrailSoLucro", "false")
+    p.fix("PyramidLevelOnlyInProfit", "false")
     p.fix("TrailSoLucro", "false")
 
     # FILTROS DE EXECUCAO (hora, dia, spread): faixas gravadas em N -- sao os
@@ -1090,6 +1091,13 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         # decidir por ativo/indicador se vale a troca (mais perto do "nunca
         # perde" do grid, ao custo do mesmo tipo de espera).
         p.opt_bool("PyramidTrailSoLucro")
+        # "Piramide estreitando" (achado do dono, 2026-08-17, pratica padrao
+        # de trend-following confirmada na pesquisa): so abre o proximo nivel
+        # depois que a ultima perna ja esta no breakeven ou melhor, travando
+        # o risco aberto total em vez de deixar ele crescer a cada adicao.
+        # Buscavel: e um trade-off (mais seguranca, ao custo de perder
+        # movimentos rapidos que nao dao tempo da perna anterior respirar).
+        p.opt_bool("PyramidLevelOnlyInProfit")
         # Sem teto de posicoes por lado, mesmo raciocinio do grid classico:
         # a distancia ATR (DistanciaMinima) e o proprio trailing sao o
         # freio, nao uma contagem fixa.
