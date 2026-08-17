@@ -190,6 +190,7 @@ GATES_DEPENDENCIAS = {
     "MetodoDeCalculo": "AtivarTrailATR",
     "TrailVela": "AtivarTrailATR",
     "Trail": "AtivarTrailATR",
+    "TrailSoLucro": "AtivarTrailATR",
     "VelaTake": "AtivarTake",
     "VelaStop": "AtivarStop",
     "BreakevenDistancia": "AtivarBreakeven",
@@ -489,6 +490,7 @@ def apply_defaults(p: Profile, ac: AssetClass, side: str, magic: int,
     p.fix("UsarsomenteATRGRID", "false")
     p.fix("DistanciaMinima", 2)
     p.fix("PyramidTrailSoLucro", "false")
+    p.fix("TrailSoLucro", "false")
 
     # FILTROS DE EXECUCAO (hora, dia, spread): faixas gravadas em N -- sao os
     # ULTIMOS a rodar no circuito (dono, 2026-07-31), em IS+OOS. O EA aceita
@@ -770,6 +772,11 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt("MetodoDeCalculo", 1, 0, 1, 4)
         p.opt("TrailVela", 0, 0, 1, 3)
         p.opt("Trail", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
+        # Buscavel (achado do dono, 2026-08-17): sem isso o trailing pode
+        # fechar no prejuizo se o preco reverter antes do trail alcancar o
+        # breakeven -- mesma logica do PyramidTrailSoLucro do grid inverso,
+        # so que aqui e por posicao (TrailingStopSet), nao por cesta.
+        p.opt_bool("TrailSoLucro")
         # Breakeven CRAVADO OFF: "trail only" e trailing puro. Com o BE como
         # eixo aqui, este sistema alcancava as duas configuracoes do
         # 05_BE_TRAIL e o 05 virava subconjunto seu -- duas corridas de ~2h
@@ -796,6 +803,7 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt("MetodoDeCalculo", 1, 0, 1, 4)
         p.opt("TrailVela", 0, 0, 1, 3)
         p.opt("Trail", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
+        p.opt_bool("TrailSoLucro")
         p.opt_bool("AtivarBreakeven", "true")
         # Teto descido de 3.0 para 0.7 (achado do dono, 2026-08-16): o gatilho
         # do breakeven e Stop*BreakevenDistancia (nao Take), entao nada aqui impede
@@ -821,6 +829,10 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt("MetodoDeCalculo", 1, 0, 1, 4)
         p.opt("TrailVela", 0, 0, 1, 3)
         p.opt("Trail", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
+        # Buscavel (achado do dono, 2026-08-17): 05 nao tem Take -- o trail e
+        # a UNICA saida por lucro que existe alem do Stop, entao e o sistema
+        # que mais se beneficia de nunca deixar o trail fechar no prejuizo.
+        p.opt_bool("TrailSoLucro")
 
     elif system == "06_REVERSAL_EXIT":
         # Modo 2 (OnIndicatorSignal) nao exige hedging; modo 1 exigiria.
@@ -837,6 +849,10 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt("MetodoDeCalculo", 1, 0, 1, 4)
         p.opt("Trail", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
         p.opt("TrailVela", 0, 0, 1, 3)
+        # Buscavel (achado do dono, 2026-08-17): mesmo raciocinio de
+        # 03/04/05/12 -- so importa quando AtivarTrailATR sai true no passe
+        # (GATES_DEPENDENCIAS ja trata a dependencia).
+        p.opt_bool("TrailSoLucro")
         p.opt_bool("AtivarBreakeven", "true")
         p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
 
@@ -1032,6 +1048,13 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.opt("MetodoDeCalculo", 1, 0, 1, 4)
         p.opt("TrailVela", 0, 0, 1, 3)
         p.opt("Trail", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
+        # Buscavel (achado do dono, 2026-08-17): esta e a trava DA PERNA
+        # individual (TrailingStopSet, o Stop real de cada nivel), separada e
+        # independente da trava DA CESTA (PyramidTrailSoLucro, mais abaixo).
+        # As duas saidas coexistem aqui -- o trailing de cesta fecha tudo
+        # junto pelo pico/vale, o trailing por perna e o SL de cada posicao
+        # individual arrastando sozinho.
+        p.opt_bool("TrailSoLucro")
         # Sem Take ativo: mesma faixa larga de BreakevenDistancia que os
         # outros sistemas sem TP real usam (03/05/06), nao a faixa apertada
         # dos sistemas Take-relativos (01/02/04/07/09/10).
