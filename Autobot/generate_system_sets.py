@@ -1127,7 +1127,8 @@ def main() -> None:
                         p = Profile()
                         apply_defaults(p, ac, side, magic, name)
                         apply_core(p, ac, ichimoku,
-                                   grid=system.code == "07_GRID_SEPARATE")
+                                   grid=system.code in ("07_GRID_SEPARATE",
+                                                        "12_GRID_INVERSO"))
                         apply_system(p, system.code, ac, side)
                         apply_sizing_and_formula(p, system.code, ac)
                         p.desativar_inertes()
