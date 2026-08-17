@@ -678,9 +678,15 @@ def apply_sizing_and_formula(p: Profile, system: str, ac: AssetClass) -> None:
     # CalculatePyramidVolume no .mq5), entao R tem contra o que dimensionar.
     # O .mq5 ja foi ajustado pra permitir RiscoRFixo com GridMode=Pyramid
     # especificamente (classico continua bloqueado, sem SL pra medir risco).
+    # 09_MARTINGALE entrou aqui em 2026-08-17 (achado do dono): o .mq5 SEMPRE
+    # soube dimensionar Martingale em R -- MM_Size_R_Buy/Sell tem um ramo
+    # dedicado pra Martingale (ClampMartingaleLot) desde sempre -- so nunca
+    # tinha sido ligado aqui. D'Alembert (10) fica de fora: o EA exige
+    # LoteFixo pra ele explicitamente (DAlembertStep e um incremento de lote
+    # ABSOLUTO, nao escala com nenhum modo de risco).
     r_capable = system in ("01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY",
                            "04_SLTP_TRAIL", "05_BE_TRAIL", "06_REVERSAL_EXIT",
-                           "12_GRID_INVERSO")
+                           "12_GRID_INVERSO", "09_MARTINGALE")
     if r_capable:
         p.fix("PositionSizeMode", 3)     # Fixed-R
         p.fix("PositionSizeValue", 1.0)  # 1R = 1% do capital base
