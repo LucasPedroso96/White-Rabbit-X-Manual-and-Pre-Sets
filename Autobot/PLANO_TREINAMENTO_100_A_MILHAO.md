@@ -76,10 +76,11 @@ ali quebraria a comparabilidade Fixed-R de toda a pesquisa.
 `descobrir_ativos.py` detecta o que este terminal/conta consegue
 realmente testar, tentando primeiro o símbolo `.HT` (tick real via
 Historical Tool Manager) e caindo pro nativo se não existir; exige pelo
-menos 180 dias de histórico D1. O catálogo completo do projeto tem 88
+menos 180 dias de histórico D1. O catálogo completo do projeto tem 89
 símbolos (`generate_system_sets.py`: 28 Forex, 3 metais, 6 cripto, 2
-índices/energia, 49 ações americanas) — quantos desses realmente estão
-disponíveis nesta conta só se sabe rodando a detecção.
+índices/energia, 50 ações americanas — contagem re-verificada em
+2026-08-17, era 88/49 quando este documento foi escrito) — quantos desses
+realmente estão disponíveis nesta conta só se sabe rodando a detecção.
 
 Duas formas de usar:
 - **Rodar sem flag** (`python descobrir_ativos.py`): só lista o que foi
@@ -100,9 +101,21 @@ Os 11 sistemas já têm 4 tiers de risco definidos no código
 | Tier | Sistemas | Risco |
 |---|---|---|
 | `RESEARCH` | 01_SLTP, 02_SLTP_ORGANIC, 03_TRAIL_ONLY, 04_SLTP_TRAIL, 05_BE_TRAIL, 06_REVERSAL_EXIT | Fixed-R, validado por Monte Carlo (≤5% prob. de ruína) |
-| `HEDGE_ACCOUNT_REQUIRED` | 07_GRID_SEPARATE, 08_GRID_UNIFIED | Precisa de conta de hedging pra operar ao vivo — pré-requisito de CONTA, não só resultado de backtest |
-| `HIGH_RISK` | 09_MARTINGALE, 10_DALEMBERT | Lote fixo, progressão de recuperação |
+| `HEDGE_ACCOUNT_REQUIRED` | 07_GRID_SEPARATE, 12_GRID_INVERSO | Precisa de conta de hedging pra operar ao vivo — pré-requisito de CONTA, não só resultado de backtest |
+| `HIGH_RISK` | 09_MARTINGALE, 10_DALEMBERT | Progressão de recuperação |
 | `HIGH_RISK_RESEARCH` | 11_SIGNAL_ONLY | Mais experimental do conjunto |
+
+**Atualizado 2026-08-17**: `08_GRID_UNIFIED` foi removido do sistema inteiro
+(achado matematicamente redundante com `07_GRID_SEPARATE` — não só o modo do
+enum, o sistema inteiro deixou de existir; `campanha.py` documenta isso no
+comentário do `BILATERAL`). `12_GRID_INVERSO` ("Grid Pyramid", anti-martingale
+— abre a favor do preço, sai por trailing na cesta) entrou na mesma tier que
+o grid clássico. `09_MARTINGALE` e `12_GRID_INVERSO` também passaram a
+suportar Fixed-R (mesma lógica do Estágio 5 dos 6 RESEARCH) — "lote fixo"
+não é mais universal pra tier HEDGE_ACCOUNT_REQUIRED/HIGH_RISK, só
+`07_GRID_SEPARATE`, `10_DALEMBERT` e `11_SIGNAL_ONLY` continuam
+estruturalmente presos a ele (sem SL o suficiente ou sem SL nenhum pra medir
+risco).
 
 **Duas ordens diferentes, não confundir:**
 
@@ -157,6 +170,14 @@ Depois do ranking por ativo individual, o passo seguinte natural é
 `portfolio_builder.py` (correlação/diversificação entre os aprovados) —
 "melhor ativo isolado" e "melhor portfólio" são perguntas diferentes, não
 confundir uma com a outra.
+
+**Ver também** `MELHORIAS_MULTIPLE_R_E_ATIVOS.md` (2026-08-17): cobre a
+MESMA pergunta por um ângulo diferente e complementar — em vez de ranking
+empírico a posteriori (depois de rodar campanha), agrupa os 11 sistemas por
+mecânica de risco/saída (6 arquétipos) e sugere, a priori, quais ativos
+tendem a favorecer cada arquétipo. Útil como prioridade de fila ANTES de
+ter resultado de campanha — o ranking desta seção é o critério depois que
+o dado existe.
 
 ## 7. Critério de graduação pra capital ao vivo
 
