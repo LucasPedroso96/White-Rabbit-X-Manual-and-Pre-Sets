@@ -1891,9 +1891,22 @@ def main() -> int:
     # na biblioteca pelo nome e ninguem reabre o log para descobrir que a
     # retencao era negativa -- o arquivo passa a afirmar o que ele nao provou.
     prefixo = "VALIDADO" if aprovado else "REPROVADO"
+    outro_prefixo = "REPROVADO" if aprovado else "VALIDADO"
     destino = (base.DADOS / "MQL5" / "Profiles" / "Tester" /
                f"{prefixo}_{args.symbol.replace('.', '_')}_"
                f"{args.sistema}_{args.variante}.set")
+    # Um combo re-testado pode mudar de veredito (aprovado -> reprovado ou o
+    # contrario) -- sem apagar o arquivo do prefixo anterior, os dois convivem
+    # no disco e o dashboard (_sets_certificados em dashboard_campanha.py, que
+    # so faz glob de VALIDADO_*) pode achar o VALIDADO_ antigo e mostrar
+    # "certificado" um candidato que acabou de ser reprovado agora (achado do
+    # dono, 2026-08-17: EURUSD/07_GRID_SEPARATE/BUY_MULTI reprovado hoje no
+    # gate de sobrevivencia, mas o painel ainda mostrava um VALIDADO_ de uma
+    # aprovacao anterior do mesmo combo).
+    outro_destino = (base.DADOS / "MQL5" / "Profiles" / "Tester" /
+                     f"{outro_prefixo}_{args.symbol.replace('.', '_')}_"
+                     f"{args.sistema}_{args.variante}.set")
+    outro_destino.unlink(missing_ok=True)
     reescrever(origem, destino, [], entrega)
     faltando = conferir_set(destino, entrega)
     if faltando:
