@@ -37,14 +37,19 @@ otimizacao cara teria enterrado.
   ESTAGIO 3 (IS+OOS)  FILTROS DE EXECUCAO: hora, dia e spread -- os ultimos a
                     rodar, otimizando em In-Sample + Out-Sample por decisao
                     do dono. So sao adotados se MELHORAREM a retencao.
-  ESTAGIO 3.5 (tick real, SO GRID)  GEOMETRIA DO GRID: reabre so os ~4 eixos
-                    de saida (Take, DistanciaMinima, VelaTake,
-                    UsarsomenteATRGRID) sobre o resto ja travado, e busca
-                    DIRETO em tick real (dono, 2026-08-03, apos medir 45%+ de
-                    divergencia no grid). Pequeno o bastante pra ser viavel
-                    (~10-25 min); ataca a causa raiz -- geometria de saida e
-                    a unica parte do grid que realmente diverge OHLC vs tick
-                    real -- em vez de so reprovar depois de pronta.
+  ESTAGIO 3.5 (tick real, familia grid)  GEOMETRIA DE SAIDA: reabre so os
+                    eixos de saida de cada sistema (grid classico: Take,
+                    DistanciaMinima, VelaTake, UsarsomenteATRGRID; Grid
+                    Inverso: Trail, TrailVela, MetodoDeCalculo,
+                    DistanciaMinima, Multiplicador, UsarsomenteATRGRID)
+                    sobre o resto ja travado, e busca DIRETO em tick real
+                    (grid: dono, 2026-08-03, apos medir 45%+ de divergencia;
+                    Grid Inverso: dono, 2026-08-17, apos medir 73.1% de
+                    divergencia sem essa correcao). Pequeno o bastante pra
+                    ser viavel (~10-25 min); ataca a causa raiz -- geometria
+                    de saida e a parte que realmente diverge OHLC vs tick
+                    real nesses dois sistemas -- em vez de so reprovar
+                    depois de pronta.
   ESTAGIO 4 (ticks reais)  CONFIRMACAO do vencedor unico (~35s por passe):
                     retencao em IS+OOS e divergencia OHLC vs tick real.
                     Reprovou em qualquer uma, nao promove.
@@ -240,21 +245,37 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
            "MA_Method", "MetodoMA", "SentidoMA", "MA_AppliedPrice",
            "MetodoADX", "MTF_RequererAmbos", "VolatilityFilter"]
 
-# Geometria de saida do grid (dono, 2026-08-03): medido que grid diverge
-# OHLC->tick real em ate 45%+ (23x subestimado, ver docstring do modulo) --
-# e SO na geometria de saida, porque a entrada (indicador/metodo/timeframe)
-# da o MESMO instante nos dois modelos por construcao (anti-repaint no
-# fechamento da barra). Buscar o circuito inteiro em tick real e inviavel
-# (medido: ~7-8x mais lento por passe que OHLC, semanas por simbolo em
-# escala) -- mas reabrir SO estes ~4 eixos, ja travados pelas fases 1/2 em
-# OHLC, e um genetico pequeno e barato o bastante pra rodar direto em tick
-# real. GATES confirma que sao os unicos eixos de geometria do grid
-# realmente ativos (Trail/TrailVela/MetodoDeCalculo ficam mortos porque
-# AtivarTrailATR e cravado false; VelaStop morto porque AtivarStop e false).
+# Geometria de saida da familia grid (dono, 2026-08-03, estendido
+# 2026-08-17): medido que grid classico diverge OHLC->tick real em ate 45%+
+# (23x subestimado, ver docstring do modulo) -- e SO na geometria de saida,
+# porque a entrada (indicador/metodo/timeframe) da o MESMO instante nos
+# dois modelos por construcao (anti-repaint no fechamento da barra).
+# Buscar o circuito inteiro em tick real e inviavel (medido: ~7-8x mais
+# lento por passe que OHLC, semanas por simbolo em escala) -- mas reabrir
+# SO os eixos de saida, ja travados pelas fases 1/2 em OHLC, e um genetico
+# pequeno e barato o bastante pra rodar direto em tick real.
+#
+# 12_GRID_INVERSO entrou aqui em 2026-08-17 (achado do dono): tinha o MESMO
+# buraco que motivou este mecanismo pro grid classico em 2026-08-03, so que
+# nunca tinha sido estendido pra ele -- medido 73.1% de divergencia OHLC vs
+# tick real numa corrida de teste (EURUSD, 3 meses), reprovado por causa
+# disso sem nenhuma correcao disponivel. Eixos diferentes do grid classico
+# porque a saida e diferente (trailing ATR sobre a cesta, nao meta de
+# lucro): GATES confirma que Trail/TrailVela/MetodoDeCalculo sao os eixos
+# de geometria REALMENTE ativos pra ele (o oposto do grid classico, onde
+# ficam mortos porque AtivarTrailATR e cravado false) -- e Stop/VelaStop
+# ficam de fora aqui mesmo sendo ativos (AtivarStop=true pro Pyramid,
+# diferente do grid classico): e risco por perna, nao timing de saida da
+# cesta, o tipo de divergencia que este mecanismo ataca.
 # 08_GRID_UNIFIED removido (2026-08-16) -- ver generate_system_sets.py:SYSTEMS.
-SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE"}
-EIXOS_GEOMETRIA_TICK_REAL = ["Take", "DistanciaMinima", "VelaTake",
-                            "UsarsomenteATRGRID"]
+SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE", "12_GRID_INVERSO"}
+EIXOS_GEOMETRIA_TICK_REAL = {
+    "07_GRID_SEPARATE": ["Take", "DistanciaMinima", "VelaTake",
+                         "UsarsomenteATRGRID"],
+    "12_GRID_INVERSO": ["Trail", "TrailVela", "MetodoDeCalculo",
+                        "DistanciaMinima", "Multiplicador",
+                        "UsarsomenteATRGRID"],
+}
 
 # Gate de sobrevivencia de periodo completo (dono, 2026-08-08): mais amplo
 # que SISTEMAS_GEOMETRIA_TICK_REAL de proposito -- aquele e so sobre QUAIS
@@ -1611,26 +1632,27 @@ def main() -> int:
     else:
         print("    nenhum eixo de execucao com faixa neste set.", flush=True)
 
-    # ---- Estagio 3.5: GEOMETRIA DO GRID em TICKS REAIS -----------------------
-    # So sistemas grid (ver comentario em SISTEMAS_GEOMETRIA_TICK_REAL). Reabre
-    # so os eixos de saida sobre o resto ja travado (indicador, regiao,
-    # filtros) e busca DIRETO em tick real -- pequeno o bastante (4 eixos) pra
-    # ser viavel, e ataca a causa raiz da divergencia do grid em vez de so
-    # medi-la depois de pronta.
+    # ---- Estagio 3.5: GEOMETRIA DE SAIDA em TICKS REAIS -----------------------
+    # Familia grid (ver comentario em SISTEMAS_GEOMETRIA_TICK_REAL). Reabre so
+    # os eixos de saida DESTE sistema sobre o resto ja travado (indicador,
+    # regiao, filtros) e busca DIRETO em tick real -- pequeno o bastante pra
+    # ser viavel, e ataca a causa raiz da divergencia em vez de so medi-la
+    # depois de pronta.
     lucro_ohlc_pre_geometria = ordenados[0][1] if ordenados else None
     geometria_refeita_tick_real = False
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+        eixos_geometria = EIXOS_GEOMETRIA_TICK_REAL[args.sistema]
         # reescrever() trava (nome in travar) ANTES de checar `otimizar` --
-        # esses 4 eixos ja estao em `travados` desde a fase 2 (NUMEROS), entao
+        # esses eixos ja estao em `travados` desde a fase 2 (NUMEROS), entao
         # precisam sair do dict passado aqui pra virarem Y de verdade. Achado
         # ao ver "0 parametros" no primeiro combo real (AUDCAD): a fase nunca
         # rodou, so revalidou o mesmo ponto que a fase 2 ja tinha achado.
         travados_sem_geo = {k: v for k, v in travados.items()
-                           if k not in EIXOS_GEOMETRIA_TICK_REAL}
-        n = reescrever(origem, trabalho, EIXOS_GEOMETRIA_TICK_REAL,
+                           if k not in eixos_geometria}
+        n = reescrever(origem, trabalho, eixos_geometria,
                       travados_sem_geo)
-        print(f"\n  [3.5/5] geometria do grid em TICKS REAIS ({n} parametros: "
-              f"{EIXOS_GEOMETRIA_TICK_REAL})", flush=True)
+        print(f"\n  [3.5/5] geometria de saida em TICKS REAIS ({n} parametros: "
+              f"{eixos_geometria})", flush=True)
         limpar_todas_formulas()
         t0 = time.time()
         cab_g, linhas_g = rodar(trabalho, args.symbol, args.period,
