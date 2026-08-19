@@ -163,11 +163,25 @@ FORMULA_POR_SISTEMA = {
     # Profit-guiado achou lucro OOS baixo E estourou margem (saldo 408.68,
     # REPROVADO). Amostra de 1 combo, mas a direcao foi clara -- revertido
     # pro padrao, e confirmado de novo no fulltest de 2026-08-10 (venceu a
-    # comparacao com as outras 13 formulas tambem). GridSurvivalScore
-    # continua guiando a busca; o filtro externo (ler_todas_formulas em
-    # optimize_two_stage.py) segue ligado, so vira redundante/confirmatorio
-    # nesse modo em vez de decisivo.
-    "07_GRID_SEPARATE": 1,
+    # comparacao com as outras 13 formulas tambem).
+    #
+    # 2026-08-19: revertido de novo, agora pra ResilienceToDrawdown (10).
+    # Motivo: CalculateGridVolume() trocou de arredondamento (so pra baixo
+    # -> pro mais proximo, NormalizeTradeVolumeNearest) no mesmo dia, e o
+    # A/B refeito no MESMO combo (EURUSD/07_GRID_SEPARATE/BUY_MULTI, 3
+    # meses) com o lote ja corrigido deu o oposto do teste de 2026-08-04:
+    # GridSurvivalScore-guiado REPROVOU (retencao OOS 18.4%, nao passou do
+    # piso de 30%); ResilienceToDrawdown-guiado APROVOU (retencao 103.5%,
+    # sobreviveu ao gate de sobrevivencia do periodo completo, saldo
+    # 10430.46). Mesma janela, mesmo fix de lote nos dois lados -- unica
+    # variavel foi a formula. Contradiz o fulltest de 2026-08-10 (rodado
+    # ANTES do fix de arredondamento) -- hipotese e que o arredondamento
+    # anterior (so pra baixo) favorecia a dinamica que GridSurvivalScore
+    # premia. Amostra de 1 simbolo de novo; revisar com EURGBP/AUDNZD antes
+    # de tratar como definitivo. GridSurvivalScore continua sendo lido pelo
+    # filtro externo (ler_todas_formulas em optimize_two_stage.py) mesmo
+    # sem guiar a busca.
+    "07_GRID_SEPARATE": 10,
     # 09_MARTINGALE: o fulltest de 2026-08-10 elegeu Profit puro (2), mas
     # revertido pra ResilienceToDrawdown (10) na revisao de peso/risco --
     # ver o bloco de comentario no topo deste dict. Profit puro e
