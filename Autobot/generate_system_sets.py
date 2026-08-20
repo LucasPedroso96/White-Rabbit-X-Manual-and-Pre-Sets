@@ -190,11 +190,20 @@ FORMULA_POR_SISTEMA = {
     # nativo, MaxMartingaleLot ainda 0/sem teto), entao herda o mesmo risco.
     "09_MARTINGALE": 10, "10_DALEMBERT": 5,
     "11_SIGNAL_ONLY": 4,
-    # 12_GRID_INVERSO: mesma cesta multi-perna que o grid classico (07), so
-    # com a direcao da entrada e o mecanismo de saida invertidos -- herda o
-    # mesmo GridSurvivalScore por ser a mesma familia de risco (cesta que
-    # pode crescer), nao por medida propria ainda (sistema novo).
-    "12_GRID_INVERSO": 1,
+    # 12_GRID_INVERSO: A/B proprio agora (dono, 2026-08-19), XAUUSD/
+    # 12_GRID_INVERSO/BUY_MULTI, 3 meses, mesmo padrao usado no 07:
+    # GridSurvivalScore-guiado REPROVOU (retencao OOS -27.1%, negativa --
+    # perdeu dinheiro fora da amostra). ResilienceToDrawdown-guiado
+    # APROVOU: comecou negativo em regioes/numeros (-175% a -7.6%), o
+    # Estagio 3 (filtros de execucao) reverteu pra +43%, o 3.5 (geometria
+    # tick real) subiu pra 64.7%, confirmado em tick real com divergencia
+    # 0.0%, retencao em % 36.0%, sobreviveu ao gate de sobrevivencia do
+    # periodo completo (saldo 10000 -> 20732.90). Mesma direcao do 07:
+    # ver bloco de comentario no topo deste dict sobre o fix de
+    # arredondamento do lote -- hipotese e que o mesmo motivo se aplica
+    # aqui (familia grid, CalculateGridVolume compartilhado). Amostra de
+    # 1 simbolo; revisar com mais ativos antes de tratar como definitivo.
+    "12_GRID_INVERSO": 10,
 }
 
 # Dependente -> chave que o liga, conforme o EA. Espelha os GATES do circuito
