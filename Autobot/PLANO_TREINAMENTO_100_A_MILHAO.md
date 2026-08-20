@@ -64,12 +64,36 @@ muito pequena o lote mínimo pode arredondar o risco de um trade pra cima
 do percentual pretendido, especialmente em instrumentos de margem maior
 (metais, cripto, CFDs de ações).
 
-**Verificação proposta** (depois que a campanha de 3 anos produzir os
-primeiros sets VALIDADOs): pegar 2-3 sets aprovados, rodar de novo com
-`--deposit 100` (passe único, não precisa repetir o circuito inteiro) e
-conferir se retenção/expectativa se sustentam e se o lote mínimo não
-distorce o risco. Não fazer isso na campanha principal — mudar o depósito
-ali quebraria a comparabilidade Fixed-R de toda a pesquisa.
+**Verificação feita (2026-08-19), `calc_capital_base.py` ao vivo contra a
+conta real** — substitui a hipótese acima por número: pra 1% de risco por
+trade num stop de 3x ATR no lote mínimo real da corretora, o capital
+mínimo por classe é:
+
+| Classe | Capital mínimo (1% risco) | Categoria |
+|---|---|---|
+| 01_Forex | ~$347 | 🟢 Micro (≤$500) |
+| 02_Cryptocurrencies | ~$1.518 | 🟡 Pequena ($500–2.500) |
+| 03_Indices_Energies | ~$1.289 | 🟡 Pequena |
+| 04_US_Stocks_CFD | ~$2.796 | 🟠 Média ($2.500–10.000) |
+| 05_Metals (XAUUSD/XAGUSD) | ~$6.789 | 🔵 Grande (≥$10.000) |
+
+(Números oscilam com o ATR do dia — a ordem de grandeza entre classes é o
+que importa, não a segunda casa decimal.)
+
+**Isso muda a conclusão pra conta de $100-300**: só 01_Forex cabe sem
+distorcer o risco pretendido — e mesmo assim com pouca margem ($300 fica
+abaixo até do piso de $347 pra 1%; funciona a ~2% de risco/trade, que cai
+pra ~$174 de piso). Qualquer set fora de 01_Forex (inclui XAUUSD, que o
+dono já suspeitava não caber — confirmado: precisaria de ~$6.800, 22x o
+saldo de $300) entregue a uma conta desse tamanho vai abrir no lote
+mínimo arriscando um percentual muito acima do configurado, mesmo em
+`PositionSizeMode=Percentage` — o modo % não protege disso porque não
+existe fração de lote abaixo do `volume_min`. Ver `MELHORIAS_MULTIPLE_R_E_
+ATIVOS.md` (seção "Categorias de conta por capital mínimo") pra como isso
+cruza com qual sistema favorece qual ativo — A e B (grid clássico,
+martingale/d'alembert) cabem em Micro sem nenhum compromisso de
+estratégia; C/D/E/F têm o ativo top-recomendado fora do alcance de Micro,
+com fallback Forex parcial em C e E, nenhum em D e F.
 
 ## 4. Descoberta e priorização de ativos
 
@@ -191,6 +215,16 @@ tempo:
 4. Aparece no painel "Certified sets" do dashboard (só sets com relatório
    de validação arquivado contam — gate que já existe, não precisa
    inventar outro).
+5. **O saldo real da conta-alvo cobre o capital mínimo da classe do
+   ativo** (tabela da seção 3, `calc_capital_base.py`) — ex: um
+   `VALIDADO_XAUUSD_*` não graduava pra uma conta de $300 mesmo cumprindo
+   1-4, porque o lote mínimo nessa classe arrisca ~15-17% por trade em vez
+   do percentual configurado. **Ainda não é um gate automático** (nada em
+   `dashboard_campanha.py`/`/api/implantacao` verifica isso hoje) — até
+   virar, checar manualmente antes de entregar qualquer set fora de
+   01_Forex pra conta pequena. Achado ao vivo, 2026-08-19: `12_GRID_
+   INVERSO` aprovado em XAUUSD (retenção 64,7%) é exatamente esse caso —
+   estratégia boa, capital mínimo incompatível com conta ≤$500.
 
 ## 8. Deployment: AutoManagerLive
 
@@ -298,3 +332,6 @@ Preenchido conforme decisões reais forem tomadas.
 | 2026-08-08 | Biblioteca `Sets/` (3.738 arquivos) regenerada e republicada -- estava parada em 2026-08-02, 3 dias sem o fix de `AtivarBreakeven` do grid (commit `49828f95`, 2026-08-05) e sem qualquer outra mudança do gerador desde então | Achado ao conferir por que um comprador via grid sem breakeven mesmo com o código já corrigido: o código tinha o fix, a biblioteca publicada nunca foi regenerada pra pegá-lo. Sets já `VALIDADO_*` (aprovados por uma campanha real) continuam intocados de propósito -- são resultado de teste, não template, e só se corrigem re-testando o combo |
 | 2026-08-09 | Seção "Deployment: AutoManagerLive" adicionada (§8): motor de sugestão de combinações certificadas (reaproveita `portfolio_builder.py` sobre o pool de "Certified sets"), regra de quantas contas são necessárias (só restrição dura: mistura de tier HEDGE_ACCOUNT_REQUIRED ou capital mínimo por classe excedido), suporte a contas-irmãs (mesma biblioteca, sistemas diferentes por conta), e critério de promoção/rebaixamento ao vivo (faixa de tolerância + período de prova, baseline por combo específico vs. tier) | Dono pediu desacoplar a implantação da ideia de 1 conta só, com sugestão numerada e fluxo de marcar (individual, tudo que já é live, ou pular pra próxima sugestão). Metodologia documentada primeiro, sem script ainda, mesmo padrão da §6 -- os números exatos de tolerância e janela de prova esperam trade ao vivo real pra calibrar, não existe esse dado ainda |
 | 2026-08-09 | Modo pause adicionado à campanha: sinal em disco (`campanha_pausa.json`, só a presença importa, `optimize_sets.pausa_solicitada()`) checado em pontos SEGUROS -- fim de cada rodada do Estágio 1 (checkpoint já salvo, retomar continua exatamente dali) e entre combos (nada em andamento a perder). Nunca interrompe no meio de uma rodada/combo. Dashboard ganhou botões Pausar/Retomar (`/api/campanha/pausar`, `/api/campanha/retomar`) -- Retomar relança `campanha.py` com os mesmos parâmetros da corrida pausada, gravados no lock file na hora do Iniciar (antes só guardava pid/modo) | Dono pediu um jeito de pausar "entre um evento e outro" sem perder trabalho, distinto de Stop (que cancela e mói o ledger incompleto). Estágios 2-5 ainda não têm checkpoint próprio, então uma pausa pedida no meio deles só produz efeito no fim do combo inteiro -- documentado como limitação conhecida, não bug |
+| 2026-08-19 | `CalculateGridVolume()` trocou de arredondamento (só pra baixo, `NormalizeTradeVolume` -> pro mais próximo, `NormalizeTradeVolumeNearest`), restrito ao grid -- achado a partir de um caso ao vivo (cesta de grid abrindo 4 níveis, saindo -$13 antes de fechar +$2, padrão de lote crescendo rápido demais). `FORMULA_POR_SISTEMA` de `07_GRID_SEPARATE` e `12_GRID_INVERSO` trocado de `GridSurvivalScore` (1) pra `ResilienceToDrawdown` (10) -- A/B refeito pós-fix em EURUSD/07 e XAUUSD/12, mesma janela de 3 meses nos dois lados, GridSurvivalScore reprovou nos dois (retenção -18,4% e -27,1%), ResilienceToDrawdown aprovou nos dois (103,5% e 64,7%, ambos sobrevivendo ao gate de período completo). Contradiz o fulltest de 2026-08-10 (rodado ANTES do fix) -- amostra de 1 símbolo por sistema, revisar com mais pares antes de tratar como definitivo | Cliente relatou o mesmo padrão ao vivo (cesta descontrolando o lote) que motivou a investigação; sem tetos de lote (`MaxMartingaleLot` explicitamente rejeitado pelo dono) -- o fix ficou restrito a arredondamento, não a um cap novo |
+| 2026-08-19 | Achado ao rodar `12_GRID_INVERSO`/BRENT: símbolo em modo `close-only` nesta conta (`OrderCheck retcode=10044`) -- broker não permite posição nova, só fechar as que já existem. Não é bug de dado/sync; testado XAUUSD no lugar, funcionou normalmente | Cliente reportou "BRENT não abre trade" -- descartada primeiro a hipótese de histórico ausente (havia, na conta ECN certa), depois confirmado com passe único diagnóstico que o retcode é de restrição de símbolo, não de estratégia. Nenhuma ação possível do lado do código; fica registrado pra não reinvestigar do zero |
+| 2026-08-19 | `calc_capital_base.py` rodado ao vivo contra a conta real -- números movidos pra §3 (tabela de capital mínimo por classe) e §7 ganhou um 5º critério de graduação (saldo da conta cobre o mínimo da classe do ativo). `MELHORIAS_MULTIPLE_R_E_ATIVOS.md` ganhou uma seção "Categorias de conta por capital mínimo" cruzando isso com os 6 arquétipos | Dono pediu revisão do plano voltada pra conta pequena (≤$300) depois de desconfiar que XAUUSD não cabe nela -- confirmado: XAUUSD precisa de ~$6.800 pra 1% de risco no lote mínimo, 22x o saldo de $300. Só 01_Forex (~$347 mínimo) cabe numa conta dessa faixa sem distorcer o risco pretendido; Arquétipos A/B (grid clássico, martingale/d'alembert) cabem em Forex sem nenhum compromisso de estratégia, C/D/E/F têm o ativo top-recomendado fora do alcance até o saldo crescer |
