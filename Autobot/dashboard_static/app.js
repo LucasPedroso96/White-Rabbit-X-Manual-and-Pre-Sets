@@ -1540,7 +1540,10 @@ document.querySelectorAll("nav button[data-tab]").forEach((btn) => {
     if (btn.dataset.tab === "biblioteca") carregarBiblioteca();
     if (btn.dataset.tab === "portfolios") carregarPortfolios();
     if (btn.dataset.tab === "custo") carregarCusto();
-    if (btn.dataset.tab === "implantacao") { carregarImplantacao(); carregarSugestoes(); }
+    if (btn.dataset.tab === "implantacao") {
+      carregarImplantacao().then(carregarEmProva);
+      carregarSugestoes();
+    }
   });
 });
 
@@ -2271,9 +2274,10 @@ async function carregarImplantacao() {
       <td>${s.sobrevivencia_grafico
         ? `<button class="acao secundario" style="padding:2px 8px;font-size:11px" data-grafico="${s.chave}">chart</button>`
         : ""}</td>
+      <td class="em-prova-cell" data-chave="${s.chave}">${s.implantado ? "…" : "-"}</td>
     </tr>`;
     const linhaGrafico = s.sobrevivencia_grafico ? `
-    <tr id="${idGraf}" class="linha-detalhe ${oculta}"><td colspan="10">
+    <tr id="${idGraf}" class="linha-detalhe ${oculta}"><td colspan="11">
       <div id="resumo-${idGraf}" class="detalhe-grid"><span class="status-msg">loading summary...</span></div>
       <div class="detalhe-grid" style="margin-top:8px">
         <span>Full-period equity curve (the one the survival gate actually measured — not the short OOS window):</span>
@@ -2288,12 +2292,43 @@ async function carregarImplantacao() {
       </div></td></tr>` : "";
     return linhaPrincipal + linhaGrafico;
   }).join("")
-    || `<tr><td colspan="10" class="status-msg">no validated set yet.</td></tr>`;
+    || `<tr><td colspan="11" class="status-msg">no validated set yet.</td></tr>`;
 
   document.querySelectorAll(".chk-deployed").forEach((chk) => {
     chk.addEventListener("change", async () => {
       await post("/api/implantacao/marcar", { chaves: [chk.value], implantado: chk.checked });
     });
+  });
+}
+
+const EM_PROVA_ROTULO = {
+  SEM_BASELINE: "no R baseline (non-Fixed-R)",
+  EM_PROVA: "on trial",
+  DENTRO_DA_FAIXA: "within band",
+  REBAIXAR: "demote",
+  PROMOVER: "promote",
+};
+const EM_PROVA_CLASSE = {
+  SEM_BASELINE: "", EM_PROVA: "", DENTRO_DA_FAIXA: "ok",
+  REBAIXAR: "no", PROMOVER: "ok",
+};
+
+async function carregarEmProva() {
+  const celulas = document.querySelectorAll(".em-prova-cell");
+  if (!celulas.length) return;
+  const d = await api("/api/implantacao/em_prova");
+  if (!d.ok) {
+    celulas.forEach((td) => { if (td.textContent === "…") td.textContent = "n/a"; });
+    return;
+  }
+  const porChave = Object.fromEntries((d.combos || []).map((c) => [c.chave, c]));
+  celulas.forEach((td) => {
+    const c = porChave[td.dataset.chave];
+    if (!c) { td.textContent = "-"; return; }
+    const rotulo = EM_PROVA_ROTULO[c.status] || c.status;
+    const classe = EM_PROVA_CLASSE[c.status] || "";
+    const trades = c.trades_vividos != null ? ` (${c.trades_vividos} trades)` : "";
+    td.innerHTML = `<span class="pill ${classe}">${rotulo}</span>${trades}`;
   });
 }
 
