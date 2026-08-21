@@ -65,6 +65,7 @@ import optimize_sets as base
 import ready_library
 import relatorio_resumo
 import auto_manager_live
+import em_prova
 from generate_system_sets import ASSETS, CLASSES, SYSTEMS
 from mt5_runner import fechar_terminal, terminal_aberto
 
@@ -1024,6 +1025,46 @@ def implantacao_sugestoes(saldo: float = 0.0) -> JSONResponse:
         "pool": len(disponiveis),
         "com_serie": len(series),
     })
+
+
+@app.get("/api/implantacao/em_prova")
+def implantacao_em_prova() -> JSONResponse:
+    """Status ao vivo (EM_PROVA/DENTRO_DA_FAIXA/REBAIXAR/PROMOVER) dos combos
+    JA implantados -- ver em_prova.py e secao 8 do plano de treinamento.
+
+    Sob demanda, nao entra no polling de /api/status (mesmo padrao de
+    /api/relatorio/{relatorio_dir}/resumo): ler historico ao vivo tem custo
+    que nao cabe no ritmo de poucos segundos do resto do painel.
+
+    So computa/expoe -- nunca abre, fecha ou redimensiona ordem nenhuma."""
+    implantados = [s for s in _sets_certificados() if s["implantado"]]
+    if not implantados:
+        return JSONResponse({"ok": True, "combos": []})
+
+    trades = em_prova.historico_mt5()
+    fonte = "mt5"
+    if trades is None:
+        return JSONResponse({
+            "ok": False,
+            "erro": ("Sem acesso ao MT5 ao vivo nesta maquina -- rode o "
+                     "dashboard na maquina com o terminal ao vivo, ou "
+                     "carregue o relatorio de historico manualmente."),
+        })
+
+    tabela = em_prova.tabela_magics()
+    trades["chave"] = trades["magic"].apply(
+        lambda m: em_prova.combo_do_magic(m, tabela))
+
+    estado = em_prova._carregar_estado()
+    saida = []
+    for s in implantados:
+        chave = s["chave"]
+        trades_combo = trades[trades["chave"] == chave]
+        r = em_prova.status_ao_vivo(chave, trades_combo, LEDGER, estado)
+        estado[chave] = r
+        saida.append(r)
+    em_prova._salvar_estado(estado)
+    return JSONResponse({"ok": True, "fonte": fonte, "combos": saida})
 
 
 _NOMES_RELATORIO_VALIDOS = {"conf_wrx", "sobrevivencia"}
