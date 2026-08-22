@@ -37,19 +37,21 @@ otimizacao cara teria enterrado.
   ESTAGIO 3 (IS+OOS)  FILTROS DE EXECUCAO: hora, dia e spread -- os ultimos a
                     rodar, otimizando em In-Sample + Out-Sample por decisao
                     do dono. So sao adotados se MELHORAREM a retencao.
-  ESTAGIO 3.5 (tick real, familia grid)  GEOMETRIA DE SAIDA: reabre so os
-                    eixos de saida de cada sistema (grid classico: Take,
+  ESTAGIO 3.5 (tick real, grid/Pyramid/trail)  GEOMETRIA DE SAIDA: reabre so
+                    os eixos de saida de cada sistema (grid classico: Take,
                     DistanciaMinima, VelaTake, UsarsomenteATRGRID; Grid
                     Inverso: Trail, TrailVela, MetodoDeCalculo,
-                    DistanciaMinima, Multiplicador, UsarsomenteATRGRID)
-                    sobre o resto ja travado, e busca DIRETO em tick real
-                    (grid: dono, 2026-08-03, apos medir 45%+ de divergencia;
-                    Grid Inverso: dono, 2026-08-17, apos medir 73.1% de
-                    divergencia sem essa correcao). Pequeno o bastante pra
-                    ser viavel (~10-25 min); ataca a causa raiz -- geometria
-                    de saida e a parte que realmente diverge OHLC vs tick
-                    real nesses dois sistemas -- em vez de so reprovar
-                    depois de pronta.
+                    DistanciaMinima, Multiplicador, UsarsomenteATRGRID;
+                    trail puro/breakeven: Trail, TrailVela, MetodoDeCalculo,
+                    +BreakevenDistancia so no 05_BE_TRAIL) sobre o resto ja
+                    travado, e busca DIRETO em tick real (grid: dono,
+                    2026-08-03, apos medir 45%+ de divergencia; Grid Inverso:
+                    dono, 2026-08-17, 73.1%; trail puro: dono, 2026-08-22,
+                    36-70% em EURJPY). Pequeno o bastante pra ser viavel
+                    (~10-25 min); ataca a causa raiz -- geometria de saida e
+                    a parte que realmente diverge OHLC vs tick real nesses
+                    sistemas sem TP fixo -- em vez de so reprovar depois de
+                    pronta.
   ESTAGIO 4 (ticks reais)  CONFIRMACAO do vencedor unico (~35s por passe):
                     retencao em IS+OOS e divergencia OHLC vs tick real.
                     Reprovou em qualquer uma, nao promove.
@@ -268,25 +270,49 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
 # diferente do grid classico): e risco por perna, nao timing de saida da
 # cesta, o tipo de divergencia que este mecanismo ataca.
 # 08_GRID_UNIFIED removido (2026-08-16) -- ver generate_system_sets.py:SYSTEMS.
-SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE", "12_GRID_INVERSO"}
+#
+# 03_TRAIL_ONLY/05_BE_TRAIL entraram aqui em 2026-08-22 (achado do dono, campanha
+# de conta pequena em USDJPY/EURJPY): mesmo buraco de novo, dessa vez em trail
+# puro -- 3 combos de EURJPY reprovados por divergencia de 36.5%/50.8%/69.6%,
+# maior ainda que o do Pyramid. Mesma causa raiz: sem TP, a posicao so sai no
+# trailing (ou breakeven), entao pode ficar aberta dias/semanas -- quanto mais
+# tempo aberta, mais a aproximacao por barra M1 (em vez do caminho real do tick)
+# acumula erro. Eixos: Trail/TrailVela/MetodoDeCalculo pros dois (mesmos 3 do
+# Pyramid, mesmo motivo -- GATES confirma que sao os unicos de geometria
+# realmente ativos aqui, AtivarTrailATR cravado true nesses dois sistemas);
+# BreakevenDistancia so no 05_BE_TRAIL, que tambem sai fora no breakeven (gated
+# por AtivarBreakeven, cravado true so nesse). Sem DistanciaMinima/
+# UsarsomenteATRGRID/Multiplicador: sao conceito de cesta multi-perna (grid),
+# 03/05 sao posicao unica, esses eixos nem existem de verdade pra eles.
+# 11_SIGNAL_ONLY NAO entra aqui apesar de tambem nao ter TP: fecha so no sinal
+# contrario, sem trail/breakeven nenhum -- nao ha geometria de saida pra
+# rebuscar, a divergencia dele (se houver) e de outra natureza.
+SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE", "12_GRID_INVERSO",
+                                "03_TRAIL_ONLY", "05_BE_TRAIL"}
 EIXOS_GEOMETRIA_TICK_REAL = {
     "07_GRID_SEPARATE": ["Take", "DistanciaMinima", "VelaTake",
                          "UsarsomenteATRGRID"],
     "12_GRID_INVERSO": ["Trail", "TrailVela", "MetodoDeCalculo",
                         "DistanciaMinima", "Multiplicador",
                         "UsarsomenteATRGRID"],
+    "03_TRAIL_ONLY": ["Trail", "TrailVela", "MetodoDeCalculo"],
+    "05_BE_TRAIL": ["Trail", "TrailVela", "MetodoDeCalculo",
+                    "BreakevenDistancia"],
 }
 
-# Gate de sobrevivencia de periodo completo (dono, 2026-08-08): mais amplo
-# que SISTEMAS_GEOMETRIA_TICK_REAL de proposito -- aquele e so sobre QUAIS
-# eixos reabrem em tick real no Estagio 3.5 (exclusivo do grid, sem
-# equivalente definido pra martingale/d'alembert/signal-only). Este
+# Gate de sobrevivencia de periodo completo (dono, 2026-08-08): DESACOPLADO
+# de SISTEMAS_GEOMETRIA_TICK_REAL de proposito (achado 2026-08-22: nao dava
+# mais pra derivar um do outro por uniao -- 03_TRAIL_ONLY/05_BE_TRAIL
+# entraram no Estagio 3.5 mas NAO tem o risco que motiva este gate). Este
 # conjunto e sobre QUEM roda o Estagio 4.5 (verificar_sobrevivencia_completa,
-# ver docstring): todo sistema sem SL nativo por posicao, onde uma
-# sequencia de perdas/cesta pode crescer sem limite e travar ou estourar a
-# conta so no periodo continuo de verdade -- nao so grid.
-SISTEMAS_GATE_SOBREVIVENCIA = SISTEMAS_GEOMETRIA_TICK_REAL | {
-    "09_MARTINGALE", "10_DALEMBERT", "11_SIGNAL_ONLY",
+# ver docstring): todo sistema sem SL nativo POR POSICAO que limite o dano de
+# uma sequencia ruim, onde a exposicao (cesta, escalonamento de lote) so
+# quebra no periodo continuo de verdade -- 03_TRAIL_ONLY/05_BE_TRAIL tem SL
+# real por posicao (sao Fixed-R capazes por causa disso, ver r_capable em
+# generate_system_sets.py) e ficam de fora por isso, mesmo estando em
+# SISTEMAS_GEOMETRIA_TICK_REAL agora.
+SISTEMAS_GATE_SOBREVIVENCIA = {
+    "07_GRID_SEPARATE", "09_MARTINGALE", "10_DALEMBERT", "11_SIGNAL_ONLY",
     # 12_GRID_INVERSO (achado do dono, 2026-08-16): unica excecao aqui que
     # TEM SL nativo por perna (AtivarStop=true, ao contrario do resto deste
     # conjunto) -- entra mesmo assim porque e cesta multi-perna com
@@ -1633,11 +1659,11 @@ def main() -> int:
         print("    nenhum eixo de execucao com faixa neste set.", flush=True)
 
     # ---- Estagio 3.5: GEOMETRIA DE SAIDA em TICKS REAIS -----------------------
-    # Familia grid (ver comentario em SISTEMAS_GEOMETRIA_TICK_REAL). Reabre so
-    # os eixos de saida DESTE sistema sobre o resto ja travado (indicador,
-    # regiao, filtros) e busca DIRETO em tick real -- pequeno o bastante pra
-    # ser viavel, e ataca a causa raiz da divergencia em vez de so medi-la
-    # depois de pronta.
+    # Grid, Pyramid e trail puro (ver comentario em SISTEMAS_GEOMETRIA_TICK_REAL).
+    # Reabre so os eixos de saida DESTE sistema sobre o resto ja travado
+    # (indicador, regiao, filtros) e busca DIRETO em tick real -- pequeno o
+    # bastante pra ser viavel, e ataca a causa raiz da divergencia em vez de so
+    # medi-la depois de pronta.
     lucro_ohlc_pre_geometria = ordenados[0][1] if ordenados else None
     geometria_refeita_tick_real = False
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
@@ -1666,8 +1692,8 @@ def main() -> int:
         if geo_ok:
             ord_g = torneio_retencao(geo_ok[:args.finalistas], cab_g,
                                      metricas, origem, trabalho, travados,
-                                     args, 4, "geometria grid (tick real, "
-                                     "~35s cada)")
+                                     args, 4, "geometria de saida (tick "
+                                     "real, ~35s cada)")
             if ord_g and ord_g[0][0] is not None:
                 geometria_refeita_tick_real = True
                 print(f"    geometria refeita em tick real: retencao "
