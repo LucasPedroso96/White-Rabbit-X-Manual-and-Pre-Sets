@@ -87,6 +87,37 @@ def garantir_terminal_livre(fechar: bool = False) -> None:
         "do terminal -- na ordem inversa ele simplesmente abre outro.")
 
 
+def _isolar_janela(pid: int) -> None:
+    """Manda a janela do processo recem-lancado pro desktop virtual isolado
+    (wrx_desktop_isolado.ps1, modulo VirtualDesktop de Markus Scholtes),
+    pra relancamentos em sequencia pararem de tirar o foco de quem esta
+    trabalhando na maquina.
+
+    Achado do dono, 2026-08-23: mesmo com SW_SHOWMINNOACTIVE (ver
+    lancar_terminal), o MT5 ainda flasheia foco no proprio boot -- e o
+    torneio de retencao relanca o terminal uma vez POR CANDIDATO, entao um
+    sweep de 14 formulas facilmente passa de uma centena de relancamentos.
+
+    Fogo-e-esquece, best-effort: nao bloqueia o launch nem propaga erro. Se
+    o pwsh ou o modulo VirtualDesktop nao estiver disponivel nesta maquina,
+    o pior caso e a janela aparecer no desktop principal como sempre foi --
+    nunca um teste que deixa de rodar por causa disso. CREATE_NO_WINDOW
+    evita que o proprio helper pisque um console -- trocaria um flash pelo
+    outro.
+    """
+    script = Path(__file__).resolve().parent / "wrx_desktop_isolado.ps1"
+    if not script.exists():
+        return
+    try:
+        subprocess.Popen(  # noqa: S603
+            ["pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass",
+             "-File", str(script), "-ProcessoPid", str(pid)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW)
+    except OSError:
+        pass
+
+
 def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
                     *args_extra: str) -> None:
     """Roda `/config:` minimizado e SEM ativar -- nao rouba o foco de quem
@@ -97,6 +128,9 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
     (6), que ativa antes de minimizar e ainda rouba o foco por um instante.
     O processo continua visivel na barra de tarefas; nada aqui esconde o
     terminal, so evita que ele interrompa o que esta em primeiro plano.
+    Complementado por `_isolar_janela()`: move a janela pro desktop virtual
+    isolado assim que ela existe, pra sequencias longas de relancamento
+    (torneio, sweep de formula) pararem de flashear foco de vez.
 
     `args_extra` repassa flags adicionais (`/report:...` etc.) que alguns
     chamadores precisam junto do `/config:`.
@@ -128,13 +162,21 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
     info = subprocess.STARTUPINFO()
     info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     info.wShowWindow = 7  # SW_SHOWMINNOACTIVE
+    # Popen em vez de run(): precisa do PID pra mandar a janela pro desktop
+    # isolado assim que o processo existe, sem esperar o teste inteiro
+    # terminar. O try/except abaixo replica o mesmo comportamento que
+    # run(timeout=...) ja dava de graca (mata o processo e engole a
+    # excecao) -- nao e uma mudanca de contrato pra quem chama.
+    proc = subprocess.Popen(  # noqa: S603
+        [str(terminal), f"/config:{ini}", *args_extra],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        startupinfo=info)
+    _isolar_janela(proc.pid)
     try:
-        subprocess.run([str(terminal), f"/config:{ini}", *args_extra],  # noqa: S603
-                       timeout=timeout, stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL, check=False,
-                       startupinfo=info)
+        proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        pass
+        proc.kill()
+        proc.wait()
 
 
 def ler_novo(logs_dir: Path, antes: dict[Path, int]) -> str:

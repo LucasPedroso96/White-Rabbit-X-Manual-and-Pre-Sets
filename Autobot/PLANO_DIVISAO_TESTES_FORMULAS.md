@@ -87,6 +87,23 @@ python sweep_formulas.py --sistema 06_REVERSAL_EXIT --simbolo EURGBP --deposit 1
 python sweep_formulas.py --sistema 11_SIGNAL_ONLY   --simbolo XAUUSD --deposit 10000
 ```
 
+## Isolamento de janela (opcional, recomendado)
+
+O MT5 relanca uma vez por candidato do torneio de retencao -- um sweep de
+14 formulas facilmente passa de uma centena de relancamentos, e cada um
+pode flashear foco por um instante mesmo minimizado. `mt5_runner.py`
+manda a janela pro desktop virtual isolado "WRX-MT5-Isolado" automaticamente
+se o modulo `VirtualDesktop` (Markus Scholtes, PSGallery, MIT) estiver
+instalado:
+
+```
+Install-Module -Name VirtualDesktop -Scope CurrentUser -Force
+```
+
+Sem o modulo instalado o sweep roda normalmente do mesmo jeito -- so volta
+a flashear foco no desktop principal como antes. Nao e obrigatorio, so
+evita a interrupcao.
+
 ## Depois do sweep
 
 Cada `sweep_formulas.py` gera `sweep_<SISTEMA>_<SIMBOLO>_master.log` e um
