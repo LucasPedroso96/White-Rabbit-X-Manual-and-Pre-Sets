@@ -106,16 +106,30 @@ def _manter_foco(hwnd_original: int, duracao_s: float = 10.0) -> None:
     de foco do proprio SO) -- se recusar, o pior caso e o comportamento
     de sempre (MT5 rouba o foco por um instante), nunca um teste quebrado,
     porque isso nunca toca no processo do terminal nem no /config.
+
+    Depois de restaurar o foco, manda um Enter sintetico (achado do dono,
+    2026-08-23, jogando Sekiro durante a campanha): jogos com captura de
+    input exclusiva/raw as vezes reganham a JANELA em foco mas nao
+    recapturam teclado/mouse sozinhos -- o jogo fica "vivo" na tela mas
+    sem responder a comando nenhum ate alguma tecla acordar a captura.
+    So dispara se a restauracao realmente colou (confere de novo antes de
+    mandar a tecla), pra nunca mandar Enter pra janela errada.
     """
     if not hwnd_original:
         return
     user32 = ctypes.windll.user32
+    VK_RETURN = 0x0D
+    KEYEVENTF_KEYUP = 0x0002
     fim = time.monotonic() + duracao_s
     while time.monotonic() < fim:
         try:
             atual = user32.GetForegroundWindow()
             if atual and atual != hwnd_original:
                 user32.SetForegroundWindow(hwnd_original)
+                time.sleep(0.05)
+                if user32.GetForegroundWindow() == hwnd_original:
+                    user32.keybd_event(VK_RETURN, 0, 0, 0)
+                    user32.keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0)
         except OSError:
             return
         time.sleep(0.2)
