@@ -11,9 +11,7 @@ Por isso a checagem vive aqui e nao no comentario de cada script.
 """
 from __future__ import annotations
 
-import ctypes
 import subprocess
-import threading
 import time
 from pathlib import Path
 
@@ -89,52 +87,6 @@ def garantir_terminal_livre(fechar: bool = False) -> None:
         "do terminal -- na ordem inversa ele simplesmente abre outro.")
 
 
-def _manter_foco(hwnd_original: int, duracao_s: float = 10.0) -> None:
-    """Devolve o foco pra janela que estava ativa ANTES do terminal abrir,
-    toda vez que ele mudar, por alguns segundos apos o launch.
-
-    Substitui a tentativa anterior (mover a janela pro desktop virtual
-    isolado, 2026-08-23): aquilo movia a TELA INTEIRA do usuario quando o
-    MT5 se auto-ativava no boot (o Windows troca o desktop ativo pra
-    mostrar quem pediu foco) e ainda corrompeu passes com "relatorio
-    vazio" -- achado do dono no mesmo dia. Essa versao nunca move nada,
-    so restaura o foco de volta -- sem desktop virtual, sem VM, sem
-    dependencia externa (so ctypes/user32, nada pra instalar).
-
-    Roda numa thread separada, fogo-e-esquece: o Windows pode recusar
-    SetForegroundWindow vindo de um processo em segundo plano (protecao
-    de foco do proprio SO) -- se recusar, o pior caso e o comportamento
-    de sempre (MT5 rouba o foco por um instante), nunca um teste quebrado,
-    porque isso nunca toca no processo do terminal nem no /config.
-
-    Depois de restaurar o foco, manda um Enter sintetico (achado do dono,
-    2026-08-23, jogando Sekiro durante a campanha): jogos com captura de
-    input exclusiva/raw as vezes reganham a JANELA em foco mas nao
-    recapturam teclado/mouse sozinhos -- o jogo fica "vivo" na tela mas
-    sem responder a comando nenhum ate alguma tecla acordar a captura.
-    So dispara se a restauracao realmente colou (confere de novo antes de
-    mandar a tecla), pra nunca mandar Enter pra janela errada.
-    """
-    if not hwnd_original:
-        return
-    user32 = ctypes.windll.user32
-    VK_RETURN = 0x0D
-    KEYEVENTF_KEYUP = 0x0002
-    fim = time.monotonic() + duracao_s
-    while time.monotonic() < fim:
-        try:
-            atual = user32.GetForegroundWindow()
-            if atual and atual != hwnd_original:
-                user32.SetForegroundWindow(hwnd_original)
-                time.sleep(0.05)
-                if user32.GetForegroundWindow() == hwnd_original:
-                    user32.keybd_event(VK_RETURN, 0, 0, 0)
-                    user32.keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0)
-        except OSError:
-            return
-        time.sleep(0.2)
-
-
 def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
                     *args_extra: str) -> None:
     """Roda `/config:` minimizado e SEM ativar -- nao rouba o foco de quem
@@ -145,9 +97,15 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
     (6), que ativa antes de minimizar e ainda rouba o foco por um instante.
     O processo continua visivel na barra de tarefas; nada aqui esconde o
     terminal, so evita que ele interrompa o que esta em primeiro plano.
-    Complementado por `_manter_foco()`: se o MT5 mesmo assim se auto-ativar
-    no proprio boot, devolve o foco pra quem estava em primeiro plano antes
-    do launch, por alguns segundos.
+
+    2026-08-23: tres tentativas de ir alem disso (desktop virtual isolado,
+    VM Hyper-V, restaurar foco + Enter sintetico) causaram problema NOVO
+    cada uma -- respectivamente: Windows trocando o desktop ativo do dono
+    junto (e corrompendo passes), estouro de RAM do host, e um Enter as
+    cegas acertando o menu de pausa do jogo que o dono estava jogando e
+    saindo dele. Revertido pra so isto -- e o unico nivel em que o codigo
+    tem certeza do que esta fazendo. Nao tentar de novo sem um jeito de
+    saber o ESTADO da janela alvo antes de mandar input pra ela.
 
     `args_extra` repassa flags adicionais (`/report:...` etc.) que alguns
     chamadores precisam junto do `/config:`.
@@ -179,21 +137,13 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
     info = subprocess.STARTUPINFO()
     info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     info.wShowWindow = 7  # SW_SHOWMINNOACTIVE
-    hwnd_antes = ctypes.windll.user32.GetForegroundWindow()
-    # Popen em vez de run(): a thread de _manter_foco roda em paralelo ao
-    # teste, nao espera ele terminar. O try/except abaixo replica o mesmo
-    # comportamento que run(timeout=...) ja dava de graca (mata o processo
-    # e engole a excecao) -- nao e uma mudanca de contrato pra quem chama.
-    proc = subprocess.Popen(  # noqa: S603
-        [str(terminal), f"/config:{ini}", *args_extra],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        startupinfo=info)
-    threading.Thread(target=_manter_foco, args=(hwnd_antes,), daemon=True).start()
     try:
-        proc.wait(timeout=timeout)
+        subprocess.run([str(terminal), f"/config:{ini}", *args_extra],  # noqa: S603
+                       timeout=timeout, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=False,
+                       startupinfo=info)
     except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.wait()
+        pass
 
 
 def ler_novo(logs_dir: Path, antes: dict[Path, int]) -> str:
