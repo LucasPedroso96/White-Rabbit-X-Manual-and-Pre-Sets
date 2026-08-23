@@ -141,19 +141,34 @@ def steps(start: float, step: float, stop: float) -> int:
 #  4 EfficiencyRelativeToDeposit peso moderado-forte, DD-penalty. 02_SLTP_
 #                         ORGANIC (trocado, ver acima), 11_SIGNAL_ONLY.
 #  5 AdjustedEfficiencyForGrid  peso moderado, DD-penalty. Venceu em
-#                         03_TRAIL_ONLY, 04_SLTP_TRAIL, 06_REVERSAL_EXIT e
-#                         10_DALEMBERT -- apesar do nome, generalizou bem
-#                         fora do grid no teste.
+#                         04_SLTP_TRAIL, 06_REVERSAL_EXIT e 10_DALEMBERT --
+#                         apesar do nome, generalizou bem fora do grid no
+#                         teste. Perdeu para 11 em 03_TRAIL_ONLY, ver abaixo.
 #  6 ProfitRelativeToDDAndDeposit peso moderado, DD no denominador.
 #                         05_BE_TRAIL.
+# 11 ReturnUniformity     03_TRAIL_ONLY (2026-08-23, ver comentario no dict
+#                         abaixo). A ressalva "ignora tamanho" nao se provou
+#                         fatal neste sweep -- venceu Profit (2) e
+#                         PessimisticProfit (9) em circuito completo real,
+#                         nao so em lucro bruto sem WFO.
 #
 # Nao usados de proposito: 13 LevainComposite satura (todo passe bom devolve
-# 1.0 e o genetico perde gradiente no topo), 11 ReturnUniformity ignora
-# tamanho (um sistema minusculo e suave venceria um bom), e agora tambem
-# 7 ProfitPerTradeAdjustedByDD e 2 Profit puro -- ver correcoes acima.
+# 1.0 e o genetico perde gradiente no topo), e agora tambem 7 ProfitPerTrade
+# AdjustedByDD e 2 Profit puro -- ver correcoes acima. 11 ReturnUniformity
+# saiu desta lista em 2026-08-23 (ver acima), continua fora pros demais
+# sistemas por falta de teste, nao por reprovacao.
 FORMULA_POR_SISTEMA = {
     "01_SLTP": 10, "02_SLTP_ORGANIC": 4,
-    "03_TRAIL_ONLY": 5, "04_SLTP_TRAIL": 5, "05_BE_TRAIL": 6,
+    # 2026-08-23: sweep completo das 14 formulas em XAUUSD (03_TRAIL_ONLY,
+    # 3 meses, --deposit 10000) + confirmacao das 3 melhores (Profit,
+    # PessimisticProfit, ReturnUniformity) em BTCUSD/USDJPY. ReturnUniformity
+    # venceu: aprovado em 2/3 ativos (XAUUSD 67.2%, USDJPY 314.7%) com
+    # retencao muito mais forte que Profit (tambem 2/3, mas 38.2%/153.3%).
+    # PessimisticProfit so aprovou 1/3 apesar de retencao Fixed-R altissima
+    # (ate 446.17% no USDJPY) -- nao sobrevive a prova em % na maioria dos
+    # casos. Nenhuma formula aprovou em BTCUSD. 05_BE_TRAIL NAO foi testado
+    # neste sweep, mantido como estava por falta de evidencia.
+    "03_TRAIL_ONLY": 11, "04_SLTP_TRAIL": 5, "05_BE_TRAIL": 6,
     "06_REVERSAL_EXIT": 5,
     # 2026-08-04: testado Profit puro (2) guiando a busca do grid, com
     # GridSurvivalScore (1) so como filtro externo pos-busca -- comparado
