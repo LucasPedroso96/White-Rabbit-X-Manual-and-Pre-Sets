@@ -87,22 +87,21 @@ python sweep_formulas.py --sistema 06_REVERSAL_EXIT --simbolo EURGBP --deposit 1
 python sweep_formulas.py --sistema 11_SIGNAL_ONLY   --simbolo XAUUSD --deposit 10000
 ```
 
-## Isolamento de janela (opcional, recomendado)
+## Foco da janela durante o sweep
 
 O MT5 relanca uma vez por candidato do torneio de retencao -- um sweep de
-14 formulas facilmente passa de uma centena de relancamentos, e cada um
-pode flashear foco por um instante mesmo minimizado. `mt5_runner.py`
-manda a janela pro desktop virtual isolado "WRX-MT5-Isolado" automaticamente
-se o modulo `VirtualDesktop` (Markus Scholtes, PSGallery, MIT) estiver
-instalado:
+14 formulas facilmente passa de uma centena de relancamentos, e o MT5 pode
+flashear foco por um instante mesmo lancado minimizado (SW_SHOWMINNOACTIVE).
+`mt5_runner.py` ja devolve o foco automaticamente pra janela que estava
+ativa antes de cada launch (`_manter_foco()`, so ctypes/user32) -- nao
+precisa instalar nada, nao ha setup.
 
-```
-Install-Module -Name VirtualDesktop -Scope CurrentUser -Force
-```
-
-Sem o modulo instalado o sweep roda normalmente do mesmo jeito -- so volta
-a flashear foco no desktop principal como antes. Nao e obrigatorio, so
-evita a interrupcao.
+Tentativa anterior usava um desktop virtual isolado (modulo `VirtualDesktop`
+de terceiros) -- abandonada, 2026-08-23: quando o MT5 se auto-ativa no
+proprio boot, o Windows troca o desktop ATIVO do usuario pra mostrar a
+janela, puxando a tela inteira junto, e ainda corrompeu alguns passes com
+"relatorio vazio". A tecnica atual nunca move janela nem desktop, so
+restaura o foco -- mais simples e sem esse risco.
 
 ## Depois do sweep
 
