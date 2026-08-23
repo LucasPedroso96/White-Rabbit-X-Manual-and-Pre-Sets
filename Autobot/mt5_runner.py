@@ -11,7 +11,9 @@ Por isso a checagem vive aqui e nao no comentario de cada script.
 """
 from __future__ import annotations
 
+import ctypes
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -87,35 +89,36 @@ def garantir_terminal_livre(fechar: bool = False) -> None:
         "do terminal -- na ordem inversa ele simplesmente abre outro.")
 
 
-def _isolar_janela(pid: int) -> None:
-    """Manda a janela do processo recem-lancado pro desktop virtual isolado
-    (wrx_desktop_isolado.ps1, modulo VirtualDesktop de Markus Scholtes),
-    pra relancamentos em sequencia pararem de tirar o foco de quem esta
-    trabalhando na maquina.
+def _manter_foco(hwnd_original: int, duracao_s: float = 10.0) -> None:
+    """Devolve o foco pra janela que estava ativa ANTES do terminal abrir,
+    toda vez que ele mudar, por alguns segundos apos o launch.
 
-    Achado do dono, 2026-08-23: mesmo com SW_SHOWMINNOACTIVE (ver
-    lancar_terminal), o MT5 ainda flasheia foco no proprio boot -- e o
-    torneio de retencao relanca o terminal uma vez POR CANDIDATO, entao um
-    sweep de 14 formulas facilmente passa de uma centena de relancamentos.
+    Substitui a tentativa anterior (mover a janela pro desktop virtual
+    isolado, 2026-08-23): aquilo movia a TELA INTEIRA do usuario quando o
+    MT5 se auto-ativava no boot (o Windows troca o desktop ativo pra
+    mostrar quem pediu foco) e ainda corrompeu passes com "relatorio
+    vazio" -- achado do dono no mesmo dia. Essa versao nunca move nada,
+    so restaura o foco de volta -- sem desktop virtual, sem VM, sem
+    dependencia externa (so ctypes/user32, nada pra instalar).
 
-    Fogo-e-esquece, best-effort: nao bloqueia o launch nem propaga erro. Se
-    o pwsh ou o modulo VirtualDesktop nao estiver disponivel nesta maquina,
-    o pior caso e a janela aparecer no desktop principal como sempre foi --
-    nunca um teste que deixa de rodar por causa disso. CREATE_NO_WINDOW
-    evita que o proprio helper pisque um console -- trocaria um flash pelo
-    outro.
+    Roda numa thread separada, fogo-e-esquece: o Windows pode recusar
+    SetForegroundWindow vindo de um processo em segundo plano (protecao
+    de foco do proprio SO) -- se recusar, o pior caso e o comportamento
+    de sempre (MT5 rouba o foco por um instante), nunca um teste quebrado,
+    porque isso nunca toca no processo do terminal nem no /config.
     """
-    script = Path(__file__).resolve().parent / "wrx_desktop_isolado.ps1"
-    if not script.exists():
+    if not hwnd_original:
         return
-    try:
-        subprocess.Popen(  # noqa: S603
-            ["pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass",
-             "-File", str(script), "-ProcessoPid", str(pid)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW)
-    except OSError:
-        pass
+    user32 = ctypes.windll.user32
+    fim = time.monotonic() + duracao_s
+    while time.monotonic() < fim:
+        try:
+            atual = user32.GetForegroundWindow()
+            if atual and atual != hwnd_original:
+                user32.SetForegroundWindow(hwnd_original)
+        except OSError:
+            return
+        time.sleep(0.2)
 
 
 def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
@@ -128,9 +131,9 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
     (6), que ativa antes de minimizar e ainda rouba o foco por um instante.
     O processo continua visivel na barra de tarefas; nada aqui esconde o
     terminal, so evita que ele interrompa o que esta em primeiro plano.
-    Complementado por `_isolar_janela()`: move a janela pro desktop virtual
-    isolado assim que ela existe, pra sequencias longas de relancamento
-    (torneio, sweep de formula) pararem de flashear foco de vez.
+    Complementado por `_manter_foco()`: se o MT5 mesmo assim se auto-ativar
+    no proprio boot, devolve o foco pra quem estava em primeiro plano antes
+    do launch, por alguns segundos.
 
     `args_extra` repassa flags adicionais (`/report:...` etc.) que alguns
     chamadores precisam junto do `/config:`.
@@ -162,16 +165,16 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
     info = subprocess.STARTUPINFO()
     info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     info.wShowWindow = 7  # SW_SHOWMINNOACTIVE
-    # Popen em vez de run(): precisa do PID pra mandar a janela pro desktop
-    # isolado assim que o processo existe, sem esperar o teste inteiro
-    # terminar. O try/except abaixo replica o mesmo comportamento que
-    # run(timeout=...) ja dava de graca (mata o processo e engole a
-    # excecao) -- nao e uma mudanca de contrato pra quem chama.
+    hwnd_antes = ctypes.windll.user32.GetForegroundWindow()
+    # Popen em vez de run(): a thread de _manter_foco roda em paralelo ao
+    # teste, nao espera ele terminar. O try/except abaixo replica o mesmo
+    # comportamento que run(timeout=...) ja dava de graca (mata o processo
+    # e engole a excecao) -- nao e uma mudanca de contrato pra quem chama.
     proc = subprocess.Popen(  # noqa: S603
         [str(terminal), f"/config:{ini}", *args_extra],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         startupinfo=info)
-    _isolar_janela(proc.pid)
+    threading.Thread(target=_manter_foco, args=(hwnd_antes,), daemon=True).start()
     try:
         proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
