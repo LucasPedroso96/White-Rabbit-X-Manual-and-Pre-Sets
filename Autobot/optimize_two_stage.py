@@ -876,12 +876,26 @@ def ler_todas_formulas(log: str) -> list[dict]:
 
     Funcao separada de proposito, mesmo padrao de ler_metricas: testa em
     milissegundos contra um log gravado, sem precisar do MT5.
+
+    Linha malformada e pulada, nunca propagada (achado do dono, 2026-08-22:
+    ValueError 'could not convert string to float: -' derrubou o combo
+    inteiro). O regex de _PADRAO_ALL_FORMULAS aceita um "-" sozinho como campo -- sintoma
+    de colisao de escrita entre os ate 14 agentes locais gravando no MESMO
+    arquivo compartilhado (FILE_COMMON, ver limpar_todas_formulas()): rara,
+    mas nao impossivel, mesma ressalva que magic_estavel() ja faz sobre
+    colisao de hash. Um passe sem leitura valida de formula so perde a nota
+    externa DESSE passe (cai pro `if f is None` em priorizar_lucro_no_topo/
+    reordenar_por_formula) -- nao motivo pra derrubar o combo inteiro que
+    ja levou dezenas de minutos de busca genetica de verdade.
     """
     saida = []
     for m in _PADRAO_ALL_FORMULAS.finditer(log):
         valores = m.groups()
-        d = {campo: (int(v) if campo == "trades" else float(v))
-             for campo, v in zip(_CAMPOS_ALL_FORMULAS, valores)}
+        try:
+            d = {campo: (int(v) if campo == "trades" else float(v))
+                for campo, v in zip(_CAMPOS_ALL_FORMULAS, valores)}
+        except ValueError:
+            continue
         saida.append(d)
     return saida
 
