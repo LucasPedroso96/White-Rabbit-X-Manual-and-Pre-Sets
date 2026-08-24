@@ -896,6 +896,46 @@ def campo_da_formula(sistema: str) -> str:
     return _CAMPO_POR_INDICE_FORMULA[indice]
 
 
+_PADRAO_SELECTED_FORMULA = re.compile(r"selectedFormula=(\d+)\|\|")
+
+
+def indice_formula_do_set(caminho: Path) -> int | None:
+    """Le o indice REAL gravado em selectedFormula no .set de origem --
+    mesmo padrao que sweep_formulas.py escreve ao reescrever o .set pra
+    testar uma formula especifica. None se o arquivo nao existir ou o
+    padrao nao for encontrado (set antigo sem esse input, etc.).
+    """
+    try:
+        texto = caminho.read_text(encoding="utf-16")
+    except OSError:
+        return None
+    m = _PADRAO_SELECTED_FORMULA.search(texto)
+    return int(m.group(1)) if m else None
+
+
+def campo_da_formula_ativa(sistema: str, origem: Path) -> str:
+    """Como campo_da_formula(), mas prefere o indice REALMENTE escrito no
+    .set de origem sobre FORMULA_POR_SISTEMA -- fonte de verdade do que o
+    genetico esta evoluindo NESTE combo especifico.
+
+    Existe porque sweep_formulas.py reescreve selectedFormula no .set pra
+    testar cada uma das 14 formulas SEM regenerar os sets (sem atualizar
+    FORMULA_POR_SISTEMA) -- achado do dono, 2026-08-24, testando Profit x
+    ReturnUniformity em GBPUSD: sem isso, o corte de elegibilidade
+    continuaria filtrando por ReturnUniformity (o valor de producao) mesmo
+    testando Profit, contaminando a comparacao com a MESMA classe de bug
+    que campo_da_formula() corrigiu pra producao.
+    """
+    indice = indice_formula_do_set(origem)
+    if indice is None:
+        indice = FORMULA_POR_SISTEMA[sistema]
+    if indice not in _CAMPO_POR_INDICE_FORMULA:
+        raise KeyError(
+            f"sistema {sistema!r} usa indice de formula {indice}, sem "
+            "campo mapeado em _CAMPO_POR_INDICE_FORMULA.")
+    return _CAMPO_POR_INDICE_FORMULA[indice]
+
+
 def ler_todas_formulas(log: str) -> list[dict]:
     """Le TODAS as linhas ALL_FORMULAS de um log, uma por passe (ordem de
     execucao, nao a ordem do relatorio).
@@ -1516,7 +1556,7 @@ def main() -> int:
         # E ELEGIVEL (piso), o lucro decide quem VENCE dentro do topo --
         # "campeao por indicador" abaixo pega o primeiro de cada grupo,
         # entao a ordem aqui decide quem representa cada indicador.
-        melhores = priorizar_lucro_no_topo(cab, melhores, campo=campo_da_formula(args.sistema))
+        melhores = priorizar_lucro_no_topo(cab, melhores, campo=campo_da_formula_ativa(args.sistema, origem))
 
     # A regiao vencedora sai de um torneio de retencao, um campeao POR
     # INDICADOR: pegar melhores[0] escolheria por lucro in-sample -- o criterio
@@ -1584,7 +1624,7 @@ def main() -> int:
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
         # Formula de risco decide o piso de elegibilidade pro torneio de
         # retencao; lucro decide o vencedor dentro do topo elegivel.
-        finais = priorizar_lucro_no_topo(cab, finais, campo=campo_da_formula(args.sistema))
+        finais = priorizar_lucro_no_topo(cab, finais, campo=campo_da_formula_ativa(args.sistema, origem))
     print(f"    {(time.time()-t0)/60:.0f} min | aptos: {len(finais)} de {len(linhas)}",
           flush=True)
     if not finais:
@@ -1733,7 +1773,7 @@ def main() -> int:
                                 args.timeout)
         geo_ok = (base.escolher_candidatos(cab_g, linhas_g, args.min_trades,
                                            args.min_pf) if linhas_g else [])
-        geo_ok = (priorizar_lucro_no_topo(cab_g, geo_ok, campo=campo_da_formula(args.sistema))
+        geo_ok = (priorizar_lucro_no_topo(cab_g, geo_ok, campo=campo_da_formula_ativa(args.sistema, origem))
                  if geo_ok else geo_ok)
         print(f"    {(time.time()-t0)/60:.1f} min | aptos: {len(geo_ok)} de "
               f"{len(linhas_g)}", flush=True)
