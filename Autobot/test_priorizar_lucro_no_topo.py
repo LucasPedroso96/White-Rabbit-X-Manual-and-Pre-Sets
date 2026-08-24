@@ -15,8 +15,11 @@ reordena SO essa fatia por lucro, sem tocar quem ficou de fora do corte.
 from __future__ import annotations
 
 import sys
+import tempfile
+from pathlib import Path
 
-from optimize_two_stage import _priorizar_lucro_na_fatia, campo_da_formula
+from optimize_two_stage import (_priorizar_lucro_na_fatia, campo_da_formula,
+                                campo_da_formula_ativa, indice_formula_do_set)
 
 FALHAS: list[str] = []
 
@@ -82,6 +85,27 @@ try:
     FALHAS.append("campo_da_formula: sistema desconhecido deveria levantar KeyError")
 except KeyError:
     pass
+
+# --- campo_da_formula_ativa: prefere o indice REAL do .set (sweep reescreve --
+# selectedFormula sem tocar FORMULA_POR_SISTEMA -- achado do dono, 2026-08-24,
+# testando Profit x ReturnUniformity em GBPUSD sem regenerar sets) ----------
+with tempfile.TemporaryDirectory() as tmp:
+    set_profit = Path(tmp) / "profit.set"
+    set_profit.write_text("selectedFormula=2||2||1||2||N\r\n", encoding="utf-16")
+    checar("indice_formula_do_set le o indice real do .set",
+           indice_formula_do_set(set_profit), 2)
+    checar("campo_da_formula_ativa usa o .set (Profit), nao FORMULA_POR_SISTEMA "
+           "(ReturnUniformity) pro 03_TRAIL_ONLY",
+           campo_da_formula_ativa("03_TRAIL_ONLY", set_profit), "profit_formula")
+
+    set_sem_campo = Path(tmp) / "vazio.set"
+    set_sem_campo.write_text("OutroInput=1||1||1||1||N\r\n", encoding="utf-16")
+    checar("campo_da_formula_ativa cai pra FORMULA_POR_SISTEMA quando o .set "
+           "nao tem selectedFormula",
+           campo_da_formula_ativa("03_TRAIL_ONLY", set_sem_campo), "return_uniformity")
+
+    checar("indice_formula_do_set: arquivo inexistente devolve None",
+           indice_formula_do_set(Path(tmp) / "nao_existe.set"), None)
 
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")
