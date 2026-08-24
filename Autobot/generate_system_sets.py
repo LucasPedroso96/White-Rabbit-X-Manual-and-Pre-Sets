@@ -735,7 +735,14 @@ def apply_sizing_and_formula(p: Profile, system: str, ac: AssetClass) -> None:
         # a depender de quanto havia na conta naquele dia -- o mesmo set daria
         # resultados diferentes em contas diferentes.
         p.fix("CapitalBaseR", ac.capital_base)
-        p.fix("MaxRiscoTradeR", 0)       # sem teto artificial na pesquisa
+        # 2026-08-24: era 0 ("sem teto artificial na pesquisa") -- achado do
+        # dono, isso deixava o campo permanentemente inerte em QUALQUER set
+        # que a biblioteca gera (unico lugar do repo que grava esse input).
+        # 3.0 preserva a intencao original (nao aperta a busca genetica --
+        # nenhum candidato bem-comportado chega perto de arriscar 3x o 1R
+        # nominal) e ainda funciona como circuit-breaker de ultima instancia
+        # contra martingale/pyramid perdendo o controle. Ajustavel.
+        p.fix("MaxRiscoTradeR", 3.0)
     else:
         p.fix("PositionSizeMode", 2)     # Fixed Lot
         p.fix("PositionSizeValue", 0.01)
