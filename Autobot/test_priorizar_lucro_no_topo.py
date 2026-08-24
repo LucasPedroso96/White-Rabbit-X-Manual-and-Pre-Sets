@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import sys
 
-from optimize_two_stage import _priorizar_lucro_na_fatia
+from optimize_two_stage import _priorizar_lucro_na_fatia, campo_da_formula
 
 FALHAS: list[str] = []
 
@@ -65,6 +65,23 @@ checar("sem coluna Profit: inalterado", sem_profit, [["1", "5"]])
 
 # --- lista vazia: devolve vazio, sem excecao ---------------------------------
 checar("lista vazia", _priorizar_lucro_na_fatia(CAB, [], 0.5, 1), [])
+
+# --- campo_da_formula: cada sistema afetado usa a formula REAL dele, nao --
+# GridSurvivalScore hardcoded (achado do dono, 2026-08-24) -----------------
+checar("07_GRID_SEPARATE usa resilience_dd, nao grid_survival",
+       campo_da_formula("07_GRID_SEPARATE"), "resilience_dd")
+checar("12_GRID_INVERSO usa resilience_dd, nao grid_survival",
+       campo_da_formula("12_GRID_INVERSO"), "resilience_dd")
+checar("03_TRAIL_ONLY usa return_uniformity, nao grid_survival",
+       campo_da_formula("03_TRAIL_ONLY"), "return_uniformity")
+checar("05_BE_TRAIL usa profit_rel_dd_deposit, nao grid_survival",
+       campo_da_formula("05_BE_TRAIL"), "profit_rel_dd_deposit")
+
+try:
+    campo_da_formula("99_INEXISTENTE")
+    FALHAS.append("campo_da_formula: sistema desconhecido deveria levantar KeyError")
+except KeyError:
+    pass
 
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")

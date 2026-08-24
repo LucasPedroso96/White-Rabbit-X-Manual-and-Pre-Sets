@@ -89,6 +89,7 @@ from pathlib import Path
 import custo_nativo
 import monte_carlo_wrx
 import optimize_sets as base
+from generate_system_sets import FORMULA_POR_SISTEMA
 from mt5_runner import garantir_terminal_livre, lancar_terminal
 
 AQUI = Path(__file__).resolve().parent
@@ -862,6 +863,38 @@ _CAMPOS_ALL_FORMULAS = [
     "levain_composite", "soma_r",
 ]
 
+# indice de formula (mesmo enum CustomFormulaType do .mq5, mesmo valor
+# gravado em selectedFormula no .set por FORMULA_POR_SISTEMA) -> campo de
+# _CAMPOS_ALL_FORMULAS. Derivado da propria lista (posicoes 7-20, mesma
+# ordem do enum) em vez de duplicado a mao -- nunca desalinha se
+# _CAMPOS_ALL_FORMULAS mudar.
+_CAMPO_POR_INDICE_FORMULA: dict[int, str] = dict(
+    enumerate(_CAMPOS_ALL_FORMULAS[7:21], start=1))
+
+
+def campo_da_formula(sistema: str) -> str:
+    """Campo de _CAMPOS_ALL_FORMULAS que corresponde a formula que
+    REALMENTE guia a busca genetica de `sistema` (FORMULA_POR_SISTEMA em
+    generate_system_sets.py, mesmo indice gravado em selectedFormula no
+    .set).
+
+    Existe porque priorizar_lucro_no_topo()/reordenar_por_formula()
+    decidiam ELEGIBILIDADE sempre por GridSurvivalScore (default antigo,
+    nunca trocado) mesmo em sistemas guiados por outra formula -- achado do
+    dono, 2026-08-24: 03_TRAIL_ONLY usa ReturnUniformity, 05_BE_TRAIL usa
+    ProfitRelativeToDDAndDeposit, 07_GRID_SEPARATE/12_GRID_INVERSO usam
+    ResilienceToDrawdown, mas o corte de elegibilidade que antecede a
+    repriorizacao por lucro continuava ordenando pela formula ERRADA --
+    podia descartar candidatos que a formula real preferia antes deles
+    chegarem a ser considerados pelo torneio de retencao.
+    """
+    indice = FORMULA_POR_SISTEMA[sistema]
+    if indice not in _CAMPO_POR_INDICE_FORMULA:
+        raise KeyError(
+            f"sistema {sistema!r} usa indice de formula {indice}, sem "
+            "campo mapeado em _CAMPO_POR_INDICE_FORMULA.")
+    return _CAMPO_POR_INDICE_FORMULA[indice]
+
 
 def ler_todas_formulas(log: str) -> list[dict]:
     """Le TODAS as linhas ALL_FORMULAS de um log, uma por passe (ordem de
@@ -957,7 +990,7 @@ def carregar_todas_formulas() -> list[dict]:
 
 
 def reordenar_por_formula(cab: list[str], linhas: list[list[str]],
-                          campo: str = "grid_survival") -> list[list[str]]:
+                          campo: str) -> list[list[str]]:
     """Reordena as linhas do relatorio pela formula EXTERNA (arquivo que a
     EA grava via FileWrite), em vez da ordem nativa do genetico.
 
@@ -988,7 +1021,7 @@ def reordenar_por_formula(cab: list[str], linhas: list[list[str]],
 
 
 def priorizar_lucro_no_topo(cab: list[str], linhas: list[list[str]],
-                            campo: str = "grid_survival",
+                            campo: str,
                             corte_pct: float = 0.20,
                             minimo: int = 10) -> list[list[str]]:
     """Formula pura decide quem E ELEGIVEL; lucro decide quem VENCE entre os
@@ -1483,7 +1516,7 @@ def main() -> int:
         # E ELEGIVEL (piso), o lucro decide quem VENCE dentro do topo --
         # "campeao por indicador" abaixo pega o primeiro de cada grupo,
         # entao a ordem aqui decide quem representa cada indicador.
-        melhores = priorizar_lucro_no_topo(cab, melhores)
+        melhores = priorizar_lucro_no_topo(cab, melhores, campo=campo_da_formula(args.sistema))
 
     # A regiao vencedora sai de um torneio de retencao, um campeao POR
     # INDICADOR: pegar melhores[0] escolheria por lucro in-sample -- o criterio
@@ -1551,7 +1584,7 @@ def main() -> int:
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
         # Formula de risco decide o piso de elegibilidade pro torneio de
         # retencao; lucro decide o vencedor dentro do topo elegivel.
-        finais = priorizar_lucro_no_topo(cab, finais)
+        finais = priorizar_lucro_no_topo(cab, finais, campo=campo_da_formula(args.sistema))
     print(f"    {(time.time()-t0)/60:.0f} min | aptos: {len(finais)} de {len(linhas)}",
           flush=True)
     if not finais:
@@ -1700,7 +1733,8 @@ def main() -> int:
                                 args.timeout)
         geo_ok = (base.escolher_candidatos(cab_g, linhas_g, args.min_trades,
                                            args.min_pf) if linhas_g else [])
-        geo_ok = priorizar_lucro_no_topo(cab_g, geo_ok) if geo_ok else geo_ok
+        geo_ok = (priorizar_lucro_no_topo(cab_g, geo_ok, campo=campo_da_formula(args.sistema))
+                 if geo_ok else geo_ok)
         print(f"    {(time.time()-t0)/60:.1f} min | aptos: {len(geo_ok)} de "
               f"{len(linhas_g)}", flush=True)
         if geo_ok:
