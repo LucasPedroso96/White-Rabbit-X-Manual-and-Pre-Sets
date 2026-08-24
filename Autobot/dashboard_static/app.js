@@ -2245,7 +2245,9 @@ document.querySelector("#tbl-implantacao").addEventListener("click", (ev) => {
   document.getElementById(idGraf)?.classList.toggle("linha-oculta");
   if (abrindo) {
     const set = implantacaoSets.find((s) => s.chave === chave);
-    if (set) carregarResumoRelatorio(set.relatorio_dir, "sobrevivencia", "resumo-" + idGraf);
+    if (set) carregarResumoRelatorio(
+      set.relatorio_dir, set.sobrevivencia_grafico ? "sobrevivencia" : "conf_wrx",
+      "resumo-" + idGraf);
   }
 });
 
@@ -2271,24 +2273,36 @@ async function carregarImplantacao() {
       <td><label style="display:inline-flex;align-items:center;gap:4px">
         <input type="checkbox" class="chk-deployed" value="${s.chave}" ${s.implantado ? "checked" : ""}
           ${s.certificado ? "" : "disabled"}> deployed</label></td>
-      <td>${s.sobrevivencia_grafico
+      <td>${s.certificado
         ? `<button class="acao secundario" style="padding:2px 8px;font-size:11px" data-grafico="${s.chave}">chart</button>`
         : ""}</td>
       <td class="em-prova-cell" data-chave="${s.chave}">${s.implantado ? "…" : "-"}</td>
     </tr>`;
-    const linhaGrafico = s.sobrevivencia_grafico ? `
+    // Grid/martingale/dalembert passam pelo gate de sobrevivencia (periodo
+    // completo, sem WFO) e tem sobrevivencia.*; sistemas fora disso (trail,
+    // SL nativo por posicao, nao precisam do gate) so tem o conf_wrx.* --
+    // o passe de confirmacao em tick real da JANELA OOS (achado do dono,
+    // 2026-08-24: "chart" nunca aparecia pra eles, so pro grupo com gate).
+    // Rotulado como OOS de proposito -- nunca misturar com o grafico de
+    // periodo completo, e exatamente a confusao que lucro_oos vs
+    // sobrevivencia_saldo_final ja existe pra evitar.
+    const prefixoGrafico = s.sobrevivencia_grafico ? "sobrevivencia" : "conf_wrx";
+    const legendaGrafico = s.sobrevivencia_grafico
+      ? "Full-period equity curve (the one the survival gate actually measured — not the short OOS window):"
+      : "OOS window equity curve (tick-real confirmation pass — this system has native per-position SL, so it doesn't run the full-period survival gate; this is NOT the full-period result):";
+    const linhaGrafico = s.certificado ? `
     <tr id="${idGraf}" class="linha-detalhe ${oculta}"><td colspan="11">
       <div id="resumo-${idGraf}" class="detalhe-grid"><span class="status-msg">loading summary...</span></div>
       <div class="detalhe-grid" style="margin-top:8px">
-        <span>Full-period equity curve (the one the survival gate actually measured — not the short OOS window):</span>
-        <img src="/relatorios/${s.relatorio_dir}/sobrevivencia.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Full-period equity curve">
+        <span>${legendaGrafico}</span>
+        <img src="/relatorios/${s.relatorio_dir}/${prefixoGrafico}.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Equity curve">
         <span>Equity/balance history:</span>
-        <img src="/relatorios/${s.relatorio_dir}/sobrevivencia-hst.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Equity/balance history" onerror="this.style.display='none'">
+        <img src="/relatorios/${s.relatorio_dir}/${prefixoGrafico}-hst.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Equity/balance history" onerror="this.style.display='none'">
         <span>MFE/MAE scatter:</span>
-        <img src="/relatorios/${s.relatorio_dir}/sobrevivencia-mfemae.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="MFE/MAE scatter" onerror="this.style.display='none'">
+        <img src="/relatorios/${s.relatorio_dir}/${prefixoGrafico}-mfemae.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="MFE/MAE scatter" onerror="this.style.display='none'">
         <span>Position holding time:</span>
-        <img src="/relatorios/${s.relatorio_dir}/sobrevivencia-holding.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Position holding time" onerror="this.style.display='none'">
-        <span><a href="/relatorios/${s.relatorio_dir}/sobrevivencia.htm" target="_blank">full report ↗</a></span>
+        <img src="/relatorios/${s.relatorio_dir}/${prefixoGrafico}-holding.png" style="max-width:100%;border:1px solid var(--line);border-radius:6px;margin-top:4px" alt="Position holding time" onerror="this.style.display='none'">
+        <span><a href="/relatorios/${s.relatorio_dir}/${prefixoGrafico}.htm" target="_blank">full report ↗</a></span>
       </div></td></tr>` : "";
     return linhaPrincipal + linhaGrafico;
   }).join("")
