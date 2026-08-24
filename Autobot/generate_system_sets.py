@@ -743,6 +743,16 @@ def apply_sizing_and_formula(p: Profile, system: str, ac: AssetClass) -> None:
         # nominal) e ainda funciona como circuit-breaker de ultima instancia
         # contra martingale/pyramid perdendo o controle. Ajustavel.
         p.fix("MaxRiscoTradeR", 3.0)
+    elif system == "11_SIGNAL_ONLY":
+        # Sem SL por desenho (mede o sinal cru), entao nao entra em
+        # r_capable (nao ha R pra medir) -- mas MM_SizeMonetary() no .mq5
+        # nao exige stop, entao Monetary e viavel sem tocar o EA. Antes
+        # ficava agrupado com 07_GRID_SEPARATE (que SIM tem restricao real
+        # do .mq5) no else generico -- achado do dono, 2026-08-24.
+        # capital_base pra manter consistencia com CapitalBaseR dos outros
+        # 8 sistemas, nao um numero novo as cegas.
+        p.fix("PositionSizeMode", 1)     # Monetary
+        p.fix("PositionSizeValue", ac.capital_base)
     else:
         p.fix("PositionSizeMode", 2)     # Fixed Lot
         p.fix("PositionSizeValue", 0.01)
