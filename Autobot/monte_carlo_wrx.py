@@ -56,13 +56,23 @@ def _ler_param(caminho: Path, nome: str) -> str | None:
 
 def trades_em_r(relatorio_htm: Path, caminho_set: Path) -> pd.Series | None:
     """Le o relatorio e converte lucro (dinheiro) em R usando o 1R do proprio
-    set: RiscoPorTradePct% de CapitalBaseR -- o mesmo g_valorR que a EA usa
+    set: PositionSizeValue% de CapitalBaseR -- o mesmo g_valorR que a EA usa
     para dimensionar (ver PrintFormat "Fixed-R mode enabled" no .mq5).
 
-    None quando o sistema nao roda em Fixed-R (RiscoRFixo=false: grid,
+    None quando o sistema nao roda em Fixed-R (PositionSizeMode != 3: grid,
     martingale, d'alembert) ou quando o relatorio nao tem trades legiveis.
+
+    Achado do dono, 2026-08-28: esta funcao checava RiscoRFixo/
+    RiscoPorTradePct no .set -- mas sao variaveis INTERNAS da EA (bool/double
+    sem `input`, .mq5 linha ~453/456), derivadas em runtime a partir de
+    PositionSizeMode (linha ~7643) e NUNCA gravadas em nenhum .set. A funcao
+    sempre devolvia None, o Monte Carlo nunca rodava (mc_aprovado sempre
+    default True), e nenhum sistema Fixed-R testado ate aqui teve esse gate
+    de verdade ativo -- corrigido pra checar as chaves que realmente existem
+    no .set (mesma logica de modo_de_sizing()/r_capavel ja usada em
+    optimize_two_stage.py).
     """
-    if _ler_param(caminho_set, "RiscoRFixo") != "true":
+    if _ler_param(caminho_set, "PositionSizeMode") != "3":
         return None
     trades = ler_html(relatorio_htm)
     if trades is None or trades.empty:
@@ -74,7 +84,7 @@ def trades_em_r(relatorio_htm: Path, caminho_set: Path) -> pd.Series | None:
     if len(fechados) == 0:
         return None
     capital_base = _ler_param(caminho_set, "CapitalBaseR")
-    risco_pct = _ler_param(caminho_set, "RiscoPorTradePct")
+    risco_pct = _ler_param(caminho_set, "PositionSizeValue")
     if capital_base is None or risco_pct is None:
         return None
     try:
