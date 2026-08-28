@@ -289,7 +289,8 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
 # contrario, sem trail/breakeven nenhum -- nao ha geometria de saida pra
 # rebuscar, a divergencia dele (se houver) e de outra natureza.
 SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE", "12_GRID_INVERSO",
-                                "03_TRAIL_ONLY", "05_BE_TRAIL"}
+                                "03_TRAIL_ONLY", "05_BE_TRAIL",
+                                "04_SLTP_TRAIL"}
 EIXOS_GEOMETRIA_TICK_REAL = {
     "07_GRID_SEPARATE": ["Take", "DistanciaMinima", "VelaTake",
                          "UsarsomenteATRGRID"],
@@ -299,6 +300,19 @@ EIXOS_GEOMETRIA_TICK_REAL = {
     "03_TRAIL_ONLY": ["Trail", "TrailVela", "MetodoDeCalculo"],
     "05_BE_TRAIL": ["Trail", "TrailVela", "MetodoDeCalculo",
                     "BreakevenDistancia"],
+    # 04_SLTP_TRAIL entrou em 2026-08-27 (achado do dono): unico irmao da
+    # familia trend fora desta protecao -- zerou 4/4 na confirmacao de 1
+    # ano, sempre por divergencia, nunca por retencao (163%-368%, bem acima
+    # do piso). AtivarTrailATR/AtivarTake/AtivarStop cravados true (N) no
+    # .set origem -- geometria mais completa da familia (SL+TP fixos +
+    # trailing + breakeven opcional), o cenario de maior ambiguidade
+    # O->H->L->C. BreakevenDistancia entra mesmo com AtivarBreakeven
+    # otimizavel (Y): GATES ja filtra dinamicamente por candidato, entao
+    # incluir aqui e seguro mesmo quando o vencedor especifico tiver
+    # breakeven desligado.
+    "04_SLTP_TRAIL": ["Stop", "VelaStop", "Take", "VelaTake",
+                      "Trail", "TrailVela", "MetodoDeCalculo",
+                      "BreakevenDistancia"],
 }
 
 # Gate de sobrevivencia de periodo completo (dono, 2026-08-08): DESACOPLADO
@@ -558,6 +572,26 @@ def janelas_wfo(inicio: str, fim: str, ciclos_alvo: int = 6) -> dict[str, str]:
         "wfo_stepSize": "-1",
         "wfo_customStepSizePercent": str(-oos_dias),   # negativo = dias fixos
     }
+
+
+def piso_trades_da_janela(inicio: str, fim: str, taxa_anual: float,
+                          piso_minimo: int = 30) -> int:
+    """Deriva o piso de trades do Estagio 2+ a partir da duracao REAL
+    testada, no lugar do piso absoluto --min-trades (default 100,
+    calibrado pra corridas multi-ano). Achado do dono, 2026-08-27:
+    sweep_formulas.py roda esse piso em janelas de 92 dias -- 100 trades
+    em 92 dias e uma barra muito mais dura que 100 trades em 3+ anos, e e
+    a causa mais provavel de "nenhum candidato" em sistemas de reversao a
+    media (09_MARTINGALE/10_DALEMBERT, AUDNZD).
+
+    piso_minimo=30 espelha o piso1 ja aceito no Estagio 1 (linha ~1451,
+    max(30, min_trades//3)) -- uma janela curtissima nao deriva pra um
+    numero absurdo.
+    """
+    d0 = datetime.strptime(inicio, "%Y.%m.%d")
+    d1 = datetime.strptime(fim, "%Y.%m.%d")
+    dias = max(1, (d1 - d0).days)
+    return max(piso_minimo, round(taxa_anual * dias / 365))
 
 
 def conferir_set(caminho: Path, travados: dict[str, str]) -> list[str]:
@@ -1386,6 +1420,11 @@ def main() -> int:
     ap.add_argument("--deposit", type=int, default=500)
     ap.add_argument("--min-trades", type=int, default=100)
     ap.add_argument("--min-pf", type=float, default=1.2)
+    # Opt-in (dono, 2026-08-27): ver piso_trades_da_janela(). Quando passado,
+    # SUBSTITUI --min-trades por um piso derivado de --from/--to; --min-pf
+    # fica intocado de proposito -- PF e razao, nao contagem, e afrouxar PF
+    # numa janela curta so aumenta risco de curve-fit.
+    ap.add_argument("--min-trades-per-year", type=float, default=None)
     # 30% e um piso de partida, nao um numero derivado: a literatura de walk-
     # forward costuma tratar 50%+ como bom e abaixo de 30% como fraco. Fica
     # exposto na linha de comando justamente para ser calibrado com a
@@ -1398,6 +1437,16 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=21600)
     ap.add_argument("--fechar-terminal", action="store_true")
     args = ap.parse_args()
+
+    if args.min_trades_per_year is not None:
+        piso_antigo = args.min_trades
+        args.min_trades = piso_trades_da_janela(args.inicio, args.fim,
+                                                args.min_trades_per_year)
+        dias = (datetime.strptime(args.fim, "%Y.%m.%d")
+                - datetime.strptime(args.inicio, "%Y.%m.%d")).days
+        print(f"    --min-trades-per-year={args.min_trades_per_year:g} | janela "
+              f"{args.inicio}..{args.fim} ({dias}d) -> piso de {args.min_trades} "
+              f"trades (era --min-trades={piso_antigo})", flush=True)
 
     garantir_terminal_livre(fechar=args.fechar_terminal)
 
@@ -1625,8 +1674,8 @@ def main() -> int:
         # Formula de risco decide o piso de elegibilidade pro torneio de
         # retencao; lucro decide o vencedor dentro do topo elegivel.
         finais = priorizar_lucro_no_topo(cab, finais, campo=campo_da_formula_ativa(args.sistema, origem))
-    print(f"    {(time.time()-t0)/60:.0f} min | aptos: {len(finais)} de {len(linhas)}",
-          flush=True)
+    print(f"    {(time.time()-t0)/60:.0f} min | aptos: {len(finais)} de {len(linhas)} "
+          f"(piso: >= {args.min_trades} trades, PF >= {args.min_pf})", flush=True)
     if not finais:
         print("    nenhum candidato passou os pisos.")
         emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,

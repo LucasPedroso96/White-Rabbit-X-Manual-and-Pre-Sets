@@ -46,6 +46,12 @@ parser.add_argument("--variante", default="BUY_MULTI")
 parser.add_argument("--from-data", dest="de", default="2026.05.22")
 parser.add_argument("--to-data", dest="ate", default="2026.08.22")
 parser.add_argument("--min-retencao", type=float, default=30.0)
+parser.add_argument(
+    "--min-trades-por-ano", type=float, default=33.0,
+    help="taxa anual de trades pro piso derivado (ver optimize_two_stage."
+         "piso_trades_da_janela); 33/ano espelha o piso1 ja aceito no "
+         "Estagio 1 (max(30, 100//3)). Ponto de partida, nao numero "
+         "definitivo -- calibrar por classe de sistema se necessario.")
 parser.add_argument("--timeout", type=int, default=3600)
 parser.add_argument(
     "--formulas", default="",
@@ -87,6 +93,7 @@ with master.open("w", encoding="utf-8") as fm:
                  "--from", args.de, "--to", args.ate,
                  "--deposit", str(args.deposit),
                  "--min-retencao", str(args.min_retencao),
+                 "--min-trades-per-year", str(args.min_trades_por_ano),
                  "--fechar-terminal", "--timeout", str(args.timeout)],
                 stdout=fh, stderr=subprocess.STDOUT)
         linha = f"    log salvo em {log}"
