@@ -83,7 +83,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import campeoes_arquivo
@@ -1009,18 +1009,16 @@ def remedir_campeao_na_janela(sistema: str, simbolo: str, variante: str,
     return _medir_desempenho(origem, passo, simbolo, periodo, inicio, fim, deposito)
 
 
-# Historico M15 REAL confirmado pra XAUUSD (ml_data.py, 2026-08-30: puxou
-# 60.000 barras M15 de verdade via MetaTrader5.copy_rates_from_pos, a mais
-# antiga caiu em 2024-02-09). Nao e o inicio ABSOLUTO do que o broker tem
-# gravado (60k e um teto que EU escolhi ao puxar, nao o limite real do
-# broker) -- e um piso ja EVIDENCIADO, nao chutado. Achado do dono,
-# 2026-08-30: um numero fixo de meses (8, emprestado do incidente
-# especifico do Zeus) e so "mais uma janela arbitraria" -- pra ser fiel ao
-# Pardo de verdade (WFA sobre o periodo DISPONIVEL inteiro, nao um recorte
-# recente), a segunda trava tem que usar TUDO que existe, nao um numero
-# escolhido a dedo. So vale pra XAUUSD por enquanto -- outro simbolo
-# precisaria da mesma checagem antes de reusar esta constante.
-HISTORICO_DISPONIVEL_POR_SIMBOLO = {"XAUUSD": "2024.02.09"}
+# Duracao PADRAO da segunda trava -- achado do dono, 2026-08-30, dois
+# ajustes seguidos: (1) 8 meses (Zeus) e so o numero do INCIDENTE dele, nao
+# um principio; (2) "ate onde eu baixei" (2024.02.09, evidenciado via
+# ml_data.py) tambem e arbitrario -- e um teto que EU escolhi ao puxar
+# dado, nao um padrao de metodologia. Convencao comum pra WFA robusta
+# (nao um numero literal citado do livro do Pardo, honestidade: nao tenho
+# o texto aqui pra conferir pagina) e alguns anos de historico, o
+# suficiente pra cobrir regimes de mercado diferentes -- 3 anos e o ponto
+# de partida.
+PERIODO_PADRAO_HISTORICO_COMPLETO_ANOS = 3
 
 
 def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
@@ -1028,34 +1026,39 @@ def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
                                  fim: str, deposito: int,
                                  periodo: str) -> tuple[bool, list[str]]:
     """Segunda trava (inspirada no "long-window confirmation gate" do Zeus,
-    2026-08-29, mas corrigida: o Zeus usou 8 meses, um numero especifico do
-    INCIDENTE dele, nao um principio -- achado do dono, 2026-08-30: "8
-    meses e so mais uma janela", se o argumento e rigor o teste tem que ser
-    contra TUDO que existe, nao um recorte arbitrario por mais generoso que
-    pareca). Depois de passar no gate relativo NA JANELA DO RUN ATUAL
-    (avaliar_gate_relativo() + remedir_campeao_na_janela()), confirma
+    2026-08-29, mas corrigida duas vezes -- ver PERIODO_PADRAO_HISTORICO_
+    COMPLETO_ANOS). Depois de passar no gate relativo NA JANELA DO RUN
+    ATUAL (avaliar_gate_relativo() + remedir_campeao_na_janela()), confirma
     campeao e desafiante num UNICO backtest CONTINUO (AtivarWFO=false, sem
-    re-intercalar em ciclos IS/OOS) cobrindo TODO o historico disponivel do
-    simbolo (HISTORICO_DISPONIVEL_POR_SIMBOLO) ate `fim`.
+    re-intercalar em ciclos IS/OOS) cobrindo os ultimos
+    PERIODO_PADRAO_HISTORICO_COMPLETO_ANOS anos ate `fim`.
+
+    Pede a JANELA PADRAO, nao "o que eu tenho baixado" -- se o broker tiver
+    menos historico real do que isso pro simbolo, o proprio MT5 usa o que
+    existe de verdade a partir do inicio real dos dados (nao erra, nao
+    trava por pedir uma data anterior ao inicio do historico) -- entao
+    nao precisa descobrir o limite exato antes de rodar, nem fica preso ao
+    teto que um download anterior (ml_data.py) escolheu por conveniencia.
 
     Pergunta ESTRUTURALMENTE diferente da retencao: a retencao mede a
     MEDIA de acerto em 6 ciclos historicos espalhados; esta funcao
-    pergunta "isso segura num UNICO passe cobrindo tudo que a gente tem,
-    sem nenhum trecho excluido ou diluido pela media?". Continua sendo
-    Walk-Forward Analysis de verdade pra BUSCA (janelas_wfo(), inalterado)
-    -- isso aqui e so uma segunda confirmacao, nao substitui nada.
+    pergunta "isso segura num UNICO passe cobrindo o periodo padrao
+    inteiro, sem nenhum trecho excluido ou diluido pela media?". Continua
+    sendo Walk-Forward Analysis de verdade pra BUSCA (janelas_wfo(),
+    inalterado) -- isso aqui e so uma segunda confirmacao, nao substitui
+    nada.
 
     `params_desafiante` e o que ja esta travado no run atual -- AtivarWFO e
     forcado a false aqui dentro, nao precisa vir assim de fora.
 
-    Devolve (True, []) se nao ha campeao OU se o simbolo nao tem historico
-    mapeado em HISTORICO_DISPONIVEL_POR_SIMBOLO ainda -- mesmo contrato de
-    ausencia de avaliar_gate_relativo() (gate so pula, nunca quebra ou
-    bloqueia por falta de configuracao).
+    Devolve (True, []) se nao ha campeao -- mesmo contrato de ausencia de
+    avaliar_gate_relativo() (gate so pula, nunca quebra).
     """
-    inicio = HISTORICO_DISPONIVEL_POR_SIMBOLO.get(simbolo)
-    if inicio is None:
-        return True, []
+    fim_dt = datetime.strptime(fim, "%Y.%m.%d")
+    # timedelta em dias, nao .replace(year=...): evita ValueError em 29/fev
+    # caindo num ano sem dia bissexto (raro, mas real).
+    inicio = (fim_dt - timedelta(days=365 * PERIODO_PADRAO_HISTORICO_COMPLETO_ANOS)
+             ).strftime("%Y.%m.%d")
 
     passo_desafiante = dict(params_desafiante, AtivarWFO="false",
                            MetodoDeEntradawfo="1")
