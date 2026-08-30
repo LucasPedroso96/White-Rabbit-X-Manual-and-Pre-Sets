@@ -2446,6 +2446,19 @@ def main() -> int:
     outro_destino = (base.DADOS / "MQL5" / "Profiles" / "Tester" /
                      f"{outro_prefixo}_{args.symbol.replace('.', '_')}_"
                      f"{args.sistema}_{args.variante}.set")
+    # BUG REAL encontrado ao vivo (2026-08-30): esta linha apagava um
+    # VALIDADO_ de verdade SEM arquivar quando o veredito deste run virava
+    # REPROVADO (outro_prefixo="VALIDADO" nesse caso) -- o arquivamento
+    # abaixo so cobria o caminho "aprovado sobrescreve aprovado", nunca
+    # este. Aconteceu na pratica: uma campanha reprovou um candidato bem na
+    # hora que foi interrompida, apagou o VALIDADO_XAUUSD_12_GRID_INVERSO
+    # sem arquivar, e so nao virou perda de verdade porque o campeao ja
+    # tinha sido arquivado numa rodada de teste ANTERIOR por sorte. Arquiva
+    # SEMPRE que o arquivo que vai ser apagado e um VALIDADO_ de verdade,
+    # nao so no caminho feliz.
+    if outro_prefixo == "VALIDADO" and outro_destino.exists():
+        campeoes_arquivo.arquivar_campeao_anterior(
+            args.sistema, args.symbol, args.variante, outro_destino)
     outro_destino.unlink(missing_ok=True)
     # Arquiva o campeao ATUAL antes de sobrescrever -- so quando `aprovado`
     # (destino e o caminho VALIDADO_, entao ha um campeao de verdade em
