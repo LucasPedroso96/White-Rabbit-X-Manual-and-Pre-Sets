@@ -89,6 +89,7 @@ from pathlib import Path
 import custo_nativo
 import monte_carlo_wrx
 import optimize_sets as base
+import ready_library
 from generate_system_sets import FORMULA_POR_SISTEMA
 from mt5_runner import garantir_terminal_livre, lancar_terminal
 
@@ -824,6 +825,32 @@ def veredito(div: float | None, retencao: float | None,
     # deixaria no log uma afirmacao que o passo seguinte pode desmentir.
     motivos.insert(0, "")
     return aprovado, motivos
+
+
+def carregar_campeao_atual(sistema: str, simbolo: str, variante: str) -> dict | None:
+    """Metricas do candidato JA IMPLANTADO (VALIDADO_*.set) para o mesmo
+    combo. Reusa a MESMA convencao de nome e o MESMO ledger que
+    ready_library.py ja usa pra responder "existe algo pronto?" -- gate
+    relativo (inspirado no should_promote() do Zeus) nao inventa um segundo
+    lugar pra essa resposta morar, so LE o que ja existe.
+
+    Devolve None so quando nao ha campeao NENHUM (combo nunca aprovado).
+    Quando o arquivo existe mas o ledger nao tem registro dele, devolve {}
+    (nao None) -- distincao que importa na pratica: a recalibracao de
+    24-28/08 rodou por scripts diretos (_continuar_calibracao.py e
+    variantes), nao por campanha.py, entao a maioria dos campeoes atuais
+    (ex. 12_GRID_INVERSO/XAUUSD) tem arquivo VALIDADO_ real mas ZERO
+    registro no ledger (so 11 entradas, todas de antes de 19/08) -- achado
+    ao testar este gate pela primeira vez, nao suposicao. Sem a distincao,
+    o log ficaria mudo sobre por que um campeao real nao esta gateando
+    nada, em vez de avisar que falta dado.
+    """
+    simbolo_norm = simbolo.replace(".", "_")
+    candidato = ready_library.TESTER / f"VALIDADO_{simbolo_norm}_{sistema}_{variante}.set"
+    if not candidato.exists():
+        return None
+    registros = ready_library.metricas_do_ledger(ready_library.LEDGER)
+    return registros.get((simbolo_norm, sistema, variante), {})
 
 
 def ler_metricas(log: str) -> dict:
@@ -1951,6 +1978,35 @@ def main() -> int:
         aprovado = False
         print(f"    REPROVADO em R: expectancy fora da amostra "
               f"{oos['expectancy']:+.3f}R nao e positiva.")
+
+    # Gate relativo ao campeao (transplante do should_promote() do Zeus,
+    # gate.py: um desafiante so promove se for melhor que quem ja esta
+    # IMPLANTADO, nunca so melhor que um piso absoluto). Comparado em
+    # expectancy_r (R por trade) porque e o unico numero por-trade que o
+    # ledger ja guarda pra todo campeao anterior -- total_r somado puniria
+    # ou premiaria so por causa de trades a mais/a menos entre janelas
+    # diferentes, o que nao mede edge. Estritamente MAIOR (nao >=): reempatar
+    # com o proprio campeao nao e melhorar nada, mesma regra do Zeus (score
+    # composto "estritamente maior" que o do campeao). Sem margem de ruido
+    # ainda -- v1, calibrar so depois de ver desafiantes de verdade passarem
+    # ou nao por aqui.
+    if aprovado and r_capavel:
+        campeao = carregar_campeao_atual(args.sistema, args.symbol, args.variante)
+        expectancy_campeao = campeao.get("expectancy_r") if campeao else None
+        if expectancy_campeao is not None and oos["expectancy"] is not None:
+            if oos["expectancy"] <= expectancy_campeao:
+                aprovado = False
+                print(f"    REPROVADO no gate relativo ao campeao: expectancy "
+                      f"{oos['expectancy']:+.3f}R nao supera o campeao "
+                      f"implantado ({expectancy_campeao:+.3f}R).", flush=True)
+            else:
+                print(f"    OK gate relativo ao campeao: expectancy "
+                      f"{oos['expectancy']:+.3f}R supera o campeao implantado "
+                      f"({expectancy_campeao:+.3f}R).", flush=True)
+        elif campeao is not None:
+            print("    gate relativo ao campeao: ha VALIDADO_ implantado mas "
+                  "sem expectancy_r no ledger -- pulando (registro anterior "
+                  "ao ledger atual).", flush=True)
 
     # ---- Estagio 5: prova em PERCENTUAL, e so entao salvar ------------------
     # O circuito inteiro mediu em Fixed-R com capital base fixo: 1R identico em
