@@ -940,6 +940,61 @@ def avaliar_gate_relativo(campeao: dict, desafiante: dict) -> tuple[bool, list[s
     return aprovado, motivos
 
 
+def remedir_campeao_na_janela(sistema: str, simbolo: str, variante: str,
+                              inicio: str, fim: str, deposito: int,
+                              periodo: str) -> dict:
+    """Re-mede o campeao ATUAL (parametros travados do ledger) na MESMA
+    janela do desafiante desta corrida -- achado real, 2026-08-30: o gate
+    comparava o campeao com as metricas ESTATICAS do ledger (medidas
+    sabe-se-la quando, numa janela qualquer) contra o desafiante medido na
+    janela DESTE run, sem garantir que sao a mesma. Mesmo erro que o
+    proprio Zeus documenta ja ter cometido e corrigido (gate.py: "based on
+    two backtest.BacktestResult objects measured on the IDENTICAL out-of-
+    sample window... comparing KPIs from different date ranges is a
+    meaningless apples-to-oranges comparison, not a smaller version of the
+    same bug").
+
+    Custa um passe de MT5 a mais (~30-90s) toda vez que o gate roda --
+    aceito pelo mesmo motivo que o Zeus aceita: e o preco de uma decisao
+    de promocao que nao pode dar errado por comparar coisas diferentes.
+
+    Devolve {} se nao ha campeao, sem parametros no ledger, ou sem
+    template de origem -- mesmo contrato de ausencia de
+    carregar_campeao_atual()/avaliar_gate_relativo() (gate so pula,
+    nunca quebra).
+    """
+    campeao = carregar_campeao_atual(sistema, simbolo, variante)
+    if not campeao or "parametros" not in campeao:
+        return {}
+    origem = base.achar_set(simbolo, sistema, variante)
+    if origem is None:
+        return {}
+
+    trabalho = base.DADOS / "MQL5" / "Profiles" / "Tester" / "_REMEDIR_CAMPEAO.set"
+    wfo = janelas_wfo(inicio, fim)
+    passo = dict(wfo, **campeao["parametros"], MetodoDeEntradawfo="1",
+                InterfaceLanguage="1")
+    reescrever(origem, trabalho, [], passo)
+    limpar_todas_formulas()
+    r = passe_unico(trabalho, simbolo, periodo, inicio, fim, deposito, 4)
+    stats_list = carregar_todas_formulas()
+    stats = stats_list[-1] if stats_list else None
+    if stats is None:
+        return {}
+
+    gp, gl = stats.get("gross_profit"), stats.get("gross_loss")
+    pf = gp / abs(gl) if gp is not None and gl not in (None, 0) else None
+    dd = stats.get("equity_dd_rel_pct")
+    sharpe = stats.get("sharpe")
+    trades = stats.get("trades")
+    profit = stats.get("profit")
+    score = (composite_score(profit, deposito, pf, dd, trades)
+            if None not in (pf, dd, trades, profit) else None)
+    return {"profit_factor": pf, "max_dd_pct": dd, "sharpe": sharpe,
+           "composite_score": score, "trades": trades,
+           "expectancy_r": r["expectancy"]}
+
+
 def ler_metricas(log: str) -> dict:
     """Extrai saldo, trades, R e retencao do trecho de log de UMA corrida.
 
@@ -2109,6 +2164,11 @@ def main() -> int:
     # (v1 era so expectancy_r): profit_factor/max_dd_pct/sharpe saem do MESMO
     # passe combinado que produziu `oos` -- ver avaliar_gate_relativo() pro
     # porque de 5 checks simultaneos em vez de 1 so.
+    #
+    # O campeao e RE-MEDIDO na MESMA janela do desafiante (remedir_campeao_
+    # na_janela), nao lido do ledger estatico -- achado 2026-08-30: sem
+    # isso o gate comparava metricas de janelas DIFERENTES, mesmo erro que
+    # o Zeus documenta ja ter cometido (ver docstring da funcao).
     if aprovado and r_capavel:
         if stats_confirmacao is None:
             print("    gate relativo ao campeao: sem ALL_FORMULAS deste "
@@ -2116,7 +2176,9 @@ def main() -> int:
                   "-- pulando, upgrade opcional nunca dependencia dura.",
                   flush=True)
         else:
-            campeao = carregar_campeao_atual(args.sistema, args.symbol, args.variante) or {}
+            campeao = remedir_campeao_na_janela(
+                args.sistema, args.symbol, args.variante,
+                args.inicio, args.fim, args.deposit, args.period)
             gate_aprovado, motivos_gate = avaliar_gate_relativo(campeao, desafiante_stats)
             if not motivos_gate:
                 print("    gate relativo ao campeao: sem campeao ou sem "
