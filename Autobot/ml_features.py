@@ -152,3 +152,14 @@ def compute_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
     })
     assert list(saida.columns[1:]) == list(FEATURE_NAMES)
     return saida
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+
+    dados_dir = Path(__file__).resolve().parent / "ml_data"
+    m15 = pd.read_parquet(dados_dir / "XAUUSD_M15.parquet")
+    h1 = pd.read_parquet(dados_dir / "XAUUSD_H1.parquet")
+    saida = compute_features(m15, h1)
+    print(f"{saida.dropna().shape[0]} linhas validas de {len(saida)}")
+    saida.to_parquet(dados_dir / "XAUUSD_M15_features.parquet")
