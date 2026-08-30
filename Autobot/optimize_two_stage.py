@@ -83,7 +83,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import campeoes_arquivo
@@ -941,6 +941,38 @@ def avaliar_gate_relativo(campeao: dict, desafiante: dict) -> tuple[bool, list[s
     return aprovado, motivos
 
 
+def _medir_desempenho(origem: Path, params: dict, simbolo: str, periodo: str,
+                      inicio: str, fim: str, deposito: int) -> dict:
+    """Nucleo compartilhado: escreve um set com `params` sobre `origem`,
+    roda o passe combinado (modelo=4) na janela pedida, devolve profit_
+    factor/max_dd_pct/sharpe/composite_score/expectancy_r/trades. Usado
+    tanto por remedir_campeao_na_janela() (mesma janela do desafiante, WFO
+    ligado) quanto por confirmar_janela_recente() (janela fixa mais
+    recente, WFO desligado -- backtest continuo, sem re-intercalar em
+    ciclos). Devolve {} se o passe nao produzir ALL_FORMULAS.
+    """
+    trabalho = base.DADOS / "MQL5" / "Profiles" / "Tester" / "_MEDIR_DESEMPENHO.set"
+    reescrever(origem, trabalho, [], params)
+    limpar_todas_formulas()
+    r = passe_unico(trabalho, simbolo, periodo, inicio, fim, deposito, 4)
+    stats_list = carregar_todas_formulas()
+    stats = stats_list[-1] if stats_list else None
+    if stats is None:
+        return {}
+
+    gp, gl = stats.get("gross_profit"), stats.get("gross_loss")
+    pf = gp / abs(gl) if gp is not None and gl not in (None, 0) else None
+    dd = stats.get("equity_dd_rel_pct")
+    sharpe = stats.get("sharpe")
+    trades = stats.get("trades")
+    profit = stats.get("profit")
+    score = (composite_score(profit, deposito, pf, dd, trades)
+            if None not in (pf, dd, trades, profit) else None)
+    return {"profit_factor": pf, "max_dd_pct": dd, "sharpe": sharpe,
+           "composite_score": score, "trades": trades,
+           "expectancy_r": r["expectancy"]}
+
+
 def remedir_campeao_na_janela(sistema: str, simbolo: str, variante: str,
                               inicio: str, fim: str, deposito: int,
                               periodo: str) -> dict:
@@ -971,29 +1003,58 @@ def remedir_campeao_na_janela(sistema: str, simbolo: str, variante: str,
     if origem is None:
         return {}
 
-    trabalho = base.DADOS / "MQL5" / "Profiles" / "Tester" / "_REMEDIR_CAMPEAO.set"
     wfo = janelas_wfo(inicio, fim)
     passo = dict(wfo, **campeao["parametros"], MetodoDeEntradawfo="1",
                 InterfaceLanguage="1")
-    reescrever(origem, trabalho, [], passo)
-    limpar_todas_formulas()
-    r = passe_unico(trabalho, simbolo, periodo, inicio, fim, deposito, 4)
-    stats_list = carregar_todas_formulas()
-    stats = stats_list[-1] if stats_list else None
-    if stats is None:
-        return {}
+    return _medir_desempenho(origem, passo, simbolo, periodo, inicio, fim, deposito)
 
-    gp, gl = stats.get("gross_profit"), stats.get("gross_loss")
-    pf = gp / abs(gl) if gp is not None and gl not in (None, 0) else None
-    dd = stats.get("equity_dd_rel_pct")
-    sharpe = stats.get("sharpe")
-    trades = stats.get("trades")
-    profit = stats.get("profit")
-    score = (composite_score(profit, deposito, pf, dd, trades)
-            if None not in (pf, dd, trades, profit) else None)
-    return {"profit_factor": pf, "max_dd_pct": dd, "sharpe": sharpe,
-           "composite_score": score, "trades": trades,
-           "expectancy_r": r["expectancy"]}
+
+def confirmar_janela_recente(sistema: str, simbolo: str, variante: str,
+                             origem: Path, params_desafiante: dict,
+                             fim: str, deposito: int, periodo: str,
+                             meses: int = 8) -> tuple[bool, list[str]]:
+    """Segunda trava (Zeus, "long-window confirmation gate", 2026-08-29):
+    depois de passar no gate relativo NA JANELA DO RUN ATUAL
+    (avaliar_gate_relativo() + remedir_campeao_na_janela()), confirma
+    campeao e desafiante numa janela CONTINUA (AtivarWFO=false, sem
+    re-intercalar em ciclos IS/OOS) dos ultimos `meses` -- pergunta
+    ESTRUTURALMENTE diferente da retencao. A retencao mede a MEDIA de
+    acerto em 6 ciclos historicos espalhados pelo periodo inteiro; esta
+    funcao pergunta uma coisa que a media nunca responde sozinha: "isso
+    ainda funciona no regime MAIS RECENTE, sozinho, sem diluir com outros
+    trechos?". Continua sendo Walk-Forward Analysis de verdade pra
+    BUSCA -- isso aqui e so uma segunda confirmacao, nao substitui nada.
+
+    O Zeus descobriu na PRATICA, nao na teoria (2026-08-29, config.py): um
+    combo que ganhava numa janela curta perdeu feio numa de 8 meses, e um
+    hiperparametro que parecia melhor saiu 3x pior no real ($114.2M vs
+    $381.4M). Esta camada existe especificamente pra pegar esse tipo de
+    caso antes de promover, nao depois.
+
+    `params_desafiante` e o que ja esta travado no run atual (o mesmo
+    conjunto que gerou oos/stats_confirmacao) -- AtivarWFO e forcado a
+    false aqui dentro, nao precisa vir assim de fora.
+
+    Devolve (True, []) se nao ha campeao (combo novo, sem baseline pra
+    comparar) -- mesmo contrato de ausencia de avaliar_gate_relativo().
+    """
+    fim_dt = datetime.strptime(fim, "%Y.%m.%d")
+    inicio = (fim_dt - timedelta(days=meses * 30)).strftime("%Y.%m.%d")
+
+    passo_desafiante = dict(params_desafiante, AtivarWFO="false",
+                           MetodoDeEntradawfo="1")
+    desafiante = _medir_desempenho(origem, passo_desafiante, simbolo, periodo,
+                                   inicio, fim, deposito)
+
+    campeao_registro = carregar_campeao_atual(sistema, simbolo, variante)
+    campeao = {}
+    if campeao_registro and "parametros" in campeao_registro:
+        passo_campeao = dict(campeao_registro["parametros"], AtivarWFO="false",
+                             MetodoDeEntradawfo="1")
+        campeao = _medir_desempenho(origem, passo_campeao, simbolo, periodo,
+                                    inicio, fim, deposito)
+
+    return avaliar_gate_relativo(campeao, desafiante)
 
 
 def ler_metricas(log: str) -> dict:
@@ -2200,6 +2261,28 @@ def main() -> int:
                     print(f"    gate relativo: {m}", flush=True)
                 if not gate_aprovado:
                     aprovado = False
+
+    # Segunda trava: confirmacao em janela longa e CONTINUA (Zeus, "long-
+    # window confirmation gate", 2026-08-29) -- so roda se ja passou no
+    # gate relativo da janela do run atual acima. Pergunta diferente da
+    # retencao: "isso ainda funciona no regime MAIS RECENTE, sozinho?" (ver
+    # confirmar_janela_recente()). Mesmo r_capavel do gate acima -- ainda
+    # nao faz sentido pra sistemas fora de Fixed-R.
+    if aprovado and r_capavel:
+        aprovado_recente, motivos_recente = confirmar_janela_recente(
+            args.sistema, args.symbol, args.variante, origem, travados,
+            args.fim, args.deposit, args.period)
+        if not motivos_recente:
+            print("    confirmacao em janela longa (8m): sem campeao ou "
+                  "sem baseline -- nada a comparar.", flush=True)
+        else:
+            for m in motivos_recente:
+                print(f"    janela longa (8m): {m}", flush=True)
+            if not aprovado_recente:
+                aprovado = False
+                print("    REPROVADO na confirmacao em janela longa: "
+                      "passou na janela do run atual mas nao segura "
+                      "sozinho no regime mais recente.", flush=True)
 
     # ---- Estagio 5: prova em PERCENTUAL, e so entao salvar ------------------
     # O circuito inteiro mediu em Fixed-R com capital base fixo: 1R identico em
