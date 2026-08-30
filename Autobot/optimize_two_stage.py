@@ -86,6 +86,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import campeoes_arquivo
 import custo_nativo
 import monte_carlo_wrx
 import optimize_sets as base
@@ -2329,6 +2330,14 @@ def main() -> int:
                      f"{outro_prefixo}_{args.symbol.replace('.', '_')}_"
                      f"{args.sistema}_{args.variante}.set")
     outro_destino.unlink(missing_ok=True)
+    # Arquiva o campeao ATUAL antes de sobrescrever -- so quando `aprovado`
+    # (destino e o caminho VALIDADO_, entao ha um campeao de verdade em
+    # risco de ser perdido). Ver campeoes_arquivo.py: mesmo principio do
+    # deploy.py do Zeus, achado direto na pele hoje com o backup manual do
+    # piloto de ML.
+    if aprovado:
+        campeoes_arquivo.arquivar_campeao_anterior(
+            args.sistema, args.symbol, args.variante, destino)
     reescrever(origem, destino, [], entrega)
     faltando = conferir_set(destino, entrega)
     if faltando:
