@@ -83,7 +83,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import campeoes_arquivo
@@ -947,8 +947,8 @@ def _medir_desempenho(origem: Path, params: dict, simbolo: str, periodo: str,
     roda o passe combinado (modelo=4) na janela pedida, devolve profit_
     factor/max_dd_pct/sharpe/composite_score/expectancy_r/trades. Usado
     tanto por remedir_campeao_na_janela() (mesma janela do desafiante, WFO
-    ligado) quanto por confirmar_janela_recente() (janela fixa mais
-    recente, WFO desligado -- backtest continuo, sem re-intercalar em
+    ligado) quanto por confirmar_historico_completo() (todo o historico
+    disponivel, WFO desligado -- backtest continuo, sem re-intercalar em
     ciclos). Devolve {} se o passe nao produzir ALL_FORMULAS.
     """
     trabalho = base.DADOS / "MQL5" / "Profiles" / "Tester" / "_MEDIR_DESEMPENHO.set"
@@ -1009,37 +1009,53 @@ def remedir_campeao_na_janela(sistema: str, simbolo: str, variante: str,
     return _medir_desempenho(origem, passo, simbolo, periodo, inicio, fim, deposito)
 
 
-def confirmar_janela_recente(sistema: str, simbolo: str, variante: str,
-                             origem: Path, params_desafiante: dict,
-                             fim: str, deposito: int, periodo: str,
-                             meses: int = 8) -> tuple[bool, list[str]]:
-    """Segunda trava (Zeus, "long-window confirmation gate", 2026-08-29):
-    depois de passar no gate relativo NA JANELA DO RUN ATUAL
+# Historico M15 REAL confirmado pra XAUUSD (ml_data.py, 2026-08-30: puxou
+# 60.000 barras M15 de verdade via MetaTrader5.copy_rates_from_pos, a mais
+# antiga caiu em 2024-02-09). Nao e o inicio ABSOLUTO do que o broker tem
+# gravado (60k e um teto que EU escolhi ao puxar, nao o limite real do
+# broker) -- e um piso ja EVIDENCIADO, nao chutado. Achado do dono,
+# 2026-08-30: um numero fixo de meses (8, emprestado do incidente
+# especifico do Zeus) e so "mais uma janela arbitraria" -- pra ser fiel ao
+# Pardo de verdade (WFA sobre o periodo DISPONIVEL inteiro, nao um recorte
+# recente), a segunda trava tem que usar TUDO que existe, nao um numero
+# escolhido a dedo. So vale pra XAUUSD por enquanto -- outro simbolo
+# precisaria da mesma checagem antes de reusar esta constante.
+HISTORICO_DISPONIVEL_POR_SIMBOLO = {"XAUUSD": "2024.02.09"}
+
+
+def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
+                                 origem: Path, params_desafiante: dict,
+                                 fim: str, deposito: int,
+                                 periodo: str) -> tuple[bool, list[str]]:
+    """Segunda trava (inspirada no "long-window confirmation gate" do Zeus,
+    2026-08-29, mas corrigida: o Zeus usou 8 meses, um numero especifico do
+    INCIDENTE dele, nao um principio -- achado do dono, 2026-08-30: "8
+    meses e so mais uma janela", se o argumento e rigor o teste tem que ser
+    contra TUDO que existe, nao um recorte arbitrario por mais generoso que
+    pareca). Depois de passar no gate relativo NA JANELA DO RUN ATUAL
     (avaliar_gate_relativo() + remedir_campeao_na_janela()), confirma
-    campeao e desafiante numa janela CONTINUA (AtivarWFO=false, sem
-    re-intercalar em ciclos IS/OOS) dos ultimos `meses` -- pergunta
-    ESTRUTURALMENTE diferente da retencao. A retencao mede a MEDIA de
-    acerto em 6 ciclos historicos espalhados pelo periodo inteiro; esta
-    funcao pergunta uma coisa que a media nunca responde sozinha: "isso
-    ainda funciona no regime MAIS RECENTE, sozinho, sem diluir com outros
-    trechos?". Continua sendo Walk-Forward Analysis de verdade pra
-    BUSCA -- isso aqui e so uma segunda confirmacao, nao substitui nada.
+    campeao e desafiante num UNICO backtest CONTINUO (AtivarWFO=false, sem
+    re-intercalar em ciclos IS/OOS) cobrindo TODO o historico disponivel do
+    simbolo (HISTORICO_DISPONIVEL_POR_SIMBOLO) ate `fim`.
 
-    O Zeus descobriu na PRATICA, nao na teoria (2026-08-29, config.py): um
-    combo que ganhava numa janela curta perdeu feio numa de 8 meses, e um
-    hiperparametro que parecia melhor saiu 3x pior no real ($114.2M vs
-    $381.4M). Esta camada existe especificamente pra pegar esse tipo de
-    caso antes de promover, nao depois.
+    Pergunta ESTRUTURALMENTE diferente da retencao: a retencao mede a
+    MEDIA de acerto em 6 ciclos historicos espalhados; esta funcao
+    pergunta "isso segura num UNICO passe cobrindo tudo que a gente tem,
+    sem nenhum trecho excluido ou diluido pela media?". Continua sendo
+    Walk-Forward Analysis de verdade pra BUSCA (janelas_wfo(), inalterado)
+    -- isso aqui e so uma segunda confirmacao, nao substitui nada.
 
-    `params_desafiante` e o que ja esta travado no run atual (o mesmo
-    conjunto que gerou oos/stats_confirmacao) -- AtivarWFO e forcado a
-    false aqui dentro, nao precisa vir assim de fora.
+    `params_desafiante` e o que ja esta travado no run atual -- AtivarWFO e
+    forcado a false aqui dentro, nao precisa vir assim de fora.
 
-    Devolve (True, []) se nao ha campeao (combo novo, sem baseline pra
-    comparar) -- mesmo contrato de ausencia de avaliar_gate_relativo().
+    Devolve (True, []) se nao ha campeao OU se o simbolo nao tem historico
+    mapeado em HISTORICO_DISPONIVEL_POR_SIMBOLO ainda -- mesmo contrato de
+    ausencia de avaliar_gate_relativo() (gate so pula, nunca quebra ou
+    bloqueia por falta de configuracao).
     """
-    fim_dt = datetime.strptime(fim, "%Y.%m.%d")
-    inicio = (fim_dt - timedelta(days=meses * 30)).strftime("%Y.%m.%d")
+    inicio = HISTORICO_DISPONIVEL_POR_SIMBOLO.get(simbolo)
+    if inicio is None:
+        return True, []
 
     passo_desafiante = dict(params_desafiante, AtivarWFO="false",
                            MetodoDeEntradawfo="1")
@@ -2262,27 +2278,31 @@ def main() -> int:
                 if not gate_aprovado:
                     aprovado = False
 
-    # Segunda trava: confirmacao em janela longa e CONTINUA (Zeus, "long-
-    # window confirmation gate", 2026-08-29) -- so roda se ja passou no
-    # gate relativo da janela do run atual acima. Pergunta diferente da
-    # retencao: "isso ainda funciona no regime MAIS RECENTE, sozinho?" (ver
-    # confirmar_janela_recente()). Mesmo r_capavel do gate acima -- ainda
-    # nao faz sentido pra sistemas fora de Fixed-R.
+    # Segunda trava: confirmacao no HISTORICO COMPLETO disponivel, num
+    # unico passe CONTINUO (inspirada no "long-window confirmation gate"
+    # do Zeus, mas corrigida -- achado do dono, 2026-08-30: um numero fixo
+    # de meses e so mais uma janela arbitraria; fiel ao Pardo de verdade e
+    # testar contra TUDO que existe, nao um recorte). So roda se ja passou
+    # no gate relativo da janela do run atual acima. Ver
+    # confirmar_historico_completo(). Mesmo r_capavel do gate acima --
+    # ainda nao faz sentido pra sistemas fora de Fixed-R.
     if aprovado and r_capavel:
-        aprovado_recente, motivos_recente = confirmar_janela_recente(
+        aprovado_completo, motivos_completo = confirmar_historico_completo(
             args.sistema, args.symbol, args.variante, origem, travados,
             args.fim, args.deposit, args.period)
-        if not motivos_recente:
-            print("    confirmacao em janela longa (8m): sem campeao ou "
-                  "sem baseline -- nada a comparar.", flush=True)
+        if not motivos_completo:
+            print("    confirmacao no historico completo: sem campeao ou "
+                  "sem historico mapeado pro simbolo -- nada a comparar.",
+                  flush=True)
         else:
-            for m in motivos_recente:
-                print(f"    janela longa (8m): {m}", flush=True)
-            if not aprovado_recente:
+            for m in motivos_completo:
+                print(f"    historico completo: {m}", flush=True)
+            if not aprovado_completo:
                 aprovado = False
-                print("    REPROVADO na confirmacao em janela longa: "
-                      "passou na janela do run atual mas nao segura "
-                      "sozinho no regime mais recente.", flush=True)
+                print("    REPROVADO na confirmacao no historico completo: "
+                      "passou na janela do run atual mas nao segura num "
+                      "unico passe cobrindo tudo que a gente tem.",
+                      flush=True)
 
     # ---- Estagio 5: prova em PERCENTUAL, e so entao salvar ------------------
     # O circuito inteiro mediu em Fixed-R com capital base fixo: 1R identico em
