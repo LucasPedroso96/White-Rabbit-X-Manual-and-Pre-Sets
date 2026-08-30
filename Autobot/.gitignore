@@ -25,3 +25,11 @@ amostra_noite_resultados.jsonl
 *.log
 *.bak
 *.bak_*
+
+# Cache de candle do piloto de ML (ml_data.py) -- dado bruto, refazivel a
+# qualquer momento rodando o script de novo; commitar so incharia o repo
+# sem valor historico (fica velho a cada dia que passa)
+ml_data/
+# Modelo/scaler/meta do treino: mesmo raciocinio, artefato de UMA rodada
+# de treino local, nao codigo -- reproduzivel rodando ml_train.py de novo
+ml_models/
