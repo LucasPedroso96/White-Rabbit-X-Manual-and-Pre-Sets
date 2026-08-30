@@ -853,6 +853,93 @@ def carregar_campeao_atual(sistema: str, simbolo: str, variante: str) -> dict | 
     return registros.get((simbolo_norm, sistema, variante), {})
 
 
+# Ponto de partida do gate.py/config.py do Zeus (should_promote(),
+# 2026-08-30) -- mesmos valores, nao numero calibrado pros NOSSOS sistemas
+# ainda. Tolerancias relativas (nao 100%): um desafiante pode ser um pouco
+# pior num eixo isolado desde que o composite_score final vença, mesma
+# filosofia do Zeus (nenhum eixo isolado veta sozinho, exceto trades/score).
+GATE_MIN_TRADES_RELATIVO = 30
+GATE_MIN_PF = 1.15
+GATE_PF_RELATIVE = 0.95
+GATE_MAX_DD_PCT = 25.0
+GATE_DD_RELATIVE = 1.15
+GATE_SHARPE_RELATIVE = 0.90
+
+
+def composite_score(profit: float, deposit: float, profit_factor: float,
+                    max_dd_pct: float, trades: int,
+                    min_trades: int = GATE_MIN_TRADES_RELATIVO) -> float:
+    """Espelha composite_score() do gate.py do Zeus (2026-08-30): retorno %
+    (nao so profit_factor*log(trades) -- versao antiga do Zeus degenerava
+    pra sizing quase zero, porque encolher posicao encolhe max_dd_pct de
+    graca) vezes profit factor, amortecido pelo drawdown.
+    """
+    if trades < min_trades:
+        return -1e9
+    if deposit <= 0:
+        return -1e9
+    return_pct = profit / deposit * 100.0
+    dd_guard = 1.0 + max_dd_pct / 20.0
+    return return_pct * profit_factor / dd_guard
+
+
+def avaliar_gate_relativo(campeao: dict, desafiante: dict) -> tuple[bool, list[str]]:
+    """Espelha should_promote() do gate.py do Zeus: 5 checks SIMULTANEOS,
+    todos precisam passar (sem credito parcial) -- trades, profit_factor
+    relativo, max_dd_pct relativo, Sharpe relativo, composite_score
+    estritamente maior. Ausencia de dado do campeao em qualquer eixo pula
+    SO aquele check (mesma logica de "sem baseline, sem regressao" que
+    carregar_campeao_atual() ja segue) -- nao derruba o desafiante por um
+    campo que o campeao nunca teve medido (ex.: ledger antigo, sem
+    profit_factor).
+    """
+    checks: list[tuple[bool, str]] = []
+    trades = desafiante.get("trades")
+    if trades is not None:
+        checks.append((
+            trades >= GATE_MIN_TRADES_RELATIVO,
+            f"trades {trades} >= {GATE_MIN_TRADES_RELATIVO}"))
+
+    pf_campeao = campeao.get("profit_factor")
+    pf_desafiante = desafiante.get("profit_factor")
+    if pf_campeao is not None and pf_desafiante is not None:
+        min_pf = max(GATE_MIN_PF, pf_campeao * GATE_PF_RELATIVE)
+        checks.append((
+            pf_desafiante >= min_pf,
+            f"profit_factor {pf_desafiante:.4f} >= {min_pf:.4f} (max de "
+            f"piso={GATE_MIN_PF} e {GATE_PF_RELATIVE}*campeao={pf_campeao:.4f})"))
+
+    dd_campeao = campeao.get("max_dd_pct")
+    dd_desafiante = desafiante.get("max_dd_pct")
+    if dd_campeao is not None and dd_desafiante is not None:
+        max_dd = min(GATE_MAX_DD_PCT, dd_campeao * GATE_DD_RELATIVE)
+        checks.append((
+            dd_desafiante <= max_dd,
+            f"max_dd_pct {dd_desafiante:.4f} <= {max_dd:.4f} (min de "
+            f"teto={GATE_MAX_DD_PCT} e {GATE_DD_RELATIVE}*campeao={dd_campeao:.4f})"))
+
+    sharpe_campeao = campeao.get("sharpe")
+    sharpe_desafiante = desafiante.get("sharpe")
+    if sharpe_campeao is not None and sharpe_desafiante is not None:
+        min_sharpe = sharpe_campeao * GATE_SHARPE_RELATIVE
+        checks.append((
+            sharpe_desafiante > 0 and sharpe_desafiante >= min_sharpe,
+            f"sharpe {sharpe_desafiante:.4f} > 0 e >= "
+            f"{GATE_SHARPE_RELATIVE}*campeao={min_sharpe:.4f}"))
+
+    score_campeao = campeao.get("composite_score")
+    score_desafiante = desafiante.get("composite_score")
+    if score_campeao is not None and score_desafiante is not None:
+        checks.append((
+            score_desafiante > score_campeao,
+            f"composite_score {score_desafiante:.4f} > campeao "
+            f"{score_campeao:.4f}"))
+
+    aprovado = all(ok for ok, _ in checks)
+    motivos = [f"{'OK' if ok else 'REPROVADO'}: {msg}" for ok, msg in checks]
+    return aprovado, motivos
+
+
 def ler_metricas(log: str) -> dict:
     """Extrai saldo, trades, R e retencao do trecho de log de UMA corrida.
 
@@ -913,7 +1000,8 @@ _PADRAO_ALL_FORMULAS = re.compile(
     r"ProfitRelDDDeposit=([-\d.]+) PPTDD=([-\d.]+) SharpeAdjDD=([-\d.]+) "
     r"PessimisticProfit=([-\d.]+) ResilienceDD=([-\d.]+) "
     r"ReturnUniformity=([-\d.]+) SystemRobustness=([-\d.]+) "
-    r"LevainComposite=([-\d.]+) SomaR=([-\d.]+)")
+    r"LevainComposite=([-\d.]+) SomaR=([-\d.]+) "
+    r"EquityDDRelPercent=([-\d.]+)")
 
 _CAMPOS_ALL_FORMULAS = [
     "profit", "trades", "gross_profit", "gross_loss", "equity_dd_pct",
@@ -922,6 +1010,14 @@ _CAMPOS_ALL_FORMULAS = [
     "profit_rel_dd_deposit", "pptdd", "sharpe_adj_dd", "pessimistic_profit",
     "resilience_dd", "return_uniformity", "system_robustness",
     "levain_composite", "soma_r",
+    # Acrescentado 2026-08-30, no FIM da lista de proposito: mantem os
+    # indices 7-20 usados por _CAMPO_POR_INDICE_FORMULA intactos.
+    # STAT_EQUITY_DDREL_PERCENT (drawdown vs PICO de capital, nao vs
+    # deposito inicial como equity_dd_pct acima) -- o max_dd_pct que o
+    # gate relativo (avaliar_gate_relativo(), espelha o should_promote()
+    # do Zeus) precisa pra comparar de verdade contra o mesmo campo do
+    # Zeus.
+    "equity_dd_rel_pct",
 ]
 
 # indice de formula (mesmo enum CustomFormulaType do .mq5, mesmo valor
@@ -1875,8 +1971,17 @@ def main() -> int:
     # ---- Estagio 4: confirmacao em TICKS REAIS ------------------------------
     print("\n  [4/5] confirmacao em TICKS REAIS", flush=True)
     t0 = time.time()
+    # limpar/carregar ao redor do UNICO passe que torneio_retencao([None], ...)
+    # roda aqui (ver docstring: candidato None = so mede travados) -- pega o
+    # ALL_FORMULAS (Profit/GrossProfit/GrossLoss/EquityDDPercent/Sharpe/
+    # EquityDDRelPercent) do MESMO passe IS+OOS combinado que produz `oos`
+    # logo abaixo, pro gate relativo (avaliar_gate_relativo()) medir
+    # profit_factor/max_dd_pct/sharpe sem rodar passe a mais.
+    limpar_todas_formulas()
     conf = torneio_retencao([None], cab, metricas, origem, trabalho, travados,
                             args, 4, "vencedor (tick real)")
+    stats_confirmacao = carregar_todas_formulas()
+    stats_confirmacao = stats_confirmacao[-1] if stats_confirmacao else None
     if not conf:
         print("    a confirmacao em tick real nao produziu retencao.")
         emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
@@ -1979,34 +2084,48 @@ def main() -> int:
         print(f"    REPROVADO em R: expectancy fora da amostra "
               f"{oos['expectancy']:+.3f}R nao e positiva.")
 
+    # Stats do passe combinado (ALL_FORMULAS, capturado antes do Estagio 4
+    # acima) -- calculado sempre que r_capavel, independente do veredito ate
+    # aqui: entra no registro final pra QUALQUER candidato Fixed-R, aprovado
+    # ou nao, pro ledger acumular baseline mesmo de tentativas reprovadas.
+    desafiante_stats: dict = {}
+    if r_capavel and stats_confirmacao is not None:
+        gp = stats_confirmacao.get("gross_profit")
+        gl = stats_confirmacao.get("gross_loss")
+        pf = gp / abs(gl) if gp is not None and gl not in (None, 0) else None
+        dd = stats_confirmacao.get("equity_dd_rel_pct")
+        sharpe = stats_confirmacao.get("sharpe")
+        trades_conf = stats_confirmacao.get("trades")
+        profit_conf = stats_confirmacao.get("profit")
+        score = (composite_score(profit_conf, args.deposit, pf, dd, trades_conf)
+                 if None not in (pf, dd, trades_conf, profit_conf) else None)
+        desafiante_stats = {"profit_factor": pf, "max_dd_pct": dd,
+                           "sharpe": sharpe, "composite_score": score,
+                           "trades": trades_conf}
+
     # Gate relativo ao campeao (transplante do should_promote() do Zeus,
     # gate.py: um desafiante so promove se for melhor que quem ja esta
-    # IMPLANTADO, nunca so melhor que um piso absoluto). Comparado em
-    # expectancy_r (R por trade) porque e o unico numero por-trade que o
-    # ledger ja guarda pra todo campeao anterior -- total_r somado puniria
-    # ou premiaria so por causa de trades a mais/a menos entre janelas
-    # diferentes, o que nao mede edge. Estritamente MAIOR (nao >=): reempatar
-    # com o proprio campeao nao e melhorar nada, mesma regra do Zeus (score
-    # composto "estritamente maior" que o do campeao). Sem margem de ruido
-    # ainda -- v1, calibrar so depois de ver desafiantes de verdade passarem
-    # ou nao por aqui.
+    # IMPLANTADO, nunca so melhor que um piso absoluto). Full port 2026-08-30
+    # (v1 era so expectancy_r): profit_factor/max_dd_pct/sharpe saem do MESMO
+    # passe combinado que produziu `oos` -- ver avaliar_gate_relativo() pro
+    # porque de 5 checks simultaneos em vez de 1 so.
     if aprovado and r_capavel:
-        campeao = carregar_campeao_atual(args.sistema, args.symbol, args.variante)
-        expectancy_campeao = campeao.get("expectancy_r") if campeao else None
-        if expectancy_campeao is not None and oos["expectancy"] is not None:
-            if oos["expectancy"] <= expectancy_campeao:
-                aprovado = False
-                print(f"    REPROVADO no gate relativo ao campeao: expectancy "
-                      f"{oos['expectancy']:+.3f}R nao supera o campeao "
-                      f"implantado ({expectancy_campeao:+.3f}R).", flush=True)
+        if stats_confirmacao is None:
+            print("    gate relativo ao campeao: sem ALL_FORMULAS deste "
+                  "passe (.ex5 antigo sem o FileWrite, ou escrita perdida) "
+                  "-- pulando, upgrade opcional nunca dependencia dura.",
+                  flush=True)
+        else:
+            campeao = carregar_campeao_atual(args.sistema, args.symbol, args.variante) or {}
+            gate_aprovado, motivos_gate = avaliar_gate_relativo(campeao, desafiante_stats)
+            if not motivos_gate:
+                print("    gate relativo ao campeao: sem campeao ou sem "
+                      "baseline em nenhum eixo -- nada a comparar.", flush=True)
             else:
-                print(f"    OK gate relativo ao campeao: expectancy "
-                      f"{oos['expectancy']:+.3f}R supera o campeao implantado "
-                      f"({expectancy_campeao:+.3f}R).", flush=True)
-        elif campeao is not None:
-            print("    gate relativo ao campeao: ha VALIDADO_ implantado mas "
-                  "sem expectancy_r no ledger -- pulando (registro anterior "
-                  "ao ledger atual).", flush=True)
+                for m in motivos_gate:
+                    print(f"    gate relativo: {m}", flush=True)
+                if not gate_aprovado:
+                    aprovado = False
 
     # ---- Estagio 5: prova em PERCENTUAL, e so entao salvar ------------------
     # O circuito inteiro mediu em Fixed-R com capital base fixo: 1R identico em
@@ -2166,6 +2285,14 @@ def main() -> int:
                       "expectancy_r": oos["expectancy"],
                       "trades_oos": oos["trades"],
                       "trades_is": oos.get("trades_is"),
+                      # Gate relativo completo (2026-08-30, espelha
+                      # should_promote()/composite_score() do Zeus): do MESMO
+                      # passe combinado IS+OOS acima, nao um passe OOS-puro
+                      # dedicado -- ver avaliar_gate_relativo().
+                      "profit_factor": desafiante_stats.get("profit_factor"),
+                      "max_dd_pct": desafiante_stats.get("max_dd_pct"),
+                      "sharpe": desafiante_stats.get("sharpe"),
+                      "composite_score": desafiante_stats.get("composite_score"),
                       "mc_dd_p95": mc["mc_dd_p95"] if mc else None,
                       "mc_dd_observado": mc["mc_dd_observado"] if mc else None,
                       "mc_prob_ruina": mc["mc_prob_ruina"] if mc else None,
