@@ -1,0 +1,3 @@
+total deal rows: 0
+parsed: 0
+...
