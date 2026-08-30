@@ -36,6 +36,14 @@ TODAS_FORMULAS = {
     8: "SharpeAdjustedByDD", 9: "PessimisticProfit", 10: "ResilienceToDrawdown",
     11: "ReturnUniformity", 12: "SystemRobustness", 13: "LevainCompositeScore",
     14: "SomaR",
+    # Porte literal do composite_score() do gate.py do Zeus (2026-08-30) --
+    # ver ZeusCompositeScore() no .mq5 e avaliar_gate_relativo() no
+    # optimize_two_stage.py, que ja usa a mesma formula pra decidir
+    # promocao. Testar ela tambem como criterio de BUSCA (nao so de gate
+    # pos-hoc) responde se buscar direto pelo que o gate premia da
+    # resultado melhor do que buscar por uma das 14 formulas nativas e so
+    # checar composite_score no fim.
+    15: "ZeusCompositeScore",
 }
 
 parser = argparse.ArgumentParser(description=__doc__)

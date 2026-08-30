@@ -1057,7 +1057,7 @@ _PADRAO_ALL_FORMULAS = re.compile(
     r"PessimisticProfit=([-\d.]+) ResilienceDD=([-\d.]+) "
     r"ReturnUniformity=([-\d.]+) SystemRobustness=([-\d.]+) "
     r"LevainComposite=([-\d.]+) SomaR=([-\d.]+) "
-    r"EquityDDRelPercent=([-\d.]+)")
+    r"EquityDDRelPercent=([-\d.]+) ZeusScore=([-\d.]+)")
 
 _CAMPOS_ALL_FORMULAS = [
     "profit", "trades", "gross_profit", "gross_loss", "equity_dd_pct",
@@ -1074,15 +1074,26 @@ _CAMPOS_ALL_FORMULAS = [
     # do Zeus) precisa pra comparar de verdade contra o mesmo campo do
     # Zeus.
     "equity_dd_rel_pct",
+    # Formula_ZeusCompositeScore (2026-08-30, indice 15 no enum
+    # CustomFormulaType) -- PORTE LITERAL do composite_score() do Zeus,
+    # ver ZeusCompositeScore() no .mq5. Vem DEPOIS de equity_dd_rel_pct
+    # na lista porque foi gravado depois dele na mesma linha do
+    # FileWrite (append no fim de proposito, mesma disciplina de nao
+    # remexer indices anteriores) -- por isso o mapeamento formula->campo
+    # logo abaixo nao e um slice continuo unico.
+    "zeus_score",
 ]
 
 # indice de formula (mesmo enum CustomFormulaType do .mq5, mesmo valor
 # gravado em selectedFormula no .set por FORMULA_POR_SISTEMA) -> campo de
-# _CAMPOS_ALL_FORMULAS. Derivado da propria lista (posicoes 7-20, mesma
-# ordem do enum) em vez de duplicado a mao -- nunca desalinha se
-# _CAMPOS_ALL_FORMULAS mudar.
+# _CAMPOS_ALL_FORMULAS. As 14 formulas originais (posicoes 7-20) vem de um
+# slice continuo, derivado da propria lista -- nunca desalinha se
+# _CAMPOS_ALL_FORMULAS mudar nesse trecho. zeus_score (indice 15) e
+# adicionado a parte porque nao esta na posicao contigua seguinte
+# (equity_dd_rel_pct, que nao e formula, ficou no meio).
 _CAMPO_POR_INDICE_FORMULA: dict[int, str] = dict(
     enumerate(_CAMPOS_ALL_FORMULAS[7:21], start=1))
+_CAMPO_POR_INDICE_FORMULA[15] = "zeus_score"
 
 
 def campo_da_formula(sistema: str) -> str:
