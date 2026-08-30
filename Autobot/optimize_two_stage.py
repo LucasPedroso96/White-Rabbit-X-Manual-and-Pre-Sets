@@ -206,6 +206,29 @@ REGIOES = ["TimeFrame", "EntryIndicator", "InpAppliedPrice", "Fast_EMA",
            "AtivarFiltroMA", "AtivarFiltroADX", "AtivarFiltroMTF",
            "EntradaATR"]           # EntradaATR so tem faixa nos sets de grid
 
+# --usar-entrada-ml (2026-08-30, piloto 12_GRID_INVERSO): eixos que
+# escolhem QUAL indicador/metodo/timeframe gera o sinal cru -- os MESMOS
+# que HasRawBuyIndicatorSignal()/HasRawSellIndicatorSignal() consultam no
+# .mq5, e que o splice do piloto deixa de chamar quando UsarEntradaML=true.
+# Saem da busca genetica nesse modo: ficam inertes (o sinal vem do modelo
+# ONNX, nao mais do indicador), continuar buscando neles so gastaria
+# geracoes do genetico sem efeito nenhum no resultado.
+#
+# TimeFrame entra por um motivo a mais que "selecao de indicador": o
+# modelo foi treinado em M15 (WhiteRabbitMLFeatures.mqh usa
+# ResolveAllowedTimeframe(TimeFrame) pra calcular as features) -- se a
+# busca pudesse mexer nisso, destravaria o grao do dado que alimenta o
+# modelo do grao em que ele foi treinado, silenciosamente.
+#
+# PeriodoATR fica DE FORA de proposito: alimenta CheckBuyVolatility()/
+# geometria de grid (UsarsomenteATRGRID), nao a escolha do indicador --
+# excluir seria remover ajuste real de risco, nao "sinal cru".
+EIXOS_ENTRADA_ML = ["TimeFrame", "EntryIndicator", "InpAppliedPrice",
+                    "Fast_EMA", "Slow_EMA", "MACD_SMA", "EntryMethod",
+                    "StochasticSlowing", "StochasticMethod",
+                    "StochasticPriceField", "IchimokuUseKumo",
+                    "IchimokuChikouFilter", "ATR_TimeFrame"]
+
 # O proprio MT5 escreve essa linha -- NAO o EA -- e a grafia muda de build
 # pra build sem aviso: achado do dono, 2026-08-07, o terminal se auto-
 # atualizou NO MEIO desta sessao (terminal64.exe trocou de mtime as 15:13:59)
@@ -1559,6 +1582,12 @@ def main() -> int:
     ap.add_argument("--finalistas", type=int, default=8)
     ap.add_argument("--timeout", type=int, default=21600)
     ap.add_argument("--fechar-terminal", action="store_true")
+    # Piloto de ML (2026-08-30, 12_GRID_INVERSO): injeta UsarEntradaML=true
+    # em travados desde o inicio (mesmo mecanismo de MetodoDeEntradawfo/
+    # InterfaceLanguage acima) e exclui EIXOS_ENTRADA_ML da busca genetica
+    # -- ver EIXOS_ENTRADA_ML. Nao precisa que o .set de origem ja tenha
+    # UsarEntradaML=true gravado.
+    ap.add_argument("--usar-entrada-ml", action="store_true")
     args = ap.parse_args()
 
     if args.min_trades_per_year is not None:
@@ -1601,6 +1630,12 @@ def main() -> int:
     # (Portugues aqui) para o painel. A entrega (linha ~980) volta pra Auto --
     # so o nosso set de trabalho roda em EN.
     travados["InterfaceLanguage"] = "1"
+    if args.usar_entrada_ml:
+        # Desde o Estagio 1, nao so a confirmacao final -- senao a busca
+        # genetica mediria retencao de um sistema que nunca usa o ML, e so
+        # o Estagio 4 passaria a usar de verdade, descolando o que foi
+        # medido do que sera entregue.
+        travados["UsarEntradaML"] = "true"
     duas_etapas = args.sistema in SISTEMAS_RECUPERACAO_DUAS_ETAPAS
     eixos_recuperacao = EIXOS_RECUPERACAO.get(args.sistema, []) if duas_etapas else []
     if duas_etapas:
@@ -1612,6 +1647,11 @@ def main() -> int:
     eixos_fase1 = eixos_da_fase1(origem)
     if eixos_recuperacao:
         eixos_fase1 = [e for e in eixos_fase1 if e not in eixos_recuperacao]
+    if args.usar_entrada_ml:
+        # O sinal cru vem do modelo ONNX, nao mais do indicador -- buscar
+        # nesses eixos so gastaria geracoes do genetico sem efeito nenhum
+        # no resultado (ver EIXOS_ENTRADA_ML).
+        eixos_fase1 = [e for e in eixos_fase1 if e not in EIXOS_ENTRADA_ML]
     n = reescrever(origem, trabalho, eixos_fase1, travados)
     print(f"  [1/5] regioes em OHLC ({n} parametros: entradas completas + "
           f"saidas + flags) | WFO In-Sample: "
@@ -1774,6 +1814,8 @@ def main() -> int:
         # ainda esta em "0" aqui, os eixos nao tem efeito nenhum enquanto isso
         # -- reabrem sozinhos no Estagio 2.5, com a entrada/saida ja travada.
         numeros = [e for e in numeros if e not in eixos_recuperacao]
+    if args.usar_entrada_ml:
+        numeros = [e for e in numeros if e not in EIXOS_ENTRADA_ML]
     cortados = [c for c in NUMEROS if c not in numeros]
     n = reescrever(origem, trabalho, numeros, travados)
     print(f"  [2/5] numeros em OHLC ({n} parametros, escrita travada)",
