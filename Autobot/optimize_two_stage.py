@@ -2435,31 +2435,35 @@ def main() -> int:
     destino = (base.DADOS / "MQL5" / "Profiles" / "Tester" /
                f"{prefixo}_{args.symbol.replace('.', '_')}_"
                f"{args.sistema}_{args.variante}.set")
-    # Um combo re-testado pode mudar de veredito (aprovado -> reprovado ou o
-    # contrario) -- sem apagar o arquivo do prefixo anterior, os dois convivem
-    # no disco e o dashboard (_sets_certificados em dashboard_campanha.py, que
-    # so faz glob de VALIDADO_*) pode achar o VALIDADO_ antigo e mostrar
-    # "certificado" um candidato que acabou de ser reprovado agora (achado do
-    # dono, 2026-08-17: EURUSD/07_GRID_SEPARATE/BUY_MULTI reprovado hoje no
-    # gate de sobrevivencia, mas o painel ainda mostrava um VALIDADO_ de uma
-    # aprovacao anterior do mesmo combo).
-    outro_destino = (base.DADOS / "MQL5" / "Profiles" / "Tester" /
-                     f"{outro_prefixo}_{args.symbol.replace('.', '_')}_"
-                     f"{args.sistema}_{args.variante}.set")
-    # BUG REAL encontrado ao vivo (2026-08-30): esta linha apagava um
-    # VALIDADO_ de verdade SEM arquivar quando o veredito deste run virava
-    # REPROVADO (outro_prefixo="VALIDADO" nesse caso) -- o arquivamento
-    # abaixo so cobria o caminho "aprovado sobrescreve aprovado", nunca
-    # este. Aconteceu na pratica: uma campanha reprovou um candidato bem na
-    # hora que foi interrompida, apagou o VALIDADO_XAUUSD_12_GRID_INVERSO
-    # sem arquivar, e so nao virou perda de verdade porque o campeao ja
-    # tinha sido arquivado numa rodada de teste ANTERIOR por sorte. Arquiva
-    # SEMPRE que o arquivo que vai ser apagado e um VALIDADO_ de verdade,
-    # nao so no caminho feliz.
-    if outro_prefixo == "VALIDADO" and outro_destino.exists():
-        campeoes_arquivo.arquivar_campeao_anterior(
-            args.sistema, args.symbol, args.variante, outro_destino)
-    outro_destino.unlink(missing_ok=True)
+    # Limpeza do prefixo OPOSTO -- SO no sentido seguro. Ideia original
+    # (dono, 2026-08-17): um combo RE-TESTADO pode mudar de veredito, e sem
+    # limpar o prefixo antigo o dashboard podia mostrar um VALIDADO_ que
+    # acabou de ser reprovado na mesma rodada.
+    #
+    # BUGS REAIS encontrados ao vivo, os dois no mesmo dia (2026-08-30/31),
+    # porque a arquitetura de HOJE mudou o que "REPROVADO" significa: com o
+    # gate relativo (avaliar_gate_relativo()), um desafiante reprovado
+    # normalmente significa "isso aqui e PIOR que o campeao atual" -- nao
+    # "o campeao deixou de ser valido". Apagar o VALIDADO_ do campeao so
+    # porque um DESAFIANTE DIFERENTE perdeu pra ele e destruir o proprio
+    # proposito do gate relativo.
+    #   1. outro_destino.unlink() apagava o VALIDADO_ real sem arquivar
+    #      (corrigido primeiro, arquivando antes de apagar).
+    #   2. Mesmo arquivando, ainda apagava um campeao BOM e ainda VALIDO so
+    #      porque um candidato NOVO E DIFERENTE (ex.: formula 15) foi
+    #      reprovado pelo gate relativo -- aconteceu de verdade com a
+    #      formula 15 do 12_GRID_INVERSO reprovando e apagando o campeao
+    #      real da formula 13, que nunca tinha sido re-testado.
+    # Fix definitivo: so mexe no prefixo oposto quando ESTE run aprova (a
+    # direcao seguravel de limpar -- um REPROVADO_ velho nao e estado
+    # precioso). Quando este run reprova, o VALIDADO_ que ja existia (se
+    # houver) fica INTOCADO -- o veredito de um desafiante nao e o
+    # veredito do campeao.
+    if aprovado:
+        outro_destino = (base.DADOS / "MQL5" / "Profiles" / "Tester" /
+                         f"{outro_prefixo}_{args.symbol.replace('.', '_')}_"
+                         f"{args.sistema}_{args.variante}.set")
+        outro_destino.unlink(missing_ok=True)
     # Arquiva o campeao ATUAL antes de sobrescrever -- so quando `aprovado`
     # (destino e o caminho VALIDADO_, entao ha um campeao de verdade em
     # risco de ser perdido). Ver campeoes_arquivo.py: mesmo principio do
