@@ -1,0 +1,45 @@
+Como rodar sua parte
+=====================
+
+Pre-requisitos (uma vez so):
+  1. Ter o repositorio White Rabbit X ja clonado (git clone) com acesso
+     de leitura/escrita configurado.
+  2. Ter Python 3 instalado e as dependencias do Autobot (pip install
+     conforme o requirements.txt da pasta Autobot).
+  3. Ter o MetaTrader 5 do White Rabbit X instalado e logado numa conta
+     (demo serve) NESTA maquina -- o script abre e fecha o terminal
+     sozinho durante o teste.
+
+Pra rodar sua parte, so dar dois cliques no .bat correspondente dentro
+desta pasta (distribuir_amigos). Ele:
+  1. Roda "git pull" (pega a versao mais recente do codigo antes de
+     comecar -- importante, o codigo muda quase todo dia).
+  2. Roda o sweep completo das 15 formulas pro sistema/ativo designado.
+     Isso demora HORAS (pode passar de um dia inteiro dependendo da
+     maquina) -- pode deixar rodando em segundo plano, so nao desligar
+     o PC nem fechar a janela preta que abre.
+  3. Ao terminar, mostra "TERMINOU" e pausa (aperte qualquer tecla pra
+     fechar).
+
+O que fazer depois de terminar
+-------------------------------
+O resultado NAO sobe sozinho pro repositorio (os arquivos de log e o
+".set" campeao ficam so na sua maquina). Depois que terminar, me manda
+de volta (Telegram/WhatsApp/o que for combinado):
+  - o arquivo master (ex.: sweep_03_TRAIL_ONLY_GBPUSD_master.log)
+  - todos os sweep_..._NN_Nome.log da mesma rodada (estao na pasta
+    Autobot, mesma pasta onde esta o .bat que voce rodou)
+
+Com esses logs eu (ou o Claude) consigo conferir qual formula venceu e
+colocar o resultado oficialmente no campeao/ledger do projeto.
+
+Qual parte e a sua
+-------------------
+  parte_1_trail_gbpusd.bat  -> 03_TRAIL_ONLY em GBPUSD
+  parte_2_trail_btcusd.bat  -> 03_TRAIL_ONLY em BTCUSD
+  parte_3_grid_nzdchf.bat   -> 07_GRID_SEPARATE em NZDCHF
+  parte_4_grid_usdchf.bat   -> 07_GRID_SEPARATE em USDCHF
+
+Cada pessoa roda SO a sua parte -- nao precisa (e nao deve) rodar as
+outras, senao duas pessoas competem pelo mesmo terminal MT5 na mesma
+maquina achando que e problema.
