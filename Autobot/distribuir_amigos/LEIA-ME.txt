@@ -40,16 +40,17 @@ projeto.
 
 Qual parte e a sua
 -------------------
-  parte_1_trail_a.bat -> 03_TRAIL_ONLY em GBPJPY, GBPAUD, EURAUD, AUDJPY, GBPNZD
+  parte_1_trail_a.bat -> 03_TRAIL_ONLY em GBPJPY, EURJPY, GBPAUD, EURAUD, AUDJPY
   parte_2_trail_b.bat -> 03_TRAIL_ONLY em CADJPY, NZDJPY, GBPCAD, GBPCHF, EURNZD
-  parte_3_grid_a.bat  -> 07_GRID_SEPARATE em GBPUSD, USDJPY, USDCHF, AUDUSD, USDCAD
+  parte_3_grid_a.bat  -> 07_GRID_SEPARATE em EURUSD, GBPUSD, USDJPY, USDCHF, AUDUSD
   parte_4_grid_b.bat  -> 07_GRID_SEPARATE em NZDUSD, EURGBP, AUDCHF, AUDCAD, CADCHF
 
 Os ativos de tendencia (trail) e os de grid foram escolhidos a partir
 da lista de ativos interessantes do proprio Lucas (pares com boa
-tendencia pro trail, pares liquidos/laterais pro grid) -- evitando
-repetir o que ja foi calibrado (EURUSD/AUDNZD no grid, XAUUSD/EURJPY/
-USDJPY no trail).
+tendencia pro trail, pares liquidos/laterais pro grid): a parte 1 e a
+parte 3 cobrem os 5 ativos EXATOS que ele ja tinha listado como
+interessantes pra cada estrategia; a parte 2 e a parte 4 completam com
+mais 5 cada, da mesma categoria, pra dobrar a cobertura.
 
 Cada pessoa roda SO a sua parte -- nao precisa (e nao deve) rodar as
 outras, senao duas pessoas competem pelo mesmo terminal MT5 na mesma
