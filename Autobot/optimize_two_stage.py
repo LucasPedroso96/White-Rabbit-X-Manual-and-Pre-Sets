@@ -2459,6 +2459,26 @@ def main() -> int:
     # precioso). Quando este run reprova, o VALIDADO_ que ja existia (se
     # houver) fica INTOCADO -- o veredito de um desafiante nao e o
     # veredito do campeao.
+    # Valida `entrega` num lugar de TRABALHO antes de tocar `destino` --
+    # achado ao revisar os dois bugs de hoje (mesma classe de risco, nunca
+    # aconteceu de verdade mas e a mesma logica): se conferir_set()
+    # falhasse DEPOIS de reescrever(origem, destino, ...) ja ter
+    # sobrescrito o arquivo real, o campeao teria sido substituido por um
+    # set INCOMPLETO antes do abort ser detectado -- arquivado a salvo
+    # (campeoes_arquivo.py), mas o arquivo AO VIVO ficaria quebrado ate
+    # alguem notar e restaurar manualmente. Escreve e confere no `trabalho`
+    # primeiro (redundante pros sistemas com gate de sobrevivencia, que ja
+    # fizeram isso ali em cima -- barato o bastante pra nao valer a pena
+    # complicar pulando); so DEPOIS de confirmado completo e que qualquer
+    # arquivo AO VIVO e tocado.
+    if not (aprovado and args.sistema in SISTEMAS_GATE_SOBREVIVENCIA):
+        reescrever(origem, trabalho, [], entrega)
+    faltando = conferir_set(trabalho, entrega)
+    if faltando:
+        print(f"\n  ABORTADO: o set de entrega saiu incompleto: {faltando}")
+        limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
+        return 1
+
     if aprovado:
         outro_destino = (base.DADOS / "MQL5" / "Profiles" / "Tester" /
                          f"{outro_prefixo}_{args.symbol.replace('.', '_')}_"
@@ -2472,12 +2492,10 @@ def main() -> int:
     if aprovado:
         campeoes_arquivo.arquivar_campeao_anterior(
             args.sistema, args.symbol, args.variante, destino)
-    reescrever(origem, destino, [], entrega)
-    faltando = conferir_set(destino, entrega)
-    if faltando:
-        print(f"\n  ABORTADO: o set de entrega saiu incompleto: {faltando}")
-        limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
-        return 1
+    # Copia do `trabalho` JA VALIDADO, nao reescreve() de novo em cima do
+    # destino real -- destino so recebe conteudo que ja passou por
+    # conferir_set().
+    shutil.copy2(trabalho, destino)
 
     print(f"\n    set gravado (WFO desligado): {destino.name}")
     print(json.dumps({"simbolo": args.symbol, "sistema": args.sistema,
