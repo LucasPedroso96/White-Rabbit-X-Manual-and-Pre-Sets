@@ -188,7 +188,7 @@ def main() -> int:
     args = ap.parse_args()
 
     # Terminal aberto faz o /config virar no-op silencioso.
-    garantir_terminal_livre(fechar=args.fechar_terminal)
+    garantir_terminal_livre(fechar=args.fechar_terminal, terminal=TERMINAL)
 
     if not TERMINAL.exists():
         print(f"Terminal nao encontrado: {TERMINAL}")

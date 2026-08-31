@@ -334,7 +334,7 @@ def main() -> int:
              "nada para comparar.")
         return 1
 
-    garantir_terminal_livre(fechar=args.fechar_terminal)
+    garantir_terminal_livre(fechar=args.fechar_terminal, terminal=base.TERMINAL)
     cache_root = CACHE_DIR / f"{args.sistema}__{args.simbolo}__{args.variante}"
     blocos = obter_ou_criar_blocos(cache_root, args.de, args.ate, args.n_blocos)
     matriz = coletar_matriz(candidatos, blocos, origem, cache_root, args)

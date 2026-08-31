@@ -79,7 +79,7 @@ def fixar_formula(origem: Path, destino: Path, formula: int) -> None:
 def rodar_uma(trabalho: Path, args, formula: int) -> dict:
     """Roda o genetico rapido (mesma maquina do optimize_sets.main()) e
     devolve o melhor candidato deste passe."""
-    garantir_terminal_livre(fechar=True)
+    garantir_terminal_livre(fechar=True, terminal=base.TERMINAL)
     rel = str(trabalho.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
     nome_relatorio = f"amostra_formula_{formula}"
     antes = base.marcar_logs()

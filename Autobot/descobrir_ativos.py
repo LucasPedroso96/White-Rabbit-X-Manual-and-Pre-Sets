@@ -67,7 +67,7 @@ def descobrir() -> list[str]:
     """
     import MetaTrader5 as mt5
 
-    garantir_terminal_livre(fechar=True)
+    garantir_terminal_livre(fechar=True, terminal=TERMINAL)
     if not mt5.initialize(path=str(TERMINAL)):
         raise SystemExit(f"Nao consegui conectar ao MT5: {mt5.last_error()}")
     try:
@@ -97,7 +97,7 @@ def descobrir() -> list[str]:
                         break
         return resultado
     finally:
-        fechar_terminal()
+        fechar_terminal(terminal=TERMINAL)
 
 
 def carregar_ou_descobrir() -> list[str]:

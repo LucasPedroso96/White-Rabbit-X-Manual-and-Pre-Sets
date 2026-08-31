@@ -361,7 +361,7 @@ def main() -> int:
         # maquina pro proximo `/config:` (mesma armadilha documentada em
         # mt5_runner.py; achada aqui na pratica, o painel ficou "MT5 ocupado"
         # depois de um --dry-run que so tinha chamado shutdown()).
-        fechar_terminal()
+        fechar_terminal(terminal=wrx_paths.terminal_exe())
     return 0
 
 

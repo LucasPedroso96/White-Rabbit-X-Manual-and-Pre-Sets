@@ -629,7 +629,7 @@ def campanha_stop() -> JSONResponse:
     _processo = None
     # So DEPOIS da arvore python estar morta -- senao um filho ainda vivo
     # pode reabrir o terminal entre o fechamento gracioso e o taskkill acima.
-    fechado = fechar_terminal()
+    fechado = fechar_terminal(terminal=base.TERMINAL)
     LOCK.unlink(missing_ok=True)
     # Stop cancela tudo, inclusive um pedido de pausa pendente -- sem isto,
     # um Pause seguido de Stop (em vez de Resume) deixava o sinal no disco

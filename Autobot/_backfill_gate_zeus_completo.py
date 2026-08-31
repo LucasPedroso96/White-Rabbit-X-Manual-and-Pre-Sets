@@ -137,7 +137,7 @@ def main() -> int:
     if not args.aplicar or not atualizacoes:
         return 0
 
-    garantir_terminal_livre(fechar=True)
+    garantir_terminal_livre(fechar=True, terminal=base.TERMINAL)
     existentes = rl.metricas_do_ledger(rl.LEDGER)
     origens = {}
     novas_linhas = []

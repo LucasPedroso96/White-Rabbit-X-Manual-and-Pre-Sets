@@ -44,7 +44,7 @@ def atualizar() -> dict | None:
     """Consulta a conta real e grava o cache. Devolve os dados gravados, ou
     None se a consulta falhar (terminal sem login, por exemplo) -- quem
     chama decide como reagir a None, nunca supoe um valor no lugar."""
-    garantir_terminal_livre(fechar=True)
+    garantir_terminal_livre(fechar=True, terminal=TERMINAL)
     if not mt5.initialize(path=str(TERMINAL)):
         return None
     try:
@@ -62,7 +62,7 @@ def atualizar() -> dict | None:
                          encoding="utf-8")
         return dados
     finally:
-        fechar_terminal()
+        fechar_terminal(terminal=TERMINAL)
 
 
 def main() -> int:
