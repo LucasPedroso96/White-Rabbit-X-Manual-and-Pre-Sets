@@ -1718,7 +1718,7 @@ def main() -> int:
               f"{args.inicio}..{args.fim} ({dias}d) -> piso de {args.min_trades} "
               f"trades (era --min-trades={piso_antigo})", flush=True)
 
-    garantir_terminal_livre(fechar=args.fechar_terminal)
+    garantir_terminal_livre(fechar=args.fechar_terminal, terminal=base.TERMINAL)
 
     origem = base.achar_set(args.symbol, args.sistema, args.variante)
     if origem is None:

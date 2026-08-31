@@ -16,13 +16,43 @@ import time
 from pathlib import Path
 
 
-def terminal_aberto() -> bool:
+def _pids_do_terminal(terminal: Path) -> list[str]:
+    """PIDs de terminal64.exe rodando EXATAMENTE deste caminho.
+
+    2026-08-30: esta maquina roda varias instalacoes de MT5 lado a lado para
+    projetos diferentes (Zeus, ClaudeTrader Bridge, etc.), todas com o mesmo
+    nome de processo terminal64.exe. Um `taskkill /IM` por nome (o que este
+    modulo fazia antes) mata TODAS elas, nao so a do White Rabbit -- inclusive
+    um EA de outro projeto rodando ao vivo numa conta demo real. Descoberto
+    correlacionando reinicios inexplicados do terminal do Zeus com este
+    otimizador rodando ao mesmo tempo. `tasklist` nao expõe o caminho
+    completo do executavel; usa-se Get-CimInstance via PowerShell, que expõe.
+    """
+    ps_cmd = (
+        "Get-CimInstance Win32_Process -Filter \"Name='terminal64.exe'\" | "
+        f"Where-Object {{ $_.ExecutablePath -eq '{terminal}' }} | "
+        "Select-Object -ExpandProperty ProcessId"
+    )
+    try:
+        saida = subprocess.run(  # noqa: S603
+            ["powershell", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True, text=True, timeout=15, check=False).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [linha.strip() for linha in saida.splitlines() if linha.strip().isdigit()]
+
+
+def terminal_aberto(terminal: Path | None = None) -> bool:
     """Ha um terminal MetaTrader em execucao nesta maquina?
 
-    tasklist existe em qualquer Windows e nao acrescenta dependencia. Nao
-    distingue QUAL instalacao esta aberta; para o efeito aqui tanto faz, porque
-    qualquer terminal aberto ja impede a inicializacao de outro.
+    Se `terminal` for passado, filtra por caminho exato -- so conta a
+    instalacao do White Rabbit, nunca outro projeto rodando na mesma
+    maquina. Sem `terminal` (uso antigo, mantido por compatibilidade),
+    tasklist por nome: nao distingue QUAL instalacao esta aberta -- so
+    seguro numa maquina com uma unica instalacao de MT5.
     """
+    if terminal is not None:
+        return len(_pids_do_terminal(terminal)) > 0
     try:
         saida = subprocess.run(  # noqa: S603
             ["tasklist", "/FI", "IMAGENAME eq terminal64.exe", "/NH"],
@@ -32,14 +62,32 @@ def terminal_aberto() -> bool:
     return "terminal64.exe" in saida.lower()
 
 
-def fechar_terminal(espera: int = 45) -> bool:
+def fechar_terminal(espera: int = 45, terminal: Path | None = None) -> bool:
     """Fecha o terminal COM GRACA e espera ele sumir de verdade.
 
     /F destroi trabalho: o MT5 persiste definicao de simbolo custom e cache de
     otimizacao no encerramento limpo. Matar a forca ja deixou centenas de MB de
     ticks no disco para um simbolo que o tester passou a responder "not exist".
     So recorre ao /F depois de esperar -- preso e pior que forcado.
+
+    Com `terminal` informado, fecha SO os PIDs daquele caminho exato (por
+    /PID, nao /IM) -- nunca outra instalacao de MT5 rodando na mesma maquina.
     """
+    if terminal is not None:
+        for pid in _pids_do_terminal(terminal):
+            subprocess.run(["taskkill", "/PID", pid],  # noqa: S603
+                           capture_output=True, check=False)
+        for _ in range(espera):
+            time.sleep(1)
+            if not terminal_aberto(terminal):
+                time.sleep(2)
+                return True
+        for pid in _pids_do_terminal(terminal):
+            subprocess.run(["taskkill", "/PID", pid, "/F"],  # noqa: S603
+                           capture_output=True, check=False)
+        time.sleep(3)
+        return not terminal_aberto(terminal)
+
     subprocess.run(["taskkill", "/IM", "terminal64.exe"],  # noqa: S603
                    capture_output=True, check=False)
     for _ in range(espera):
@@ -53,14 +101,17 @@ def fechar_terminal(espera: int = 45) -> bool:
     return not terminal_aberto()
 
 
-def garantir_terminal_livre(fechar: bool = False) -> None:
+def garantir_terminal_livre(fechar: bool = False, terminal: Path | None = None) -> None:
     """Levanta se houver terminal aberto, ou fecha quando autorizado.
 
     Falhar aqui e MUITO melhor do que rodar: o custo de um erro visivel e
     reabrir o terminal; o custo do silencio e concluir coisa errada sobre uma
     estrategia a partir de um teste que nunca rodou.
+
+    Passe `terminal` (o Path da instalacao do White Rabbit) para so
+    checar/fechar essa instalacao especifica -- ver `_pids_do_terminal`.
     """
-    if not terminal_aberto():
+    if not terminal_aberto(terminal):
         return
 
     porque = ("Com o terminal em execucao o /config nao executa nada -- a "
@@ -72,7 +123,7 @@ def garantir_terminal_livre(fechar: bool = False) -> None:
                          f"{porque}\n"
                          "Use --fechar-terminal para fechar automaticamente.")
 
-    if fechar_terminal():
+    if fechar_terminal(terminal=terminal):
         return
 
     # Mandar usar a flag que ja foi usada manda procurar no lugar errado: o
