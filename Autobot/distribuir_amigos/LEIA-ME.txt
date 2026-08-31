@@ -14,31 +14,42 @@ Pra rodar sua parte, so dar dois cliques no .bat correspondente dentro
 desta pasta (distribuir_amigos). Ele:
   1. Roda "git pull" (pega a versao mais recente do codigo antes de
      comecar -- importante, o codigo muda quase todo dia).
-  2. Roda o sweep completo das 15 formulas pro sistema/ativo designado.
-     Isso demora HORAS (pode passar de um dia inteiro dependendo da
-     maquina) -- pode deixar rodando em segundo plano, so nao desligar
-     o PC nem fechar a janela preta que abre.
-  3. Ao terminar, mostra "TERMINOU" e pausa (aperte qualquer tecla pra
-     fechar).
+  2. Roda o sweep completo das 15 formulas em 5 ativos DIFERENTES, um
+     atras do outro (o proximo so comeca quando o anterior termina).
+  3. Ao terminar tudo, mostra "TERMINOU OS 5" e pausa (aperte qualquer
+     tecla pra fechar).
+
+Isso demora MUITO -- cada ativo sozinho ja pode passar de um dia
+inteiro dependendo da maquina, entao a parte toda (5 ativos) pode levar
+varios dias rodando direto. Pode deixar rodando em segundo plano dias
+seguidos, so nao desligar o PC nem fechar a janela preta que abre.
 
 O que fazer depois de terminar
 -------------------------------
 O resultado NAO sobe sozinho pro repositorio (os arquivos de log e o
-".set" campeao ficam so na sua maquina). Depois que terminar, me manda
-de volta (Telegram/WhatsApp/o que for combinado):
-  - o arquivo master (ex.: sweep_03_TRAIL_ONLY_GBPUSD_master.log)
-  - todos os sweep_..._NN_Nome.log da mesma rodada (estao na pasta
-    Autobot, mesma pasta onde esta o .bat que voce rodou)
+".set" campeao ficam so na sua maquina). Depois que terminar (ou mesmo
+ativo por ativo, se quiser ir mandando aos poucos), me manda de volta
+(Telegram/WhatsApp/o que for combinado) os arquivos:
+  - sweep_<SISTEMA>_<ATIVO>_master.log
+  - todos os sweep_<SISTEMA>_<ATIVO>_NN_Nome.log da mesma rodada
+  (estao na pasta Autobot, mesma pasta onde esta o .bat que voce rodou)
 
-Com esses logs eu (ou o Claude) consigo conferir qual formula venceu e
-colocar o resultado oficialmente no campeao/ledger do projeto.
+Com esses logs eu (ou o Claude) consigo conferir qual formula venceu em
+cada ativo e colocar o resultado oficialmente no campeao/ledger do
+projeto.
 
 Qual parte e a sua
 -------------------
-  parte_1_trail_gbpusd.bat  -> 03_TRAIL_ONLY em GBPUSD
-  parte_2_trail_btcusd.bat  -> 03_TRAIL_ONLY em BTCUSD
-  parte_3_grid_nzdchf.bat   -> 07_GRID_SEPARATE em NZDCHF
-  parte_4_grid_usdchf.bat   -> 07_GRID_SEPARATE em USDCHF
+  parte_1_trail_a.bat -> 03_TRAIL_ONLY em GBPJPY, GBPAUD, EURAUD, AUDJPY, GBPNZD
+  parte_2_trail_b.bat -> 03_TRAIL_ONLY em CADJPY, NZDJPY, GBPCAD, GBPCHF, EURNZD
+  parte_3_grid_a.bat  -> 07_GRID_SEPARATE em GBPUSD, USDJPY, USDCHF, AUDUSD, USDCAD
+  parte_4_grid_b.bat  -> 07_GRID_SEPARATE em NZDUSD, EURGBP, AUDCHF, AUDCAD, CADCHF
+
+Os ativos de tendencia (trail) e os de grid foram escolhidos a partir
+da lista de ativos interessantes do proprio Lucas (pares com boa
+tendencia pro trail, pares liquidos/laterais pro grid) -- evitando
+repetir o que ja foi calibrado (EURUSD/AUDNZD no grid, XAUUSD/EURJPY/
+USDJPY no trail).
 
 Cada pessoa roda SO a sua parte -- nao precisa (e nao deve) rodar as
 outras, senao duas pessoas competem pelo mesmo terminal MT5 na mesma
