@@ -20,6 +20,11 @@ FONTES = {
     ("XAUUSD", "11_SIGNAL_ONLY", "BUY_MULTI"): "sweep_11_SIGNAL_ONLY_XAUUSD_07_ProfitPerTradeAdjustedByDD.log",
     ("BTCUSD", "04_SLTP_TRAIL", "BUY_MULTI"): "sweep_04_SLTP_TRAIL_BTCUSD_15_ZeusCompositeScore.log",
     ("NZDUSD", "09_MARTINGALE", "BUY_MULTI"): "sweep_09_MARTINGALE_NZDUSD_03_ProfitWinTradeDD.log",
+    # Fila 2 (2026-09-03): mesmo problema de ledger obsoleto do
+    # AUDNZD/07_GRID_SEPARATE -- essas duas chaves ja tinham registro
+    # velho (pre-reset), entao o lookup simples do dict achava o antigo.
+    ("XAUUSD", "05_BE_TRAIL", "BUY_MULTI"): "sweep_05_BE_TRAIL_XAUUSD_04_EfficiencyRelativeToDeposit.log",
+    ("EURUSD", "10_DALEMBERT", "BUY_MULTI"): "sweep_10_DALEMBERT_EURUSD_11_ReturnUniformity.log",
 }
 
 gravados = 0
@@ -46,4 +51,4 @@ with rl.LEDGER.open("a", encoding="utf-8") as fh:
               f"PF={registro.get('profit_factor')} DD%={registro.get('max_dd_pct')} "
               f"Sharpe={registro.get('sharpe')} Score={registro.get('composite_score')}")
 
-print(f"\n{gravados}/6 registros gravados em {rl.LEDGER}")
+print(f"\n{gravados}/{len(FONTES)} registros gravados em {rl.LEDGER}")
