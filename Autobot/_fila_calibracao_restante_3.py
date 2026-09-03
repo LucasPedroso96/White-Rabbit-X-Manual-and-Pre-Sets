@@ -81,5 +81,6 @@ with master.open("a", encoding="utf-8") as fm:
         linha = f"    log salvo em {log} (exit={resultado.returncode})"
         print(linha, flush=True)
         fm.write(linha + "\n")
+    fm.write("\n===== FILA 3 COMPLETA =====\n")
 
 print("\n===== FILA 3 COMPLETA =====", flush=True)
