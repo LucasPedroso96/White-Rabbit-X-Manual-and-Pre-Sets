@@ -544,6 +544,63 @@ def reescrever(origem: Path, destino: Path, otimizar: list[str],
     return marcados
 
 
+BLOCO_MINIMO_WFO = 30
+
+
+def dimensionar_wfo(dias: int, ciclos_alvo: int = 6,
+                    bloco_minimo: int = BLOCO_MINIMO_WFO
+                    ) -> tuple[int, int, int]:
+    """(ciclos, dias de In-Sample, dias de Out-of-Sample) que CABEM em `dias`.
+
+    QUEM DIVIDE O PERIODO E A EA, NAO ESTE ARQUIVO (lembrete do dono,
+    2026-09-03). O .set so carrega o TAMANHO DE UM BLOCO --
+    `wfo_customWindowSizeDays` (dias de IS) e `wfo_customStepSizePercent`
+    (negativo = dias fixos de OOS). Quem varre `backtest_start..backtest_end`
+    montando ciclo por ciclo e o laco do OnInit da EA (.mq5, ~8034), uma vez
+    so. O `ciclos` devolvido aqui e PREVISAO, usada para AVISAR quando a
+    janela nao comporta walk-forward de verdade -- nunca vai para o .set, e
+    nunca deve ir: seria a mesma divisao feita duas vezes, em dois lugares
+    que podem discordar.
+
+    Separada de janelas_wfo() de proposito: e aritmetica pura, testavel em
+    milissegundos, e e onde mora o unico numero que decide se a retencao do
+    circuito inteiro significa alguma coisa.
+
+    O BUG QUE ESTA FUNCAO EXISTE PRA MATAR (auditoria, 2026-09-03). A versao
+    anterior era `bloco = max(60, dias // ciclos_alvo)` com pisos absolutos de
+    30/15 dias -- numeros calibrados para corridas multi-ano. O sweep de
+    formulas roda em 92 dias, onde o piso de 60 DOMINA o calculo: bloco=60,
+    IS=45, OOS=15, e o periodo inteiro comporta 1,5 ciclo. Medido no log do
+    tester (2026.05.22..08.22): IS 45d, OOS 15d, IS 33d e um segundo OOS de
+    UM DIA -- 22/08/2026, um sabado -- com outSampleStart > outSampleEnd, uma
+    janela invertida que WfoCycleOf() nunca casa com deal nenhum.
+    "Adjusted In-Sample days: 79, adjusted Out-Sample days: 16".
+
+    O estrago: TODA a retencao da campanha saiu de UMA janela de 15 dias
+    corridos (~11 pregoes), e o relatorio "Retention per cycle: mean/stdev"
+    -- que existe justamente pra separar robustez de sorte concentrada numa
+    janela -- nunca chegou a imprimir, porque exige mais de um ciclo valido.
+    Dai as retencoes de 429%, 1.193% e -4.107% nos logs: nao sao propriedades
+    das estrategias, e o que acontece quando o denominador tem uma duzia de
+    trades.
+
+    Agora o numero de ciclos e derivado de quantos CABEM (`dias //
+    bloco_minimo`), limitado por `ciclos_alvo`, e o bloco sai da divisao
+    exata -- sem piso absoluto que possa dominar um periodo curto. Em 92
+    dias: 3 ciclos de 30d (22 IS / 8 OOS) em vez de 1,5 ciclo de 60d.
+
+    `bloco_minimo=30` e o menor bloco que ainda deixa um OOS com ~8 dias
+    corridos (~6 pregoes). Abaixo disso o ciclo existe no papel e nao mede
+    nada -- devolver 1 ciclo e honesto, e quem chama avisa (ver main()).
+    """
+    dias = max(1, dias)
+    ciclos = max(1, min(ciclos_alvo, dias // max(1, bloco_minimo)))
+    bloco = dias // ciclos
+    is_dias = max(1, int(round(bloco * 0.75)))
+    oos_dias = max(1, bloco - is_dias)
+    return ciclos, is_dias, oos_dias
+
+
 def janelas_wfo(inicio: str, fim: str, ciclos_alvo: int = 6) -> dict[str, str]:
     """Configura o walk-forward interno A PARTIR do periodo da corrida.
 
@@ -566,10 +623,7 @@ def janelas_wfo(inicio: str, fim: str, ciclos_alvo: int = 6) -> dict[str, str]:
     """
     d0 = datetime.strptime(inicio, "%Y.%m.%d")
     d1 = datetime.strptime(fim, "%Y.%m.%d")
-    dias = (d1 - d0).days
-    bloco = max(60, dias // max(1, ciclos_alvo))
-    is_dias = max(30, int(bloco * 0.75))
-    oos_dias = max(15, bloco - is_dias)
+    _, is_dias, oos_dias = dimensionar_wfo((d1 - d0).days, ciclos_alvo)
     return {
         "AtivarWFO": "true",
         "MetodoDeEntradawfo": "0",          # In-Sample: o genetico so ve IS
@@ -781,6 +835,59 @@ def relatar_cobertura(cab: list[str], todas: list[list[str]],
               "continua a busca.", flush=True)
 
 
+def medir_divergencia(lucro_real: float | None, lucro_ohlc: float | None,
+                      lucro_ohlc_pre_geometria: float | None,
+                      geometria_refeita_tick_real: bool, deposito: int,
+                      ) -> tuple[float | None, float | None, str]:
+    """Divergencia entre o que a busca em OHLC prometeu e o que o tick real
+    entregou. Devolve (divergencia %, base usada, motivo quando nao mediu).
+
+    ESCOLHA DA BASE -- o bug que esta funcao existe pra matar (auditoria,
+    2026-09-03). `lucro_ohlc` e `ordenados[0][1]`, o lucro do vencedor do
+    ULTIMO torneio que rodou. Quando o Estagio 3.5 refaz a geometria em tick
+    real, esse torneio E o de tick real -- entao a conta virava tick real
+    contra tick real, com os MESMOS parametros: 0.0% por construcao. E o
+    veredito imprimia "OK divergencia (0.0%): o lucro do OHLC e real."
+    embaixo de uma promessa de OHLC que nao tinha se sustentado.
+
+    Auditadas 68 corridas com o memo legivel no log: 28 tinham divergencia
+    REAL acima de 30% e passaram lendo 0.0%. Em 07_GRID_SEPARATE/AUDNZD foram
+    as 12 corridas, entre 61% e 89% -- inclusive os 2 campeoes aprovados
+    daquele sistema.
+
+    Com a geometria refeita, a base certa e `lucro_ohlc_pre_geometria`: o que
+    a busca em OHLC prometia ANTES do Estagio 3.5 reabrir os eixos de saida.
+    O numero ja era calculado e impresso como "memo" -- so nunca entrava no
+    veredito. A comparacao deixa de ser mesmos-parametros-em-dois-modelos e
+    vira promessa-do-OHLC contra entrega-em-tick-real; e a pergunta economica
+    certa (o Estagio 3.5 existe pra TROCAR a geometria, entao exigir
+    parametros identicos seria exigir que ele nao tivesse rodado) e a unica
+    que sobra medindo alguma coisa nesses 5 sistemas.
+
+    PISO DO DENOMINADOR, mesma auditoria: o teste antigo era `abs(base) >
+    1e-9`, que deixa passar base ~ 0. Um lucro base de 1,50 contra 26,00 em
+    tick real vira "divergencia de 1.633%". Sairam 3.654%, 1.696% e 988% nos
+    logs -- nenhum desses numeros diz que a estrategia e 36x pior, so que o
+    denominador era ruido. Abaixo de 1% do deposito a divergencia vira None,
+    e veredito() reprova por SEM VEREDITO: a direcao segura, porque o que
+    falta e a PROVA de que o numero da busca e real, nao a prova do contrario.
+    """
+    if lucro_real is None:
+        return None, None, ("a conferencia em tick real nao produziu "
+                            "resultado -- verifique o log.")
+    base = (lucro_ohlc_pre_geometria if geometria_refeita_tick_real
+            else lucro_ohlc)
+    if base is None:
+        return None, None, ("a busca em OHLC nao deixou lucro de referencia "
+                            "(torneio do estagio 2/3 sem medida).")
+    piso = max(1.0, deposito * 0.01)
+    if abs(base) < piso:
+        return None, base, (f"base de {base:.2f} abaixo do piso de "
+                            f"{piso:.2f} (1% do deposito) -- percentual de "
+                            "base minuscula nao mede nada.")
+    return abs(lucro_real - base) / abs(base) * 100.0, base, ""
+
+
 def veredito(div: float | None, retencao: float | None,
              min_retencao: float) -> tuple[bool, list[str]]:
     """Aprova o candidato so quando as DUAS conferencias passam.
@@ -800,7 +907,13 @@ def veredito(div: float | None, retencao: float | None,
     """
     motivos, aprovado = [], True
     if div is None:
-        motivos.append("SEM VEREDITO: a conferencia em tick real nao produziu numero.")
+        # `None` chega aqui por tres caminhos, todos com o mesmo desfecho: a
+        # conferencia em tick real nao produziu resultado, a busca em OHLC nao
+        # deixou lucro de referencia, ou a base ficou abaixo do piso de 1% do
+        # deposito (ver o calculo em main()). Nos tres nao ha divergencia
+        # medida -- e sem ela nao ha como afirmar que o numero da busca e real.
+        motivos.append("SEM VEREDITO: a divergencia nao pode ser medida "
+                       "(ver o motivo impresso acima).")
         return False, motivos
     if div > 30:
         aprovado = False
@@ -1756,6 +1869,22 @@ def main() -> int:
     # o que foi escolhido antes volta ao default -- ver conferir_set().
     travados = janelas_wfo(args.inicio, args.fim)
     wfo = dict(travados)
+    # Aviso ALTO, nao silencioso (auditoria 2026-09-03): a retencao e o
+    # criterio de escolha do circuito inteiro, e com um ciclo so ela sai de
+    # UMA janela OOS -- sem desvio-padrao por ciclo, sem como distinguir
+    # "reteve 110%" de "teve sorte numa quinzena". O circuito segue (o numero
+    # ainda vale mais que nenhum numero), mas o log passa a dizer isso na
+    # cara em vez de deixar o leitor supor que houve walk-forward de verdade.
+    _ciclos, _is_d, _oos_d = dimensionar_wfo(
+        (datetime.strptime(args.fim, "%Y.%m.%d")
+         - datetime.strptime(args.inicio, "%Y.%m.%d")).days)
+    if _ciclos < 2:
+        print(f"    ATENCAO: a janela {args.inicio}..{args.fim} so comporta "
+              f"{_ciclos} ciclo de WFO ({_is_d}d IS / {_oos_d}d OOS). A "
+              "retencao vai sair de uma janela OOS unica e o desvio-padrao "
+              "por ciclo nao vai existir -- trate o numero como indicio, nao "
+              f"como prova. Um periodo de {BLOCO_MINIMO_WFO * 3}+ dias "
+              "devolve 3 ciclos.", flush=True)
     # English fixo em todo o set de trabalho da campanha (fora de `wfo`, que
     # so guarda as janelas): com Auto, o EA detecta o idioma do terminal
     # (Portugues aqui) para o painel. A entrega (linha ~980) volta pra Auto --
@@ -2276,19 +2405,45 @@ def main() -> int:
               flush=True)
     print(f"    {(time.time()-t0)/60:.1f} min nos estagios finais", flush=True)
 
-    div = None
-    if lucro_real is None:
-        print("    a conferencia nao produziu resultado -- verifique o log.")
-    elif abs(lucro_ohlc) > 1e-9:
-        div = abs(lucro_real - lucro_ohlc) / abs(lucro_ohlc) * 100
-        rotulo_base = ("lucro na busca (tick real):"
-                       if geometria_refeita_tick_real else "lucro em OHLC:")
-        print(f"\n    {rotulo_base:<21}{lucro_ohlc:>10.2f}")
+    # A divergencia so responde "o numero do OHLC e real?" se o lado ESQUERDO
+    # da conta vier mesmo do OHLC.
+    #
+    # BUG CORRIGIDO NA AUDITORIA DE 2026-09-03. Quando o Estagio 3.5 refaz a
+    # geometria em tick real, `ordenados` passa a ser o torneio de TICK REAL
+    # -- entao `lucro_ohlc` deixou de ser OHLC, e a conta virava tick real
+    # contra tick real com os MESMOS parametros: 0.0% por construcao, e o
+    # veredito imprimia "OK divergencia (0.0%): o lucro do OHLC e real."
+    # embaixo de uma promessa de OHLC que nao tinha se sustentado. Auditadas
+    # 68 corridas com o memo legivel: 28 tinham divergencia REAL acima de 30%
+    # e passaram lendo 0.0%. Em 07_GRID_SEPARATE/AUDNZD foram as 12, entre
+    # 61% e 89% -- inclusive os 2 campeoes aprovados daquele sistema.
+    #
+    # O lado esquerdo certo e `lucro_ohlc_pre_geometria`: o que a busca em
+    # OHLC prometeu ANTES do Estagio 3.5 reabrir a geometria. Ele ja era
+    # calculado e impresso como "memo" -- so nunca entrava no veredito.
+    #
+    # A comparacao deixa de ser mesmos-parametros-dois-modelos e vira
+    # promessa-do-OHLC contra entrega-em-tick-real. E a pergunta economica
+    # certa (o Estagio 3.5 existe pra TROCAR a geometria, entao exigir
+    # parametros identicos seria exigir que ele nao tivesse rodado), e e a
+    # unica que sobra medindo alguma coisa nestes 5 sistemas.
+    div, base_div, motivo_div = medir_divergencia(
+        lucro_real, lucro_ohlc, lucro_ohlc_pre_geometria,
+        geometria_refeita_tick_real, args.deposit)
+    if base_div is not None:
+        rotulo_base = ("prometido em OHLC:" if geometria_refeita_tick_real
+                       else "lucro em OHLC:")
+        print(f"\n    {rotulo_base:<21}{base_div:>10.2f}")
         print(f"    lucro em tick real:  {lucro_real:>10.2f}")
+    if div is not None:
         print(f"    divergencia:         {div:>9.1f}%")
-        if geometria_refeita_tick_real and lucro_ohlc_pre_geometria is not None:
-            print(f"    (memo: geometria OHLC prometia {lucro_ohlc_pre_geometria:.2f} "
-                  f"na mesma busca -- comparavel ao lucro em tick real acima)")
+        if geometria_refeita_tick_real:
+            print("    (a geometria foi refeita em tick real e entregou "
+                  f"{lucro_ohlc:.2f} na propria busca; a divergencia acima "
+                  "compara a PROMESSA do OHLC com a entrega em tick real)")
+    else:
+        prefixo_div = "    " if base_div is not None else "\n    "
+        print(f"{prefixo_div}divergencia n/d: {motivo_div}", flush=True)
 
     # Custo nativo (dono, 2026-08-02): simbolo .HT sai com comissao/swap ZERO
     # por construcao (CustomSymbolCreate nao herda isso do broker -- e config
