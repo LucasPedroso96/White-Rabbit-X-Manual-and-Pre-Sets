@@ -11,7 +11,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from wfa_real import janelas_sequenciais, ler_valores_set, medir_holdout, wfe
+from wfa_real import (deposito_do_combo, janelas_sequenciais, ler_valores_set,
+                      medir_holdout, wfe)
 
 FALHAS: list[str] = []
 
@@ -108,6 +109,19 @@ checar("holdout: wfo_customWindowSizeDays recalculado (nao herda 122 de outra co
 checar("holdout: campos normais do campeao ainda passam", params_usados["Fast_EMA"], "9")
 checar("holdout: MetodoDeEntradawfo=1 (IS+OOS, nao o 0 do .set entregue)",
        params_usados["MetodoDeEntradawfo"], "1")
+
+# --- deposito_do_combo(): le CapitalBaseR do proprio campeao, nao um
+# --deposit global -- mesma familia do bug de margem do grid (07_GRID_
+# SEPARATE/AUDNZD reprovou 12/14 formulas por deposito pequeno demais pra
+# classe do ativo; rodar --todos com UM valor fixo repetiria esse erro pra
+# TODOS os combos de menor deposito) --------------------------------------
+checar("deposito_do_combo: 01_SLTP/EURUSD usa o CapitalBaseR do campeao "
+       "(1000, classe 01_Forex), nao um fallback generico",
+       deposito_do_combo("EURUSD", "01_SLTP", "BUY_MULTI", fallback=999),
+       1000)
+checar("deposito_do_combo: combo sem campeao VALIDADO_ cai no fallback",
+       deposito_do_combo("XXXXXX", "01_SLTP", "BUY_MULTI", fallback=777),
+       777)
 
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")

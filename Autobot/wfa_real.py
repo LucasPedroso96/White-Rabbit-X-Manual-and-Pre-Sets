@@ -315,6 +315,40 @@ def medir_wfa(origem: Path, travados: dict, numeros: list[str], symbol: str,
 
 # ---------------------------------------------------------------------------
 
+def deposito_do_combo(symbol: str, sistema: str, variante: str,
+                      fallback: int) -> int:
+    """Deposito certo pra ESTE combo, lido do proprio campeao (CapitalBaseR),
+    nao um --deposit fixo aplicado a todo mundo em --todos.
+
+    Achado 2026-09-04, mesma familia do bug de margem do 07_GRID_SEPARATE/
+    AUDNZD (deposito baixo demais pra classe do ativo): rodar --todos com UM
+    valor global e exatamente o erro que reprovou aquele grid em 12/14
+    formulas por "sem margem"/"stop out" -- 05_Metals precisa de ~10x o
+    deposito de 01_Forex pra sustentar a mesma cesta.
+
+    CapitalBaseR e o campo mais confiavel disponivel: gerado pelo template
+    a partir de AssetClass.capital_base (generate_system_sets.py:CLASSES) e
+    sobrevive na entrega mesmo quando o sizing muda pra Percentage --
+    CapitalBaseR fica sem uso nesse modo (so importa em FixedR), mas o
+    VALOR continua refletindo a classe do ativo corretamente. Nao tenta
+    reproduzir o --deposit EXATO que a corrida original usou (isso nao fica
+    gravado em lugar nenhum -- nao existe input pra isso, e o ledger tambem
+    nao grava) -- so garante que o depósito nunca fica pequeno demais pra
+    classe, que é o unico jeito de errar que quebra margem.
+    """
+    validado = (ready_library.TESTER /
+               f"VALIDADO_{symbol.replace('.', '_')}_{sistema}_{variante}.set")
+    if not validado.exists():
+        return fallback
+    valores = ler_valores_set(validado)
+    bruto = valores.get("CapitalBaseR")
+    try:
+        valor = int(float(bruto))
+    except (TypeError, ValueError):
+        return fallback
+    return valor if valor > 0 else fallback
+
+
 def rodar_combo(symbol: str, sistema: str, variante: str, inicio: str,
                 fim: str, deposito: int, modos: list[str], ciclos: int,
                 timeout: int) -> dict:
@@ -412,10 +446,16 @@ def main() -> int:
     SAIDA_DIR.mkdir(exist_ok=True)
     linhas_csv = []
     for simbolo, sistema, variante in combos:
+        # --todos: cada combo usa o proprio CapitalBaseR como deposito (ver
+        # deposito_do_combo -- mesma familia do bug de margem do grid).
+        # Fora de --todos, o dono ja escolheu --deposit explicitamente pra
+        # ESTE combo especifico -- respeita o que foi pedido, sem sobrepor.
+        deposito = (deposito_do_combo(simbolo, sistema, variante, args.deposit)
+                   if args.todos else args.deposit)
         print(f"\n=== {simbolo} {sistema} {variante} | {args.inicio}..{args.fim} "
-              f"| modos: {modos} ===", flush=True)
+              f"| modos: {modos} | deposito: {deposito} ===", flush=True)
         resultado = rodar_combo(simbolo, sistema, variante, args.inicio,
-                               args.fim, args.deposit, modos, args.ciclos,
+                               args.fim, deposito, modos, args.ciclos,
                                args.timeout)
         if "erro" in resultado:
             print(f"    {resultado['erro']}")
