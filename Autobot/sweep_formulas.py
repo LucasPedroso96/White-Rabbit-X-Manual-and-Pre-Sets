@@ -145,6 +145,24 @@ try:
                         "-- ver aviso no topo do log.")
                 print(linha, flush=True)
                 fm.write(linha + "\n")
+                # Escreve o proprio log da formula (nao so o master) --
+                # achado 2026-09-04: sem isso, uma formula pulada nao deixa
+                # NENHUM arquivo, e sweep_*_14_SomaR.log de uma corrida
+                # ANTIGA (de antes desta checagem existir, com um REPROVADO
+                # por busca as cegas) fica parecendo o resultado atual pra
+                # quem le os logs depois -- exatamente o que confundiu a
+                # auditoria original. Sobrescreve com o motivo real.
+                log = Path(f"{prefixo}_{formula:02d}_{nome}.log")
+                log.write_text(
+                    f"    PULADA: PositionSizeMode={POSITION_SIZE_MODE!r} "
+                    "(FixedLot/Monetary) incompativel com a formula 14 "
+                    "(SomaR) -- ComputeRMetrics() no .mq5 exige "
+                    "RiscoRFixo(3) ou Porcentagem(0), devolve false em "
+                    "qualquer outro modo, e FormulaSomaR() sai sempre 0.0 "
+                    "nesse caso. Nao ha sinal pra buscar; nao gasto "
+                    "circuito. Achado ao vivo 2026-09-04 -- ver "
+                    "formula_soma_r_compativel() em optimize_two_stage.py.\n",
+                    encoding="utf-8")
                 continue
 
             gravar_formula(formula)
