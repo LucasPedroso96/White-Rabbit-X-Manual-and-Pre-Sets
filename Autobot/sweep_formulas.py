@@ -28,6 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import optimize_sets as base
+from optimize_two_stage import formula_soma_r_compativel
 
 TODAS_FORMULAS = {
     1: "GridSurvivalScore", 2: "Profit", 3: "ProfitWinTradeDD",
@@ -113,12 +114,38 @@ def gravar_formula(indice: int) -> None:
     origem.write_text(texto, encoding="utf-16")
 
 
+# Formula 14 (SomaR) so calcula algo em PositionSizeMode Percentage(0) ou
+# FixedR(3) -- ComputeRMetrics() no .mq5 devolve false em qualquer outro
+# modo, e FormulaSomaR() devolve 0.0 SEMPRE nesse caso (comentario da propria
+# EA: "Respeita o piso MinTradesOnTester; demais modos: 0"). Achado ao vivo,
+# 2026-09-04 (dono reportou "ontester ta retornando 0" com 07_GRID_SEPARATE/
+# AUDNZD, PositionSizeMode=2/FixedLot, testando a formula 14): sem esta
+# checagem o sweep gasta um circuito INTEIRO (Estagio 1 sozinho ja ~15-20min)
+# guiado por um criterio constante -- genetico sem nenhuma pressao de
+# selecao, equivalente a busca aleatoria. PositionSizeMode nao muda entre
+# formulas do mesmo sweep (so selectedFormula muda), entao basta ler uma vez.
+_m_sizing = re.search(r"PositionSizeMode=(\d+)", origem.read_text(encoding="utf-16"))
+POSITION_SIZE_MODE = _m_sizing.group(1) if _m_sizing else None
+if not formula_soma_r_compativel(POSITION_SIZE_MODE) and 14 in formulas:
+    print(f"AVISO: PositionSizeMode={POSITION_SIZE_MODE!r} (FixedLot/"
+          "Monetary) -- a formula 14 (SomaR) sempre devolve 0.0 nesse modo, "
+          "vai ser pulada sem gastar circuito.", flush=True)
+
+
 try:
     with master.open("w", encoding="utf-8") as fm:
         for formula, nome in sorted(formulas.items()):
             titulo = f"===== [{formula}/{len(formulas)}] {nome} ====="
             print(f"\n{titulo}", flush=True)
             fm.write(f"\n{titulo}\n")
+
+            if formula == 14 and not formula_soma_r_compativel(POSITION_SIZE_MODE):
+                linha = (f"    pulada: PositionSizeMode={POSITION_SIZE_MODE!r} "
+                        "incompativel com SomaR (nem Percentage nem FixedR) "
+                        "-- ver aviso no topo do log.")
+                print(linha, flush=True)
+                fm.write(linha + "\n")
+                continue
 
             gravar_formula(formula)
             checkpoint.unlink(missing_ok=True)

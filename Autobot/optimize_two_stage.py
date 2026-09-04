@@ -1348,6 +1348,29 @@ def campo_da_formula(sistema: str) -> str:
 _PADRAO_SELECTED_FORMULA = re.compile(r"selectedFormula=(\d+)\|\|")
 
 
+# Modos de PositionSizeMode em que FormulaSomaR() calcula algo de verdade
+# (ComputeRMetrics() no .mq5 exige RiscoRFixo ou Porcentagem -- qualquer
+# outro modo devolve false na entrada e a formula sai sempre 0.0, "demais
+# modos: 0" no proprio comentario da EA). Ver PositionSize_* em
+# ENUM_POSITION_SIZE_MODE: Percentage=0, Monetary=1, FixedLot=2, FixedR=3.
+MODOS_COMPATIVEIS_SOMA_R = ("0", "3")
+
+
+def formula_soma_r_compativel(sizing_mode: str | None) -> bool:
+    """A formula 14 (SomaR) produz sinal de verdade neste PositionSizeMode?
+
+    Achado ao vivo, 2026-09-04 (dono: "ontester ta retornando 0" com
+    07_GRID_SEPARATE/AUDNZD, PositionSizeMode=2/FixedLot, testando SomaR):
+    sem esta checagem, testar SomaR num set FixedLot/Monetary gasta um
+    circuito inteiro (so o Estagio 1 ja ~15-20min) com o genetico guiado por
+    um criterio CONSTANTE -- zero pressao de selecao, evolucao equivalente a
+    busca aleatoria. Usada em dois lugares (optimize_two_stage.py:main() e
+    sweep_formulas.py) pra reprovar/pular ANTES de gastar o circuito, nao
+    depois -- funcao unica pra as duas checagens nunca desalinharem.
+    """
+    return sizing_mode in MODOS_COMPATIVEIS_SOMA_R
+
+
 def indice_formula_do_set(caminho: Path) -> int | None:
     """Le o indice REAL gravado em selectedFormula no .set de origem --
     mesmo padrao que sweep_formulas.py escreve ao reescrever o .set pra
@@ -1885,6 +1908,37 @@ def main() -> int:
     if origem is None:
         print(f"Set nao encontrado: {args.symbol}/{args.sistema}/{args.variante}")
         return 1
+
+    # Formula 14 (SomaR) so calcula algo em PositionSizeMode Percentage(0) ou
+    # FixedR(3) -- ComputeRMetrics() no .mq5 (linha ~2222) devolve false pra
+    # qualquer outro modo, e FormulaSomaR() devolve 0.0 SEMPRE nesse caso (o
+    # proprio comentario da EA ja avisa: "Respeita o piso MinTradesOnTester;
+    # demais modos: 0"). Achado ao vivo, 2026-09-04 (dono reportou "resultados
+    # da otimizacao... ontester ta retornando 0" enquanto 07_GRID_SEPARATE/
+    # AUDNZD, PositionSizeMode=2/FixedLot, testava a formula 14): sem esta
+    # checagem o genetico do Estagio 1 roda ~15-20min guiado por um criterio
+    # constante -- nenhuma pressao de selecao, evolucao equivalente a busca
+    # aleatoria -- e so descobre isso ao fim do circuito inteiro (~30-60min),
+    # quase sempre reprovando por retencao/divergencia por acaso, nunca pelo
+    # motivo real. Reprova cedo, ANTES do Estagio 1 gastar um genetico inteiro
+    # as cegas. Formulas restantes (1-13, 15) usam TesterStatistics puro ou
+    # dados por-trade que nao dependem de sizing -- so a 14 tem essa
+    # dependencia estrutural.
+    _formula_do_set = indice_formula_do_set(origem)
+    _sizing_do_set = modo_de_sizing(origem)
+    if _formula_do_set == 14 and not formula_soma_r_compativel(_sizing_do_set):
+        print(f"    Formula 14 (SomaR) exige PositionSizeMode Percentage(0) "
+              f"ou FixedR(3); este set usa modo {_sizing_do_set!r} "
+              "(FixedLot/Monetary) -- ComputeRMetrics() nunca calcula nada "
+              "nesse modo, entao o genetico rodaria as cegas. Reprovando "
+              "sem gastar o Estagio 1.", flush=True)
+        emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
+                              "formula 14 (SomaR) incompativel com "
+                              "PositionSizeMode deste set (nem Percentage "
+                              "nem FixedR) -- customEstimator() sempre "
+                              "devolveria 0.0, genetico sem sinal")
+        return 0
+
     trabalho = base.DADOS / "MQL5" / "Profiles" / "Tester" / "_ETAPA.set"
     rotulo = f"{args.symbol} {args.sistema} {args.variante}"
     print(f"=== {rotulo} | {args.inicio} a {args.fim} ===", flush=True)
