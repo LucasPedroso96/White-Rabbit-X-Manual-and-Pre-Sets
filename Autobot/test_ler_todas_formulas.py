@@ -33,7 +33,14 @@ LINHA = (
     "ProfitRelDDDeposit=45.230000 PPTDD=0.028900 SharpeAdjDD=0.099700 "
     "PessimisticProfit=10.450000 ResilienceDD=0.876500 "
     "ReturnUniformity=0.654300 SystemRobustness=0.789000 "
-    "LevainComposite=0.612000 SomaR=0.000000"
+    # EquityDDRelPercent/ZeusScore entraram no FileWrite da EA em 2026-08-30 e
+    # viraram obrigatorios em _PADRAO_ALL_FORMULAS no mesmo dia, mas esta
+    # amostra ficou parada em SomaR -- o regex deixou de casar e o teste
+    # quebrou com IndexError (formulas[0] em lista vazia) em vez de reportar a
+    # divergencia. E exatamente a drift que o arquivo existe pra pegar; ele so
+    # nao estava sendo rodado.
+    "LevainComposite=0.612000 SomaR=0.000000 "
+    "EquityDDRelPercent=9.870000 ZeusScore=41.230000"
 )
 formulas = ler_todas_formulas(LINHA)
 checar("uma linha: quantidade", len(formulas), 1)

@@ -29,6 +29,11 @@ otimizacao cara teria enterrado.
                     rodada nao melhorar o retrato. Um TORNEIO de retencao
                     decide entre UM CAMPEAO POR INDICADOR; do vencedor
                     travam-se os inputs DE ESCRITA (enums e bools).
+  ESTAGIO 1.5 (OHLC, --indicador-solo)  O VENCEDOR SOZINHO: com
+                    EntryIndicator CRAVADO, rebusca os MESMOS eixos do
+                    Estagio 1 com o orcamento do genetico inteiro dedicado a
+                    um indicador so -- o Estagio 1 dividiu esse orcamento
+                    entre 12. So adota se a retencao MELHORAR.
   ESTAGIO 2 (OHLC)  NUMEROS: com a escrita travada, refina os eixos numericos
                     e o ajuste dos filtros que sobreviveram. Bool que morreu
                     na fase 1 leva o setor inteiro junto (GATES) -- "se uma
@@ -1704,6 +1709,14 @@ def main() -> int:
     # mesmo "pega o maior lucro"; muitos demais e so custo, porque os
     # candidatos do fim da lista ja passaram longe dos pisos.
     ap.add_argument("--finalistas", type=int, default=8)
+    # Opt-in (dono, 2026-09-03): ver Estagio 1.5 em main(). Fica DESLIGADO por
+    # padrao porque ligar no meio de um sweep de formulas tornaria as formulas
+    # ja rodadas incomparaveis com as seguintes -- a comparacao entre as 15 so
+    # vale com o mesmo circuito nas 15.
+    ap.add_argument("--indicador-solo", action="store_true",
+                    help="apos o torneio do Estagio 1, rebusca os mesmos eixos "
+                         "com EntryIndicator cravado no vencedor; so adota se "
+                         "a retencao melhorar")
     ap.add_argument("--timeout", type=int, default=21600)
     ap.add_argument("--fechar-terminal", action="store_true")
     args = ap.parse_args()
@@ -1909,6 +1922,88 @@ def main() -> int:
     print(f"    escrita travada ({nome_ind}, retencao "
           f"{'n/d' if ret_sinal is None else f'{ret_sinal:.1f}%'}, "
           f"lucro IS {lucro_sinal:.2f}): {escrita_vencedora}", flush=True)
+
+    # ---- Estagio 1.5: O INDICADOR VENCEDOR, SOZINHO -------------------------
+    # Pedido do dono (2026-09-03): "ao descobrir o melhor indicador, acredito
+    # ser justo fazer um passo com esse indicador sozinho".
+    #
+    # O PORQUE, medido nos sweeps de 15 formulas (2026-08-24..09-03): o
+    # indicador vencedor do Estagio 1 TROCA a cada formula testada, no mesmo
+    # sistema e no mesmo ativo -- 01_SLTP/EURUSD elegeu TRIX, OsMA, EMA,
+    # Momentum, DeMarker, RSI, CCI... um por formula, quase sem repetir. Isso
+    # nao e o indicador "certo" mudando com o criterio: e o Estagio 1 gastando
+    # um genetico so entre 12 indicadores x ~30 eixos, onde nenhum deles chega
+    # a ser explorado de verdade. O torneio de retencao escolhe o melhor entre
+    # 12 pontos rasos, nao entre 12 indicadores calibrados.
+    #
+    # Esta fase corrige isso sem custar outro circuito: com EntryIndicator
+    # CRAVADO no vencedor, os MESMOS eixos do Estagio 1 (menos os que este
+    # indicador nao usa -- eixos_do_indicador) sao rebuscados com o orcamento
+    # inteiro do genetico dedicado a um indicador so. O que ela pode mudar e
+    # a ESCRITA (metodo, timeframe, applied price, flags de filtro), que o
+    # Estagio 1 decidiu numa busca diluida e o Estagio 2 ja receberia travada.
+    #
+    # Mesma protecao do Estagio 3 (filtros de execucao): so ADOTA se a
+    # retencao MELHORAR. Refino que nao melhora a medida fora da amostra e
+    # ajuste fino ao In-Sample, exatamente o que o circuito existe pra evitar.
+    #
+    # Opt-in (--indicador-solo) de proposito: ligar por padrao no meio de um
+    # sweep de formulas tornaria as formulas ja rodadas incomparaveis com as
+    # seguintes -- a comparacao entre formulas so vale com o circuito igual
+    # pras 15.
+    if args.indicador_solo and ind is not None:
+        # EntryIndicator sai de `otimizar` e entra em `travar`: reescrever()
+        # checa `nome in travar` ANTES de `otimizar`, entao basta poe-lo aqui
+        # (mesmo cuidado que o Estagio 3.5 tomou ao contrario, ver
+        # travados_sem_geo). Os demais eixos de escrita ficam em Y -- sao eles
+        # que esta fase existe pra rebuscar.
+        travados_solo = dict(travados)
+        travados_solo["EntryIndicator"] = ind
+        eixos_solo = eixos_do_indicador(
+            [e for e in eixos_fase1 if e != "EntryIndicator"], ind)
+        n = reescrever(origem, trabalho, eixos_solo, travados_solo)
+        print(f"\n  [1.5/5] {nome_ind} sozinho em OHLC ({n} parametros: os "
+              "mesmos do estagio 1, com o indicador cravado)", flush=True)
+        if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+            limpar_todas_formulas()
+        t0 = time.time()
+        cab_s, linhas_s = rodar(trabalho, args.symbol, args.period, args.inicio,
+                                args.fim, args.deposit, 1, args.timeout)
+        # piso1 (o mesmo do Estagio 1), nao args.min_trades: continuamos
+        # descobrindo REGIAO -- os numeros so sao refinados no Estagio 2.
+        solo_ok = (base.escolher_candidatos(cab_s, linhas_s, piso1, 1.0)
+                   if linhas_s else [])
+        if solo_ok and args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+            solo_ok = priorizar_lucro_no_topo(
+                cab_s, solo_ok,
+                campo=campo_da_formula_ativa(args.sistema, origem))
+        print(f"    {(time.time()-t0)/60:.0f} min | aptos: {len(solo_ok)} de "
+              f"{len(linhas_s)}", flush=True)
+        if not solo_ok:
+            print("    nenhum candidato do refino solo passou o piso; mantida "
+                  "a escrita do estagio 1.", flush=True)
+        else:
+            ord_s = torneio_retencao(solo_ok[:args.finalistas], cab_s, metricas,
+                                     origem, trabalho, travados_solo, args, 1,
+                                     f"{nome_ind} sozinho (OHLC, ~2s cada)")
+            if ord_s and (ord_s[0][0] or -9e9) > (ret_sinal or -9e9):
+                print(f"    o refino solo melhorou a retencao: {ret_sinal} -> "
+                      f"{ord_s[0][0]}", flush=True)
+                ret_sinal, lucro_sinal, cand_sinal, _ = ord_s[0]
+                # EntryIndicator ficou em N nesta fase, entao NAO volta como
+                # coluna do relatorio -- reconduzi-lo a mao aqui e o que
+                # impede o Estagio 2 de reabrir o indicador no default da
+                # biblioteca (mesma classe de erro que conferir_set() existe
+                # pra pegar, so que uma fase antes).
+                escrita_vencedora = {c: v for c, v in cand_sinal.items()
+                                     if c in ESCRITA}
+                escrita_vencedora["EntryIndicator"] = ind
+                print(f"    escrita retravada ({nome_ind}, retencao "
+                      f"{ret_sinal:.1f}%, lucro IS {lucro_sinal:.2f}): "
+                      f"{escrita_vencedora}", flush=True)
+            else:
+                print("    o refino solo nao melhorou a retencao; mantida a "
+                      "escrita do estagio 1.", flush=True)
     otimizados = dict(escrita_vencedora)
 
     # ---- Estagio 2: NUMEROS, ainda em OHLC ----------------------------------

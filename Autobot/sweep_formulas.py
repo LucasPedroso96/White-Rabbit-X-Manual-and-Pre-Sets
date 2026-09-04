@@ -64,6 +64,11 @@ parser.add_argument("--timeout", type=int, default=3600)
 parser.add_argument(
     "--formulas", default="",
     help="lista separada por virgula (ex.: 2,9,11); vazio = todas as 14")
+parser.add_argument(
+    "--indicador-solo", action="store_true",
+    help="liga o Estagio 1.5 (refino do indicador vencedor sozinho) em TODAS "
+         "as formulas deste sweep. Ou nenhuma ou todas: metade do sweep com o "
+         "estagio e metade sem nao compara formula, compara circuito.")
 args = parser.parse_args()
 
 if args.formulas.strip():
@@ -79,33 +84,70 @@ checkpoint = Path(
 prefixo = f"sweep_{args.sistema}_{args.simbolo}"
 master = Path(f"{prefixo}_master.log")
 
-with master.open("w", encoding="utf-8") as fm:
-    for formula, nome in sorted(formulas.items()):
-        titulo = f"===== [{formula}/{len(formulas)}] {nome} ====="
-        print(f"\n{titulo}", flush=True)
-        fm.write(f"\n{titulo}\n")
+PADRAO_FORMULA = re.compile(r"selectedFormula=\d+\|\|\d+\|\|1\|\|\d+\|\|N")
 
-        texto = origem.read_text(encoding="utf-16")
-        texto = re.sub(r"selectedFormula=\d+\|\|\d+\|\|1\|\|\d+\|\|N",
-                       f"selectedFormula={formula}||{formula}||1||{formula}||N",
-                       texto)
-        origem.write_text(texto, encoding="utf-16")
-        checkpoint.unlink(missing_ok=True)
+# Valor de PRODUCAO do template, lido antes de qualquer reescrita. O sweep
+# reescreve `origem` -- o template DA BIBLIOTECA, nao uma copia -- a cada
+# formula, e ate 2026-09-03 nunca desfazia isso: os 11 sistemas ja varridos
+# ficaram com o selectedFormula da ULTIMA formula testada gravado no template
+# (auditado: 11 de 11 fora do FORMULA_POR_SISTEMA, um deles parado na 7 de um
+# sweep interrompido). Isso nao e cosmetico -- campo_da_formula_ativa() le
+# esse campo pra decidir o corte de elegibilidade, entao a proxima campanha
+# de producao naquele ativo passaria a filtrar pela formula do sweep.
+formula_original = None
+_m = PADRAO_FORMULA.search(origem.read_text(encoding="utf-16"))
+if _m:
+    formula_original = int(re.search(r"\d+", _m.group(0)).group(0))
+    print(f"selectedFormula de producao no template: {formula_original} "
+          "(restaurado ao fim do sweep)", flush=True)
+else:
+    print("AVISO: selectedFormula nao casou o padrao no template -- o sweep "
+          "nao vai conseguir trocar a formula nem restaurar o valor "
+          "original.", flush=True)
 
-        log = Path(f"{prefixo}_{formula:02d}_{nome}.log")
-        with log.open("w", encoding="utf-8") as fh:
-            subprocess.run(
-                [sys.executable, "optimize_two_stage.py",
-                 "--symbol", args.simbolo, "--sistema", args.sistema,
-                 "--variante", args.variante, "--period", "M1",
-                 "--from", args.de, "--to", args.ate,
-                 "--deposit", str(args.deposit),
-                 "--min-retencao", str(args.min_retencao),
-                 "--min-trades-per-year", str(args.min_trades_por_ano),
-                 "--fechar-terminal", "--timeout", str(args.timeout)],
-                stdout=fh, stderr=subprocess.STDOUT)
-        linha = f"    log salvo em {log}"
-        print(linha, flush=True)
-        fm.write(linha + "\n")
+
+def gravar_formula(indice: int) -> None:
+    texto = origem.read_text(encoding="utf-16")
+    texto = PADRAO_FORMULA.sub(
+        f"selectedFormula={indice}||{indice}||1||{indice}||N", texto)
+    origem.write_text(texto, encoding="utf-16")
+
+
+try:
+    with master.open("w", encoding="utf-8") as fm:
+        for formula, nome in sorted(formulas.items()):
+            titulo = f"===== [{formula}/{len(formulas)}] {nome} ====="
+            print(f"\n{titulo}", flush=True)
+            fm.write(f"\n{titulo}\n")
+
+            gravar_formula(formula)
+            checkpoint.unlink(missing_ok=True)
+
+            comando = [
+                sys.executable, "optimize_two_stage.py",
+                "--symbol", args.simbolo, "--sistema", args.sistema,
+                "--variante", args.variante, "--period", "M1",
+                "--from", args.de, "--to", args.ate,
+                "--deposit", str(args.deposit),
+                "--min-retencao", str(args.min_retencao),
+                "--min-trades-per-year", str(args.min_trades_por_ano),
+                "--fechar-terminal", "--timeout", str(args.timeout)]
+            if args.indicador_solo:
+                comando.append("--indicador-solo")
+
+            log = Path(f"{prefixo}_{formula:02d}_{nome}.log")
+            with log.open("w", encoding="utf-8") as fh:
+                subprocess.run(comando, stdout=fh, stderr=subprocess.STDOUT)
+            linha = f"    log salvo em {log}"
+            print(linha, flush=True)
+            fm.write(linha + "\n")
+finally:
+    # finally, nao no fim do laco: um Ctrl+C ou uma queda no meio do sweep e
+    # exatamente o caso que deixou 07_GRID_SEPARATE/AUDNZD parado na formula 7
+    # e 03_TRAIL_ONLY/XAUUSD na 13.
+    if formula_original is not None:
+        gravar_formula(formula_original)
+        print(f"\nselectedFormula do template restaurado para "
+              f"{formula_original}.", flush=True)
 
 print("\n===== SWEEP COMPLETO =====", flush=True)
