@@ -130,8 +130,31 @@ def medir_holdout(origem: Path, travados: dict, symbol: str, periodo: str,
     """UM passe, campeao travado, holdout interno da EA (janelas_wfo)."""
     t0 = time.time()
     wfo = ots.janelas_wfo(inicio, fim)
-    passo = dict(wfo, **travados, MetodoDeEntradawfo="1",
-                InterfaceLanguage="1")
+    # BUG CORRIGIDO NO PILOTO AO VIVO (2026-09-04), achado pedindo pra
+    # conferir os inputs de WFO do .set entregue contra o que deveriam ser:
+    # `travados` agora e o campeao INTEIRO (.set VALIDADO_, fix anterior
+    # deste mesmo piloto) -- e o .set ENTREGUE sempre sai com AtivarWFO=false
+    # forcado (optimize_two_stage.py: "entrega['AtivarWFO'] = 'false'", o
+    # WFO e andaime de validacao, nunca vai pro comprador ligado) e com
+    # wfo_customWindowSizeDays/wfo_customStepSizePercent/input_end_date da
+    # janela ORIGINAL de validacao (ex.: 122/-61/2026.08.24 no campeao de
+    # 01_SLTP/EURUSD) -- nada disso serve pra medir holdout numa janela
+    # DIFERENTE (aqui, 3 anos). A ordem antiga (`dict(wfo); .update(travados)`)
+    # deixava esses campos do .set entregue VENCEREM por cima do `wfo` fresco
+    # -- AtivarWFO acabava False, e o passe virava um backtest CONTINUO
+    # comum, sem holdout nenhum (sintoma visto ao vivo: "retencao_pct": null
+    # -- a EA so imprime "Out-of-Sample Retention" quando AtivarWFO e
+    # verdadeiro). `input_end_date` desalinhado tambem e perigoso sozinho:
+    # com AtivarWFO=true e a data errada, EndDateToleranceHours (80h) reprova
+    # em silencio (OnTester devolve 0.0 sem aviso).
+    #
+    # Fix: `travados` primeiro (base = o campeao inteiro), `wfo` por cima --
+    # os campos de WFO tem que vir da janela que ESTE passe pede, nunca da
+    # janela que validou o campeao originalmente.
+    passo = dict(travados)
+    passo.update(wfo)
+    passo["MetodoDeEntradawfo"] = "1"
+    passo["InterfaceLanguage"] = "1"
     r = ots._medir_desempenho(origem, passo, symbol, periodo, inicio, fim,
                               deposito)
     return {"modo": "holdout", "segundos": time.time() - t0,
@@ -144,9 +167,9 @@ def medir_holdout(origem: Path, travados: dict, symbol: str, periodo: str,
 # Modo 2: forward -- ForwardMode nativo do MT5, NUNCA exercitado antes
 # ---------------------------------------------------------------------------
 
-def medir_forward(origem: Path, travados: dict, symbol: str, periodo: str,
-                  inicio: str, fim: str, deposito: int, timeout: int,
-                  forward: int = 3) -> dict:
+def medir_forward(origem: Path, travados: dict, numeros: list[str],
+                  symbol: str, periodo: str, inicio: str, fim: str,
+                  deposito: int, timeout: int, forward: int = 3) -> dict:
     """Optimization=2 com ForwardMode ligado -- o tester corta sozinho e
     reexecuta os melhores candidatos na parte de tras.
 
@@ -164,8 +187,13 @@ def medir_forward(origem: Path, travados: dict, symbol: str, periodo: str,
     """
     t0 = time.time()
     trabalho = base.DADOS / "MQL5" / "Profiles" / "Tester" / "_WFA_FORWARD.set"
-    ots.reescrever(origem, trabalho,
-                  [], dict(travados, MetodoDeEntradawfo="1", AtivarWFO="false"))
+    # `numeros` marcados Y (mesmo bug do piloto original com o modo wfa: sem
+    # abrir eixo nenhum, Optimization=2 nao tem o que buscar e devolve "no
+    # optimized parameter selected", 0 passes). `travados` (aqui SEM os
+    # eixos de `numeros` -- o chamador ja filtra isso) fixa o resto do
+    # campeao igual aos outros dois modos.
+    ots.reescrever(origem, trabalho, numeros,
+                  dict(travados, MetodoDeEntradawfo="1", AtivarWFO="false"))
     rel_nome = "wfa_forward"
     for velho in base.DADOS.glob(f"{rel_nome}*"):
         velho.unlink(missing_ok=True)
@@ -298,28 +326,44 @@ def rodar_combo(symbol: str, sistema: str, variante: str, inicio: str,
     if origem is None:
         return {"erro": f"template de origem nao encontrado para {symbol}/{sistema}"}
 
+    # BUG CORRIGIDO NO PILOTO AO VIVO (2026-09-04): a versao anterior filtrava
+    # `travados` por um allowlist estreito (ESCRITA + selectedFormula +
+    # NUMEROS) -- perdendo campos reais do campeao (filtros de execucao:
+    # TOD_From_Hour, TradeMonday, MaxSpread etc., que nao estao em ESCRITA
+    # nem em NUMEROS) E, pior, incluindo os PROPRIOS eixos que `numeros`
+    # (abaixo) deveria abrir pra reotimizar. reescrever() trava(nome in
+    # travar) ANTES de checar otimizar -- um nome presente nos dois vira
+    # travado, nunca otimizado. Com todo eixo numerico tambem em `travados`,
+    # NENHUM parametro saia marcado Y, o genetico nao tinha o que buscar, e
+    # os 6 passes do modo wfa devolveram "0 tasks" -- exatamente o que o
+    # primeiro piloto mostrou (passes_mt5: 0 em toda janela).
+    #
+    # Fix: `travados_completo` e o campeao INTEIRO (todo campo do .set
+    # VALIDADO_, sem allowlist) -- holdout usa isso puro (mede o campeao
+    # travado como ele e). wfa usa o mesmo MENOS os eixos que `numeros` vai
+    # reabrir, pra reescrever() os marcar Y de verdade.
     valores = ler_valores_set(validado)
     ind = valores.get("EntryIndicator")
-    escrita_campos = ots.ESCRITA | {"selectedFormula"}
-    travados = {k: v for k, v in valores.items() if k in escrita_campos
-               or k in ots.NUMEROS}
+    travados_completo = dict(valores)
     numeros = ots.eixos_reotimizaveis(sistema, ind)
+    travados_para_wfa = {k: v for k, v in valores.items() if k not in numeros}
 
     resultado = {"simbolo": symbol, "sistema": sistema, "variante": variante,
                 "de": inicio, "ate": fim, "indicador": ind}
     if "holdout" in modos:
         print(f"    [holdout] rodando (1 passe, ~35s)...", flush=True)
-        resultado["holdout"] = medir_holdout(origem, travados, symbol, "M1",
-                                             inicio, fim, deposito)
+        resultado["holdout"] = medir_holdout(origem, travados_completo, symbol,
+                                             "M1", inicio, fim, deposito)
     if "forward" in modos:
         print(f"    [forward] rodando (Optimization=2, ForwardMode)...",
               flush=True)
-        resultado["forward"] = medir_forward(origem, travados, symbol, "M1",
-                                             inicio, fim, deposito, timeout)
+        resultado["forward"] = medir_forward(origem, travados_para_wfa, numeros,
+                                             symbol, "M1", inicio, fim,
+                                             deposito, timeout)
     if "wfa" in modos:
         print(f"    [wfa] rodando ({ciclos} janelas, reotimiza cada uma)...",
               flush=True)
-        resultado["wfa"] = medir_wfa(origem, travados, numeros, symbol,
+        resultado["wfa"] = medir_wfa(origem, travados_para_wfa, numeros, symbol,
                                      sistema, "M1", inicio, fim, deposito,
                                      ciclos, timeout)
     return resultado

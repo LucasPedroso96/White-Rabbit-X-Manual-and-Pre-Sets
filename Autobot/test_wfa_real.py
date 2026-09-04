@@ -9,8 +9,9 @@ from __future__ import annotations
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
-from wfa_real import janelas_sequenciais, ler_valores_set, wfe
+from wfa_real import janelas_sequenciais, ler_valores_set, medir_holdout, wfe
 
 FALHAS: list[str] = []
 
@@ -73,6 +74,40 @@ checar("wfe: IS None -> None", wfe(None, 8, 100, 22), None)
 checar("wfe: OOS None -> None", wfe(100, 8, None, 22), None)
 checar_perto("wfe: OOS negativo da WFE negativa",
             wfe(lucro_oos=-40, dias_oos=8, lucro_is=220, dias_is=22), -50.0)
+
+# --- medir_holdout(): os campos de WFO frescos TEM que vencer os do .set
+# entregue -- regressao do bug achado ao vivo, 2026-09-04. O .set ENTREGUE
+# sempre sai com AtivarWFO=false forcado (optimize_two_stage.py, WFO e
+# andaime, nunca vai pro comprador ligado) e com wfo_customWindowSizeDays/
+# wfo_customStepSizePercent/input_end_date da janela ORIGINAL de validacao
+# -- nada disso serve pra medir holdout numa janela DIFERENTE. A ordem
+# errada (`dict(wfo); .update(travados)`) deixava o .set entregue vencer:
+# AtivarWFO acabava False e o passe virava um backtest continuo comum, sem
+# holdout nenhum -- exatamente o que aconteceu no primeiro piloto real
+# (01_SLTP/EURUSD: "retencao_pct": null, porque a EA so imprime "Out-of-
+# Sample Retention" quando AtivarWFO e verdadeiro).
+travados_entregues_com_lixo_de_wfo = {
+    "EntryIndicator": "2", "Fast_EMA": "9",           # campos normais do campeao
+    "AtivarWFO": "false",                             # forcado false na entrega
+    "MetodoDeEntradawfo": "0",
+    "wfo_customWindowSizeDays": "122",                # janela de OUTRA corrida
+    "wfo_customStepSizePercent": "-61",
+    "input_end_date": "2026.08.24",                   # data de OUTRA corrida
+}
+with patch("wfa_real.ots._medir_desempenho") as mock_medir:
+    mock_medir.return_value = {"profit": 1.0, "retencao": 50.0}
+    medir_holdout(Path("origem.set"), travados_entregues_com_lixo_de_wfo,
+                  "EURUSD", "M1", "2023.09.04", "2026.09.04", 500)
+params_usados = mock_medir.call_args[0][1]
+checar("holdout: AtivarWFO forcado true (nao herda false do .set entregue)",
+       params_usados["AtivarWFO"], "true")
+checar("holdout: input_end_date bate com `fim` pedido (nao com o do .set velho)",
+       params_usados["input_end_date"], "2026.09.04")
+checar("holdout: wfo_customWindowSizeDays recalculado (nao herda 122 de outra corrida)",
+       params_usados["wfo_customWindowSizeDays"] != "122", True)
+checar("holdout: campos normais do campeao ainda passam", params_usados["Fast_EMA"], "9")
+checar("holdout: MetodoDeEntradawfo=1 (IS+OOS, nao o 0 do .set entregue)",
+       params_usados["MetodoDeEntradawfo"], "1")
 
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")
