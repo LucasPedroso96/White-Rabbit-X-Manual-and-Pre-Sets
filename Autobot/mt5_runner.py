@@ -11,9 +11,12 @@ Por isso a checagem vive aqui e nao no comentario de cada script.
 """
 from __future__ import annotations
 
+import re
 import subprocess
 import time
 from pathlib import Path
+
+_PADRAO_CORE_AUTORIZADO = re.compile(r"Core (\d+)\s+authorized")
 
 
 def _pids_do_terminal(terminal: Path) -> list[str]:
@@ -195,6 +198,28 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
                        startupinfo=info)
     except subprocess.TimeoutExpired:
         pass
+
+
+def contar_agentes(log: str) -> int:
+    """Quantos agentes locais o Tester autorizou no trecho de log dado.
+
+    Existe porque "quantos agentes rodaram" nunca foi um numero exposto no
+    .ini nem em nenhuma API do MQL5 (so a UI do Tester mostra) -- achado da
+    auditoria 2026-09-04: comentarios espalhados no repo citavam "4
+    agentes"/"ate 14 agentes locais", e o valor REAL medido direto do log
+    do Tester era 22 -- ninguem tinha verificado de novo desde que o dono
+    ajustou isso manualmente pela UI. Contar aqui, a cada corrida, transforma
+    isso de investigacao manual de log (o que essa auditoria fez na mao) em
+    um numero visivel automaticamente -- pega regressao (Cloud Network
+    religando sozinha, terminal reiniciado com config resetada) na hora, nao
+    horas depois.
+
+    O terminal imprime uma linha "Core N authorized" por agente que se
+    conecta, uma vez por lancamento; o maior N visto no trecho e a contagem
+    -- nao a quantidade de linhas (o mesmo agente pode reconectar).
+    """
+    nums = [int(m) for m in _PADRAO_CORE_AUTORIZADO.findall(log)]
+    return max(nums) if nums else 0
 
 
 def ler_novo(logs_dir: Path, antes: dict[Path, int]) -> str:

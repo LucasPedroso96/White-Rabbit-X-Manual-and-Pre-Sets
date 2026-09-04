@@ -97,7 +97,7 @@ import monte_carlo_wrx
 import optimize_sets as base
 import ready_library
 from generate_system_sets import FORMULA_POR_SISTEMA
-from mt5_runner import garantir_terminal_livre, lancar_terminal
+from mt5_runner import contar_agentes, garantir_terminal_livre, lancar_terminal
 
 AQUI = Path(__file__).resolve().parent
 RELATORIOS_DIR = AQUI / "campanha_relatorios"
@@ -186,7 +186,10 @@ def limpar_progresso() -> None:
 # passe do genetico -- Print/PrintFormat dentro de OnTester() nao aparece
 # em log nenhum durante otimizacao (so em passe unico), confirmado com
 # teste de canario; FileWrite com FILE_COMMON sim, validado ao vivo (17
-# passes -> 17 linhas, sem colisao entre os 4 agentes em paralelo).
+# passes -> 17 linhas, sem colisao entre os agentes em paralelo -- 4 agentes
+# na maquina daquele teste, 2026-08-04; o numero de agentes muda com a
+# maquina/configuracao, ver contar_agentes() em mt5_runner.py, auditoria
+# 2026-09-04 -- a logica de retry+SEEK_END abaixo nao depende da contagem).
 ARQUIVO_TODAS_FORMULAS = (Path(os.environ["APPDATA"])
                           / "MetaQuotes" / "Terminal" / "Common" / "Files"
                           / "levain_wrx_all_formulas.txt")
@@ -424,6 +427,24 @@ def eixos_do_indicador(nomes: list[str], indicador: str | None) -> list[str]:
         return nomes
     return [n for n in nomes
             if n not in INDICADOR_USA or i in INDICADOR_USA[n]]
+
+
+def eixos_reotimizaveis(sistema: str, indicador: str | None) -> list[str]:
+    """Os mesmos eixos NUMERICOS que o Estagio 2 reabre pra este
+    sistema/indicador -- extraido de main() (auditoria 2026-09-03, plano de
+    WFA de verdade) pra virar chamavel de fora, sem duplicar a regra.
+
+    Mesma logica que estava inline: eixos_do_indicador(NUMEROS, indicador)
+    menos os eixos de recuperacao (MaxMartingaleSteps/DAlembertStep), que so
+    tem efeito com RecoveryMode ligado -- o Estagio 2 roda com ele em "0"
+    (ver duas_etapas/eixos_recuperacao em main()), entao reotimiza-los aqui
+    seria abrir um eixo morto.
+    """
+    numeros = eixos_do_indicador(NUMEROS, indicador)
+    if sistema in SISTEMAS_RECUPERACAO_DUAS_ETAPAS:
+        eixos_recuperacao = EIXOS_RECUPERACAO.get(sistema, [])
+        numeros = [e for e in numeros if e not in eixos_recuperacao]
+    return numeros
 
 
 # FASE 3 = FILTROS DE EXECUCAO, os ULTIMOS a rodar (dono, 2026-07-31):
@@ -1088,7 +1109,13 @@ def _medir_desempenho(origem: Path, params: dict, simbolo: str, periodo: str,
             if None not in (pf, dd, trades, profit) else None)
     return {"profit_factor": pf, "max_dd_pct": dd, "sharpe": sharpe,
            "composite_score": score, "trades": trades,
-           "expectancy_r": r["expectancy"]}
+           "expectancy_r": r["expectancy"],
+           # Acrescentados 2026-09-04 (plano de WFA de verdade, wfa_real.py):
+           # "profit" e "retencao" ja existiam calculados aqui (via stats/r
+           # acima), so nunca saiam no dict. Aditivo -- nao muda nada pra
+           # quem ja le so as chaves de cima (remedir_campeao_na_janela,
+           # confirmar_historico_completo).
+           "profit": profit, "retencao": r["retencao"]}
 
 
 def remedir_campeao_na_janela(sistema: str, simbolo: str, variante: str,
@@ -1375,8 +1402,10 @@ def ler_todas_formulas(log: str) -> list[dict]:
     Linha malformada e pulada, nunca propagada (achado do dono, 2026-08-22:
     ValueError 'could not convert string to float: -' derrubou o combo
     inteiro). O regex de _PADRAO_ALL_FORMULAS aceita um "-" sozinho como campo -- sintoma
-    de colisao de escrita entre os ate 14 agentes locais gravando no MESMO
-    arquivo compartilhado (FILE_COMMON, ver limpar_todas_formulas()): rara,
+    de colisao de escrita entre os agentes locais (o numero muda com a
+    maquina/configuracao -- 22 medido nesta em 2026-09-04, ver
+    contar_agentes() em mt5_runner.py) gravando no MESMO arquivo
+    compartilhado (FILE_COMMON, ver limpar_todas_formulas()): rara,
     mas nao impossivel, mesma ressalva que magic_estavel() ja faz sobre
     colisao de hash. Um passe sem leitura valida de formula so perde a nota
     externa DESSE passe (cai pro `if f is None` em priorizar_lucro_no_topo/
@@ -1434,8 +1463,10 @@ def casar_formula_com_relatorio(cab: list[str], linhas: list[list[str]],
 def limpar_todas_formulas() -> None:
     """Apaga o arquivo compartilhado antes de uma rodada genetica.
 
-    Os 4 agentes gravam no MESMO arquivo (FILE_COMMON); sem limpar antes,
-    a proxima rodada leria linhas de uma rodada anterior junto com as suas.
+    Os agentes locais (contagem varia com a maquina/configuracao -- ver
+    contar_agentes() em mt5_runner.py) gravam no MESMO arquivo
+    (FILE_COMMON); sem limpar antes, a proxima rodada leria linhas de uma
+    rodada anterior junto com as suas.
     """
     ARQUIVO_TODAS_FORMULAS.unlink(missing_ok=True)
 
@@ -1845,6 +1876,10 @@ def main() -> int:
               f"trades (era --min-trades={piso_antigo})", flush=True)
 
     garantir_terminal_livre(fechar=args.fechar_terminal, terminal=base.TERMINAL)
+    # Marca o log ANTES de qualquer passe do combo -- so pra contar quantos
+    # agentes locais o Tester usou (ver contar_agentes() em mt5_runner.py,
+    # auditoria 2026-09-04). So leitura, nunca decide nada do circuito.
+    antes_combo = base.marcar_logs()
 
     origem = base.achar_set(args.symbol, args.sistema, args.variante)
     if origem is None:
@@ -2139,12 +2174,12 @@ def main() -> int:
     travados.update(escrita_vencedora)
     # Abre so os periodos que ESTE indicador usa: com o vencedor conhecido, os
     # eixos condicionais deixam de ser aposta e viram (ou nao) parte do ajuste.
-    numeros = eixos_do_indicador(NUMEROS, ind)
-    if eixos_recuperacao:
-        # Fora do Estagio 2 pelo mesmo motivo do Estagio 1: RecoveryMode
-        # ainda esta em "0" aqui, os eixos nao tem efeito nenhum enquanto isso
-        # -- reabrem sozinhos no Estagio 2.5, com a entrada/saida ja travada.
-        numeros = [e for e in numeros if e not in eixos_recuperacao]
+    # Fora do Estagio 2 pelo mesmo motivo do Estagio 1: RecoveryMode ainda
+    # esta em "0" aqui, os eixos de recuperacao nao tem efeito nenhum
+    # enquanto isso -- reabrem sozinhos no Estagio 2.5, com a entrada/saida
+    # ja travada. eixos_reotimizaveis() encapsula essa regra (extraida
+    # 2026-09-04 pra ser reusavel fora de main(), ver wfa_real.py).
+    numeros = eixos_reotimizaveis(args.sistema, ind)
     cortados = [c for c in NUMEROS if c not in numeros]
     n = reescrever(origem, trabalho, numeros, travados)
     print(f"  [2/5] numeros em OHLC ({n} parametros, escrita travada)",
@@ -2748,8 +2783,17 @@ def main() -> int:
     shutil.copy2(trabalho, destino)
 
     print(f"\n    set gravado (WFO desligado): {destino.name}")
+    # Quantos agentes locais o Tester usou no combo inteiro (ver
+    # contar_agentes(), auditoria 2026-09-04) -- so-informativo, nunca entra
+    # no veredito. Serve pra pegar regressao de paralelismo (Cloud Network
+    # religando, terminal resetado) olhando o ledger, sem precisar investigar
+    # log na mao de novo.
+    agentes_usados = contar_agentes(base.texto_novo(antes_combo))
+    print(f"    agentes locais usados neste combo: {agentes_usados}",
+          flush=True)
     print(json.dumps({"simbolo": args.symbol, "sistema": args.sistema,
                       "variante": args.variante, "lucro_ohlc": lucro_ohlc,
+                      "agentes_locais_usados": agentes_usados,
                       "lucro_tick_real": lucro_real,
                       "lucro_ajustado_custo_nativo": lucro_ajustado,
                       "retencao_oos": oos["retencao"],
