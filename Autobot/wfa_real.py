@@ -276,7 +276,17 @@ def medir_wfa(origem: Path, travados: dict, numeros: list[str], symbol: str,
         # trades numa janela WFA do que a mesma taxa anual exigiria numa
         # janela maior -- consistencia entre janelas de tamanhos diferentes,
         # nao so entre janela WFA e a janela do sweep original (92 dias).
-        piso = ots.piso_trades_da_janela(is_ini, is_fim, taxa_anual,
+        # SEGUNDO fix ao vivo, mesmo dia (2026-09-05): o primeiro
+        # (piso_minimo=12) so ajudava enquanto o termo anualizado ficasse
+        # ABAIXO de 12 -- deixou de valer assim que --ciclos foi reduzido
+        # de 6 pra 4 (janelas maiores, 206d em vez de 136d): max(12,
+        # round(33*206/365)) = max(12, 19) = 19, o termo anualizado voltou
+        # a dominar. Confirmado ao vivo: 06_REVERSAL_EXIT/EURGBP continuou
+        # em 0/4 mesmo com o primeiro fix. taxa_anual=0 aqui zera esse
+        # termo INCONDICIONALMENTE -- piso vira um piso FLAT de
+        # piso_minimo trades, robusto a qualquer --ciclos futuro, em vez
+        # de reintroduzir a mesma classe de bug a cada mudanca de janela.
+        piso = ots.piso_trades_da_janela(is_ini, is_fim, taxa_anual=0,
                                          piso_minimo=12)
         n = ots.reescrever(origem, trabalho, numeros, travados)
         cab, linhas = ots.rodar(trabalho, symbol, periodo, is_ini, is_fim,
