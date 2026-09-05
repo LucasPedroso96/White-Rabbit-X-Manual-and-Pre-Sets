@@ -347,6 +347,16 @@ SISTEMAS_GATE_SOBREVIVENCIA = {
     # so quebra no periodo continuo de verdade" que motivou este gate.
     "12_GRID_INVERSO"}
 
+# Gate de holdout longo + WFA de reotimizacao (dono, 2026-09-05): "usar os
+# dois por padrao, por excelencia". Achado do piloto `wfa_real.py` no mesmo
+# dia -- 6 de 10 campeoes ja VALIDADO_ davam prejuizo real num holdout
+# CONTINUO de anos, apesar de terem vencido o sweep de 15 formulas na janela
+# curta (92 dias, so 3 ciclos IS/OOS curtos, ver
+# project_calibracao_gates_nao_confiaveis). ANOS_HOLDOUT_LONGO e
+# deliberadamente independente de args.inicio/args.fim (a janela do sweep) --
+# o ponto do gate e testar mudanca de regime que a janela curta nao alcanca.
+ANOS_HOLDOUT_LONGO = 3.0
+
 # Camada de recuperacao buscada em ETAPA SEPARADA, depois da entrada/saida ja
 # estarem travadas no vencedor SEM recuperacao (achado do dono, 2026-08-16):
 # antes, MaxMartingaleSteps/DAlembertStep eram so mais um eixo dentro do
@@ -2762,6 +2772,59 @@ def main() -> int:
             print("    OK: sobreviveu ao periodo completo sem estourar "
                   "margem.", flush=True)
 
+    # ---- Gate de holdout longo + WFA de reotimizacao (Pardo), ver
+    # ANOS_HOLDOUT_LONGO -- roda em TODO sistema (nao so
+    # SISTEMAS_GATE_SOBREVIVENCIA), so UMA vez, no candidato ja aprovado por
+    # tudo o mais (mesmo espirito de custo do gate de sobrevivencia acima:
+    # nao entra no laco das 15 formulas, so no vencedor final). Import local
+    # -- wfa_real importa este proprio modulo (`import optimize_two_stage as
+    # ots`), entao o import no topo do arquivo criaria ciclo; aqui dentro de
+    # main() o modulo ja esta totalmente carregado quando isto executa.
+    holdout_longo = None
+    wfa_reotimizacao = None
+    if aprovado:
+        import wfa_real
+        fim_holdout = datetime.now().strftime("%Y.%m.%d")
+        inicio_holdout = (datetime.now()
+                          - timedelta(days=round(ANOS_HOLDOUT_LONGO * 365))
+                          ).strftime("%Y.%m.%d")
+        numeros_wfa = eixos_reotimizaveis(args.sistema,
+                                          travados.get("EntryIndicator"))
+        travados_wfa = {k: v for k, v in travados.items()
+                        if k not in numeros_wfa}
+        print(f"\n    gate de holdout longo ({ANOS_HOLDOUT_LONGO:.0f} anos, "
+              f"{inicio_holdout}..{fim_holdout}) + WFA de reotimizacao "
+              "(Pardo)...", flush=True)
+        holdout_longo = wfa_real.medir_holdout(
+            origem, travados, args.symbol, args.period, inicio_holdout,
+            fim_holdout, args.deposit)
+        print(f"    holdout longo: lucro {holdout_longo['profit']} | "
+              f"{holdout_longo['metricas'].get('trades')} trades",
+              flush=True)
+        wfa_reotimizacao = wfa_real.medir_wfa(
+            origem, travados_wfa, numeros_wfa, args.symbol, args.sistema,
+            args.period, inicio_holdout, fim_holdout, args.deposit,
+            ciclos_alvo=4, timeout=max(args.timeout, 1800))
+        print(f"    WFA reotimizacao: WFE global "
+              f"{wfa_reotimizacao['wfe_global_pct']} | "
+              f"{wfa_reotimizacao['ciclos_positivos']} ciclos positivos",
+              flush=True)
+        if holdout_longo["profit"] is None or holdout_longo["profit"] <= 0:
+            aprovado = False
+            print("    REPROVADO no holdout longo: prejuizo no periodo "
+                  "continuo de anos, mesmo tendo vencido a janela curta do "
+                  "sweep.", flush=True)
+        elif (wfa_reotimizacao["wfe_global_pct"] is None
+              or wfa_reotimizacao["wfe_global_pct"] <= 0):
+            aprovado = False
+            print("    REPROVADO na WFA de reotimizacao: WFE global <= 0 -- "
+                  "o resultado nao se sustenta quando reotimizado janela a "
+                  "janela (sinal de overfitting na janela curta).",
+                  flush=True)
+        else:
+            print("    OK: sobreviveu ao holdout longo E a WFA de "
+                  "reotimizacao.", flush=True)
+
     print("\n    " + ("APROVADO: candidato pronto para a entrega."
                       if aprovado else
                       "REPROVADO: nao promova este candidato."), flush=True)
@@ -2893,6 +2956,22 @@ def main() -> int:
                           sobrevivencia["fechados_fim_teste"]
                           if sobrevivencia else None),
                       "sobrevivencia_relatorio_dir": sobrevivencia_relatorio_dir,
+                      # Gate de holdout longo + WFA de reotimizacao
+                      # (ANOS_HOLDOUT_LONGO, 2026-09-05): None = candidato
+                      # reprovado antes de chegar aqui, nao "passou sem medir".
+                      "holdout_longo_medido": holdout_longo is not None,
+                      "holdout_longo_lucro": (
+                          holdout_longo["profit"] if holdout_longo else None),
+                      "holdout_longo_trades": (
+                          holdout_longo["metricas"].get("trades")
+                          if holdout_longo else None),
+                      "wfa_reotimizacao_medida": wfa_reotimizacao is not None,
+                      "wfa_wfe_global_pct": (
+                          wfa_reotimizacao["wfe_global_pct"]
+                          if wfa_reotimizacao else None),
+                      "wfa_ciclos_positivos": (
+                          wfa_reotimizacao["ciclos_positivos"]
+                          if wfa_reotimizacao else None),
                       "relatorio_dir": relatorio_dir,
                       "parametros": {**otimizados, **vencedor}},
                      ensure_ascii=False))
