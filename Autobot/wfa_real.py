@@ -263,7 +263,21 @@ def medir_wfa(origem: Path, travados: dict, numeros: list[str], symbol: str,
     wfes = []
 
     for i, (is_ini, is_fim, oos_ini, oos_fim) in enumerate(janelas, 1):
-        piso = ots.piso_trades_da_janela(is_ini, is_fim, taxa_anual)
+        # piso_minimo=30 (default de piso_trades_da_janela()) foi calibrado
+        # pro Estagio 1 do circuito principal em janelas de ~92 dias -- achado
+        # ao vivo, 2026-09-04: nos 10 campeoes rodados, NENHUM chegou a 6/6
+        # janelas validas (melhor foi 4/6, pior 1/1 e 1/5). Causa exata:
+        # max(30, round(33*136/365)) = max(30, 12) = 30 -- o piso absoluto
+        # vence, exigindo ~2.4x mais trades proporcionalmente que a taxa
+        # anual sugeriria pra uma janela IS de 136 dias, e reprova a maioria
+        # das janelas em sistemas de frequencia mais baixa (06_REVERSAL_EXIT
+        # teve so 1 de 6). piso_minimo=12 aqui: ainda filtra ruido puro (uma
+        # vitoria de 2-3 trades), mas para de exigir mais NUMERO ABSOLUTO de
+        # trades numa janela WFA do que a mesma taxa anual exigiria numa
+        # janela maior -- consistencia entre janelas de tamanhos diferentes,
+        # nao so entre janela WFA e a janela do sweep original (92 dias).
+        piso = ots.piso_trades_da_janela(is_ini, is_fim, taxa_anual,
+                                         piso_minimo=12)
         n = ots.reescrever(origem, trabalho, numeros, travados)
         cab, linhas = ots.rodar(trabalho, symbol, periodo, is_ini, is_fim,
                                 deposito, 1, timeout)
