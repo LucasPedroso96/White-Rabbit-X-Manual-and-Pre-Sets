@@ -157,8 +157,24 @@ def steps(start: float, step: float, stop: float) -> int:
 # AdjustedByDD e 2 Profit puro -- ver correcoes acima. 11 ReturnUniformity
 # saiu desta lista em 2026-08-23 (ver acima), continua fora pros demais
 # sistemas por falta de teste, nao por reprovacao.
+# ATUALIZACAO 2026-09-06 (dono: "vamos alterar para o padrao... periodo
+# longo... oficial"): 01_SLTP, 02_SLTP_ORGANIC, 03_TRAIL_ONLY, 05_BE_TRAIL,
+# 06_REVERSAL_EXIT, 07_GRID_SEPARATE, 09_MARTINGALE e 12_GRID_INVERSO
+# perderam TODO campeao valido no gate novo de holdout longo + WFA
+# (ANOS_HOLDOUT_LONGO, optimize_two_stage.py) -- ver
+# project_wfa_real_e_engine_custom.md, 7 de 10 campeoes antigos reprovados.
+# `calibracao_rapida.py` (triagem RAPIDA: Estagio 1 sozinho, so-insample, 42
+# dias, sem WFO/OOS/tick real) testou as 15 formulas de novo nesses 8
+# sistemas pra achar candidato com sinal antes de gastar o circuito inteiro.
+# Os valores abaixo sao o MELHOR lucro-com-sinal de cada sistema nessa
+# triagem -- PROVISORIO, ainda precisa passar pelo circuito oficial
+# completo (periodo longo + gate de holdout/WFA) antes de virar VALIDADO_
+# de verdade; nao e o mesmo nivel de evidencia dos comentarios historicos
+# abaixo (sweeps completos, gate de sobrevivencia). Antigos: 01_SLTP=10,
+# 02_SLTP_ORGANIC=4, 03_TRAIL_ONLY=11, 05_BE_TRAIL=6, 06_REVERSAL_EXIT=5,
+# 07_GRID_SEPARATE=10, 09_MARTINGALE=10, 12_GRID_INVERSO=10.
 FORMULA_POR_SISTEMA = {
-    "01_SLTP": 10, "02_SLTP_ORGANIC": 4,
+    "01_SLTP": 12, "02_SLTP_ORGANIC": 5,
     # 2026-08-23: sweep completo das 14 formulas em XAUUSD (03_TRAIL_ONLY,
     # 3 meses, --deposit 10000) + confirmacao das 3 melhores (Profit,
     # PessimisticProfit, ReturnUniformity) em BTCUSD/USDJPY. ReturnUniformity
@@ -168,8 +184,10 @@ FORMULA_POR_SISTEMA = {
     # (ate 446.17% no USDJPY) -- nao sobrevive a prova em % na maioria dos
     # casos. Nenhuma formula aprovou em BTCUSD. 05_BE_TRAIL NAO foi testado
     # neste sweep, mantido como estava por falta de evidencia.
-    "03_TRAIL_ONLY": 11, "04_SLTP_TRAIL": 5, "05_BE_TRAIL": 6,
-    "06_REVERSAL_EXIT": 5,
+    # 03_TRAIL_ONLY e 05_BE_TRAIL: valores acima (11, 6) reprovaram no gate
+    # de holdout longo + WFA em 2026-09-06 -- ver nota no topo do dict.
+    "03_TRAIL_ONLY": 12, "04_SLTP_TRAIL": 5, "05_BE_TRAIL": 14,
+    "06_REVERSAL_EXIT": 9,  # 5 reprovou no holdout longo, ver nota no topo
     # 2026-08-04: testado Profit puro (2) guiando a busca do grid, com
     # GridSurvivalScore (1) so como filtro externo pos-busca -- comparado
     # ao vivo contra o metodo antigo no MESMO combo (EURUSD/
@@ -196,14 +214,15 @@ FORMULA_POR_SISTEMA = {
     # de tratar como definitivo. GridSurvivalScore continua sendo lido pelo
     # filtro externo (ler_todas_formulas em optimize_two_stage.py) mesmo
     # sem guiar a busca.
-    "07_GRID_SEPARATE": 10,
+    "07_GRID_SEPARATE": 6,  # 10 nunca achou campeao valido; ver nota no topo
     # 09_MARTINGALE: o fulltest de 2026-08-10 elegeu Profit puro (2), mas
     # revertido pra ResilienceToDrawdown (10) na revisao de peso/risco --
     # ver o bloco de comentario no topo deste dict. Profit puro e
     # exatamente o padrao que ja estourou margem quando testado assim pro
     # grid (2026-08-04); martingale tem o mesmo buraco estrutural (sem SL
     # nativo, MaxMartingaleLot ainda 0/sem teto), entao herda o mesmo risco.
-    "09_MARTINGALE": 10, "10_DALEMBERT": 5,
+    # 2026-09-06: 10 reprovou no holdout longo; ver nota no topo do dict.
+    "09_MARTINGALE": 4, "10_DALEMBERT": 5,
     "11_SIGNAL_ONLY": 4,
     # 12_GRID_INVERSO: A/B proprio agora (dono, 2026-08-19), XAUUSD/
     # 12_GRID_INVERSO/BUY_MULTI, 3 meses, mesmo padrao usado no 07:
@@ -218,7 +237,9 @@ FORMULA_POR_SISTEMA = {
     # arredondamento do lote -- hipotese e que o mesmo motivo se aplica
     # aqui (familia grid, CalculateGridVolume compartilhado). Amostra de
     # 1 simbolo; revisar com mais ativos antes de tratar como definitivo.
-    "12_GRID_INVERSO": 10,
+    # 2026-09-06: 10 reprovou no holdout longo (WFE global negativo, sinal
+    # de overfitting); ver nota no topo do dict.
+    "12_GRID_INVERSO": 2,
 }
 
 # Dependente -> chave que o liga, conforme o EA. Espelha os GATES do circuito
