@@ -46,7 +46,7 @@ PERFIL_MODELO = {
         "ativos": ["EURUSD", "GBPUSD", "XAUUSD"],
         "sistemas": ["01_SLTP", "03_TRAIL_ONLY", "04_SLTP_TRAIL"],
         "lados": ["BUY", "SELL"],
-        "variantes": ["MULTI", "ICHIMOKU"],
+        "variantes": ["MULTI", "ICHIMOKU", "BOLLINGER"],
     },
     "risco": {
         "_comentario": (

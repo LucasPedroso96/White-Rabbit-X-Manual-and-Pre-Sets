@@ -467,6 +467,11 @@ def apply_core(p: Profile, ac: AssetClass, ichimoku: bool,
     p.opt("ADX_Period", 14, 7, 7, 28)
     p.opt("ADX_Limiar", 25, 15, 5, 30)
     p.opt("MetodoADX", 0, 0, 1, 1)          # forca / forca+DI
+    # Guard anti-oversizing do Fixed-R (ZeusRisk.mqh, input adicionado na EA
+    # em 2026-08-29/30 -- depois da ultima regeneracao registrada aqui,
+    # manifesto de 2026-08-24). Sem isto load_schema() rejeita a geracao
+    # inteira ("sem valor"). Mesmo default da EA.
+    p.fix("MaxRiscoRelativoAoLoteMinimo", 1.5)
     # "ATR entrada e somente para Grid" (dono, 2026-07-31): o filtro de
     # volatilidade por ATR (`(!EntradaATR || CheckBuyVolatility())`) so e eixo
     # nos sistemas de grid, onde a cadencia das entradas governa a cesta; nos

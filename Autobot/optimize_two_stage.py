@@ -242,7 +242,12 @@ ESCRITA = {"EntryIndicator", "EntryMethod", "TimeFrame", "InpAppliedPrice",
            "AtivarTrailATR", "UsarsomenteATRGRID",
            "ReversalExitUseEntryFilters",
            "AtivarFiltroMA", "AtivarFiltroADX", "AtivarFiltroMTF",
-           "EntradaATR", "Hedging"}
+           "EntradaATR", "Hedging",
+           # Variante BOLLINGER (2026-09-06): saidas alternativas por banda,
+           # mesma natureza booleana de AtivarBreakeven/TakeOrganico acima --
+           # decididas na fase 1, travadas na fase 2. Ausentes do set MULTI/
+           # ICHIMOKU, entao inertes la (nunca aparecem na coluna).
+           "BreakevenBolinger", "TakeBolinger", "StopBolinger"}
 
 # FASE 2 = SO NUMEROS: com a escrita travada, refinam-se os eixos numericos na
 # faixa fina da biblioteca -- periodos, multiplicadores, distancias, limiares.
@@ -256,7 +261,11 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
            "MA_TimeFrame", "MA_Period", "MA_SlopeLookback",
            "ADX_TimeFrame", "ADX_Period", "ADX_Limiar",
            "MA_Method", "MetodoMA", "SentidoMA", "MA_AppliedPrice",
-           "MetodoADX", "MTF_RequererAmbos", "VolatilityFilter"]
+           "MetodoADX", "MTF_RequererAmbos", "VolatilityFilter",
+           # Variante BOLLINGER (2026-09-06): eixos numericos da entrada,
+           # equivalentes a Fast_EMA/Slow_EMA/MACD_SMA no MULTI. Ausentes do
+           # set MULTI/ICHIMOKU, entao inertes la.
+           "BandsPeriod", "BandsDeviation", "BandsShift"]
 
 # Geometria de saida da familia grid (dono, 2026-08-03, estendido
 # 2026-08-17): medido que grid classico diverge OHLC->tick real em ate 45%+
@@ -840,8 +849,8 @@ def relatar_cobertura(cab: list[str], todas: list[list[str]],
     julgado -- relancar o genetico continua a mesma busca e pode alcanca-lo.
     """
     if "EntryIndicator" not in cab:
-        print("    cobertura: indicador cravado no set (variante ICHIMOKU).",
-              flush=True)
+        print("    cobertura: indicador cravado no set (variante ICHIMOKU ou "
+              "BOLLINGER, sem coluna EntryIndicator).", flush=True)
         return
     i = cab.index("EntryIndicator")
 
@@ -1612,7 +1621,8 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
     with tempfile.TemporaryDirectory() as tmp:
         ini = Path(tmp) / "conf.ini"
         base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
-                          inicio, fim, deposito, modelo, 6, "conf_wrx")
+                          inicio, fim, deposito, modelo, 6, "conf_wrx",
+                          variante=caminho_set.stem)
         # escrever_ini monta otimizacao; aqui queremos um passe so.
         texto_ini = ini.read_text(encoding="utf-16")
         ini.write_text(texto_ini.replace("Optimization=2", "Optimization=0"),
@@ -1745,7 +1755,8 @@ def verificar_sobrevivencia_completa(caminho_set: Path, symbol: str,
     with tempfile.TemporaryDirectory() as tmp:
         ini = Path(tmp) / "conf.ini"
         base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
-                          inicio, fim, deposito, 4, 6, "conf_sobrevivencia")
+                          inicio, fim, deposito, 4, 6, "conf_sobrevivencia",
+                          variante=caminho_set.stem)
         texto_ini = ini.read_text(encoding="utf-16")
         ini.write_text(texto_ini.replace("Optimization=2", "Optimization=0"),
                        encoding="utf-16")
@@ -1772,7 +1783,8 @@ def rodar(caminho_set: Path, symbol: str, periodo: str, inicio: str, fim: str,
     with tempfile.TemporaryDirectory() as tmp:
         ini = Path(tmp) / "otim.ini"
         base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
-                          inicio, fim, deposito, modelo, 6, nome_rel)
+                          inicio, fim, deposito, modelo, 6, nome_rel,
+                          variante=caminho_set.stem)
         lancar_terminal(base.TERMINAL, ini, timeout)
     log = base.texto_novo(antes)
     m = re.search(r"local (\d+) tasks", log)

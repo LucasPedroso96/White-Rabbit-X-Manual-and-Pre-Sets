@@ -5,6 +5,15 @@
   --title-gold: #d4af37; /* so o texto do titulo usa dourado */
   --ok: #4caf50; --no: #ef5350;
 }
+/* Duas campanhas, um painel: [data-familia] troca so a paleta de destaque --
+   todo o resto (layout, cards, tabelas) fica identico, so muda a cor de
+   acento. Multi-Indicator fica com a paleta padrao acima (teal/verde-azulado);
+   Bollinger usa verde puro, pra dar pra saber em qual campanha voce esta so
+   de bater o olho, mesmo com as duas abertas em abas diferentes. */
+:root[data-familia="bollinger"] {
+  --accent: #14532d; --accent-2: #22c55e;
+  --title-gold: #4ade80;
+}
 * { box-sizing: border-box; }
 body {
   font-family: -apple-system, "Segoe UI", Arial, sans-serif;
@@ -170,3 +179,9 @@ button.acao:disabled { opacity: .5; cursor: not-allowed; }
   border-radius: 6px; cursor: pointer; font-size: 12px;
 }
 .tabs-sub button.ativo { background: linear-gradient(135deg, var(--accent-2), var(--accent)); color: #eff8ff; }
+.familia-toggle { display: flex; gap: 2px; background: var(--bg3); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+.familia-toggle button {
+  background: none; border: none; color: var(--muted); padding: 6px 12px;
+  border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
+}
+.familia-toggle button.ativo { background: linear-gradient(135deg, var(--accent-2), var(--accent)); color: #eff8ff; }

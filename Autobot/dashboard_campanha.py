@@ -317,8 +317,12 @@ def combo_atual() -> dict | None:
 
 
 @app.get("/api/status")
-def status() -> JSONResponse:
-    resultados = ler_ledger()
+def status(familia: str = "MULTI") -> JSONResponse:
+    """`familia` ("MULTI" ou "BOLLINGER") filtra o ledger pela familia de
+    variante -- ver ready_library.familia_da_variante() -- para o dashboard
+    mostrar cada modo como uma campanha independente."""
+    resultados = [r for r in ler_ledger()
+                 if ready_library.familia_da_variante(r.get("variante", "")) == familia]
     aprovados = [r for r in resultados if r.get("aprovado")]
     por_sistema: dict[str, dict[str, int]] = {}
     for r in resultados:
@@ -329,6 +333,7 @@ def status() -> JSONResponse:
             d["aprovados"] += 1
     return JSONResponse(
         {
+            "familia": familia,
             "total_feitos": len(resultados),
             "aprovados": len(aprovados),
             "reprovados": len(resultados) - len(aprovados),
@@ -344,8 +349,8 @@ def status() -> JSONResponse:
 
 
 @app.get("/api/config")
-def config() -> JSONResponse:
-    capital = ready_library.capital_por_sistema()
+def config(familia: str = "MULTI") -> JSONResponse:
+    capital = ready_library.capital_por_sistema(familia=familia)
     sistemas = [{
         "code": s.code, "label": s.label, "status": s.status,
         "capital_agregado": capital.get(s.code, 0.0),
@@ -523,6 +528,8 @@ def _lancar_campanha(body: dict) -> JSONResponse:
         # 2026-08-05). Com cache quente sobra folga; a campanha continua
         # regravando e seguindo em frente mesmo se um combo estourar isso.
         str(body.get("timeout", 43200)),
+        "--familia",
+        body.get("familia", "MULTI"),
     ]
     # --deposit so vai explicito se o chamador mandou um numero de verdade
     # -- sem isso, cai no default do proprio campanha.py (None = automatico,
@@ -732,8 +739,10 @@ def ativos_detectar() -> JSONResponse:
 # ------------------------------------------------------------------ biblioteca
 
 
-def _manifesto_stats() -> dict | None:
-    caminho = base.SETS / "MANIFESTO_SISTEMAS.csv"
+def _manifesto_stats(familia: str = "MULTI") -> dict | None:
+    nome = "MANIFESTO_SISTEMAS.csv" if familia == "MULTI" \
+        else "MANIFESTO_SISTEMAS_BOLLINGER.csv"
+    caminho = base.SETS / nome
     if not caminho.exists():
         return None
     st = caminho.stat()
@@ -746,12 +755,12 @@ def _manifesto_stats() -> dict | None:
 
 
 @app.get("/api/biblioteca")
-def biblioteca() -> JSONResponse:
-    return JSONResponse({"manifesto": _manifesto_stats()})
+def biblioteca(familia: str = "MULTI") -> JSONResponse:
+    return JSONResponse({"manifesto": _manifesto_stats(familia)})
 
 
 @app.post("/api/biblioteca/regenerar")
-def biblioteca_regenerar() -> JSONResponse:
+def biblioteca_regenerar(body: dict | None = None) -> JSONResponse:
     # terminal_aberto() e a checagem que importa de verdade: uma corrida
     # iniciada FORA do painel (por CLI, como aconteceu na pratica) nao
     # aparece em estado_campanha()["rodando"] (isso so ve o que o proprio
@@ -767,8 +776,15 @@ def biblioteca_regenerar() -> JSONResponse:
             },
             status_code=409,
         )
+    familia = (body or {}).get("familia", "MULTI")
+    # BOLLINGER usa o gerador ADITIVO (generate_bollinger_sets.py): nunca
+    # apaga nada, so escreve/atualiza os proprios "*_BOLLINGER.set". MULTI
+    # continua no gerador antigo (generate_system_sets.py), que apaga e
+    # reconstroi a arvore inteira -- comportamento de sempre, intocado.
+    script = "generate_bollinger_sets.py" if familia == "BOLLINGER" \
+        else "generate_system_sets.py"
     job_id = lancar_job(
-        [sys.executable, str(AQUI / "generate_system_sets.py")], timeout=600
+        [sys.executable, str(AQUI / script)], timeout=600
     )
     return JSONResponse({"ok": True, "job_id": job_id})
 

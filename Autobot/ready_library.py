@@ -81,7 +81,7 @@ SISTEMAS_R_CAPAZES = {"01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY",
 # (EURUSD.HT vira EURUSD_HT na gravacao).
 NOME_ENTREGA = re.compile(
     r"^VALIDADO_(?P<simbolo>.+?)_(?P<sistema>\d{2}_[A-Z_]+?)_"
-    r"(?P<variante>(?:BUY|SELL|BOTH)_(?:MULTI|ICHIMOKU))\.set$")
+    r"(?P<variante>(?:BUY|SELL|BOTH)_(?:MULTI|ICHIMOKU|BOLLINGER))\.set$")
 
 
 def analisar_nome(nome: str) -> dict[str, str] | None:
@@ -116,15 +116,33 @@ def metricas_do_ledger(ledger: Path) -> dict[tuple[str, str, str], dict]:
     return saida
 
 
-def capital_por_sistema(tester: Path = TESTER) -> dict[str, float]:
+def familia_da_variante(variante: str) -> str:
+    """Agrupa a variante do combo na familia de dashboard correspondente.
+
+    MULTI e ICHIMOKU sao a mesma EA (indicador plugavel) e ficam juntos sob
+    "MULTI" -- e o que o dashboard MULTI ja mostrava antes do Bollinger
+    existir. BOLLINGER e uma EA fisicamente diferente, familia propria.
+    """
+    return "BOLLINGER" if "BOLLINGER" in variante.upper() else "MULTI"
+
+
+def capital_por_sistema(tester: Path = TESTER,
+                        familia: str | None = None) -> dict[str, float]:
     """Capital agregado validado por sistema, so leitura (sem sincronizar o
     espelho). Mesma soma que _gerar_portfolios() faz (CapitalBaseR dos sets
     VALIDADO_* de cada sistema R-capaz), exposta para o dashboard ordenar o
-    checklist de Run Setup por capital decrescente sem custo de sync."""
+    checklist de Run Setup por capital decrescente sem custo de sync.
+
+    `familia` (None = todas, "MULTI" ou "BOLLINGER") filtra pela familia da
+    variante -- ver familia_da_variante() -- para o dashboard poder mostrar
+    o capital de cada modo separadamente.
+    """
     por_sistema: dict[str, list[float]] = {}
     for origem in sorted(tester.glob("VALIDADO_*.set")):
         info = analisar_nome(origem.name)
         if info is None or info["sistema"] not in SISTEMAS_R_CAPAZES:
+            continue
+        if familia is not None and familia_da_variante(info["variante"]) != familia:
             continue
         capital = ler_param(origem, "CapitalBaseR")
         if capital in (None, ""):

@@ -99,13 +99,25 @@ BILATERAL: set[str] = set()
 RODADAS = [("BUY_MULTI", "BOTH_MULTI"), ("SELL_MULTI", None),
            ("BUY_ICHIMOKU", "BOTH_ICHIMOKU"), ("SELL_ICHIMOKU", None)]
 
+# Variante BOLLINGER (2026-09-06): EA propria (schema de inputs diferente,
+# sem EntryIndicator plugavel) -- por isso rodada PROPRIA, nao mais um valor
+# dentro de RODADAS junto com MULTI/ICHIMOKU. Uma corrida so processa UMA
+# familia (--familia na CLI/dashboard escolhe qual).
+RODADAS_BOLLINGER = [("BUY_BOLLINGER", "BOTH_BOLLINGER"), ("SELL_BOLLINGER", None)]
 
-def variantes(sistema: str) -> list[str]:
+
+def rodadas_da_familia(familia: str) -> list[tuple[str, str | None]]:
+    return RODADAS_BOLLINGER if familia.upper() == "BOLLINGER" else RODADAS
+
+
+def variantes(sistema: str, familia: str = "MULTI") -> list[str]:
     duplo = sistema in BILATERAL
-    return [b if duplo else a for a, b in RODADAS if not (duplo and b is None)]
+    rodadas = rodadas_da_familia(familia)
+    return [b if duplo else a for a, b in rodadas if not (duplo and b is None)]
 
 
-def fila(simbolos: list[str], sistemas: list[str] | None = None) -> list[tuple[str, str, str]]:
+def fila(simbolos: list[str], sistemas: list[str] | None = None,
+        familia: str = "MULTI") -> list[tuple[str, str, str]]:
     """Combos na ordem de execucao: SIMBOLO por fora, depois variante,
     depois SISTEMA por dentro (grid primeiro por default).
 
@@ -129,7 +141,7 @@ def fila(simbolos: list[str], sistemas: list[str] | None = None) -> list[tuple[s
     sistemas = sistemas if sistemas is not None else SISTEMAS
     itens = []
     for simbolo in simbolos:
-        for unilateral, bilateral in RODADAS:
+        for unilateral, bilateral in rodadas_da_familia(familia):
             for sistema in sistemas:
                 v = bilateral if sistema in BILATERAL else unilateral
                 if v is None:              # bilateral nao tem BUY_* proprio
@@ -315,6 +327,9 @@ def main() -> int:
     ap.add_argument("--simbolos", default="",
                     help="lista separada por virgula, sobrepoe a "
                          "auto-deteccao/campanha_ativos.json so nesta corrida")
+    ap.add_argument("--familia", default="MULTI", choices=["MULTI", "BOLLINGER"],
+                    help="qual EA rodar: MULTI+ICHIMOKU (default) ou BOLLINGER "
+                         "(EA propria, ver generate_bollinger_sets.py)")
     args = ap.parse_args()
 
     if args.simbolos.strip():
@@ -334,7 +349,7 @@ def main() -> int:
                   flush=True)
             return 1
 
-    todos = fila(simbolos, sistemas)
+    todos = fila(simbolos, sistemas, args.familia)
     ja = feitos()
     pendentes = [c for c in todos if c not in ja]
     print(f"campanha: {len(todos)} combos | {len(ja)} feitos | "

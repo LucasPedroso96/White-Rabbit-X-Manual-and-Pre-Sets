@@ -62,7 +62,21 @@ if not SETS.is_dir():
         SETS = alternativa
 CONTA_CACHE = Path(__file__).resolve().parent / "_conta_real.json"
 EA = r"White Rabbit X (Global Multi-Indicator).ex5"
+# BOLLINGER e uma EA fisicamente diferente (schema de inputs proprio, sem
+# EntryIndicator) -- ao contrario de ICHIMOKU, que e so mais um valor do
+# EntryIndicator DENTRO da EA acima. Ver plano de 2026-09-06.
+EA_BOLLINGER = r"White Rabbit X (Global -  Bolinger Bands).ex5"
 LOGS = DADOS / "Tester" / "logs"
+
+
+def ea_file_for(variante: str) -> str:
+    """Nome do .ex5 pela variante do combo (ex.: "BUY_BOLLINGER", "SELL_MULTI").
+
+    MULTI e ICHIMOKU compartilham a mesma EA (`EA`); BOLLINGER usa a EA
+    propria. Variante vazia ou desconhecida cai no padrao (`EA`), preservando
+    o comportamento de todo chamador que ainda nao passa variante.
+    """
+    return EA_BOLLINGER if "BOLLINGER" in variante.upper() else EA
 
 # Sinal de pausa (dono, 2026-08-09): so a PRESENCA do arquivo importa, nunca o
 # conteudo -- ver pausa_solicitada(). Fica na mesma pasta dos outros arquivos
@@ -156,7 +170,8 @@ def leverage_conta() -> str:
 
 def escrever_ini(destino: Path, symbol: str, periodo: str, set_rel: str,
                  inicio: str, fim: str, deposito: int, modelo: int,
-                 criterio: int, relatorio: str, forward: int = 0) -> None:
+                 criterio: int, relatorio: str, forward: int = 0,
+                 variante: str = "") -> None:
     """Monta o .ini do tester. `forward` aciona o holdout NATIVO do MT5.
 
     ForwardMode: 0 desligado, 1 = metade do periodo, 2 = um terco, 3 = um
@@ -172,7 +187,7 @@ def escrever_ini(destino: Path, symbol: str, periodo: str, set_rel: str,
     ini = configparser.ConfigParser()
     ini.optionxform = str
     ini["Tester"] = {
-        "Expert": EA,
+        "Expert": ea_file_for(variante),
         "Symbol": symbol,
         "Period": periodo,
         "Model": str(modelo),
@@ -396,7 +411,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         ini = Path(tmp) / "otim.ini"
         escrever_ini(ini, args.symbol, args.period, rel, args.inicio, args.fim,
-                     args.deposit, args.model, args.criterion, nome_relatorio)
+                     args.deposit, args.model, args.criterion, nome_relatorio,
+                     variante=args.variante)
         try:
             lancar_terminal(TERMINAL, ini, args.timeout)
         except subprocess.TimeoutExpired:

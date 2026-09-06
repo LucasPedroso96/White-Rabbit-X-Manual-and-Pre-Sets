@@ -204,7 +204,8 @@ def medir_forward(origem: Path, travados: dict, numeros: list[str],
         ini = Path(tmp) / "forward.ini"
         rel = str(trabalho.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
         base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
-                          inicio, fim, deposito, 1, 6, rel_nome, forward=forward)
+                          inicio, fim, deposito, 1, 6, rel_nome,
+                          forward=forward, variante=origem.stem)
         lancar_terminal(base.TERMINAL, ini, timeout)
     log = base.texto_novo(antes)
     candidatos = sorted(base.DADOS.glob(f"{rel_nome}*"),

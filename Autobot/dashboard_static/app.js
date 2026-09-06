@@ -12,6 +12,8 @@ const i18n = {
     'mt5.status-free': 'free',
     'install.button': 'Install app',
     'lang.label': 'Language',
+    'familia.multi': 'Multi-Indicator',
+    'familia.bollinger': 'Bollinger Bands',
     'nav.live': 'Live campaign',
     'nav.setup': 'Run setup',
     'nav.sets': 'Set library',
@@ -142,6 +144,8 @@ const i18n = {
     'mt5.status-free': 'livre',
     'install.button': 'Instalar app',
     'lang.label': 'Idioma',
+    'familia.multi': 'Multi-Indicador',
+    'familia.bollinger': 'Bandas de Bollinger',
     'nav.live': 'Campanha ao vivo',
     'nav.setup': 'Configurar corrida',
     'nav.sets': 'Biblioteca de Sets',
@@ -272,6 +276,8 @@ const i18n = {
     'mt5.status-free': 'libre',
     'install.button': 'Instalar app',
     'lang.label': 'Idioma',
+    'familia.multi': 'Multi-Indicador',
+    'familia.bollinger': 'Bandas de Bollinger',
     'nav.live': 'Campaña en vivo',
     'nav.setup': 'Configurar corrida',
     'nav.sets': 'Biblioteca de sets',
@@ -402,6 +408,8 @@ const i18n = {
     'mt5.status-free': 'frei',
     'install.button': 'App installieren',
     'lang.label': 'Sprache',
+    'familia.multi': 'Multi-Indikator',
+    'familia.bollinger': 'Bollinger-Bänder',
     'nav.live': 'Live-Kampagne',
     'nav.setup': 'Lauf einrichten',
     'nav.sets': 'Set-Bibliothek',
@@ -532,6 +540,8 @@ const i18n = {
     'mt5.status-free': 'libre',
     'install.button': "Installer l'app",
     'lang.label': 'Langue',
+    'familia.multi': 'Multi-Indicateur',
+    'familia.bollinger': 'Bandes de Bollinger',
     'nav.live': 'Campagne en direct',
     'nav.setup': 'Configurer la campagne',
     'nav.sets': 'Bibliothèque de sets',
@@ -662,6 +672,8 @@ const i18n = {
     'mt5.status-free': 'libero',
     'install.button': "Installa l'app",
     'lang.label': 'Lingua',
+    'familia.multi': 'Multi-Indicatore',
+    'familia.bollinger': 'Bande di Bollinger',
     'nav.live': 'Campagna live',
     'nav.setup': 'Configura run',
     'nav.sets': 'Libreria set',
@@ -792,6 +804,8 @@ const i18n = {
     'mt5.status-free': 'свободен',
     'install.button': 'Установить приложение',
     'lang.label': 'Язык',
+    'familia.multi': 'Мульти-индикатор',
+    'familia.bollinger': 'Полосы Боллинджера',
     'nav.live': 'Кампания в реальном времени',
     'nav.setup': 'Настройка прогона',
     'nav.sets': 'Библиотека сетов',
@@ -922,6 +936,8 @@ const i18n = {
     'mt5.status-free': '空闲',
     'install.button': '安装应用',
     'lang.label': '语言',
+    'familia.multi': '多指标',
+    'familia.bollinger': '布林带',
     'nav.live': '实时活动',
     'nav.setup': '配置运行',
     'nav.sets': '参数集库',
@@ -1052,6 +1068,8 @@ const i18n = {
     'mt5.status-free': '空き',
     'install.button': 'アプリをインストール',
     'lang.label': '言語',
+    'familia.multi': 'マルチインジケーター',
+    'familia.bollinger': 'ボリンジャーバンド',
     'nav.live': 'ライブキャンペーン',
     'nav.setup': '実行設定',
     'nav.sets': 'セットライブラリ',
@@ -1182,6 +1200,8 @@ const i18n = {
     'mt5.status-free': '사용 가능',
     'install.button': '앱 설치',
     'lang.label': '언어',
+    'familia.multi': '멀티 인디케이터',
+    'familia.bollinger': '볼린저 밴드',
     'nav.live': '실시간 캠페인',
     'nav.setup': '실행 설정',
     'nav.sets': '세트 라이브러리',
@@ -1312,6 +1332,8 @@ const i18n = {
     'mt5.status-free': 'boş',
     'install.button': 'Uygulamayı yükle',
     'lang.label': 'Dil',
+    'familia.multi': 'Çoklu Gösterge',
+    'familia.bollinger': 'Bollinger Bantları',
     'nav.live': 'Canlı kampanya',
     'nav.setup': 'Çalıştırma ayarları',
     'nav.sets': 'Set kütüphanesi',
@@ -1573,7 +1595,7 @@ document.querySelector("#tbl-recentes").addEventListener("click", (ev) => {
 });
 
 async function carregarStatus() {
-  const d = await api("/api/status");
+  const d = await api("/api/status?familia=" + familiaAtual);
   const q = d.qualidade || {};
   const emAndamento = d.atual ? 1 : 0;
   const mcMedido = q.mc_pass_rate != null;
@@ -1772,6 +1794,38 @@ document.getElementById("perfil-wfo-fim").value = hojeMT5();
 // campanha.py quando chamado sem esse dashboard.
 document.getElementById("campo-inicio").value = anosAtrasMT5(3);
 
+// ------------------------------------------------------------ familia (Multi/Bollinger)
+//
+// Duas campanhas dentro do mesmo painel (dono, 2026-09-06): MULTI+ICHIMOKU e
+// BOLLINGER sao EAs diferentes, cada uma com seu proprio ledger/biblioteca.
+// A familia escolhida aqui decide o QUE os endpoints de leitura mostram
+// (?familia= em /api/status e /api/config) e QUE variante uma corrida nova
+// vai rodar (campo "familia" no POST /api/campanha/start) -- nao e so um
+// filtro visual, e a mesma chave que campanha.py usa pra escolher entre
+// RODADAS (Multi/Ichimoku) e RODADAS_BOLLINGER.
+const CHAVE_FAMILIA = "wrx_familia";
+let familiaAtual = localStorage.getItem(CHAVE_FAMILIA) === "BOLLINGER" ? "BOLLINGER" : "MULTI";
+
+function aplicarFamilia() {
+  document.documentElement.setAttribute("data-familia", familiaAtual.toLowerCase());
+  document.getElementById("btn-familia-multi").classList.toggle("ativo", familiaAtual === "MULTI");
+  document.getElementById("btn-familia-bollinger").classList.toggle("ativo", familiaAtual === "BOLLINGER");
+}
+
+function setFamilia(f) {
+  if (f === familiaAtual) return;
+  familiaAtual = f;
+  localStorage.setItem(CHAVE_FAMILIA, f);
+  aplicarFamilia();
+  // Reflete a troca em tudo que ja tem dado carregado, sem esperar o
+  // proximo ciclo do setInterval de 8s.
+  carregarStatus();
+  carregarConfig();
+}
+document.getElementById("btn-familia-multi").addEventListener("click", () => setFamilia("MULTI"));
+document.getElementById("btn-familia-bollinger").addEventListener("click", () => setFamilia("BOLLINGER"));
+aplicarFamilia();
+
 setInterval(() => { carregarStatus(); carregarEstado(); carregarHeatmap(); }, 8000);
 applyTranslations(langPicker?.value || 'en');
 carregarStatus();
@@ -1794,7 +1848,7 @@ function setModo(m) {
 
 async function carregarConfig() {
   try {
-    CONFIG = await api("/api/config");
+    CONFIG = await api("/api/config?familia=" + familiaAtual);
     document.getElementById("check-sistemas").innerHTML = CONFIG.sistemas.map((s, i) => {
       const nota = !s.capital_aplica ? "n/a (fixed lot)"
         : s.capital_agregado > 0 ? `validated capital: ${s.capital_agregado.toLocaleString()}`
@@ -1991,6 +2045,7 @@ async function iniciarCorridaReal() {
   const depositoAuto = document.getElementById("chk-deposito-auto").checked;
   const body = {
     modo: modoAtual,
+    familia: familiaAtual,
     inicio: document.getElementById("campo-inicio").value,
     fim: document.getElementById("campo-fim").value,
     deposit: depositoAuto ? null : Number(document.getElementById("campo-deposito").value),
@@ -2035,7 +2090,7 @@ document.getElementById("btn-auto-manual").addEventListener("click", () => {
 // -------------------------------------------------------------- biblioteca
 
 async function carregarBiblioteca() {
-  const d = await api("/api/biblioteca");
+  const d = await api("/api/biblioteca?familia=" + familiaAtual);
   const el = document.getElementById("info-biblioteca");
   el.textContent = d.manifesto
     ? `${d.manifesto.total_sets} sets | gerado em ${d.manifesto.gerado_em}`
@@ -2043,7 +2098,7 @@ async function carregarBiblioteca() {
 }
 document.getElementById("btn-regenerar").addEventListener("click", async () => {
   const msg = document.getElementById("msg-regenerar");
-  const r = await post("/api/biblioteca/regenerar");
+  const r = await post("/api/biblioteca/regenerar", { familia: familiaAtual });
   if (!r.ok) { msg.textContent = r.erro; msg.className = "status-msg no"; return; }
   pollJob(r.job_id, msg, () => carregarBiblioteca());
 });

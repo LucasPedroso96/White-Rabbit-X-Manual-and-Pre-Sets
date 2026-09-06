@@ -90,7 +90,8 @@ def rodar_uma(trabalho: Path, args, formula: int) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         ini = Path(tmp) / "otim.ini"
         base.escrever_ini(ini, args.symbol, args.period, rel, args.inicio,
-                          args.fim, args.deposit, 1, 6, nome_relatorio)
+                          args.fim, args.deposit, 1, 6, nome_relatorio,
+                          variante=trabalho.stem)
         try:
             lancar_terminal(base.TERMINAL, ini, args.timeout)
         except subprocess.TimeoutExpired:
