@@ -110,10 +110,18 @@ def apply_core_bollinger(p: Profile, ac: AssetClass, grid: bool = False) -> None
     p.opt("BandsShift", 0, 0, 1, 2)
     p.opt("InpAppliedPrice", 1, 1, 1, 7)
 
-    # As 7 combinacoes do gatilho universal (reversao/rompimento/cruzamento
-    # de referencia e as composicoes) -- mesmo eixo 0..6 que o Multi usa,
-    # a EA reaproveita a mesma ENUM_ENTRY_TRIGGER_MODE.
-    p.opt("EntryMethod", 1, 0, 1, 6)
+    # As tres leituras canonicas de John Bollinger (achado do dono,
+    # 2026-09-06, substituiu o esquema de 7 combinacoes herdado do Multi):
+    # 0=Reversal, 1=Breakout, 2=Squeeze.
+    p.opt("BollingerEntryMode", 1, 0, 1, 2)
+    # So tem efeito no ramo Squeeze (BollingerEntryMode==2) -- GATES_
+    # DEPENDENCIAS so sabe desativar por FLAG BOOLEANA false, nao por um
+    # valor especifico de enum, entao os dois ficam abertos nos tres ramos
+    # mesmo (mesma imprecisao ja aceita hoje pra ICHIMOKU: sem coluna
+    # EntryIndicator, eixos_do_indicador() em optimize_two_stage.py tambem
+    # reabre tudo sem filtrar na Fase 2 -- ver docstring da funcao).
+    p.opt("SqueezeLookback", 20, 10, 5, 40)
+    p.opt("SqueezeTolerancePct", 10.0, 5.0, 2.5, 20.0)
     p.opt("TimeFrame", ac.timeframe, ac.tf_lo, 1, ac.tf_hi)
 
     p.opt("ATR_TimeFrame", ac.timeframe, max(0, ac.tf_lo - 1), 1, ac.tf_hi)

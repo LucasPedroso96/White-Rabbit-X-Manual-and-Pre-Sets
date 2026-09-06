@@ -247,7 +247,12 @@ ESCRITA = {"EntryIndicator", "EntryMethod", "TimeFrame", "InpAppliedPrice",
            # mesma natureza booleana de AtivarBreakeven/TakeOrganico acima --
            # decididas na fase 1, travadas na fase 2. Ausentes do set MULTI/
            # ICHIMOKU, entao inertes la (nunca aparecem na coluna).
-           "BreakevenBolinger", "TakeBolinger", "StopBolinger"}
+           "BreakevenBolinger", "TakeBolinger", "StopBolinger",
+           # BollingerEntryMode substitui o EntryMethod do MULTI so pra esta
+           # variante (enum proprio, 3 valores -- Reversal/Breakout/Squeeze,
+           # ver mql5 2026-09-06): mesmo tratamento de "escrita" que
+           # EntryIndicator/EntryMethod recebem acima.
+           "BollingerEntryMode"}
 
 # FASE 2 = SO NUMEROS: com a escrita travada, refinam-se os eixos numericos na
 # faixa fina da biblioteca -- periodos, multiplicadores, distancias, limiares.
@@ -265,7 +270,11 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
            # Variante BOLLINGER (2026-09-06): eixos numericos da entrada,
            # equivalentes a Fast_EMA/Slow_EMA/MACD_SMA no MULTI. Ausentes do
            # set MULTI/ICHIMOKU, entao inertes la.
-           "BandsPeriod", "BandsDeviation", "BandsShift"]
+           "BandsPeriod", "BandsDeviation", "BandsShift",
+           # So tem efeito no ramo Squeeze (BollingerEntryMode==2) -- ver
+           # comentario equivalente em generate_bollinger_sets.py sobre a
+           # mesma imprecisao ja aceita pra ICHIMOKU.
+           "SqueezeLookback", "SqueezeTolerancePct"]
 
 # Geometria de saida da familia grid (dono, 2026-08-03, estendido
 # 2026-08-17): medido que grid classico diverge OHLC->tick real em ate 45%+
