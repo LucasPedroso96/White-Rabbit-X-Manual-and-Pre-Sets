@@ -2325,9 +2325,11 @@ async function carregarImplantacao() {
       <td>${s.certificado
         ? `<span class="pill ok">certified</span>`
         : `<span class="pill no">no report archived</span>`}</td>
-      <td><label style="display:inline-flex;align-items:center;gap:4px">
+      <td><label style="display:inline-flex;align-items:center;gap:6px">
         <input type="checkbox" class="chk-deployed" value="${s.chave}" ${s.implantado ? "checked" : ""}
-          ${s.certificado ? "" : "disabled"}> deployed</label></td>
+          ${s.certificado ? "" : "disabled"}>
+        <span class="pill ${s.implantado ? "ok" : "no"}">${s.implantado ? "deployed" : "not deployed"}</span>
+      </label></td>
       <td>${s.certificado
         ? `<button class="acao secundario" style="padding:2px 8px;font-size:11px" data-grafico="${s.chave}">chart</button>`
         : ""}</td>

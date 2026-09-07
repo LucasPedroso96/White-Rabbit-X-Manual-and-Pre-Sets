@@ -8,11 +8,15 @@
 /* Duas campanhas, um painel: [data-familia] troca so a paleta de destaque --
    todo o resto (layout, cards, tabelas) fica identico, so muda a cor de
    acento. Multi-Indicator fica com a paleta padrao acima (teal/verde-azulado);
-   Bollinger usa verde puro, pra dar pra saber em qual campanha voce esta so
-   de bater o olho, mesmo com as duas abertas em abas diferentes. */
+   Bollinger usa a paleta "Forest Green" do projeto Levain (mesmo dono,
+   Levain-2.0/templates/index.html, tema data-theme="forest": --primary-color
+   #2d5016, --accent-color #4caf50, --success-color #8bc34a) -- pedido do
+   dono, 2026-09-06: reaproveitar a identidade visual do Levain em vez de um
+   verde generico, pra dar pra saber em qual campanha voce esta so de bater
+   o olho, mesmo com as duas abertas em abas diferentes. */
 :root[data-familia="bollinger"] {
-  --accent: #14532d; --accent-2: #22c55e;
-  --title-gold: #4ade80;
+  --accent: #2d5016; --accent-2: #4caf50;
+  --title-gold: #8bc34a;
 }
 * { box-sizing: border-box; }
 body {
