@@ -604,6 +604,15 @@ def _lancar_campanha(body: dict) -> JSONResponse:
                 "inicio": body.get("inicio"),
                 "fim": body.get("fim") or datetime.now().strftime("%Y.%m.%d"),
                 "limite": body.get("limite", 0),
+                # Familia da corrida (achado do dono, 2026-09-07): o painel
+                # deixava trocar o toggle MULTI/BOLLINGER/ICHIMOKU livremente
+                # mesmo com uma campanha rodando, mostrando o status/config de
+                # uma familia parada enquanto outra rodava de verdade por
+                # baixo -- confuso e arriscado (dava pra achar que "nada esta
+                # rodando" olhando a tela errada). Gravado aqui pro painel
+                # conseguir travar o toggle na familia REAL da corrida ativa
+                # (ver carregarEstado() em app.js).
+                "familia": body.get("familia", "MULTI"),
             },
             ensure_ascii=False,
         ),
@@ -715,6 +724,11 @@ def campanha_retomar() -> JSONResponse:
             "inicio": info.get("inicio"),
             "fim": info.get("fim"),
             "limite": info.get("limite", 0),
+            # Sem isso o Resume caia no default "MULTI" de _lancar_campanha
+            # (achado do dono, 2026-09-07) -- uma campanha BOLLINGER/ICHIMOKU
+            # pausada voltaria rodando MULTI silenciosamente, o mesmo bug de
+            # familia-nao-propagada ja visto em optimize_two_stage.py.
+            "familia": info.get("familia", "MULTI"),
         }
         return _lancar_campanha(body)
     finally:

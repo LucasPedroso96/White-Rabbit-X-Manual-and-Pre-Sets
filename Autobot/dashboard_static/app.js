@@ -1747,6 +1747,23 @@ async function carregarEstado() {
   } else {
     badgeP.style.display = "none";
   }
+
+  // Toggle de familia trava fiel a corrida ativa (achado do dono,
+  // 2026-09-07): antes dava pra trocar MULTI/BOLLINGER/ICHIMOKU livremente
+  // com uma campanha rodando por baixo -- a tela mostrava o status/config de
+  // uma familia PARADA enquanto outra rodava de verdade, parecendo que nada
+  // estava acontecendo. Uma corrida pausada (retomavel) tambem trava: ela
+  // ainda "pertence" aquela familia ate ser retomada ou parada de vez.
+  const travar = e.rodando || e.pausado;
+  ["btn-familia-multi", "btn-familia-bollinger", "btn-familia-ichimoku"]
+    .forEach((id) => { document.getElementById(id).disabled = travar; });
+  if (travar && e.familia && e.familia !== familiaAtual) {
+    familiaAtual = e.familia;
+    localStorage.setItem(CHAVE_FAMILIA, familiaAtual);
+    aplicarFamilia();
+    carregarStatus();
+    carregarConfig();
+  }
 }
 
 document.getElementById("btn-stop").addEventListener("click", async () => {

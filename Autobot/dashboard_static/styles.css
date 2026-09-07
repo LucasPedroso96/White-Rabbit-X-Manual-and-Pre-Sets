@@ -211,3 +211,8 @@ button.acao:disabled { opacity: .5; cursor: not-allowed; }
   border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
 }
 .familia-toggle button.ativo { background: linear-gradient(135deg, var(--accent-2), var(--accent)); color: #eff8ff; }
+/* Travado enquanto uma campanha esta rodando/pausada nessa familia (ver
+   carregarEstado() em app.js) -- cursor muda e o ativo ganha um contorno
+   pra "preso", nao "escondido", ninguem deve achar que sumiu um botao. */
+.familia-toggle button:disabled { cursor: not-allowed; opacity: .7; }
+.familia-toggle button.ativo:disabled { outline: 2px solid var(--accent-2); outline-offset: 1px; }
