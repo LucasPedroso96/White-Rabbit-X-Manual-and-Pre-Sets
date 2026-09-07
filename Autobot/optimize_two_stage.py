@@ -2592,6 +2592,105 @@ def main() -> int:
         prefixo_div = "    " if base_div is not None else "\n    "
         print(f"{prefixo_div}divergencia n/d: {motivo_div}", flush=True)
 
+    # ---- Resgate por divergencia (tick real, so quando precisa) -------------
+    # Pedido do dono, 2026-09-07 ("nao afrouxe" o limiar de 30%; uma segunda
+    # chance de verdade em vez disso): o Estagio 3.5 ja tenta resgatar
+    # reabrindo SO a geometria de saida em tick real -- quando isso nao fecha
+    # a divergencia (retencao passou, mas o lucro prometido em OHLC nao se
+    # sustentou nem apos a geometria ser refeita), a unica pergunta que sobra
+    # e se o conjunto numerico INTEIRO (nao so saida) tambem carregava vies
+    # de OHLC -- mesmo a teoria dizendo que nao deveria (entrada fecha na
+    # mesma barra nos dois modelos, anti-repaint no fechamento). So um passe
+    # DIRETO em tick real responde isso sem confiar de novo no proprio OHLC.
+    #
+    # So dispara quando a divergencia SOZINHA reprovaria (retencao ja
+    # passou): nunca custa nada pra quem passaria de qualquer jeito, e nunca
+    # tenta resgatar quem tambem falhou em generalizar (retencao baixa) --
+    # aquele e um problema diferente que um resgate de divergencia nao ataca.
+    #
+    # O candidato achado aqui nao tem "divergencia" pra medir: foi buscado
+    # inteiramente em tick real, nunca dependeu de uma promessa de OHLC.
+    resgatado = False
+    if (div is not None and div > 30 and oos["retencao"] is not None
+            and oos["retencao"] >= args.min_retencao):
+        print(f"\n  [4.5/5] resgate por divergencia ({div:.1f}%): rebusca o "
+              f"conjunto numerico ({len(numeros)} parametros) direto em "
+              "tick real, sem depender do OHLC", flush=True)
+        t0_r = time.time()
+        if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+            limpar_todas_formulas()
+        reescrever(origem, trabalho, numeros, travados)
+        cab_r, linhas_r = rodar(trabalho, args.symbol, args.period,
+                                args.inicio, args.fim, args.deposit, 4,
+                                args.timeout, variante=args.variante)
+        resgate_ok = (base.escolher_candidatos(cab_r, linhas_r,
+                                               args.min_trades, args.min_pf)
+                     if linhas_r else [])
+        print(f"    {(time.time()-t0_r)/60:.0f} min | aptos: "
+              f"{len(resgate_ok)} de {len(linhas_r)}", flush=True)
+        if not resgate_ok:
+            print("    nenhum candidato do resgate passou o piso; mantido "
+                  "o veredito original.", flush=True)
+        else:
+            ord_r = torneio_retencao(
+                resgate_ok[:args.finalistas], cab_r, metricas, origem,
+                trabalho, travados, args, 4,
+                "resgate por divergencia (tick real, ~35s cada)")
+            ret_r = ord_r[0][0] if ord_r else None
+            if ret_r is None:
+                print("    resgate sem torneio valido; mantido o veredito "
+                      "original.", flush=True)
+            elif ret_r < args.min_retencao:
+                print(f"    resgate nao passou o piso de retencao "
+                      f"({ret_r:.1f}% < {args.min_retencao:.0f}%); mantido "
+                      "o veredito original.", flush=True)
+            else:
+                _, _, cand_r, _ = ord_r[0]
+                travados_r = dict(travados)
+                travados_r.update({c: v for c, v in cand_r.items()
+                                   if c in numeros})
+                reescrever(origem, trabalho, [],
+                          dict(travados_r, MetodoDeEntradawfo="1"))
+                real_r = passe_unico(trabalho, args.symbol, args.period,
+                                     args.inicio, args.fim, args.deposit, 4,
+                                     variante=args.variante)
+                if real_r["saldo"] is None or real_r["retencao"] is None:
+                    print("    resgate encontrou candidato mas a "
+                          "conferencia final nao produziu resultado; "
+                          "mantido o veredito original.", flush=True)
+                else:
+                    print(f"    resgatado: retencao nativa em tick real "
+                          f"{real_r['retencao']:.1f}% (buscada direto, sem "
+                          "promessa de OHLC pra comparar)", flush=True)
+                    travados = travados_r
+                    # "parametros" no JSON final usa {**otimizados, **vencedor}
+                    # (ver fim de main()), nunca `travados` -- sem atualizar
+                    # `vencedor` aqui os numeros gravados no ledger/relatorio
+                    # ficariam os do estagio 2 antigo, nao os do resgate.
+                    vencedor.update({c: v for c, v in cand_r.items()
+                                     if c in numeros})
+                    oos = real_r
+                    real = real_r
+                    lucro_real = real_r["saldo"] - args.deposit
+                    relatorio_dir = arquivar_relatorio(
+                        args.symbol, args.sistema, args.variante)
+                    mc = monte_carlo_wrx.rodar_mc(
+                        monte_carlo_wrx.achar_relatorio("conf_wrx"), trabalho)
+                    mc_aprovado = True
+                    if mc is not None and mc["mc_dd_p95"] is not None:
+                        mc_aprovado = (mc["mc_dd_p95"] <= 2 * mc["mc_dd_observado"]
+                                      and mc["mc_prob_ruina"] <= 0.05)
+                        print(f"    Monte Carlo (resgate, {mc['mc_n_trades']} "
+                              f"trades): DD p95 {mc['mc_dd_p95']:.2f}R "
+                              f"(observado {mc['mc_dd_observado']:.2f}R) | "
+                              f"prob. ruina {mc['mc_prob_ruina']*100:.1f}%"
+                              + ("" if mc_aprovado else " -- REPROVADO no Monte Carlo"),
+                              flush=True)
+                    stats_lista_r = carregar_todas_formulas()
+                    stats_confirmacao = stats_lista_r[-1] if stats_lista_r else None
+                    div, base_div = 0.0, lucro_real
+                    resgatado = True
+
     # Custo nativo (dono, 2026-08-02): simbolo .HT sai com comissao/swap ZERO
     # por construcao (CustomSymbolCreate nao herda isso do broker -- e config
     # de GRUPO no servidor, nao propriedade de simbolo). So informativo por
@@ -3021,6 +3120,10 @@ def main() -> int:
                           wfa_reotimizacao["ciclos_positivos"]
                           if wfa_reotimizacao else None),
                       "relatorio_dir": relatorio_dir,
+                      # True = aprovado (ou nao) com base num candidato
+                      # buscado DIRETO em tick real (ver [4.5/5] acima), nao
+                      # no vencedor original do Estagio 2 em OHLC.
+                      "resgatado_divergencia": resgatado,
                       "parametros": {**otimizados, **vencedor}},
                      ensure_ascii=False))
     limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
