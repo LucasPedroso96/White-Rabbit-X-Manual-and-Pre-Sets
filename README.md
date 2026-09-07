@@ -1,9 +1,10 @@
 # White Rabbit X — Manuals, Set Library and Autobot
 
 Public material for **White Rabbit X**, an Expert Advisor for MetaTrader 5:
-manuals in 11 languages, the complete library of **3,738 optimization sets**,
-and the **Autobot** — the automation that generates, walk-forward-tests and
-validates every one of those sets end to end.
+manuals in 11 languages, the complete library of **3,916 optimization sets**
+(Multi-Indicator + Ichimoku — see **Using the library** below for Bollinger
+Bands), and the **Autobot** — the automation that generates, walk-forward-
+tests and validates every one of those sets end to end.
 
 > **The sets are starting points, not finished strategies.** Each file opens a
 > complete trading system with every axis marked for optimization. The values
@@ -51,13 +52,17 @@ Strategy Tester: **Inputs → Load**.
 To find that folder: in MetaTrader, **File → Open Data Folder**, then go into
 `MQL5\Profiles\Tester`.
 
-- **SIDE** — `BUY` or `SELL` in ten of the eleven systems. `08_GRID_UNIFIED`
-  uses **`BOTH`**, because a unified basket has a single target covering both
-  directions at once.
+- **SIDE** — `BUY` or `SELL`.
 - **MULTI** — the entry indicator is an optimization axis (MACD, EMA, Momentum,
   Stochastic, TRIX, RSI, CCI, Williams %R, DeMarker, MFI, OsMA).
 - **ICHIMOKU** — indicator fixed, because it requires Tenkan < Kijun < SenkouB
-  and does not fit in the same period ranges as the others.
+  and does not fit in the same period ranges as the others. Same EA as MULTI
+  (`White Rabbit X (Global Multi-Indicator)`), just a different entry axis.
+- **BOLLINGER** — a separate EA (its own reversal/breakout/squeeze entry
+  engine, not an axis of MULTI) with its own set library (1,958 sets, not
+  counted above). **Not included in this repository or the MQL5 Market
+  listing** — if you'd like to use it, request it through
+  [Telegram](https://t.me/MrRabbit_MT5).
 
 ## The eleven systems
 
@@ -70,15 +75,15 @@ To find that folder: in MetaTrader, **File → Open Data Folder**, then go into
 | `05_BE_TRAIL` | Breakeven then trailing | Fixed-R |
 | `06_REVERSAL_EXIT` | Closes on the opposite signal | Fixed-R |
 | `07_GRID_SEPARATE` | Grid, one target per side | Fixed lot |
-| `08_GRID_UNIFIED` | Grid, single basket target | Fixed lot |
+| `12_GRID_INVERSO` | Grid, pyramids with the trend, exits by trailing ATR on the basket | Fixed lot |
 | `09_MARTINGALE` | Lot grows after a loss | Fixed lot |
 | `10_DALEMBERT` | Arithmetic lot progression | Fixed lot |
 | `11_SIGNAL_ONLY` | No stop, no target — measures the raw signal | Fixed lot |
 
 Systems **01 through 06 use Fixed-R**: the lot is derived from the risk budget,
-so they adapt themselves to any account size. Systems **07 through 11 use a
-fixed lot** — their risk is whatever the minimum lot costs on that instrument,
-regardless of your balance. Start with the Fixed-R ones.
+so they adapt themselves to any account size. The rest (**07, 12, 09, 10,
+11**) use a fixed lot — their risk is whatever the minimum lot costs on that
+instrument, regardless of your balance. Start with the Fixed-R ones.
 
 ---
 
