@@ -251,7 +251,21 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
            "--from", args.inicio, "--to", args.fim,
            "--deposit", str(resolver_deposito(simbolo, args.deposit)),
            "--min-retencao", str(args.min_retencao),
-           "--fechar-terminal", "--timeout", str(args.timeout)]
+           "--fechar-terminal", "--timeout", str(args.timeout),
+           # --indicador-solo liga o Estagio 1.5 (o indicador vencedor do
+           # Estagio 1 rebuscado sozinho, com o orcamento do genetico
+           # inteiro em vez de dividido entre os ~12 candidatos -- ver
+           # docstring do Estagio 1.5 em optimize_two_stage.py). O opt-in
+           # existe so pra nao quebrar a comparabilidade de um SWEEP de
+           # formulas (sweep_formulas.py tem o proprio --indicador-solo,
+           # tudo-ou-nada, pra isso); campanha.py roda com UMA formula por
+           # sistema, nunca varias em paralelo pra comparar, entao essa
+           # ressalva nao se aplica aqui -- so faltava ligar (achado do
+           # dono, 2026-09-07: conferido no log de milhares de linhas,
+           # nunca apareceu um so "[1.5/5]" numa campanha real). Sem custo
+           # extra pra ICHIMOKU/BOLLINGER: eixos_do_indicador() so ativa
+           # quando ha EntryIndicator vencedor de verdade (variante MULTI).
+           "--indicador-solo"]
     t0 = time.time()
     # CREATE_NO_WINDOW: so suprime a janela de console que este python.exe
     # filho abriria sozinho (achado do dono, 2026-08-06 -- cada combo novo
