@@ -44,6 +44,22 @@
         <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
           <span style="font-size:11px;padding:4px 11px;border-radius:999px;background:{{ pal.bg3 }};color:{{ pal.muted }};border:1px dashed {{ pal.line }};">exemplo — backend não conectado</span>
         </sc-if>
+        <!-- Controles de campanha (Stop/Pause/Resume): moveram do card
+             solto pro cabecalho (dono, 2026-09-07) -- o card so existia pra
+             guarda-los, e ficava um retangulo enorme quase vazio quando
+             nenhum dos dois botoes condicionais (Pause/Resume) se aplicava.
+             Ficam logo apos os badges de status, sempre visiveis, sem
+             precisar rolar ate o corpo da pagina Live Campaign. -->
+        <button onClick="{{ onClickStop }}" disabled="{{ btnStopDisabled }}" style="background:#6d0f1e;color:#fff;border:none;border-radius:7px;padding:6px 13px;font-weight:600;cursor:pointer;font-size:11.5px;opacity:{{ btnStopOpacity }};">{{ L.campaign.stopRun }}</button>
+        <sc-if value="{{ btnPausarShow }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ onClickPausar }}" disabled="{{ btnPausarDisabled }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:7px;padding:6px 13px;font-weight:600;cursor:pointer;font-size:11.5px;">{{ L.campaign.pauseRun }}</button>
+        </sc-if>
+        <sc-if value="{{ btnRetomarShow }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ onClickRetomar }}" style="background:{{ pal.btnGradient }};color:{{ pal.btnText }};border:none;border-radius:7px;padding:6px 13px;font-weight:600;cursor:pointer;font-size:11.5px;">{{ L.campaign.resumeRun }}</button>
+        </sc-if>
+        <sc-if value="{{ msgStopShow }}" hint-placeholder-val="{{ false }}">
+          <span style="color:{{ msgStopColor }};font-size:11px;">{{ msgStop }}</span>
+        </sc-if>
       </div>
 
       <div style="margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap;row-gap:10px;">
@@ -186,17 +202,6 @@
               </sc-for>
             </div>
           </div>
-        </div>
-
-        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:20px 24px;box-shadow:{{ pal.shadowCard }};display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <button onClick="{{ onClickStop }}" disabled="{{ btnStopDisabled }}" style="background:#6d0f1e;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:600;cursor:pointer;font-size:13px;opacity:{{ btnStopOpacity }};">{{ L.campaign.stopRun }}</button>
-          <sc-if value="{{ btnPausarShow }}" hint-placeholder-val="{{ false }}">
-            <button onClick="{{ onClickPausar }}" disabled="{{ btnPausarDisabled }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:none;border-radius:8px;padding:10px 20px;font-weight:600;cursor:pointer;font-size:13px;">{{ L.campaign.pauseRun }}</button>
-          </sc-if>
-          <sc-if value="{{ btnRetomarShow }}" hint-placeholder-val="{{ false }}">
-            <button onClick="{{ onClickRetomar }}" style="background:{{ pal.btnGradient }};color:{{ pal.btnText }};border:none;border-radius:8px;padding:10px 20px;font-weight:600;cursor:pointer;font-size:13px;">{{ L.campaign.resumeRun }}</button>
-          </sc-if>
-          <span style="color:{{ msgStopColor }};font-size:12.5px;">{{ msgStop }}</span>
         </div>
 
         <div>
@@ -1339,7 +1344,7 @@ class Component extends DCLogic {
       badgeMt5Text, badgeMt5Bg, badgeCampanhaText, badgeCampanhaBg, badgeProgresso,
       cardsItems, atualNode, qualityMetrics, qualitySummaryText, sistemaBars, sistemaBarsEmpty: !!status && sistemaBars.length === 0,
       heatmapGrid, heatmapEmpty, diagnosticRows, recentesRows,
-      msgStop: s.msgStop, msgStopColor,
+      msgStop: s.msgStop, msgStopColor, msgStopShow: !!s.msgStop,
       btnStopDisabled: !estado.rodando, btnStopOpacity: !estado.rodando ? .5 : 1,
       btnPausarShow: !!estado.rodando, btnPausarDisabled: !!estado.pausando, btnRetomarShow: !!estado.pausado,
       onClickStop: () => this.clickStop(), onClickPausar: () => this.clickPausar(), onClickRetomar: () => this.clickRetomar(),
