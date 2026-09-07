@@ -116,7 +116,7 @@ def escanear_formula(origem: Path, trabalho: Path, sistema: str,
     for tentativa in range(3):
         try:
             cab, linhas = ots.rodar(trabalho, simbolo, "M1", inicio, fim,
-                                    deposito, 1, timeout)
+                                    deposito, 1, timeout, variante=origem.stem)
             break
         except (PermissionError, OSError) as e:
             if tentativa == 2:

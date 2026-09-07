@@ -784,7 +784,8 @@ def torneio_retencao(candidatos, cab, metricas, origem: Path, trabalho: Path,
             continue
         try:
             r = passe_unico(trabalho, args.symbol, args.period, args.inicio,
-                            args.fim, args.deposit, modelo)
+                            args.fim, args.deposit, modelo,
+                            variante=args.variante)
         except subprocess.TimeoutExpired:
             # Achado do dono, 2026-08-06: um UNICO passe travado (o mesmo
             # bug de processo que nao fecha a tempo, ja visto no gate de
@@ -1121,7 +1122,11 @@ def _medir_desempenho(origem: Path, params: dict, simbolo: str, periodo: str,
     trabalho = base.DADOS / "MQL5" / "Profiles" / "Tester" / "_MEDIR_DESEMPENHO.set"
     reescrever(origem, trabalho, [], params)
     limpar_todas_formulas()
-    r = passe_unico(trabalho, simbolo, periodo, inicio, fim, deposito, 4)
+    # variante de `origem` (o .set de origem real, com o nome intacto), nao
+    # de `trabalho` (a copia renomeada _MEDIR_DESEMPENHO.set) -- mesmo motivo
+    # documentado em passe_unico().
+    r = passe_unico(trabalho, simbolo, periodo, inicio, fim, deposito, 4,
+                    variante=origem.stem)
     stats_list = carregar_todas_formulas()
     stats = stats_list[-1] if stats_list else None
     if stats is None:
@@ -1607,7 +1612,7 @@ def _priorizar_lucro_na_fatia(cab: list[str], linhas_por_formula: list[list[str]
 
 def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
                 fim: str, deposito: int, modelo: int,
-                timeout: int | None = None) -> dict:
+                timeout: int | None = None, variante: str = "") -> dict:
     """Roda UM backtest e devolve saldo final, trades e abortos.
 
     E assim que os ticks reais entram: como CONFERENCIA dos parametros que a
@@ -1624,6 +1629,16 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
     -- e como lancar_terminal() nunca deixa o TimeoutExpired escapar, nao
     ha mais risco de crash em esperar. O teto real que ainda existe e o de
     fora, campanha.py --timeout (12h por combo).
+
+    `variante` (achado do dono, 2026-09-07): passe o BUY_MULTI/BUY_BOLLINGER/
+    etc explicitamente quando `caminho_set` for uma copia de trabalho
+    renomeada (_ETAPA.set, _MEDIR_DESEMPENHO.set...) -- o NOME do arquivo de
+    trabalho nunca carrega a variante, so o .set de ORIGEM carrega. Sem isto
+    toda campanha BOLLINGER rodava silenciosamente contra a EA MULTI (achado
+    ao vivo: zero sets Bollinger apareciam no ledger apesar da campanha
+    "rodar" sem erro). Vazio cai no fallback antigo (nome do arquivo), que
+    so funciona quando `caminho_set` ainda e o .set original com o nome
+    intacto.
     """
     rel = str(caminho_set.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
     antes = base.marcar_logs()
@@ -1631,7 +1646,7 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
         ini = Path(tmp) / "conf.ini"
         base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
                           inicio, fim, deposito, modelo, 6, "conf_wrx",
-                          variante=caminho_set.stem)
+                          variante=(variante or caminho_set.stem))
         # escrever_ini monta otimizacao; aqui queremos um passe so.
         texto_ini = ini.read_text(encoding="utf-16")
         ini.write_text(texto_ini.replace("Optimization=2", "Optimization=0"),
@@ -1732,7 +1747,8 @@ def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
 def verificar_sobrevivencia_completa(caminho_set: Path, symbol: str,
                                      periodo: str, inicio: str, fim: str,
                                      deposito: int,
-                                     timeout: int = 1800) -> dict:
+                                     timeout: int = 1800,
+                                     variante: str = "") -> dict:
     """Roda o set ENTREGUE (WFO desligado) no periodo INTEIRO e continuo, em
     tick real -- a mesma coisa que um comprador faz ao carregar o set e
     apertar Start. NENHUMA etapa anterior do circuito testa isso.
@@ -1758,6 +1774,9 @@ def verificar_sobrevivencia_completa(caminho_set: Path, symbol: str,
     por ResilienceToDrawdown (drawdown real, via OnTester) -- isso reduz o
     risco mas mede em janelas WFO, nao no periodo continuo; este gate
     continua sendo a unica prova em cima do periodo inteiro de verdade.
+
+    `variante`: ver docstring de passe_unico() -- mesmo motivo, `caminho_set`
+    aqui tambem costuma ser a copia de trabalho renomeada (_ETAPA.set).
     """
     rel = str(caminho_set.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
     antes = base.marcar_logs()
@@ -1765,7 +1784,7 @@ def verificar_sobrevivencia_completa(caminho_set: Path, symbol: str,
         ini = Path(tmp) / "conf.ini"
         base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
                           inicio, fim, deposito, 4, 6, "conf_sobrevivencia",
-                          variante=caminho_set.stem)
+                          variante=(variante or caminho_set.stem))
         texto_ini = ini.read_text(encoding="utf-16")
         ini.write_text(texto_ini.replace("Optimization=2", "Optimization=0"),
                        encoding="utf-16")
@@ -1782,8 +1801,13 @@ def verificar_sobrevivencia_completa(caminho_set: Path, symbol: str,
 
 
 def rodar(caminho_set: Path, symbol: str, periodo: str, inicio: str, fim: str,
-          deposito: int, modelo: int, timeout: int) -> tuple[list, list]:
-    """Uma otimizacao genetica. Devolve (cabecalho, linhas) do relatorio."""
+          deposito: int, modelo: int, timeout: int,
+          variante: str = "") -> tuple[list, list]:
+    """Uma otimizacao genetica. Devolve (cabecalho, linhas) do relatorio.
+
+    `variante`: ver docstring de passe_unico() -- `caminho_set` aqui e quase
+    sempre a copia de trabalho renomeada (_ETAPA.set), nunca o .set original.
+    """
     rel = str(caminho_set.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
     nome_rel = "otim_wrx"
     for velho in base.DADOS.glob(f"{nome_rel}*"):
@@ -1793,7 +1817,7 @@ def rodar(caminho_set: Path, symbol: str, periodo: str, inicio: str, fim: str,
         ini = Path(tmp) / "otim.ini"
         base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
                           inicio, fim, deposito, modelo, 6, nome_rel,
-                          variante=caminho_set.stem)
+                          variante=(variante or caminho_set.stem))
         lancar_terminal(base.TERMINAL, ini, timeout)
     log = base.texto_novo(antes)
     m = re.search(r"local (\d+) tasks", log)
@@ -2062,7 +2086,8 @@ def main() -> int:
     for rodada in range(rodada_inicial, 4):
         t0 = time.time()
         cab_r, linhas_r = rodar(trabalho, args.symbol, args.period, args.inicio,
-                                args.fim, args.deposit, 1, args.timeout)
+                                args.fim, args.deposit, 1, args.timeout,
+                                variante=args.variante)
         if not linhas_r:
             if not linhas:
                 print("    relatorio vazio -- nenhum passe sobreviveu aos filtros")
@@ -2217,7 +2242,8 @@ def main() -> int:
             limpar_todas_formulas()
         t0 = time.time()
         cab_s, linhas_s = rodar(trabalho, args.symbol, args.period, args.inicio,
-                                args.fim, args.deposit, 1, args.timeout)
+                                args.fim, args.deposit, 1, args.timeout,
+                                variante=args.variante)
         # piso1 (o mesmo do Estagio 1), nao args.min_trades: continuamos
         # descobrindo REGIAO -- os numeros so sao refinados no Estagio 2.
         solo_ok = (base.escolher_candidatos(cab_s, linhas_s, piso1, 1.0)
@@ -2276,7 +2302,8 @@ def main() -> int:
         limpar_todas_formulas()
     t0 = time.time()
     cab, linhas = rodar(trabalho, args.symbol, args.period, args.inicio,
-                        args.fim, args.deposit, 1, args.timeout)
+                        args.fim, args.deposit, 1, args.timeout,
+                        variante=args.variante)
     if not linhas:
         print("    relatorio vazio no estagio 2")
         emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
@@ -2342,7 +2369,7 @@ def main() -> int:
         t0 = time.time()
         cab_rec, linhas_rec = rodar(trabalho, args.symbol, args.period,
                                     args.inicio, args.fim, args.deposit, 1,
-                                    args.timeout)
+                                    args.timeout, variante=args.variante)
         if not linhas_rec:
             print("    relatorio vazio no estagio 2.5; mantendo o valor "
                   f"padrao de {nomes_rec} no set.", flush=True)
@@ -2387,7 +2414,7 @@ def main() -> int:
         t0 = time.time()
         cab_e, linhas_e = rodar(trabalho, args.symbol, args.period,
                                 args.inicio, args.fim, args.deposit, 1,
-                                args.timeout)
+                                args.timeout, variante=args.variante)
         exec_ok = (base.escolher_candidatos(cab_e, linhas_e, args.min_trades,
                                             args.min_pf) if linhas_e else [])
         print(f"    {(time.time()-t0)/60:.0f} min | aptos: {len(exec_ok)}",
@@ -2433,7 +2460,7 @@ def main() -> int:
         t0 = time.time()
         cab_g, linhas_g = rodar(trabalho, args.symbol, args.period,
                                 args.inicio, args.fim, args.deposit, 4,
-                                args.timeout)
+                                args.timeout, variante=args.variante)
         geo_ok = (base.escolher_candidatos(cab_g, linhas_g, args.min_trades,
                                            args.min_pf) if linhas_g else [])
         geo_ok = (priorizar_lucro_no_topo(cab_g, geo_ok, campo=campo_da_formula_ativa(args.sistema, origem))
@@ -2515,7 +2542,7 @@ def main() -> int:
     travados.update(vencedor)
     reescrever(origem, trabalho, [], dict(travados, MetodoDeEntradawfo="0"))
     real = passe_unico(trabalho, args.symbol, args.period, args.inicio,
-                       args.fim, args.deposit, 4)
+                       args.fim, args.deposit, 4, variante=args.variante)
     lucro_real = (real["saldo"] - args.deposit) if real["saldo"] is not None else None
     print(f"    conferencia In-Sample: {real['trades']} trades | "
           f"saldo {real['saldo']} | {real['abortos']} abortos", flush=True)
@@ -2699,7 +2726,7 @@ def main() -> int:
                 limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
                 return 1
             pct = passe_unico(trabalho, args.symbol, args.period, args.inicio,
-                              args.fim, args.deposit, 4)
+                              args.fim, args.deposit, 4, variante=args.variante)
             retencao_pct = pct["retencao"]
             print(f"    retencao em %: "
                   f"{'n/d' if retencao_pct is None else f'{retencao_pct:.1f}%'}"
@@ -2775,7 +2802,7 @@ def main() -> int:
         t0 = time.time()
         sobrevivencia = verificar_sobrevivencia_completa(
             trabalho, args.symbol, args.period, args.inicio, args.fim,
-            args.deposit, max(args.timeout, 1800))
+            args.deposit, max(args.timeout, 1800), variante=args.variante)
         # Arquiva o relatorio do PROPRIO gate (curva de equity do periodo
         # completo, nao so o numero final) -- achado do dono, 2026-08-04:
         # sem isso nao dava pra CONFERIR visualmente um veredito de

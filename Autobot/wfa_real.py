@@ -291,7 +291,7 @@ def medir_wfa(origem: Path, travados: dict, numeros: list[str], symbol: str,
                                          piso_minimo=12)
         n = ots.reescrever(origem, trabalho, numeros, travados)
         cab, linhas = ots.rodar(trabalho, symbol, periodo, is_ini, is_fim,
-                                deposito, 1, timeout)
+                                deposito, 1, timeout, variante=origem.stem)
         total_passes += len(linhas)
         aptos = base.escolher_candidatos(cab, linhas, piso, 1.0) if linhas else []
         if not aptos:
