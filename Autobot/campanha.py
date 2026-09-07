@@ -86,9 +86,20 @@ SISTEMAS = ["01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
             "09_MARTINGALE", "10_DALEMBERT", "11_SIGNAL_ONLY"]
 
 # Sistemas cuja gestao atravessa compra e venda, entao o set liga os dois
-# lados num arquivo unico ("BOTH") em vez de um por lado. Vazio de proposito
-# desde a remocao do 08_GRID_UNIFIED -- era o unico membro.
-BILATERAL: set[str] = set()
+# lados num arquivo unico ("BOTH") em vez de um por lado.
+#
+# ATIVADO DE NOVO em 2026-09-07 ("Modo Economico", mesma mudanca e mesmo
+# motivo documentados em generate_system_sets.BILATERAL): todos os 11
+# sistemas ganharam a variante "BOTH" no gerador (Hedging optimizavel via
+# set_exposure()) -- mas essa lista aqui, que decide se --modo-economico
+# realmente SELECIONA o arquivo BOTH em tempo de campanha, tinha ficado
+# vazia (herdada de antes do 08_GRID_UNIFIED ser removido, quando era o
+# unico membro). Sem sincronizar as duas, a flag --modo-economico era
+# aceita, passava pelo CLI, chegava em variantes()/fila()... e nunca
+# selecionava nada, porque `sistema in BILATERAL` nunca era True pra
+# nenhum sistema (achado ao revisar antes de rodar a campanha de 10
+# otimizacoes com buy+sell juntos, 2026-09-07).
+BILATERAL: set[str] = set(SISTEMAS)
 
 # Cada "rodada" percorre os 11 sistemas com UMA variante antes de avancar. As
 # ICHIMOKU entram DEPOIS das MULTI de proposito, nao por esquecimento como
