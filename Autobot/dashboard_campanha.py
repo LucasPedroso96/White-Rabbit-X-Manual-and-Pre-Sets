@@ -1343,8 +1343,25 @@ def custo_nativo_medir(body: dict) -> JSONResponse:
 
 # --------------------------------------------------------------------- static
 
+class EstaticosSempreRevalidados(StaticFiles):
+    """StaticFiles com Cache-Control: no-cache em toda resposta -- mesmo
+    principio ja aplicado em `/` (ver home() abaixo, achado do dono,
+    2026-09-06: HTML em cache apontando pro app.js antigo). Achado de novo,
+    2026-09-07: i18n.js foi editado (Modo Economico) e o navegador do dono
+    continuou servindo a copia velha do cache ate um hard refresh manual --
+    sem Cache-Control explicito, um .js estatico fica sujeito a heuristica
+    do navegador, que pode nao revalidar sozinha. no-cache (nao no-store)
+    ainda deixa o navegador guardar uma copia, so obriga a checar com o
+    servidor antes de usa-la -- praticamente gratis (round-trip condicional
+    curto) e elimina esta classe inteira de "editei mas nao apareceu"."""
+    def file_response(self, *args, **kwargs):
+        resp = super().file_response(*args, **kwargs)
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return resp
+
+
 ESTATICOS = AQUI / "dashboard_static"
-app.mount("/static", StaticFiles(directory=str(ESTATICOS)), name="static")
+app.mount("/static", EstaticosSempreRevalidados(directory=str(ESTATICOS)), name="static")
 
 
 @app.get("/")
