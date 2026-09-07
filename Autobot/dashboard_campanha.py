@@ -1245,7 +1245,16 @@ app.mount("/static", StaticFiles(directory=str(ESTATICOS)), name="static")
 
 @app.get("/")
 def home() -> FileResponse:
-    return FileResponse(str(ESTATICOS / "index.html"))
+    # no-cache (nao "no-store"): o navegador ainda guarda uma copia, mas e
+    # OBRIGADO a revalidar com o servidor antes de usa-la -- sem isso, um
+    # index.html sem Cache-Control explicito fica sujeito a heuristica do
+    # navegador e pode servir da memoria sem revalidar. Achado do dono,
+    # 2026-09-06: o toggle MULTI/BOLLINGER parecia travado porque o HTML
+    # em cache ainda apontava pro app.js?v= antigo (de antes do toggle
+    # existir) -- bumpar a versao no arquivo nao adianta se o proprio
+    # index.html que referencia essa versao nunca busca de novo no servidor.
+    return FileResponse(str(ESTATICOS / "index.html"),
+                        headers={"Cache-Control": "no-cache, must-revalidate"})
 
 
 @app.get("/sw.js")
