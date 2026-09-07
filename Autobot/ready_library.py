@@ -119,11 +119,20 @@ def metricas_do_ledger(ledger: Path) -> dict[tuple[str, str, str], dict]:
 def familia_da_variante(variante: str) -> str:
     """Agrupa a variante do combo na familia de dashboard correspondente.
 
-    MULTI e ICHIMOKU sao a mesma EA (indicador plugavel) e ficam juntos sob
-    "MULTI" -- e o que o dashboard MULTI ja mostrava antes do Bollinger
-    existir. BOLLINGER e uma EA fisicamente diferente, familia propria.
+    MULTI e ICHIMOKU sao a mesma EA (indicador plugavel, mesmo .ex5) mas
+    ganham familias SEPARADAS no dashboard (achado do dono, 2026-09-06):
+    antes as duas ficavam juntas sob "MULTI" -- o Ichimoku roda numa rodada
+    propria dentro da campanha (RODADAS em campanha.py, indicador cravado no
+    set) mas era invisivel no ledger/biblioteca/capital, so aparecia abrindo
+    o .set na mao. BOLLINGER e uma EA fisicamente diferente, familia propria
+    desde que foi criada.
     """
-    return "BOLLINGER" if "BOLLINGER" in variante.upper() else "MULTI"
+    v = variante.upper()
+    if "BOLLINGER" in v:
+        return "BOLLINGER"
+    if "ICHIMOKU" in v:
+        return "ICHIMOKU"
+    return "MULTI"
 
 
 def capital_por_sistema(tester: Path = TESTER,
@@ -133,9 +142,9 @@ def capital_por_sistema(tester: Path = TESTER,
     VALIDADO_* de cada sistema R-capaz), exposta para o dashboard ordenar o
     checklist de Run Setup por capital decrescente sem custo de sync.
 
-    `familia` (None = todas, "MULTI" ou "BOLLINGER") filtra pela familia da
-    variante -- ver familia_da_variante() -- para o dashboard poder mostrar
-    o capital de cada modo separadamente.
+    `familia` (None = todas, "MULTI", "BOLLINGER" ou "ICHIMOKU") filtra pela
+    familia da variante -- ver familia_da_variante() -- para o dashboard
+    poder mostrar o capital de cada modo separadamente.
     """
     por_sistema: dict[str, list[float]] = {}
     for origem in sorted(tester.glob("VALIDADO_*.set")):

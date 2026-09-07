@@ -4,30 +4,52 @@
   --accent: #1b4d5c; --accent-2: #2f6c57;
   --title-gold: #d4af37; /* so o texto do titulo usa dourado */
   --ok: #4caf50; --no: #ef5350;
+  /* Fundo do header/nav/cards era cor fixa (rgba/gradiente literal), entao
+     um [data-familia] so trocava a cor de acento -- o resto da tela ficava
+     identico e a troca de campanha nao "batia o olho" (achado do dono,
+     2026-09-06). Estas 4 variaveis existem so pra isso: valor padrao abaixo
+     e byte-a-byte igual ao que estava hardcoded antes, MULTI continua
+     pixel-identico; so BOLLINGER/ICHIMOKU redefinem. */
+  --header-bg: rgba(8, 16, 27, 0.9); --nav-bg: rgba(8, 16, 27, 0.72);
+  --card-top: #141b24; --card-bottom: #090c11;
 }
-/* Duas campanhas, um painel: [data-familia] troca so a paleta de destaque --
-   todo o resto (layout, cards, tabelas) fica identico, so muda a cor de
-   acento. Multi-Indicator fica com a paleta padrao acima (teal/verde-azulado);
-   Bollinger usa a paleta "Forest Green" do projeto Levain (mesmo dono,
-   Levain-2.0/templates/index.html, tema data-theme="forest": --primary-color
-   #2d5016, --accent-color #4caf50, --success-color #8bc34a) -- pedido do
-   dono, 2026-09-06: reaproveitar a identidade visual do Levain em vez de um
-   verde generico, pra dar pra saber em qual campanha voce esta so de bater
-   o olho, mesmo com as duas abertas em abas diferentes. */
+/* Tres campanhas, um painel: [data-familia] troca fundo + acento juntos --
+   layout/estrutura das telas continua identico, so a paleta muda, mas
+   agora de ponta a ponta (header, nav, cards, tabelas), nao so o botao do
+   toggle. Multi-Indicator fica com a paleta padrao acima (teal/azul-escuro,
+   o White Rabbit original, intocado). Bollinger e Ichimoku puxam os temas
+   "Forest Green" e "Ocean Blue" do projeto Levain (mesmo dono,
+   Levain-2.0/templates/index.html, blocos data-theme="forest"/"ocean") em
+   vez de paletas inventadas -- mesma identidade visual entre os dois
+   produtos do dono. */
 :root[data-familia="bollinger"] {
-  --accent: #2d5016; --accent-2: #4caf50;
+  /* Levain "forest": --primary-color #2d5016, --accent-color #4caf50,
+     --success-color #8bc34a, --dark-color #0d1f0a, --dark-card #1a2e16. */
+  --bg: #0d1f0a; --bg2: #16290f; --bg3: #1a2e16;
+  --line: #2d5016; --accent: #2d5016; --accent-2: #4caf50;
   --title-gold: #8bc34a;
+  --header-bg: rgba(13, 31, 10, 0.9); --nav-bg: rgba(13, 31, 10, 0.72);
+  --card-top: #1a2e16; --card-bottom: #0d1f0a;
+}
+:root[data-familia="ichimoku"] {
+  /* Levain "ocean": --primary-color #006994, --accent-color #00a8cc,
+     --dark-color #001e2b, --dark-card #003045, --muted-text #87ceeb. */
+  --bg: #001e2b; --bg2: #00283a; --bg3: #003045;
+  --line: #006994; --accent: #006994; --accent-2: #00a8cc;
+  --title-gold: #87ceeb;
+  --header-bg: rgba(0, 30, 43, 0.9); --nav-bg: rgba(0, 30, 43, 0.72);
+  --card-top: #003045; --card-bottom: #001e2b;
 }
 * { box-sizing: border-box; }
 body {
   font-family: -apple-system, "Segoe UI", Arial, sans-serif;
-  margin: 0; background: radial-gradient(circle at top, #0c131a 0%, #05080b 65%);
+  margin: 0; background: radial-gradient(circle at top, var(--bg3) 0%, var(--bg) 65%);
   color: var(--text);
 }
 header {
   display: flex; align-items: center; gap: 16px;
   padding: 16px 24px; border-bottom: 1px solid var(--line);
-  background: rgba(8, 16, 27, 0.9);
+  background: var(--header-bg);
 }
 header h1 { font-size: 20px; color: var(--title-gold); margin: 0; }
 header .badge { font-size: 12px; padding: 3px 10px; border-radius: 10px; }
@@ -41,7 +63,7 @@ header .badge { font-size: 12px; padding: 3px 10px; border-radius: 10px; }
 }
 nav {
   display: flex; gap: 4px; padding: 0 24px; border-bottom: 1px solid var(--line);
-  flex-wrap: wrap; background: rgba(8, 16, 27, 0.72);
+  flex-wrap: wrap; background: var(--nav-bg);
 }
 nav button {
   background: none; border: none; color: var(--muted); padding: 12px 16px;
@@ -54,7 +76,7 @@ main { padding: 24px; max-width: 1200px; margin: 0 auto; }
 h2 { font-size: 16px; color: var(--muted); margin-top: 0; }
 .cards { display: flex; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
 .card {
-  background: linear-gradient(180deg, #141b24, #090c11); border: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--card-top), var(--card-bottom)); border: 1px solid var(--line);
   border-radius: 8px; padding: 14px 20px; min-width: 140px;
 }
 .card b { display: block; font-size: 26px; }

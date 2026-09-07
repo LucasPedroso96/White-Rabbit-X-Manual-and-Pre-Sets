@@ -105,9 +105,24 @@ RODADAS = [("BUY_MULTI", "BOTH_MULTI"), ("SELL_MULTI", None),
 # familia (--familia na CLI/dashboard escolhe qual).
 RODADAS_BOLLINGER = [("BUY_BOLLINGER", "BOTH_BOLLINGER"), ("SELL_BOLLINGER", None)]
 
+# Fatia so-ICHIMOKU de RODADAS (2026-09-07): existe para quem quer rodar/
+# priorizar SO Ichimoku via --familia ICHIMOKU (dashboard agora trata Ichimoku
+# como familia propria pra visibilidade -- ver ready_library.familia_da_variante).
+# NAO substitui a rodada MULTI: --familia MULTI (o default, sem flag nenhuma)
+# continua cobrindo RODADAS inteiro (MULTI + ICHIMOKU juntos, como sempre foi
+# -- ver test_ready_library.py) porque MULTI ja e o unico jeito de cobrir os
+# dois em uma corrida so; separar so ICHIMOKU sem separar MULTI reduziria a
+# cobertura por padrao, o que ninguem pediu.
+RODADAS_ICHIMOKU = [("BUY_ICHIMOKU", "BOTH_ICHIMOKU"), ("SELL_ICHIMOKU", None)]
+
 
 def rodadas_da_familia(familia: str) -> list[tuple[str, str | None]]:
-    return RODADAS_BOLLINGER if familia.upper() == "BOLLINGER" else RODADAS
+    f = familia.upper()
+    if f == "BOLLINGER":
+        return RODADAS_BOLLINGER
+    if f == "ICHIMOKU":
+        return RODADAS_ICHIMOKU
+    return RODADAS
 
 
 def variantes(sistema: str, familia: str = "MULTI") -> list[str]:
@@ -327,9 +342,13 @@ def main() -> int:
     ap.add_argument("--simbolos", default="",
                     help="lista separada por virgula, sobrepoe a "
                          "auto-deteccao/campanha_ativos.json so nesta corrida")
-    ap.add_argument("--familia", default="MULTI", choices=["MULTI", "BOLLINGER"],
-                    help="qual EA rodar: MULTI+ICHIMOKU (default) ou BOLLINGER "
-                         "(EA propria, ver generate_bollinger_sets.py)")
+    ap.add_argument("--familia", default="MULTI",
+                    choices=["MULTI", "BOLLINGER", "ICHIMOKU"],
+                    help="quais rodadas processar: MULTI (default, cobre "
+                         "MULTI+ICHIMOKU juntos, como sempre), ICHIMOKU "
+                         "(so a fatia Ichimoku, pra priorizar/repetir sem "
+                         "rodar MULTI de novo) ou BOLLINGER (EA propria, "
+                         "ver generate_bollinger_sets.py)")
     args = ap.parse_args()
 
     if args.simbolos.strip():

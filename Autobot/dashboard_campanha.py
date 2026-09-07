@@ -28,6 +28,7 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import csv
 import io
 import json
 import re
@@ -740,16 +741,26 @@ def ativos_detectar() -> JSONResponse:
 
 
 def _manifesto_stats(familia: str = "MULTI") -> dict | None:
-    nome = "MANIFESTO_SISTEMAS.csv" if familia == "MULTI" \
-        else "MANIFESTO_SISTEMAS_BOLLINGER.csv"
+    """`total_sets` do manifesto da familia. BOLLINGER tem CSV proprio
+    (gerador aditivo separado, ver generate_bollinger_sets.py); ICHIMOKU NAO
+    tem -- ele sai do MESMO generate_system_sets.py que gera MULTI, so mais
+    um valor na coluna Variant do MESMO CSV, entao filtra a coluna em vez de
+    trocar de arquivo (achado do dono, 2026-09-07: dar visibilidade de
+    familia propria no dashboard sem inventar um gerador que nao existe)."""
+    nome = "MANIFESTO_SISTEMAS_BOLLINGER.csv" if familia == "BOLLINGER" \
+        else "MANIFESTO_SISTEMAS.csv"
     caminho = base.SETS / nome
     if not caminho.exists():
         return None
     st = caminho.stat()
-    with caminho.open(encoding="utf-8-sig") as fh:
-        total = sum(1 for _ in fh) - 1
+    with caminho.open(encoding="utf-8-sig", newline="") as fh:
+        linhas = list(csv.DictReader(fh, delimiter=";"))
+    if familia == "ICHIMOKU":
+        linhas = [row for row in linhas if row.get("Variant", "").upper() == "ICHIMOKU"]
+    elif familia == "MULTI":
+        linhas = [row for row in linhas if row.get("Variant", "").upper() != "ICHIMOKU"]
     return {
-        "total_sets": max(total, 0),
+        "total_sets": len(linhas),
         "gerado_em": datetime.fromtimestamp(st.st_mtime).isoformat(timespec="seconds"),
     }
 

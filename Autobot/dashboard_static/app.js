@@ -14,6 +14,7 @@ const i18n = {
     'lang.label': 'Language',
     'familia.multi': 'Multi-Indicator',
     'familia.bollinger': 'Bollinger Bands',
+    'familia.ichimoku': 'Ichimoku Cloud',
     'nav.live': 'Live campaign',
     'nav.setup': 'Run setup',
     'nav.sets': 'Set library',
@@ -146,6 +147,7 @@ const i18n = {
     'lang.label': 'Idioma',
     'familia.multi': 'Multi-Indicador',
     'familia.bollinger': 'Bandas de Bollinger',
+    'familia.ichimoku': 'Nuvem de Ichimoku',
     'nav.live': 'Campanha ao vivo',
     'nav.setup': 'Configurar corrida',
     'nav.sets': 'Biblioteca de Sets',
@@ -278,6 +280,7 @@ const i18n = {
     'lang.label': 'Idioma',
     'familia.multi': 'Multi-Indicador',
     'familia.bollinger': 'Bandas de Bollinger',
+    'familia.ichimoku': 'Nube de Ichimoku',
     'nav.live': 'Campaña en vivo',
     'nav.setup': 'Configurar corrida',
     'nav.sets': 'Biblioteca de sets',
@@ -410,6 +413,7 @@ const i18n = {
     'lang.label': 'Sprache',
     'familia.multi': 'Multi-Indikator',
     'familia.bollinger': 'Bollinger-Bänder',
+    'familia.ichimoku': 'Ichimoku-Wolke',
     'nav.live': 'Live-Kampagne',
     'nav.setup': 'Lauf einrichten',
     'nav.sets': 'Set-Bibliothek',
@@ -542,6 +546,7 @@ const i18n = {
     'lang.label': 'Langue',
     'familia.multi': 'Multi-Indicateur',
     'familia.bollinger': 'Bandes de Bollinger',
+    'familia.ichimoku': 'Nuage Ichimoku',
     'nav.live': 'Campagne en direct',
     'nav.setup': 'Configurer la campagne',
     'nav.sets': 'Bibliothèque de sets',
@@ -674,6 +679,7 @@ const i18n = {
     'lang.label': 'Lingua',
     'familia.multi': 'Multi-Indicatore',
     'familia.bollinger': 'Bande di Bollinger',
+    'familia.ichimoku': 'Nuvola Ichimoku',
     'nav.live': 'Campagna live',
     'nav.setup': 'Configura run',
     'nav.sets': 'Libreria set',
@@ -806,6 +812,7 @@ const i18n = {
     'lang.label': 'Язык',
     'familia.multi': 'Мульти-индикатор',
     'familia.bollinger': 'Полосы Боллинджера',
+    'familia.ichimoku': 'Облако Ишимоку',
     'nav.live': 'Кампания в реальном времени',
     'nav.setup': 'Настройка прогона',
     'nav.sets': 'Библиотека сетов',
@@ -938,6 +945,7 @@ const i18n = {
     'lang.label': '语言',
     'familia.multi': '多指标',
     'familia.bollinger': '布林带',
+    'familia.ichimoku': '一目均衡表',
     'nav.live': '实时活动',
     'nav.setup': '配置运行',
     'nav.sets': '参数集库',
@@ -1070,6 +1078,7 @@ const i18n = {
     'lang.label': '言語',
     'familia.multi': 'マルチインジケーター',
     'familia.bollinger': 'ボリンジャーバンド',
+    'familia.ichimoku': '一目均衡表',
     'nav.live': 'ライブキャンペーン',
     'nav.setup': '実行設定',
     'nav.sets': 'セットライブラリ',
@@ -1202,6 +1211,7 @@ const i18n = {
     'lang.label': '언어',
     'familia.multi': '멀티 인디케이터',
     'familia.bollinger': '볼린저 밴드',
+    'familia.ichimoku': '일목균형표',
     'nav.live': '실시간 캠페인',
     'nav.setup': '실행 설정',
     'nav.sets': '세트 라이브러리',
@@ -1334,6 +1344,7 @@ const i18n = {
     'lang.label': 'Dil',
     'familia.multi': 'Çoklu Gösterge',
     'familia.bollinger': 'Bollinger Bantları',
+    'familia.ichimoku': 'Ichimoku Bulutu',
     'nav.live': 'Canlı kampanya',
     'nav.setup': 'Çalıştırma ayarları',
     'nav.sets': 'Set kütüphanesi',
@@ -1804,12 +1815,15 @@ document.getElementById("campo-inicio").value = anosAtrasMT5(3);
 // filtro visual, e a mesma chave que campanha.py usa pra escolher entre
 // RODADAS (Multi/Ichimoku) e RODADAS_BOLLINGER.
 const CHAVE_FAMILIA = "wrx_familia";
-let familiaAtual = localStorage.getItem(CHAVE_FAMILIA) === "BOLLINGER" ? "BOLLINGER" : "MULTI";
+const FAMILIAS_VALIDAS = ["MULTI", "BOLLINGER", "ICHIMOKU"];
+let familiaAtual = FAMILIAS_VALIDAS.includes(localStorage.getItem(CHAVE_FAMILIA))
+  ? localStorage.getItem(CHAVE_FAMILIA) : "MULTI";
 
 function aplicarFamilia() {
   document.documentElement.setAttribute("data-familia", familiaAtual.toLowerCase());
   document.getElementById("btn-familia-multi").classList.toggle("ativo", familiaAtual === "MULTI");
   document.getElementById("btn-familia-bollinger").classList.toggle("ativo", familiaAtual === "BOLLINGER");
+  document.getElementById("btn-familia-ichimoku").classList.toggle("ativo", familiaAtual === "ICHIMOKU");
 }
 
 function setFamilia(f) {
@@ -1824,6 +1838,7 @@ function setFamilia(f) {
 }
 document.getElementById("btn-familia-multi").addEventListener("click", () => setFamilia("MULTI"));
 document.getElementById("btn-familia-bollinger").addEventListener("click", () => setFamilia("BOLLINGER"));
+document.getElementById("btn-familia-ichimoku").addEventListener("click", () => setFamilia("ICHIMOKU"));
 aplicarFamilia();
 
 setInterval(() => { carregarStatus(); carregarEstado(); carregarHeatmap(); }, 8000);
