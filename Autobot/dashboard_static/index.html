@@ -1,302 +1,1376 @@
-<!doctype html>
-<html lang="pt-BR">
+<!DOCTYPE html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>White Rabbit X — Autobot</title>
 <link rel="manifest" href="/static/manifest.webmanifest">
-<link rel="stylesheet" href="/static/styles.css?v=20260907d">
 <meta name="theme-color" content="#05080b">
 <meta name="description" content="White Rabbit X — operational dashboard for live campaign, portfolio, and robustness diagnostics.">
+<script src="/static/support.js"></script>
 </head>
 <body>
-<header>
-  <h1>White Rabbit X — Autobot</h1>
-  <span id="badge-mt5" class="badge" data-i18n="badge.mt5">MT5: ...</span>
-  <span id="badge-campanha" class="badge" data-i18n="badge.campaign">Campaign: ...</span>
-  <span id="badge-progresso" class="badge" style="display:none"></span>
-  <div class="familia-toggle" role="group" aria-label="Entry engine">
-    <button id="btn-familia-multi" class="ativo" data-i18n="familia.multi">Multi-Indicator</button>
-    <button id="btn-familia-bollinger" data-i18n="familia.bollinger">Bollinger Bands</button>
-    <button id="btn-familia-ichimoku" data-i18n="familia.ichimoku">Ichimoku</button>
-  </div>
-  <label class="language-select">
-    <span data-i18n="lang.label">Language</span>
-    <select id="lang-picker">
-      <option value="en">English</option>
-      <option value="pt">Português</option>
-      <option value="es">Español</option>
-      <option value="de">Deutsch</option>
-      <option value="fr">Français</option>
-      <option value="it">Italiano</option>
-      <option value="ru">Русский</option>
-      <option value="zh">中文</option>
-      <option value="ja">日本語</option>
-      <option value="ko">한국어</option>
-      <option value="tr">Türkçe</option>
-    </select>
-  </label>
-  <button id="btn-install" class="acao secundario" style="display:none; margin-left:auto" data-i18n="install.button">Install app</button>
-</header>
-<nav>
-  <button data-tab="campanha" class="ativo" data-i18n="nav.live">Live campaign</button>
-  <button data-tab="configurar" data-i18n="nav.setup">Run setup</button>
-  <button data-tab="biblioteca" data-i18n="nav.sets">Set library</button>
-  <button data-tab="portfolios" data-i18n="nav.portfolios">Portfolios</button>
-  <button data-tab="perfil" data-i18n="nav.broker">Broker profile</button>
-  <button data-tab="custo" data-i18n="nav.native-cost">Native cost</button>
-  <button data-tab="implantacao" data-i18n="nav.implantacao">Deployment</button>
-</nav>
-<main>
+<x-dc>
+<helmet>
+<style>
+  html,body{margin:0;padding:0}
+  *{box-sizing:border-box}
+  a{color:#59b6ff}
+  a:hover{color:#8ccfff}
+  @keyframes wrxFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes wrxPulse{0%,100%{opacity:1}50%{opacity:.32}}
+  @keyframes wrxSpin{to{transform:rotate(360deg)}}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="true">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</helmet>
 
-<!-- ================= LIVE CAMPAIGN ================= -->
-<section id="painel-campanha" class="painel ativo">
-  <div class="cards" id="cards"></div>
-  <div id="atual"></div>
-  <div class="grid-2">
-    <div class="box">
-      <h2 data-i18n="campaign.robustness">Robustness diagnosis</h2>
-      <div id="quality-grid" class="metric-grid"></div>
-      <div id="quality-summary" class="quality-note"></div>
-    </div>
-    <div class="box">
-      <h2 data-i18n="campaign.asset-map">Asset map by class</h2>
-      <div id="ativos-map" class="chip-grid"></div>
-    </div>
-  </div>
-  <div class="grid-2">
-    <div class="box">
-      <h2 data-i18n="campaign.progress">Progress by system</h2>
-      <div id="sistema-bars" class="bar-grid"></div>
-    </div>
-    <div class="box">
-      <h2 data-i18n="campaign.reports">Reports and status</h2>
-      <div id="wfe-mc-panel" class="diagnostic-list"></div>
-    </div>
-  </div>
-  <div class="box">
-    <button class="acao perigo" id="btn-stop" data-i18n="campaign.stop-run">Stop run</button>
-    <button class="acao secundario" id="btn-pausar" data-i18n="campaign.pause-run">Pause run</button>
-    <button class="acao" id="btn-retomar" data-i18n="campaign.resume-run" style="display:none">Resume run</button>
-    <span class="status-msg" id="msg-stop"></span>
-  </div>
-  <h2 data-i18n="campaign.by-system">By system</h2>
-  <table id="tbl-sistemas"><thead><tr><th data-i18n="table.system">System</th><th data-i18n="table.tests">Tested</th>
-  <th data-i18n="table.approved">Approved</th></tr></thead><tbody></tbody></table>
-  <h2 data-i18n="campaign.recent-combos">Latest combos</h2>
-  <table id="tbl-recentes"><thead><tr><th data-i18n="table.symbol">Symbol</th><th data-i18n="table.system">System</th>
-  <th data-i18n="table.variant">Variant</th><th data-i18n="table.verdict">Verdict</th><th data-i18n="table.retention">Retention</th>
-  <th>Expectancy</th><th>Trades</th><th data-i18n="table.minutes">Min</th><th></th>
-  </tr></thead><tbody></tbody></table>
-</section>
+<div style="background:{{ pal.bodyBg }};min-height:100vh;color:{{ pal.text }};font-family:'IBM Plex Sans',sans-serif;transition:background .5s ease;">
 
-<!-- ================= RUN SETUP ================= -->
-<section id="painel-configurar" class="painel">
-  <div class="box">
-    <h2 data-i18n="setup.mode">Mode</h2>
-    <div class="modo-toggle">
-      <button data-modo="auto" class="ativo" id="btn-modo-auto" data-i18n="setup.auto">Automatic (auto-detect eligible assets)</button>
-      <button data-modo="manual" id="btn-modo-manual" data-i18n="setup.manual">Manual (choose system and asset)</button>
-    </div>
-
-    <div id="bloco-manual" style="display:none">
-      <fieldset>
-        <legend data-i18n="setup.systems">Systems</legend>
-        <div class="linha" style="margin:6px 0 10px">
-          <button type="button" class="acao secundario" id="btn-sistemas-todos" data-i18n="setup.select-all-systems">Select all systems</button>
-          <button type="button" class="acao secundario" id="btn-sistemas-nenhum" data-i18n="setup.clear-systems">Clear selection</button>
-        </div>
-        <div class="grid-check" id="check-sistemas"></div>
-      </fieldset>
-      <fieldset>
-        <legend data-i18n="setup.assets">Assets</legend>
-        <button class="acao secundario" id="btn-detectar" data-i18n="setup.detect">Detect available now</button>
-        <span class="status-msg" id="msg-detectar"></span>
-        <div class="linha" style="margin:6px 0 10px">
-          <button type="button" class="acao secundario" id="btn-ativos-todos" data-i18n="setup.select-all-assets">Select all assets</button>
-          <button type="button" class="acao secundario" id="btn-ativos-nenhum" data-i18n="setup.clear-assets">Clear selection</button>
-        </div>
-        <div id="grupos-ativos"></div>
-      </fieldset>
-    </div>
-
-    <fieldset>
-      <legend data-i18n="setup.parameters">Parameters</legend>
-      <div class="linha">
-        <div><label class="campo" data-i18n="setup.from">From</label><input type="text" id="campo-inicio"></div>
-        <div><label class="campo" data-i18n="setup.to">To</label><input type="text" id="campo-fim"></div>
-        <div><label class="campo" data-i18n="setup.deposit">Deposit</label><input type="number" id="campo-deposito" value="1000" disabled>
-          <label style="display:inline-block; margin-left:8px; font-weight:normal"><input type="checkbox" id="chk-deposito-auto" checked disabled> <span data-i18n="setup.deposit-auto">Auto-suggest</span></label>
-        </div>
-        <div><label class="campo" data-i18n="setup.min-retention">Minimum retention %</label><input type="number" id="campo-retencao" value="30"></div>
+  <div style="position:sticky;top:0;z-index:30;">
+    <header style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;row-gap:10px;padding:14px 28px;border-bottom:1px solid {{ pal.line }};background:{{ pal.headerBg }};backdrop-filter:blur(10px);">
+      <div style="display:flex;align-items:baseline;gap:9px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:19px;letter-spacing:-.01em;color:{{ pal.gold }};">White Rabbit X</span>
+        <span style="font-size:10.5px;color:{{ pal.muted }};text-transform:uppercase;letter-spacing:.14em;">Autobot</span>
       </div>
-    </fieldset>
 
-    <button class="acao" id="btn-iniciar" data-i18n="setup.start-run">Start run</button>
-    <span class="status-msg" id="msg-iniciar"></span>
-  </div>
-</section>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="font-size:11.5px;padding:4px 11px;border-radius:999px;font-family:'IBM Plex Mono',monospace;background:{{ badgeMt5Bg }};color:{{ pal.text }};">{{ badgeMt5Text }}</span>
+        <span style="font-size:11.5px;padding:4px 11px;border-radius:999px;font-family:'IBM Plex Mono',monospace;background:{{ badgeCampanhaBg }};color:{{ pal.text }};">{{ badgeCampanhaText }}</span>
+        <sc-if value="{{ badgeProgresso.show }}" hint-placeholder-val="{{ false }}">
+          <span title="{{ badgeProgresso.title }}" style="font-size:11px;padding:4px 11px;border-radius:999px;background:{{ pal.bg3 }};color:{{ pal.muted }};font-family:'IBM Plex Mono',monospace;">{{ badgeProgresso.text }}</span>
+        </sc-if>
+        <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size:11px;padding:4px 11px;border-radius:999px;background:{{ pal.bg3 }};color:{{ pal.muted }};border:1px dashed {{ pal.line }};">exemplo — backend não conectado</span>
+        </sc-if>
+      </div>
 
-<!-- ================= AUTOMATIC MODE EXPLAINER ================= -->
-<div id="modal-auto" class="modal-overlay" style="display:none">
-  <div class="modal-caixa">
-    <h3 data-i18n="auto-modal.title">What Automatic mode does</h3>
-    <p data-i18n="auto-modal.p1">Automatic mode evolves the training on its own: it tests every real
-      asset detected on this account/terminal, across all 11 systems, in
-      risk order (research systems first, then hedge-account grid, then
-      high-risk recovery systems last). It resumes from where it left off
-      using the existing ledger/cache — nothing already validated gets
-      redone.</p>
-    <p data-i18n="auto-modal.p2">This can run continuously for a very long time (a full sweep across
-      every asset and system is realistically weeks to months, not
-      hours). It follows the same risk-tiered methodology described in
-      <code>PLANO_TREINAMENTO_100_A_MILHAO.md</code>.</p>
-    <p data-i18n="auto-modal.p3">If you want to choose exactly which systems and assets run, use
-      Manual mode instead — nothing is removed, both modes stay
-      available.</p>
-    <label class="linha" style="margin-top:10px">
-      <input type="checkbox" id="chk-auto-nao-perguntar">
-      <span data-i18n="auto-modal.dont-ask">Don't show this again on this browser</span>
-    </label>
-    <div class="linha" style="margin-top:14px">
-      <button class="acao" id="btn-auto-confirmar" data-i18n="auto-modal.confirm">Understood, start Automatic</button>
-      <button class="acao secundario" id="btn-auto-manual" data-i18n="auto-modal.prefer-manual">I'd rather use Manual mode</button>
-    </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap;row-gap:10px;">
+        <div role="group" aria-label="Entry engine" style="display:flex;gap:2px;background:{{ pal.bg3 }};border:1px solid {{ pal.line }};border-radius:9px;padding:2px;">
+          <sc-for list="{{ familiaItems }}" as="fam_item" hint-placeholder-count="3">
+            <button onClick="{{ fam_item.onClick }}" disabled="{{ familiaLocked }}" style="{{ fam_item.style }}">{{ fam_item.label }}</button>
+          </sc-for>
+        </div>
+
+        <label style="display:flex;align-items:center;gap:7px;color:{{ pal.muted }};font-size:11.5px;">
+          <span>{{ L.lang.label }}</span>
+          <select value="{{ locale }}" onChange="{{ onChangeLocale }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:6px 8px;font-size:12px;">
+            <sc-for list="{{ langOptions }}" as="lang_opt" hint-placeholder-count="11">
+              <option value="{{ lang_opt.code }}">{{ lang_opt.label }}</option>
+            </sc-for>
+          </select>
+        </label>
+
+        <sc-if value="{{ showInstall }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ onClickInstall }}" style="margin-left:2px;background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:7px;padding:8px 14px;font-size:12.5px;cursor:pointer;">{{ L.install.button }}</button>
+        </sc-if>
+      </div>
+    </header>
+
+    <nav style="display:flex;gap:2px;padding:0 24px;border-bottom:1px solid {{ pal.line }};background:{{ pal.navBg }};flex-wrap:wrap;overflow-x:auto;">
+      <sc-for list="{{ navItems }}" as="nav_item" hint-placeholder-count="7">
+        <button onClick="{{ nav_item.onClick }}" style="{{ nav_item.style }}">{{ nav_item.label }}</button>
+      </sc-for>
+    </nav>
   </div>
+
+  <main style="padding:26px 28px 70px;max-width:1280px;margin:0 auto;">
+
+    <!-- ================= LIVE CAMPAIGN ================= -->
+    <sc-if value="{{ tabCampanha }}" hint-placeholder-val="{{ true }}">
+      <section data-screen-label="Campanha ao vivo" style="animation:wrxFade .35s ease both;display:flex;flex-direction:column;gap:18px;">
+
+        <div style="display:flex;gap:14px;flex-wrap:wrap;">
+          <sc-for list="{{ cardsItems }}" as="card_item" hint-placeholder-count="4">
+            <div style="background:{{ pal.cardGradient }};border:1px solid {{ pal.line }};border-radius:14px;padding:16px 22px;min-width:140px;flex:1 1 140px;box-shadow:{{ pal.shadowCard }};">
+              <div style="font-size:11.5px;color:{{ pal.muted }};text-transform:uppercase;letter-spacing:.06em;">{{ card_item.label }}</div>
+              <b style="display:block;font-size:30px;font-family:'IBM Plex Mono',monospace;margin-top:4px;color:{{ card_item.color }};">{{ card_item.value }}</b>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="background:{{ atualNode.bg }};border-radius:14px;padding:16px 22px;border-left:3px solid {{ pal.accent2 }};box-shadow:{{ pal.shadowCard }};">
+          <sc-if value="{{ atualNode.show }}" hint-placeholder-val="{{ false }}">
+            <span style="display:inline-flex;align-items:center;gap:7px;color:{{ pal.accent2 }};font-weight:700;font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;">
+              <span style="width:8px;height:8px;border-radius:50%;background:{{ pal.accent2 }};display:inline-block;animation:wrxPulse 1.6s ease-in-out infinite;"></span>
+              running now
+            </span>
+            <div style="margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:14px;">{{ atualNode.text }}</div>
+            <div style="margin-top:2px;color:{{ pal.muted }};font-size:12.5px;">{{ atualNode.sub }}</div>
+          </sc-if>
+          <sc-if value="{{ atualNode.showEmpty }}" hint-placeholder-val="{{ true }}">
+            <span style="color:{{ pal.muted }};font-size:13px;">No active combo at the moment.</span>
+          </sc-if>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">
+          <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+            <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 14px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.campaign.robustness }}</h2>
+            <div style="display:flex;flex-wrap:wrap;gap:14px;">
+              <sc-for list="{{ qualityMetrics }}" as="qm" hint-placeholder-count="4">
+                <div style="flex:1 1 150px;display:flex;align-items:center;gap:12px;background:{{ pal.bg3 }};border:1px solid {{ pal.line }};border-radius:12px;padding:12px 14px;">
+                  <sc-if value="{{ qm.isDonut }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:relative;width:56px;height:56px;border-radius:50%;background:{{ qm.ringStyle }};flex-shrink:0;">
+                      <div style="position:absolute;inset:6px;border-radius:50%;background:{{ pal.cardTop }};display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:12px;color:{{ pal.text }};">{{ qm.valueLabel }}</div>
+                    </div>
+                  </sc-if>
+                  <div>
+                    <div style="font-size:10.5px;color:{{ pal.muted }};text-transform:uppercase;letter-spacing:.05em;">{{ qm.label }}</div>
+                    <sc-if value="{{ qm.isDonut }}" hint-placeholder-val="{{ false }}">
+                      <div style="font-size:11px;color:{{ pal.muted }};margin-top:3px;">{{ qm.sub }}</div>
+                    </sc-if>
+                    <sc-if value="{{ qm.isText }}" hint-placeholder-val="{{ false }}">
+                      <b style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:{{ pal.text }};">{{ qm.valueLabel }}</b>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="margin-top:14px;color:{{ pal.accent2 }};font-size:12.5px;line-height:1.5;">{{ qualitySummaryText }}</div>
+          </div>
+
+          <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+            <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 14px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.campaign.assetMap }}</h2>
+            <sc-if value="{{ heatmapEmpty }}" hint-placeholder-val="{{ false }}">
+              <span style="color:{{ pal.muted }};font-size:12.5px;">no combo tested yet — the map fills in as the campaign runs.</span>
+            </sc-if>
+            <div style="display:flex;flex-direction:column;gap:14px;max-height:280px;overflow:auto;">
+              <sc-for list="{{ heatmapGrid }}" as="hm_class" hint-placeholder-count="3">
+                <div>
+                  <div style="color:{{ pal.accent2 }};font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:6px;">{{ hm_class.title }}</div>
+                  <div style="display:flex;flex-direction:column;gap:3px;">
+                    <sc-for list="{{ hm_class.rows }}" as="hm_row" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;gap:4px;">
+                        <span style="width:64px;font-size:11px;color:{{ pal.muted }};flex-shrink:0;font-family:'IBM Plex Mono',monospace;">{{ hm_row.simbolo }}</span>
+                        <div style="display:flex;gap:3px;flex-wrap:wrap;">
+                          <sc-for list="{{ hm_row.cells }}" as="hm_cell" hint-placeholder-count="11">
+                            <span title="{{ hm_cell.title }}" style="width:16px;height:16px;border-radius:4px;display:inline-block;background:{{ hm_cell.color }};"></span>
+                          </sc-for>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;">
+          <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+            <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 14px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.campaign.progress }}</h2>
+            <div style="display:grid;gap:10px;">
+              <sc-for list="{{ sistemaBars }}" as="sb" hint-placeholder-count="11">
+                <div style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};border-radius:10px;padding:11px 14px;">
+                  <div style="display:flex;justify-content:space-between;font-size:12px;color:{{ pal.muted }};font-family:'IBM Plex Mono',monospace;">
+                    <span>{{ sb.sistema }}</span><span>{{ sb.frac }}</span>
+                  </div>
+                  <div style="height:7px;background:{{ pal.bg }};border-radius:999px;margin:8px 0 5px;overflow:hidden;">
+                    <div style="height:100%;border-radius:inherit;width:{{ sb.pct }}%;background:{{ sb.barColor }};transition:width .7s ease;"></div>
+                  </div>
+                  <div style="font-size:11.5px;color:{{ pal.muted }};">{{ sb.pct }}% approved</div>
+                </div>
+              </sc-for>
+              <sc-if value="{{ sistemaBarsEmpty }}" hint-placeholder-val="{{ false }}"><span style="color:{{ pal.muted }};font-size:12.5px;">no validated system yet</span></sc-if>
+            </div>
+          </div>
+
+          <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+            <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 14px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.campaign.reports }}</h2>
+            <div style="display:grid;gap:8px;">
+              <sc-for list="{{ diagnosticRows }}" as="dr" hint-placeholder-count="4">
+                <div style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};border-radius:10px;padding:10px 14px;display:flex;justify-content:space-between;gap:12px;font-size:12.5px;">
+                  <span style="color:{{ pal.muted }};">{{ dr.label }}</span><strong style="color:{{ pal.accent2 }};font-family:'IBM Plex Mono',monospace;">{{ dr.value }}</strong>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:20px 24px;box-shadow:{{ pal.shadowCard }};display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <button onClick="{{ onClickStop }}" disabled="{{ btnStopDisabled }}" style="background:#6d0f1e;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:600;cursor:pointer;font-size:13px;opacity:{{ btnStopOpacity }};">{{ L.campaign.stopRun }}</button>
+          <sc-if value="{{ btnPausarShow }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ onClickPausar }}" disabled="{{ btnPausarDisabled }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:none;border-radius:8px;padding:10px 20px;font-weight:600;cursor:pointer;font-size:13px;">{{ L.campaign.pauseRun }}</button>
+          </sc-if>
+          <sc-if value="{{ btnRetomarShow }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ onClickRetomar }}" style="background:{{ pal.btnGradient }};color:{{ pal.btnText }};border:none;border-radius:8px;padding:10px 20px;font-weight:600;cursor:pointer;font-size:13px;">{{ L.campaign.resumeRun }}</button>
+          </sc-if>
+          <span style="color:{{ msgStopColor }};font-size:12.5px;">{{ msgStop }}</span>
+        </div>
+
+        <div>
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 10px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.campaign.bySystem }}</h2>
+          <div style="overflow-x:auto;border-radius:12px;border:1px solid {{ pal.line }};">
+          <table style="border-collapse:collapse;width:100%;font-size:13px;background:{{ pal.cardTop }};">
+            <thead><tr>
+              <th style="text-align:left;padding:9px 14px;color:{{ pal.muted }};font-weight:600;border-bottom:1px solid {{ pal.line }};">{{ L.table.system }}</th>
+              <th style="text-align:left;padding:9px 14px;color:{{ pal.muted }};font-weight:600;border-bottom:1px solid {{ pal.line }};">{{ L.table.tests }}</th>
+              <th style="text-align:left;padding:9px 14px;color:{{ pal.muted }};font-weight:600;border-bottom:1px solid {{ pal.line }};">{{ L.table.approved }}</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ sistemaBars }}" as="sr" hint-placeholder-count="11">
+                <tr>
+                  <td style="padding:8px 14px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ sr.sistema }}</td>
+                  <td style="padding:8px 14px;border-bottom:1px solid {{ pal.line }};">{{ sr.total }}</td>
+                  <td style="padding:8px 14px;border-bottom:1px solid {{ pal.line }};">{{ sr.aprovados }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          </div>
+        </div>
+
+        <div>
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 10px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.campaign.recentCombos }}</h2>
+          <div style="overflow-x:auto;border-radius:12px;border:1px solid {{ pal.line }};">
+          <table style="border-collapse:collapse;width:100%;font-size:12.5px;background:{{ pal.cardTop }};">
+            <thead><tr>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.symbol }}</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.system }}</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.variant }}</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.verdict }}</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.retention }}</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">Expectancy</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">Trades</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.minutes }}</th>
+              <th style="border-bottom:1px solid {{ pal.line }};"></th>
+            </tr></thead>
+            <sc-for list="{{ recentesRows }}" as="rr" hint-placeholder-count="6">
+              <tbody>
+                <tr style="border-left:3px solid {{ rr.pillColor }};">
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ rr.simbolo }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.sistema }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.variante }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};"><span style="background:{{ rr.pillBg }};color:{{ rr.pillColor }};padding:2px 9px;border-radius:999px;font-size:11.5px;">{{ rr.pillLabel }}</span></td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.retencao }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ rr.expectancy }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.trades }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.minutos }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};"><button onClick="{{ rr.onToggle }}" style="padding:2px 9px;font-size:11px;background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;cursor:pointer;">···</button></td>
+                </tr>
+                <sc-if value="{{ rr.expanded }}" hint-placeholder-val="{{ false }}">
+                  <tr>
+                    <td colspan="9" style="padding:14px;border-bottom:1px solid {{ pal.line }};background:{{ pal.bg3 }};border-left:3px solid {{ pal.accent2 }};">
+                      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px 18px;font-size:12px;color:{{ pal.muted }};">
+                        <span>lucro OHLC/busca: <b style="color:{{ pal.text }};">{{ rr.lucroOhlc }}</b></span>
+                        <span>lucro tick real: <b style="color:{{ pal.text }};">{{ rr.lucroTickReal }}</b></span>
+                        <span>retenção %: <b style="color:{{ pal.text }};">{{ rr.retencaoPct }}</b></span>
+                        <span>{{ rr.mcLine }}</span>
+                      </div>
+                    </td>
+                  </tr>
+                </sc-if>
+              </tbody>
+            </sc-for>
+          </table>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- ================= RUN SETUP ================= -->
+    <sc-if value="{{ tabConfigurar }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Configurar corrida" style="animation:wrxFade .35s ease both;">
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 14px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.setup.mode }}</h2>
+          <div style="display:flex;gap:8px;margin:0 0 16px;">
+            <sc-for list="{{ modoItems }}" as="modo_item" hint-placeholder-count="2">
+              <button onClick="{{ modo_item.onClick }}" style="{{ modo_item.style }}">{{ modo_item.label }}</button>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ modoManual }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <fieldset style="border:1px solid {{ pal.line }};border-radius:10px;margin:12px 0;padding:12px 14px;">
+                <legend style="color:{{ pal.muted }};padding:0 6px;font-size:13px;">{{ L.setup.systems }}</legend>
+                <div style="display:flex;gap:10px;margin:4px 0 10px;">
+                  <button onClick="{{ onSelectAllSistemas }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;">{{ L.setup.selectAllSystems }}</button>
+                  <button onClick="{{ onClearSistemas }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;">{{ L.setup.clearSystems }}</button>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;">
+                  <sc-for list="{{ sistemasCheckItems }}" as="sc_item" hint-placeholder-count="11">
+                    <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;background:{{ pal.bg3 }};border-radius:7px;padding:7px 10px;cursor:pointer;">
+                      <input type="checkbox" checked="{{ sc_item.checked }}" onChange="{{ sc_item.onToggle }}" style="accent-color:{{ pal.accent2 }};" />
+                      <span>{{ sc_item.code }} — {{ sc_item.label }} <em style="color:{{ pal.muted }};font-style:normal;font-size:11px;">({{ sc_item.nota }})</em></span>
+                    </label>
+                  </sc-for>
+                </div>
+              </fieldset>
+              <fieldset style="border:1px solid {{ pal.line }};border-radius:10px;margin:12px 0;padding:12px 14px;">
+                <legend style="color:{{ pal.muted }};padding:0 6px;font-size:13px;">{{ L.setup.assets }}</legend>
+                <button onClick="{{ onClickDetectar }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:7px 14px;font-size:12.5px;cursor:pointer;">{{ L.setup.detect }}</button>
+                <span style="margin-left:10px;font-size:12.5px;color:{{ pal.muted }};">{{ msgDetectar }}</span>
+                <div style="display:flex;gap:10px;margin:10px 0;">
+                  <button onClick="{{ onSelectAllAtivos }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;">{{ L.setup.selectAllAssets }}</button>
+                  <button onClick="{{ onClearAtivos }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;">{{ L.setup.clearAssets }}</button>
+                </div>
+                <sc-for list="{{ classesAtivos }}" as="cl" hint-placeholder-count="5">
+                  <fieldset style="border:1px solid {{ pal.line }};border-radius:10px;margin:10px 0;padding:10px 14px;">
+                    <legend style="color:{{ pal.muted }};padding:0 6px;font-size:12.5px;">{{ cl.titulo }}
+                      <button onClick="{{ cl.onAll }}" style="background:none;border:1px solid {{ pal.line }};color:{{ pal.muted }};border-radius:4px;font-size:10px;padding:1px 6px;margin-left:6px;cursor:pointer;">all</button>
+                      <button onClick="{{ cl.onNone }}" style="background:none;border:1px solid {{ pal.line }};color:{{ pal.muted }};border-radius:4px;font-size:10px;padding:1px 6px;margin-left:4px;cursor:pointer;">none</button>
+                    </legend>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;">
+                      <sc-for list="{{ cl.ativos }}" as="at" hint-placeholder-count="4">
+                        <label title="{{ at.title }}" style="display:flex;align-items:center;gap:6px;font-size:12.5px;background:{{ pal.bg3 }};border-radius:6px;padding:6px 9px;cursor:pointer;border:1px solid {{ at.borderColor }};">
+                          <input type="checkbox" checked="{{ at.checked }}" onChange="{{ at.onToggle }}" style="accent-color:{{ pal.accent2 }};" /><span>{{ at.symbol }}</span>
+                        </label>
+                      </sc-for>
+                    </div>
+                  </fieldset>
+                </sc-for>
+              </fieldset>
+            </div>
+          </sc-if>
+
+          <fieldset style="border:1px solid {{ pal.line }};border-radius:10px;margin:12px 0;padding:14px 16px;">
+            <legend style="color:{{ pal.muted }};padding:0 6px;font-size:13px;">{{ L.setup.parameters }}</legend>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:160px;">
+                <label style="display:block;font-size:12.5px;color:{{ pal.muted }};margin:0 0 5px;">{{ L.setup.from }}</label>
+                <input type="text" value="{{ campoInicio }}" onChange="{{ onChangeCampoInicio }}" style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};color:{{ pal.text }};border-radius:7px;padding:9px 11px;font-size:13px;width:100%;" />
+              </div>
+              <div style="flex:1;min-width:160px;">
+                <label style="display:block;font-size:12.5px;color:{{ pal.muted }};margin:0 0 5px;">{{ L.setup.to }}</label>
+                <input type="text" value="{{ campoFim }}" onChange="{{ onChangeCampoFim }}" style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};color:{{ pal.text }};border-radius:7px;padding:9px 11px;font-size:13px;width:100%;" />
+              </div>
+              <div style="flex:1;min-width:200px;">
+                <label style="display:block;font-size:12.5px;color:{{ pal.muted }};margin:0 0 5px;">{{ L.setup.deposit }}</label>
+                <input type="text" value="{{ depositoDisplay }}" onChange="{{ onChangeDeposito }}" disabled="{{ depositoDisabled }}" style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};color:{{ pal.text }};border-radius:7px;padding:9px 11px;font-size:13px;width:100%;" />
+                <label style="display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:{{ pal.muted }};">
+                  <input type="checkbox" checked="{{ depositoAutoChecked }}" onChange="{{ onToggleDepositoAuto }}" style="accent-color:{{ pal.accent2 }};" /> {{ L.setup.depositAuto }}
+                </label>
+              </div>
+              <div style="flex:1;min-width:160px;">
+                <label style="display:block;font-size:12.5px;color:{{ pal.muted }};margin:0 0 5px;">{{ L.setup.minRetention }}</label>
+                <input type="number" value="{{ campoRetencao }}" onChange="{{ onChangeCampoRetencao }}" style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};color:{{ pal.text }};border-radius:7px;padding:9px 11px;font-size:13px;width:100%;" />
+              </div>
+            </div>
+          </fieldset>
+
+          <button onClick="{{ onClickIniciar }}" style="background:{{ pal.btnGradient }};color:{{ pal.btnText }};border:none;border-radius:8px;padding:11px 22px;font-weight:600;cursor:pointer;font-size:13.5px;">{{ L.setup.startRun }}</button>
+          <span style="margin-left:12px;font-size:12.5px;color:{{ msgIniciarColor }};">{{ msgIniciar }}</span>
+        </div>
+      </section>
+    </sc-if>
+
+    <sc-if value="{{ showAutoModal }}" hint-placeholder-val="{{ false }}">
+      <div style="position:fixed;inset:0;background:rgba(2,4,6,.78);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;">
+        <div style="background:{{ pal.cardGradient }};border:1px solid {{ pal.line }};border-radius:14px;padding:26px 28px;max-width:560px;width:100%;box-shadow:{{ pal.shadowModal }};">
+          <h3 style="color:{{ pal.gold }};margin:0 0 14px;font-size:16px;">{{ L.autoModal.title }}</h3>
+          <p style="color:{{ pal.text }};font-size:13px;line-height:1.6;margin:0 0 12px;">{{ L.autoModal.p1 }}</p>
+          <p style="color:{{ pal.text }};font-size:13px;line-height:1.6;margin:0 0 12px;">{{ L.autoModal.p2 }}</p>
+          <p style="color:{{ pal.text }};font-size:13px;line-height:1.6;margin:0 0 12px;">{{ L.autoModal.p3 }}</p>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:{{ pal.muted }};cursor:pointer;">
+            <input type="checkbox" checked="{{ autoModalDontAsk }}" onChange="{{ onToggleAutoModalDontAsk }}" style="accent-color:{{ pal.accent2 }};" /> {{ L.autoModal.dontAsk }}
+          </label>
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button onClick="{{ onConfirmAutoModal }}" style="background:{{ pal.btnGradient }};color:{{ pal.btnText }};border:none;border-radius:8px;padding:10px 18px;font-weight:600;cursor:pointer;font-size:13px;">{{ L.autoModal.confirm }}</button>
+            <button onClick="{{ onPreferManual }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:none;border-radius:8px;padding:10px 18px;font-weight:600;cursor:pointer;font-size:13px;">{{ L.autoModal.preferManual }}</button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ================= SET LIBRARY ================= -->
+    <sc-if value="{{ tabBiblioteca }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Biblioteca de sets" style="animation:wrxFade .35s ease both;">
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.library.current }}</h2>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:14px;">{{ bibliotecaText }}</div>
+          <button onClick="{{ onClickRegenerar }}" style="margin-top:14px;background:{{ pal.btnGradient }};color:{{ pal.btnText }};border:none;border-radius:8px;padding:10px 18px;font-weight:600;cursor:pointer;font-size:13px;">{{ L.library.regenerate }}</button>
+          <span style="margin-left:10px;font-size:12.5px;color:{{ msgRegenerarColor }};">{{ msgRegenerar }}</span>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- ================= PORTFOLIOS ================= -->
+    <sc-if value="{{ tabPortfolios }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Portfólios" style="animation:wrxFade .35s ease both;display:flex;flex-direction:column;gap:16px;">
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.portfolio.generalMap }}</h2>
+          <div style="font-size:12.5px;color:{{ pal.muted }};margin-bottom:10px;">{{ portfolioMapSummary }}</div>
+          <div style="display:flex;flex-direction:column;gap:14px;max-height:280px;overflow:auto;">
+            <sc-for list="{{ portfolioMapGrid }}" as="pm_class" hint-placeholder-count="3">
+              <div>
+                <div style="color:{{ pal.accent2 }};font-size:11px;font-weight:700;text-transform:uppercase;margin-bottom:6px;">{{ pm_class.title }}</div>
+                <div style="display:flex;flex-direction:column;gap:3px;">
+                  <sc-for list="{{ pm_class.rows }}" as="pm_row" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:4px;">
+                      <span style="width:64px;font-size:11px;color:{{ pal.muted }};flex-shrink:0;font-family:'IBM Plex Mono',monospace;">{{ pm_row.simbolo }}</span>
+                      <div style="display:flex;gap:3px;flex-wrap:wrap;">
+                        <sc-for list="{{ pm_row.cells }}" as="pm_cell" hint-placeholder-count="11">
+                          <span title="{{ pm_cell.title }}" style="width:16px;height:16px;border-radius:4px;display:inline-block;background:{{ pm_cell.color }};"></span>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.portfolio.bySystem }}</h2>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+            <sc-for list="{{ portfolioSystemTabs }}" as="pt" hint-placeholder-count="6">
+              <button onClick="{{ pt.onClick }}" style="{{ pt.style }}">{{ pt.nome }}</button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ portfolioCapitalBadge.show }}" hint-placeholder-val="{{ false }}">
+            <div style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};border-radius:10px;padding:10px 14px;max-width:240px;margin-bottom:10px;">
+              <div style="font-size:10.5px;color:{{ pal.muted }};text-transform:uppercase;">Validated capital</div>
+              <b style="font-family:'IBM Plex Mono',monospace;font-size:15px;">{{ portfolioCapitalBadge.value }}</b>
+            </div>
+          </sc-if>
+          <div style="font-size:12.5px;">{{ portfolioSystemNode }}</div>
+          <p style="color:{{ pal.muted }};font-size:12px;margin-top:14px;line-height:1.5;">{{ L.portfolio.note }}</p>
+          <input type="text" value="{{ portfolioPasta }}" onChange="{{ onChangePortfolioPasta }}" placeholder="Folder path with .htm/.csv reports" style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};color:{{ pal.text }};border-radius:7px;padding:9px 11px;font-size:13px;width:100%;" />
+          <button onClick="{{ onClickGerarPortfolio }}" style="margin-top:12px;background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:8px;padding:9px 16px;font-weight:600;cursor:pointer;font-size:12.5px;">{{ L.portfolio.generate }}</button>
+          <span style="margin-left:10px;font-size:12.5px;color:{{ msgPortfolioColor }};">{{ msgPortfolio }}</span>
+        </div>
+
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.portfolio.correlationPanel }}</h2>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+            <sc-for list="{{ portfolioGeneratedTabs }}" as="pg" hint-placeholder-count="2">
+              <button onClick="{{ pg.onClick }}" style="{{ pg.style }}">{{ pg.nome }}</button>
+            </sc-for>
+          </div>
+          <sc-if value="{{ portfolioIframeShow }}" hint-placeholder-val="{{ false }}">
+            <iframe src="{{ portfolioIframeUrl }}" style="width:100%;height:600px;border:1px solid {{ pal.line }};border-radius:10px;background:{{ pal.bg }};"></iframe>
+          </sc-if>
+          <sc-if value="{{ portfolioIframeMsgShow }}" hint-placeholder-val="{{ true }}">
+            <span style="color:{{ pal.muted }};font-size:12.5px;">No correlation panel generated yet.</span>
+          </sc-if>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- ================= BROKER PROFILE ================= -->
+    <sc-if value="{{ tabPerfil }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Perfil da corretora" style="animation:wrxFade .35s ease both;display:flex;flex-direction:column;gap:16px;">
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.profile.interests }}</h2>
+          <label style="display:block;font-size:12.5px;color:{{ pal.muted }};margin:0 0 5px;">{{ L.profile.assets }}</label>
+          <input type="text" value="{{ perfilAtivos }}" onChange="{{ onChangePerfilAtivos }}" placeholder="EURUSD, GBPUSD, XAUUSD" style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};color:{{ pal.text }};border-radius:7px;padding:9px 11px;font-size:13px;width:100%;" />
+          <label style="display:block;font-size:12.5px;color:{{ pal.muted }};margin:14px 0 5px;">{{ L.profile.systems }}</label>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px;">
+            <sc-for list="{{ perfilSistemasItems }}" as="ps" hint-placeholder-count="11">
+              <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;background:{{ pal.bg3 }};border-radius:7px;padding:7px 10px;cursor:pointer;">
+                <input type="checkbox" checked="{{ ps.checked }}" onChange="{{ ps.onToggle }}" style="accent-color:{{ pal.accent2 }};" /><span>{{ ps.code }}</span>
+              </label>
+            </sc-for>
+          </div>
+
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:20px 0 12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.profile.risk }}</h2>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:160px;">
+              <label style="display:block;font-size:12.5px;color:{{ pal.muted }};margin:0 0 5px;">{{ L.profile.riskPerTrade }}</label>
+              <input type="number" step="0.1" value="{{ perfilRisco }}" onChange="{{ onChangePerfilRisco }}" style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};color:{{ pal.text }};border-radius:7px;padding:9px 11px;font-size:13px;width:100%;" />
+            </div>
+            <div style="flex:1;min-width:160px;">
+              <label style="display:block;font-size:12.5px;color:{{ pal.muted }};margin:0 0 5px;">{{ L.profile.fixedLot }}</label>
+              <input type="number" step="0.01" value="{{ perfilLote }}" onChange="{{ onChangePerfilLote }}" style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};color:{{ pal.text }};border-radius:7px;padding:9px 11px;font-size:13px;width:100%;" />
+            </div>
+          </div>
+
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:20px 0 12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.profile.walkForward }}</h2>
+          <div style="max-width:220px;">
+            <label style="display:block;font-size:12.5px;color:{{ pal.muted }};margin:0 0 5px;">{{ L.profile.finalDate }}</label>
+            <input type="text" value="{{ perfilWfoFim }}" onChange="{{ onChangePerfilWfoFim }}" style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};color:{{ pal.text }};border-radius:7px;padding:9px 11px;font-size:13px;width:100%;" />
+          </div>
+
+          <div style="margin-top:18px;display:flex;gap:10px;">
+            <button onClick="{{ onClickPerfilDry }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:8px;padding:10px 16px;font-weight:600;cursor:pointer;font-size:12.5px;">{{ L.profile.dryRun }}</button>
+            <button onClick="{{ onClickPerfilAplicar }}" style="background:{{ pal.btnGradient }};color:{{ pal.btnText }};border:none;border-radius:8px;padding:10px 16px;font-weight:600;cursor:pointer;font-size:12.5px;">{{ L.profile.apply }}</button>
+          </div>
+          <div style="font-size:12.5px;color:{{ msgPerfilColor }};margin-top:8px;">{{ msgPerfil }}</div>
+          <pre style="white-space:pre-wrap;font-size:12px;color:{{ pal.muted }};margin-top:12px;font-family:'IBM Plex Mono',monospace;">{{ saidaPerfil }}</pre>
+        </div>
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.profile.lastSync }}</h2>
+          <pre style="white-space:pre-wrap;font-size:12px;color:{{ pal.muted }};font-family:'IBM Plex Mono',monospace;">{{ ultimaSyncText }}</pre>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- ================= NATIVE COST ================= -->
+    <sc-if value="{{ tabCusto }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Custo nativo" style="animation:wrxFade .35s ease both;display:flex;flex-direction:column;gap:16px;">
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 14px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.cost.title }}</h2>
+          <div style="overflow-x:auto;border-radius:12px;border:1px solid {{ pal.line }};">
+          <table style="border-collapse:collapse;width:100%;font-size:13px;background:{{ pal.cardTop }};">
+            <thead><tr>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.cost.symbol }}</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.cost.commission }}</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.cost.swap }}</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">Entries</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">Volume (lots)</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">Period</th>
+              <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.cost.when }}</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ custoRows }}" as="cr" hint-placeholder-count="3">
+                <tr>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ cr.symbol }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ cr.comissao }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ cr.swap }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ cr.entradas }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ cr.volume }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ cr.periodo }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ cr.quando }}</td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          </div>
+        </div>
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.cost.measureNew }}</h2>
+          <input type="text" value="{{ custoSimbolo }}" onChange="{{ onChangeCustoSimbolo }}" placeholder="GBPUSD (without .HT suffix)" style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};color:{{ pal.text }};border-radius:7px;padding:9px 11px;font-size:13px;width:100%;max-width:320px;" />
+          <button onClick="{{ onClickMedirCusto }}" style="margin-top:10px;display:block;background:{{ pal.btnGradient }};color:{{ pal.btnText }};border:none;border-radius:8px;padding:10px 18px;font-weight:600;cursor:pointer;font-size:13px;">{{ L.cost.measureNow }}</button>
+          <span style="font-size:12.5px;color:{{ msgCustoColor }};">{{ msgCusto }}</span>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- ================= DEPLOYMENT ================= -->
+    <sc-if value="{{ tabImplantacao }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Implantação" style="animation:wrxFade .35s ease both;display:flex;flex-direction:column;gap:16px;">
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 10px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.deploy.certifiedTitle }}</h2>
+          <p style="color:{{ pal.muted }};font-size:12.5px;line-height:1.5;margin:0 0 12px;">{{ L.deploy.certifiedNote }}</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+            <button onClick="{{ onSelectAllImplantacao }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:7px 13px;font-size:12px;cursor:pointer;">{{ L.deploy.selectAllCertified }}</button>
+            <button onClick="{{ onClearImplantacao }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:7px 13px;font-size:12px;cursor:pointer;">{{ L.deploy.clearSelection }}</button>
+            <button onClick="{{ onClickExportarImplantacao }}" style="background:{{ pal.btnGradient }};color:{{ pal.btnText }};border:none;border-radius:6px;padding:7px 13px;font-size:12px;cursor:pointer;font-weight:600;">{{ L.deploy.exportSelected }}</button>
+            <span style="font-size:12.5px;color:{{ msgImplantacaoColor }};align-self:center;">{{ msgImplantacao }}</span>
+          </div>
+          <p style="color:{{ pal.muted }};font-size:11.5px;line-height:1.5;margin:0 0 12px;">{{ L.deploy.sortNote }}</p>
+          <div style="overflow-x:auto;border-radius:12px;border:1px solid {{ pal.line }};">
+          <table style="border-collapse:collapse;width:100%;font-size:12.5px;background:{{ pal.cardTop }};">
+            <thead><tr>
+              <th style="padding:9px 10px;border-bottom:1px solid {{ pal.line }};"></th>
+              <th style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.symbol }}</th>
+              <th style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.system }}</th>
+              <th style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.variant }}</th>
+              <th style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.retention }}</th>
+              <th title="{{ L.deploy.colProfitFullTip }}" style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.deploy.colProfitFull }}</th>
+              <th title="{{ L.deploy.colProfitOosTip }}" style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.deploy.colProfitOos }}</th>
+              <th style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.deploy.colCertificate }}</th>
+              <th style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.deploy.colDeployed }}</th>
+              <th style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">Live status</th>
+              <th style="border-bottom:1px solid {{ pal.line }};"></th>
+              <th style="border-bottom:1px solid {{ pal.line }};"></th>
+            </tr></thead>
+            <sc-for list="{{ implantacaoRows }}" as="ir" hint-placeholder-count="4">
+              <tbody>
+                <tr>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};"><input type="checkbox" checked="{{ ir.selecionado }}" disabled="{{ ir.selDisabled }}" onChange="{{ ir.onToggleSel }}" style="accent-color:{{ pal.accent2 }};" /></td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ ir.simbolo }}</td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};">{{ ir.sistema }}</td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};">{{ ir.variante }}</td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};">{{ ir.retencao }}</td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ ir.lucroCompleto }}</td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ ir.lucroOos }}</td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};"><span style="background:{{ ir.certBg }};color:{{ ir.certColor }};padding:2px 9px;border-radius:999px;font-size:11px;">{{ ir.certLabel }}</span></td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};">
+                    <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
+                      <input type="checkbox" checked="{{ ir.implantado }}" disabled="{{ ir.implDisabled }}" onChange="{{ ir.onToggleDeployed }}" style="accent-color:{{ pal.accent2 }};" />
+                      <span style="background:{{ ir.deployBg }};color:{{ ir.deployColor }};padding:2px 9px;border-radius:999px;font-size:11px;">{{ ir.deployLabel }}</span>
+                    </label>
+                  </td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};">
+                    <sc-if value="{{ ir.showChart }}" hint-placeholder-val="{{ false }}">
+                      <button onClick="{{ ir.onToggleChart }}" style="padding:2px 9px;font-size:11px;background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;cursor:pointer;">chart</button>
+                    </sc-if>
+                  </td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};"><span style="background:{{ ir.emProvaBg }};color:{{ ir.emProvaColor }};padding:2px 8px;border-radius:999px;font-size:10.5px;">{{ ir.emProvaLabel }}</span></td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};"><button onClick="{{ ir.onDelete }}" style="padding:2px 9px;font-size:11px;background:#6d0f1e;color:#fff;border:none;border-radius:6px;cursor:pointer;">delete</button></td>
+                </tr>
+                <sc-if value="{{ ir.expanded }}" hint-placeholder-val="{{ false }}">
+                  <tr>
+                    <td colspan="12" style="padding:14px;border-bottom:1px solid {{ pal.line }};background:{{ pal.bg3 }};border-left:3px solid {{ pal.accent2 }};">
+                      <div style="font-size:12px;color:{{ pal.muted }};margin-bottom:8px;">{{ ir.legendaGrafico }}</div>
+                      <sc-if value="{{ ir.resumoLoading }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:12px;color:{{ pal.muted }};">loading summary…</span>
+                      </sc-if>
+                      <sc-if value="{{ ir.resumoErro }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size:12px;color:{{ pal.no }};">{{ ir.resumoErro }}</span>
+                      </sc-if>
+                      <div style="display:flex;flex-wrap:wrap;gap:14px 22px;">
+                        <sc-for list="{{ ir.resumoLinhas }}" as="rl_item" hint-placeholder-count="6">
+                          <span style="font-size:12.5px;color:{{ pal.muted }};">{{ rl_item.rot }}: <b style="color:{{ pal.text }};font-family:'IBM Plex Mono',monospace;">{{ rl_item.val }}</b></span>
+                        </sc-for>
+                      </div>
+                    </td>
+                  </tr>
+                </sc-if>
+              </tbody>
+            </sc-for>
+            <sc-if value="{{ implantacaoEmpty }}" hint-placeholder-val="{{ false }}">
+              <tbody><tr><td colspan="12" style="padding:14px;color:{{ pal.muted }};font-size:12.5px;">no validated set yet.</td></tr></tbody>
+            </sc-if>
+          </table>
+          </div>
+        </div>
+
+        <div style="background:{{ pal.boxGradient }};border-radius:16px;padding:22px 24px;box-shadow:{{ pal.shadowCard }};">
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 10px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">{{ L.deploy.suggestionsTitle }}</h2>
+          <p style="color:{{ pal.muted }};font-size:12.5px;line-height:1.5;margin:0 0 12px;">{{ L.deploy.suggestionsNote }}</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+            <label style="font-size:12.5px;color:{{ pal.muted }};">{{ L.deploy.accountBalance }}<input type="number" value="{{ sugestoesSaldo }}" onChange="{{ onChangeSugestoesSaldo }}" style="width:90px;margin-left:6px;background:{{ pal.bg3 }};border:1px solid {{ pal.line }};color:{{ pal.text }};border-radius:6px;padding:6px 8px;font-size:12.5px;" /></label>
+            <button onClick="{{ onClickRecalcularSugestoes }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:7px 13px;font-size:12px;cursor:pointer;">{{ L.deploy.recalculate }}</button>
+            <button onClick="{{ onMarcarTudoDeployed }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:7px 13px;font-size:12px;cursor:pointer;">{{ L.deploy.markAllDeployed }}</button>
+            <button onClick="{{ onDesmarcarTudoDeployed }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:7px 13px;font-size:12px;cursor:pointer;">{{ L.deploy.markNoneDeployed }}</button>
+          </div>
+
+          <div style="background:{{ pal.bg3 }};border:1px solid {{ pal.line }};border-radius:12px;padding:16px 18px;">
+            <sc-if value="{{ sugestaoEmpty }}" hint-placeholder-val="{{ true }}">
+              <span style="color:{{ pal.muted }};font-size:12.5px;">{{ sugestaoMotivo }}</span>
+            </sc-if>
+            <sc-if value="{{ sugestaoTemDados }}" hint-placeholder-val="{{ false }}">
+              <h3 style="margin:0 0 8px;font-size:14px;color:{{ pal.text }};">Suggestion #{{ sugestaoNumero }}</h3>
+              <p style="margin:0 0 6px;font-size:12.5px;"><b>{{ sugestaoContasLabel }}</b></p>
+              <ul style="margin:0 0 10px;padding-left:20px;font-size:12.5px;color:{{ pal.muted }};">
+                <sc-for list="{{ sugestaoContas }}" as="sc_conta" hint-placeholder-count="2">
+                  <li>{{ sc_conta.text }}</li>
+                </sc-for>
+              </ul>
+              <p style="margin:0 0 6px;font-size:12.5px;"><b>{{ L.deploy.dyn.combosLabel }}</b></p>
+              <ul style="margin:0 0 12px;padding-left:20px;font-size:12.5px;color:{{ pal.muted }};">
+                <sc-for list="{{ sugestaoCombos }}" as="sc_combo" hint-placeholder-count="3">
+                  <li>{{ sc_combo.text }}</li>
+                </sc-for>
+              </ul>
+              <button onClick="{{ onMarcarSugestao }}" style="background:{{ pal.btnGradient }};color:{{ pal.btnText }};border:none;border-radius:8px;padding:9px 16px;font-weight:600;cursor:pointer;font-size:12.5px;">{{ L.deploy.dyn.markSuggestion }}</button>
+            </sc-if>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:12px;">
+            <button onClick="{{ onPrevSugestao }}" disabled="{{ prevDisabled }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:7px 13px;font-size:12px;cursor:pointer;">{{ L.deploy.previous }}</button>
+            <span style="font-size:12.5px;color:{{ pal.muted }};">{{ sugestaoPosicaoText }}</span>
+            <button onClick="{{ onNextSugestao }}" disabled="{{ nextDisabled }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:6px;padding:7px 13px;font-size:12px;cursor:pointer;">{{ L.deploy.nextSuggestion }}</button>
+          </div>
+          <div style="font-size:12.5px;color:{{ msgSugestoesColor }};margin-top:8px;">{{ msgSugestoes }}</div>
+        </div>
+      </section>
+    </sc-if>
+
+  </main>
 </div>
 
-<!-- ================= SET LIBRARY ================= -->
-<section id="painel-biblioteca" class="painel">
-  <div class="box">
-    <h2 data-i18n="library.current">Current library</h2>
-    <div id="info-biblioteca" data-i18n="library.loading">loading...</div>
-    <button class="acao" id="btn-regenerar" style="margin-top:12px" data-i18n="library.regenerate">Regenerate the full library</button>
-    <span class="status-msg" id="msg-regenerar"></span>
-  </div>
-</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: {&quot;width&quot;: 1440, &quot;height&quot;: 900},
+  &quot;familiaPadrao&quot;: {&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;MULTI&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;MULTI&quot;,&quot;BOLLINGER&quot;,&quot;ICHIMOKU&quot;],&quot;section&quot;:&quot;Comportamento&quot;},
+  &quot;idiomaPadrao&quot;: {&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;en&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;en&quot;,&quot;pt&quot;,&quot;es&quot;,&quot;de&quot;,&quot;fr&quot;,&quot;it&quot;,&quot;ru&quot;,&quot;zh&quot;,&quot;ja&quot;,&quot;ko&quot;,&quot;tr&quot;],&quot;section&quot;:&quot;Comportamento&quot;},
+  &quot;intervaloAtualizacaoMs&quot;: {&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:8000,&quot;min&quot;:3000,&quot;max&quot;:30000,&quot;step&quot;:1000,&quot;tsType&quot;:&quot;number&quot;,&quot;unit&quot;:&quot;ms&quot;,&quot;section&quot;:&quot;Comportamento&quot;}
+}">
+const PALETTES = {
+  MULTI: {
+    dark: { bg:'#05080b', bg2:'#080c11', bg3:'#0c131a', line:'#1c2733', text:'#e9edf1', muted:'#8ea0ad', accent:'#1b4d5c', accent2:'#2f8f76', gold:'#d4af37', ok:'#4caf50', no:'#ef5350', okBg:'#14532d', noBg:'#3a1b1b', headerBg:'rgba(8,16,27,.9)', navBg:'rgba(8,16,27,.72)', cardTop:'#141b24', cardBottom:'#090c11' },
+    light:{ bg:'#f4f7f8', bg2:'#eaf0f1', bg3:'#dfe8ea', line:'#cdd8db', text:'#16232b', muted:'#55707a', accent:'#1b4d5c', accent2:'#1f7a63', gold:'#8a6d1f', ok:'#2e7d32', no:'#c62828', okBg:'#d7ecd9', noBg:'#fbdada', headerBg:'rgba(255,255,255,.85)', navBg:'rgba(255,255,255,.7)', cardTop:'#ffffff', cardBottom:'#eef3f4' },
+  },
+  BOLLINGER: {
+    dark: { bg:'#0d1f0a', bg2:'#16290f', bg3:'#1a2e16', line:'#2d5016', text:'#e9edf1', muted:'#9db492', accent:'#2d5016', accent2:'#4caf50', gold:'#8bc34a', ok:'#4caf50', no:'#ef5350', okBg:'#14532d', noBg:'#3a1b1b', headerBg:'rgba(13,31,10,.9)', navBg:'rgba(13,31,10,.72)', cardTop:'#1a2e16', cardBottom:'#0d1f0a' },
+    light:{ bg:'#f5f8f2', bg2:'#eaf1e2', bg3:'#dfebd4', line:'#c9dcb9', text:'#1a2712', muted:'#54694b', accent:'#2d5016', accent2:'#2e7d32', gold:'#5b7a17', ok:'#2e7d32', no:'#c62828', okBg:'#d7ecd9', noBg:'#fbdada', headerBg:'rgba(255,255,255,.85)', navBg:'rgba(255,255,255,.7)', cardTop:'#ffffff', cardBottom:'#eef3e8' },
+  },
+  ICHIMOKU: {
+    dark: { bg:'#001e2b', bg2:'#00283a', bg3:'#003045', line:'#006994', text:'#e9edf1', muted:'#8bb0bd', accent:'#006994', accent2:'#00a8cc', gold:'#87ceeb', ok:'#4caf50', no:'#ef5350', okBg:'#14532d', noBg:'#3a1b1b', headerBg:'rgba(0,30,43,.9)', navBg:'rgba(0,30,43,.72)', cardTop:'#003045', cardBottom:'#001e2b' },
+    light:{ bg:'#f2f8fb', bg2:'#e5f0f5', bg3:'#d8e9f0', line:'#b9d7e3', text:'#0f2530', muted:'#4d7484', accent:'#006994', accent2:'#007ea3', gold:'#0f6e8c', ok:'#2e7d32', no:'#c62828', okBg:'#d7ecd9', noBg:'#fbdada', headerBg:'rgba(255,255,255,.85)', navBg:'rgba(255,255,255,.7)', cardTop:'#ffffff', cardBottom:'#eef6f9' },
+  },
+};
+function hojeMT5() {
+  const d = new Date(); const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`;
+}
+function anosAtrasMT5(anos) {
+  const d = new Date(); d.setFullYear(d.getFullYear() - anos); const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`;
+}
+function fmtN(v, digits) { return v == null ? '-' : Number(v).toFixed(digits == null ? 0 : digits); }
 
-<!-- ================= PORTFOLIOS ================= -->
-<section id="painel-portfolios" class="painel">
-  <div class="box">
-    <h2 data-i18n="portfolio.general-map">General map</h2>
-    <div id="mapa-html" class="mapa-html" data-i18n="portfolio.loading">loading...</div>
-  </div>
-  <div class="box">
-    <h2 data-i18n="portfolio.by-system">By system</h2>
-    <div class="tabs-sub" id="tabs-sistemas-portfolio"></div>
-    <div id="portfolio-sistema-capital" class="metric-card" style="display:none;max-width:260px;margin-bottom:10px"></div>
-    <div id="portfolio-sistema-html" class="mapa-html"></div>
-    <p class="status-msg" data-i18n="portfolio.note">The set mirror only stores the validated <code>.set</code>, not the original <code>.htm</code> report — point below to a folder where you already gathered the set reports you want to compare.</p>
-    <input type="text" id="portfolio-pasta" placeholder="Folder path with .htm/.csv reports">
-    <button class="acao secundario" id="btn-gerar-portfolio" style="margin-top:12px" data-i18n="portfolio.generate">Generate correlation panel</button>
-    <span class="status-msg" id="msg-portfolio"></span>
-  </div>
-  <div class="box">
-    <h2 data-i18n="portfolio.correlation-panel">Correlation panel</h2>
-    <div class="tabs-sub" id="tabs-portfolio-gerados"></div>
-    <iframe id="portfolio-iframe" style="display:none;width:100%;height:640px;border:1px solid var(--line);border-radius:8px;background:var(--bg)"></iframe>
-    <span class="status-msg" id="msg-portfolio-iframe">No correlation panel generated yet.</span>
-  </div>
-</section>
+class Component extends DCLogic {
+  state = {
+    tab: 'campanha',
+    familia: (typeof localStorage !== 'undefined' && ['MULTI','BOLLINGER','ICHIMOKU'].includes(localStorage.getItem('wrx_familia'))) ? localStorage.getItem('wrx_familia') : (this.props.familiaPadrao || 'MULTI'),
+    tema: 'dark',
+    locale: this.props.idiomaPadrao || 'en',
+    offline: false, showInstall: false, installEvt: null,
+    status: null, estado: null, heatmap: null, expandedRecentes: {},
+    modo: 'auto', config: null, sistemasSel: {}, ativosSel: {}, ativosReal: {}, ativosMeta: {},
+    campoInicio: anosAtrasMT5(3), campoFim: hojeMT5(), campoDeposito: 1000, depositoAuto: true, campoRetencao: 30,
+    showAutoModal: false, autoModalDontAsk: false, msgIniciar: '', msgIniciarOk: null, msgDetectar: '',
+    biblioteca: null, msgRegenerar: '', msgRegenerarOk: null,
+    portfolios: null, portfolioSel: null, portfolioPasta: '', msgPortfolio: '', msgPortfolioOk: null, portfolioIframeUrl: null, portfolioGeradoSel: null,
+    perfilAtivos: '', perfilSistemasSel: {}, perfilRisco: 1.0, perfilLote: 0.01, perfilWfoFim: hojeMT5(), perfil: null, msgPerfil: '', msgPerfilOk: null, saidaPerfil: '',
+    custo: null, custoSimbolo: '', msgCusto: '', msgCustoOk: null,
+    implantacao: null, implantacaoSel: {}, implantacaoExpandida: {}, emProva: {}, msgImplantacao: '', msgImplantacaoOk: null,
+    resumoImplantacao: {},
+    sugestoesSaldo: 100, sugestoesFila: [], sugestaoCursor: 0, ultimoPool: 0, ultimoComSerie: 0, msgSugestoes: '',
+    msgStop: '', msgStopOk: null,
+  };
 
-<!-- ================= BROKER PROFILE ================= -->
-<section id="painel-perfil" class="painel">
-  <div class="box">
-    <h2 data-i18n="profile.interests">Interests</h2>
-    <label class="campo" data-i18n="profile.assets">Assets (empty = all; comma separated)</label>
-    <input type="text" id="perfil-ativos" placeholder="EURUSD, GBPUSD, XAUUSD">
-    <label class="campo" data-i18n="profile.systems">Systems (empty = all)</label>
-    <div class="grid-check" id="perfil-sistemas"></div>
+  componentDidMount() {
+    Promise.all([import('/static/mock-data.js'), import('/static/i18n.js')]).then(([mock, i18n]) => {
+      this.MOCK = mock; this.I18N = i18n; this.forceUpdate();
+      this.state.sistemasSel = {};
+      this.carregarConfig().then(() => this.carregarPerfil());
+      this.carregarStatus(); this.carregarEstado(); this.carregarHeatmap();
+    });
+    const ms = this.props.intervaloAtualizacaoMs || 8000;
+    this._interval = setInterval(() => { this.carregarStatus(); this.carregarEstado(); this.carregarHeatmap(); }, ms);
+    this._bip = (e) => { e.preventDefault(); this.setState({ installEvt: e, showInstall: true }); };
+    window.addEventListener('beforeinstallprompt', this._bip);
+  }
+  componentWillUnmount() { clearInterval(this._interval); window.removeEventListener('beforeinstallprompt', this._bip); }
 
-    <h2 style="margin-top:20px" data-i18n="profile.risk">Risk</h2>
-    <div class="linha">
-      <div><label class="campo" data-i18n="profile.risk-per-trade">Risk per trade %</label><input type="number" id="perfil-risco" value="1.0" step="0.1"></div>
-      <div><label class="campo" data-i18n="profile.fixed-lot">Fixed lot</label><input type="number" id="perfil-lote" value="0.01" step="0.01"></div>
-    </div>
+  tr(key, vars) { return this.I18N ? this.I18N.t(this.state.locale, key, vars) : key; }
 
-    <h2 style="margin-top:20px" data-i18n="profile.walk-forward">Walk-forward</h2>
-    <div class="linha">
-      <div><label class="campo" data-i18n="profile.final-date">Final date</label><input type="text" id="perfil-wfo-fim"></div>
-    </div>
+  async getReal(path) { const r = await fetch(path); if (!r.ok) throw new Error('http ' + r.status); return r.json(); }
+  async postReal(path, body) {
+    const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+    if (!r.ok) throw new Error('http ' + r.status);
+    return r.json();
+  }
+  async pollJobReal(jobId) {
+    for (;;) {
+      const j = await this.getReal(`/api/jobs/${jobId}`);
+      if (j.status === 'rodando' || j.status === 'iniciado') { await new Promise((r) => setTimeout(r, 2000)); continue; }
+      return j;
+    }
+  }
+  async load(path, mockFn, key) {
+    try { const d = await this.getReal(path); this.setState({ [key]: d }); return d; }
+    catch (e) { const d = mockFn(); this.setState({ offline: true, [key]: d }); return d; }
+  }
+  // Executa um POST que dispara job assíncrono; em modo offline simula sucesso local.
+  async runJob(path, body, mockSaida) {
+    try {
+      const r = await this.postReal(path, body);
+      if (!r.ok) return { ok: false, erro: r.erro };
+      const j = await this.pollJobReal(r.job_id);
+      return j;
+    } catch (e) {
+      this.setState({ offline: true });
+      await new Promise((r) => setTimeout(r, 700));
+      return { ok: true, status: 'feito', saida: mockSaida || 'concluído (exemplo offline).' };
+    }
+  }
 
-    <div style="margin-top:16px">
-      <button class="acao secundario" id="btn-perfil-dry" data-i18n="profile.dry-run">Dry-run (show only what it would do)</button>
-      <button class="acao" id="btn-perfil-aplicar" data-i18n="profile.apply">Apply for real</button>
-    </div>
-    <span class="status-msg" id="msg-perfil"></span>
-    <pre id="saida-perfil" style="white-space:pre-wrap;font-size:12px;color:#9ca3af;margin-top:12px"></pre>
-  </div>
-  <div class="box">
-    <h2 data-i18n="profile.last-sync">Last synchronization</h2>
-    <pre id="ultima-sync" style="white-space:pre-wrap;font-size:12px;color:#9ca3af">none yet</pre>
-  </div>
-</section>
+  setTab(tab) {
+    this.setState({ tab });
+    if (tab === 'biblioteca') this.carregarBiblioteca();
+    if (tab === 'portfolios') this.carregarPortfolios();
+    if (tab === 'custo') this.carregarCusto();
+    if (tab === 'implantacao') { this.carregarImplantacao().then(() => this.carregarEmProva()); this.carregarSugestoes(); }
+  }
+  setFamilia(f) {
+    if (f === this.state.familia) return;
+    this.setState({ familia: f });
+    try { localStorage.setItem('wrx_familia', f); } catch (e) {}
+    this.carregarStatus(); this.carregarConfig();
+  }
+  onChangeLocale(e) { this.setState({ locale: e.target.value }); }
+  clickInstall() {
+    const evt = this.state.installEvt;
+    if (!evt) return;
+    evt.prompt();
+    evt.userChoice.then(() => this.setState({ installEvt: null, showInstall: false }));
+  }
 
-<!-- ================= NATIVE COST ================= -->
-<section id="painel-custo" class="painel">
-  <div class="box">
-    <h2 data-i18n="cost.title">Measured fees (per lot)</h2>
-    <table id="tbl-custo"><thead><tr><th data-i18n="cost.symbol">Native symbol</th>
-    <th data-i18n="cost.commission">Commission/lot</th><th data-i18n="cost.swap">Swap/lot</th>
-    <th>Entries</th><th>Volume (lots)</th><th>Period</th><th data-i18n="cost.when">Measured on</th></tr></thead>
-    <tbody></tbody></table>
-  </div>
-  <div class="box">
-    <h2 data-i18n="cost.measure-new">Measure a new symbol</h2>
-    <input type="text" id="custo-simbolo" placeholder="GBPUSD (without .HT suffix)">
-    <button class="acao" id="btn-medir-custo" style="margin-top:10px" data-i18n="cost.measure-now">Measure now</button>
-    <span class="status-msg" id="msg-custo"></span>
-  </div>
-</section>
+  // ---------------------------------------------------------- campanha ao vivo
+  carregarStatus() { return this.load('/api/status?familia=' + this.state.familia, () => this.MOCK.mockStatus(this.state.familia), 'status'); }
+  async carregarEstado() {
+    const e = await this.load('/api/campanha/estado', () => this.MOCK.mockEstado(), 'estado');
+    const travar = e.rodando || e.pausado;
+    if (travar && e.familia && e.familia !== this.state.familia) {
+      this.setState({ familia: e.familia });
+      try { localStorage.setItem('wrx_familia', e.familia); } catch (err) {}
+      this.carregarStatus(); this.carregarConfig();
+    }
+  }
+  carregarHeatmap() { return this.load('/api/heatmap', () => this.MOCK.mockHeatmap(), 'heatmap'); }
+  toggleRecenteExpand(chave) { this.setState((s) => ({ expandedRecentes: { ...s.expandedRecentes, [chave]: !s.expandedRecentes[chave] } })); }
+  async clickStop() {
+    this.setState({ msgStop: 'stopping...', msgStopOk: null });
+    try {
+      const r = await this.postReal('/api/campanha/stop');
+      this.setState({ msgStop: `stopped. terminal closed: ${r.terminal_fechado}. incomplete entries removed: ${r.entradas_incompletas_removidas}`, msgStopOk: true });
+    } catch (e) {
+      this.setState((s) => ({ offline: true, msgStop: 'stopped (exemplo offline).', msgStopOk: true, estado: { ...s.estado, rodando: false, pausando: false, pausado: false } }));
+    }
+    this.carregarEstado();
+  }
+  async clickPausar() {
+    this.setState({ msgStop: this.tr('campaign.msg-pausing'), msgStopOk: null });
+    try { await this.postReal('/api/campanha/pausar'); }
+    catch (e) { this.setState((s) => ({ offline: true, estado: { ...s.estado, rodando: false, pausando: false, pausado: true } })); }
+    this.carregarEstado();
+  }
+  async clickRetomar() {
+    this.setState({ msgStop: this.tr('campaign.msg-resuming'), msgStopOk: null });
+    try { await this.postReal('/api/campanha/retomar'); this.setState({ msgStop: '', msgStopOk: true }); }
+    catch (e) { this.setState((s) => ({ offline: true, msgStop: '', msgStopOk: true, estado: { ...s.estado, rodando: true, pausado: false } })); }
+    this.carregarEstado();
+  }
 
-<!-- ================= DEPLOYMENT ================= -->
-<section id="painel-implantacao" class="painel">
-  <div class="box">
-    <h2 data-i18n="deploy.certified-title">Certified sets</h2>
-    <p class="status-msg" data-i18n="deploy.certified-note">Only sets with an archived validation report (equity curve, trade blotter, Monte Carlo)
-      count as certified — a bare .set without evidence is not exportable. This panel never touches a
-      live/VPS account: it only prepares a download; taking it there is up to you.</p>
-    <div class="linha" style="margin:10px 0">
-      <button class="acao secundario" id="btn-implantacao-todos" data-i18n="deploy.select-all-certified">Select all certified</button>
-      <button class="acao secundario" id="btn-implantacao-nenhum" data-i18n="deploy.clear-selection">Clear selection</button>
-      <button class="acao" id="btn-implantacao-exportar" data-i18n="deploy.export-selected">Export selected (.zip)</button>
-    </div>
-    <span class="status-msg" id="msg-implantacao"></span>
-    <p class="status-msg" data-i18n="deploy.sort-note">Sorted by full-period survival balance first (the number that matters —
-      see "Profit" tooltips below), OOS-window profit as tie-break. A set that only looks good in
-      the OOS window can still blow up over the long run — that is exactly why the survival gate exists.</p>
-    <table id="tbl-implantacao">
-      <thead><tr><th></th><th data-i18n="table.symbol">Symbol</th><th data-i18n="table.system">System</th><th data-i18n="table.variant">Variant</th><th data-i18n="table.retention">Retention</th>
-      <th data-i18n="deploy.col-profit-full" data-i18n-title="deploy.col-profit-full-tip" title="Balance from the full continuous period, deposit 500 baseline — the survival gate's own measurement">Profit (full period)</th>
-      <th data-i18n="deploy.col-profit-oos" data-i18n-title="deploy.col-profit-oos-tip" title="Profit measured only in the short OOS window — can look great and still hide a long-run blowup">Profit (OOS)</th>
-      <th data-i18n="deploy.col-certificate">Certificate</th><th data-i18n="deploy.col-deployed">Deployed</th>
-      <th data-i18n="deploy.col-live-status" data-i18n-title="deploy.col-live-status-tip" title="Live trade count vs. ledger's OOS expectancy_r for this exact combo — see em_prova.py">Live status</th><th></th><th></th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </div>
+  // ------------------------------------------------------------ configurar corrida
+  setModo(m) { this.setState({ modo: m }); }
+  async carregarConfig() {
+    const d = await this.load('/api/config?familia=' + this.state.familia, () => this.MOCK.mockConfig(this.state.familia), 'config');
+    if (d && d.sistemas && d.sistemas.length && Object.keys(this.state.sistemasSel).length === 0) {
+      const sel = {}; d.sistemas.forEach((s, i) => { if (i < 2) sel[s.code] = true; });
+      this.setState({ sistemasSel: sel });
+    }
+    return d;
+  }
+  toggleSistema(code) { this.setState((s) => ({ sistemasSel: { ...s.sistemasSel, [code]: !s.sistemasSel[code] } })); }
+  selectAllSistemas() { const sel = {}; (this.state.config?.sistemas || []).forEach((s) => sel[s.code] = true); this.setState({ sistemasSel: sel }); }
+  clearSistemas() { this.setState({ sistemasSel: {} }); }
+  toggleAtivo(sym) { this.setState((s) => ({ ativosSel: { ...s.ativosSel, [sym]: !s.ativosSel[sym] } })); }
+  selectAllAtivosClasse(ativos, val) { this.setState((s) => { const sel = { ...s.ativosSel }; ativos.forEach((a) => sel[a] = val); return { ativosSel: sel }; }); }
+  selectAllAtivos() { const sel = {}; Object.values(this.state.config?.classes || {}).forEach((c) => c.ativos.forEach((a) => sel[a] = true)); this.setState({ ativosSel: sel }); }
+  clearAtivos() { this.setState({ ativosSel: {} }); }
+  toggleDepositoAuto() {
+    this.setState((s) => ({ depositoAuto: !s.depositoAuto, campoDeposito: !s.depositoAuto ? s.campoDeposito : (s.campoDeposito > 0 ? s.campoDeposito : 1000) }));
+  }
+  capitaisBaseDistintos(somenteMarcados) {
+    const vistos = new Set();
+    Object.values(this.state.config?.classes || {}).forEach((info) => {
+      const marcados = info.ativos.filter((a) => this.state.ativosSel[a]);
+      if (somenteMarcados && marcados.length === 0) return;
+      if (info.capital_base > 0) vistos.add(info.capital_base);
+    });
+    return [...vistos].sort((a, b) => a - b);
+  }
+  async clickDetectar() {
+    this.setState({ msgDetectar: 'detectando...' });
+    const j = await this.runJob('/api/ativos/detectar', {}, 'DETECTADOS:\n  EURUSD\n  GBPUSD\n  XAUUSD\n  USDJPY');
+    if (j.status !== 'feito' && j.ok !== true) { this.setState({ msgDetectar: j.erro || 'erro' }); return; }
+    const nomes = (j.saida || '').split('\n').map((l) => (l.match(/^  ([A-Z0-9.]+)\s*$/) || [])[1]).filter(Boolean);
+    if (nomes.length) {
+      this.setState((s) => {
+        const sel = { ...s.ativosSel }; const real = { ...s.ativosReal };
+        nomes.forEach((n) => { const base = n.split('.')[0]; sel[base] = true; if (n !== base) real[base] = n; });
+        return { ativosSel: sel, ativosReal: real };
+      });
+    }
+    this.setState({ msgDetectar: 'ok — ' + nomes.length + ' ativo(s)' });
+  }
+  async clickIniciar() {
+    if (this.state.modo === 'auto' && (typeof localStorage === 'undefined' || localStorage.getItem('wrx_auto_modal_dispensado') !== '1')) {
+      this.setState({ showAutoModal: true }); return;
+    }
+    this.iniciarCorridaReal();
+  }
+  confirmarAutoModal() {
+    if (this.state.autoModalDontAsk) { try { localStorage.setItem('wrx_auto_modal_dispensado', '1'); } catch (e) {} }
+    this.setState({ showAutoModal: false });
+    this.iniciarCorridaReal();
+  }
+  async iniciarCorridaReal() {
+    const body = {
+      modo: this.state.modo, familia: this.state.familia, inicio: this.state.campoInicio, fim: this.state.campoFim,
+      deposit: this.state.depositoAuto ? null : Number(this.state.campoDeposito), min_retencao: Number(this.state.campoRetencao),
+    };
+    if (this.state.modo === 'manual') {
+      body.sistemas = Object.keys(this.state.sistemasSel).filter((k) => this.state.sistemasSel[k]);
+      body.simbolos = Object.keys(this.state.ativosSel).filter((k) => this.state.ativosSel[k]).map((s) => this.state.ativosReal[s] || s);
+    }
+    try {
+      const r = await this.postReal('/api/campanha/start', body);
+      this.setState({ msgIniciar: r.ok ? `iniciado (pid ${r.pid})` : r.erro, msgIniciarOk: !!r.ok });
+    } catch (e) {
+      this.setState((s) => ({ offline: true, msgIniciar: 'iniciado (exemplo offline)', msgIniciarOk: true, estado: { ...s.estado, rodando: true, modo: this.state.modo, familia: this.state.familia } }));
+    }
+    this.carregarEstado();
+  }
 
-  <div class="box">
-    <h2 data-i18n="deploy.suggestions-title">Deployment suggestions</h2>
-    <p class="status-msg" data-i18n="deploy.suggestions-note">Combinations of certified, not-yet-deployed sets that fit
-      together (low correlation), ordered by risk tier first (research systems
-      before grid/martingale). Each suggestion states how many live accounts it
-      needs — never assumes just one.</p>
-    <div class="linha" style="margin:10px 0">
-      <label><span data-i18n="deploy.account-balance">Account balance: $</span><input type="number" id="sugestoes-saldo" value="100" style="width:90px"></label>
-      <button class="acao secundario" id="btn-sugestoes-recarregar" data-i18n="deploy.recalculate">Recalculate</button>
-      <button class="acao secundario" id="btn-implantacao-marcar-tudo" data-i18n="deploy.mark-all-deployed">Mark all certified as deployed</button>
-      <button class="acao secundario" id="btn-implantacao-desmarcar-tudo" data-i18n="deploy.mark-none-deployed">Mark none as deployed</button>
-    </div>
-    <div id="caixa-sugestao"><span class="status-msg" data-i18n="deploy.no-suggestion-yet">no suggestion loaded yet — click Recalculate.</span></div>
-    <div class="linha" style="margin-top:10px;align-items:center;gap:10px">
-      <button class="acao secundario" id="btn-sugestao-anterior" data-i18n="deploy.previous">&larr; Previous</button>
-      <span id="sugestao-posicao" class="status-msg"></span>
-      <button class="acao secundario" id="btn-sugestao-proxima" data-i18n="deploy.next-suggestion">Next suggestion &rarr;</button>
-    </div>
-    <span class="status-msg" id="msg-sugestoes"></span>
-  </div>
-</section>
+  // -------------------------------------------------------------- biblioteca
+  carregarBiblioteca() { return this.load('/api/biblioteca?familia=' + this.state.familia, () => this.MOCK.mockBiblioteca(this.state.familia), 'biblioteca'); }
+  async clickRegenerar() {
+    this.setState({ msgRegenerar: 'rodando...', msgRegenerarOk: null });
+    const j = await this.runJob('/api/biblioteca/regenerar', { familia: this.state.familia }, 'biblioteca regenerada.');
+    this.setState({ msgRegenerar: j.status === 'feito' ? 'concluído.' : (j.erro || 'erro'), msgRegenerarOk: j.status === 'feito' });
+    this.carregarBiblioteca();
+  }
 
-</main>
-<script src="/static/app.js?v=20260907d"></script>
+  // -------------------------------------------------------------- portfolios
+  async carregarPortfolios() {
+    const d = await this.load('/api/portfolios', () => this.MOCK.mockPortfolios(), 'portfolios');
+    const nomes = Object.keys(d.sistemas || {});
+    if (nomes.length && !this.state.portfolioSel) this.setState({ portfolioSel: nomes[0] });
+    const gerados = d.gerados || [];
+    if (gerados.length && !this.state.portfolioGeradoSel) this.setState({ portfolioGeradoSel: gerados[0].url });
+  }
+  selecionarPortfolio(nome) { this.setState({ portfolioSel: nome }); }
+  selecionarGerado(url) { this.setState({ portfolioGeradoSel: url }); }
+  async clickGerarPortfolio() {
+    const pasta = this.state.portfolioPasta.trim();
+    if (!pasta) { this.setState({ msgPortfolio: 'informe a pasta com os relatórios', msgPortfolioOk: false }); return; }
+    this.setState({ msgPortfolio: 'rodando...', msgPortfolioOk: null });
+    const j = await this.runJob('/api/portfolios/gerar', { pasta, nome: this.state.portfolioSel || 'geral' }, 'painel gerado.');
+    this.setState({ msgPortfolio: j.status === 'feito' ? 'concluído.' : (j.erro || 'erro'), msgPortfolioOk: j.status === 'feito' });
+    this.carregarPortfolios();
+  }
+
+  // ------------------------------------------------------------------ perfil
+  async carregarPerfil() {
+    const d = await this.load('/api/perfil', () => this.MOCK.mockPerfil(), 'perfil');
+    return d;
+  }
+  togglePerfilSistema(code) { this.setState((s) => ({ perfilSistemasSel: { ...s.perfilSistemasSel, [code]: !s.perfilSistemasSel[code] } })); }
+  montarPerfil() {
+    const ativos = this.state.perfilAtivos.split(',').map((s) => s.trim()).filter(Boolean);
+    const sistemas = Object.keys(this.state.perfilSistemasSel).filter((k) => this.state.perfilSistemasSel[k]);
+    return {
+      interesses: { ativos, sistemas, lados: ['BUY', 'SELL'], variantes: ['MULTI', 'ICHIMOKU'] },
+      risco: { risco_por_trade_pct: Number(this.state.perfilRisco), lote_fixo: Number(this.state.perfilLote), usar_lote_minimo_do_broker: true },
+      walk_forward: { ligar: false, data_final: this.state.perfilWfoFim },
+      arquivar_fora_do_escopo: false,
+    };
+  }
+  async sincronizarPerfil(dryRun) {
+    this.setState({ msgPerfil: 'rodando...', msgPerfilOk: null });
+    const j = await this.runJob('/api/perfil/sincronizar', { perfil: this.montarPerfil(), dry_run: dryRun }, 'dry-run: 3 ativo(s) afetado(s) (exemplo offline).');
+    this.setState({ msgPerfil: j.status === 'feito' ? 'concluído.' : (j.erro || 'erro'), msgPerfilOk: j.status === 'feito', saidaPerfil: j.saida || '' });
+    this.carregarPerfil();
+  }
+
+  // -------------------------------------------------------------- custo nativo
+  carregarCusto() { return this.load('/api/custo-nativo', () => this.MOCK.mockCustoNativo(), 'custo'); }
+  async clickMedirCusto() {
+    const simbolo = this.state.custoSimbolo.trim();
+    if (!simbolo) { this.setState({ msgCusto: 'informe o símbolo', msgCustoOk: false }); return; }
+    this.setState({ msgCusto: 'rodando...', msgCustoOk: null });
+    const j = await this.runJob('/api/custo-nativo/medir', { symbol: simbolo }, 'custo medido.');
+    this.setState({ msgCusto: j.status === 'feito' ? 'concluído.' : (j.erro || 'erro'), msgCustoOk: j.status === 'feito' });
+    this.carregarCusto();
+  }
+
+  // -------------------------------------------------------------- implantacao
+  toggleImplantacaoSel(chave) { this.setState((s) => ({ implantacaoSel: { ...s.implantacaoSel, [chave]: !s.implantacaoSel[chave] } })); }
+  selectAllImplantacao() {
+    const sel = {}; (this.state.implantacao?.sets || []).forEach((s) => { if (s.certificado) sel[s.chave] = true; });
+    this.setState({ implantacaoSel: sel });
+  }
+  clearImplantacao() { this.setState({ implantacaoSel: {} }); }
+  toggleImplantacaoExpand(chave) {
+    const abrindo = !this.state.implantacaoExpandida[chave];
+    this.setState((s) => ({ implantacaoExpandida: { ...s.implantacaoExpandida, [chave]: abrindo } }));
+    if (!abrindo || this.state.resumoImplantacao[chave]) return;
+    const it = (this.state.implantacao?.sets || []).find((x) => x.chave === chave);
+    if (!it || !it.relatorio_dir) return;
+    this.carregarResumoImplantacao(chave, it.relatorio_dir, it.sobrevivencia_grafico ? 'sobrevivencia' : 'conf_wrx');
+  }
+  async carregarResumoImplantacao(chave, dir, nome) {
+    // Mesmo contrato do endpoint real (relatorio_resumo.resumo_relatorio):
+    // profit_factor/recovery_factor/sharpe_ratio/balance_dd_relative/
+    // max_consecutive_wins/max_consecutive_losses -- ver mockRelatorioResumo.
+    try {
+      const r = await this.getReal(`/api/relatorio/${encodeURIComponent(dir)}/resumo?nome=${nome}`);
+      this.setState((s) => ({ resumoImplantacao: { ...s.resumoImplantacao, [chave]: r.ok ? r.resumo : { erro: r.erro || 'summary unavailable' } } }));
+    } catch (e) {
+      const r = this.MOCK ? this.MOCK.mockRelatorioResumo() : { resumo: {} };
+      this.setState((s) => ({ resumoImplantacao: { ...s.resumoImplantacao, [chave]: r.resumo } }));
+    }
+  }
+  async carregarImplantacao() { return this.load('/api/implantacao', () => this.MOCK.mockImplantacao(), 'implantacao'); }
+  async carregarEmProva() {
+    const chaves = (this.state.implantacao?.sets || []).map((s) => s.chave);
+    if (!chaves.length) return;
+    try {
+      const d = await this.getReal('/api/implantacao/em_prova');
+      this.setState({ emProva: Object.fromEntries((d.combos || []).map((c) => [c.chave, c])) });
+    } catch (e) {
+      const d = this.MOCK.mockEmProva(chaves);
+      this.setState({ offline: true, emProva: Object.fromEntries(d.combos.map((c) => [c.chave, c])) });
+    }
+  }
+  async marcarDeployed(chave, val) {
+    this.setState((s) => ({ implantacao: { ...s.implantacao, sets: s.implantacao.sets.map((x) => x.chave === chave ? { ...x, implantado: val } : x) } }));
+    try { await this.postReal('/api/implantacao/marcar', { chaves: [chave], implantado: val }); } catch (e) { this.setState({ offline: true }); }
+  }
+  async deletarImplantacao(chave) {
+    if (typeof window !== 'undefined' && !window.confirm(`Delete ${chave}? This removes the delivered .set (and its archived report, if certified). This cannot be undone from here.`)) return;
+    try { await this.postReal('/api/implantacao/deletar', { chaves: [chave] }); } catch (e) { this.setState({ offline: true }); }
+    this.setState((s) => ({ implantacao: { ...s.implantacao, sets: s.implantacao.sets.filter((x) => x.chave !== chave) } }));
+  }
+  async clickExportarImplantacao() {
+    const chaves = Object.keys(this.state.implantacaoSel).filter((k) => this.state.implantacaoSel[k]);
+    if (!chaves.length) { this.setState({ msgImplantacao: 'select at least one certified set', msgImplantacaoOk: false }); return; }
+    this.setState({ msgImplantacao: 'preparing .zip...', msgImplantacaoOk: null });
+    try {
+      const resp = await fetch('/api/implantacao/exportar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chaves }) });
+      if (!resp.ok) throw new Error('http');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'sets_certificados.zip'; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      this.setState({ msgImplantacao: `exported ${chaves.length} set(s).`, msgImplantacaoOk: true });
+    } catch (e) {
+      this.setState({ offline: true, msgImplantacao: 'exportação requer o backend conectado (exemplo offline).', msgImplantacaoOk: false });
+    }
+  }
+
+  // -------------------------------------------------------- sugestoes
+  async carregarSugestoes() {
+    this.setState({ msgSugestoes: this.tr('deploy.dyn.calculating') });
+    try {
+      const d = await this.getReal(`/api/implantacao/sugestoes?saldo=${this.state.sugestoesSaldo}`);
+      this.setState({ sugestoesFila: d.sugestoes || [], ultimoPool: d.pool ?? 0, ultimoComSerie: d.com_serie ?? 0, sugestaoCursor: 0, msgSugestoes: '' });
+    } catch (e) {
+      const d = this.MOCK.mockSugestoes(parseFloat(this.state.sugestoesSaldo) || 0);
+      this.setState({ offline: true, sugestoesFila: d.sugestoes, ultimoPool: d.pool, ultimoComSerie: d.com_serie, sugestaoCursor: 0, msgSugestoes: '' });
+    }
+  }
+  proximaSugestao() { this.setState((s) => ({ sugestaoCursor: Math.min(s.sugestaoCursor + 1, s.sugestoesFila.length - 1) })); }
+  anteriorSugestao() { this.setState((s) => ({ sugestaoCursor: Math.max(s.sugestaoCursor - 1, 0) })); }
+  async marcarSugestaoAtual() {
+    const s = this.state.sugestoesFila[this.state.sugestaoCursor];
+    if (!s) return;
+    const chaves = s.combos.map((c) => c.chave);
+    try { await this.postReal('/api/implantacao/marcar', { chaves, implantado: true }); } catch (e) { this.setState({ offline: true }); }
+    this.setState((st) => ({ implantacao: { ...st.implantacao, sets: st.implantacao.sets.map((x) => chaves.includes(x.chave) ? { ...x, implantado: true } : x) } }));
+    this.carregarSugestoes();
+  }
+  async marcarTudoDeployed() {
+    const chaves = (this.state.implantacao?.sets || []).filter((s) => s.certificado).map((s) => s.chave);
+    try { await this.postReal('/api/implantacao/marcar', { chaves, implantado: true }); } catch (e) { this.setState({ offline: true }); }
+    this.setState((s) => ({ implantacao: { ...s.implantacao, sets: s.implantacao.sets.map((x) => ({ ...x, implantado: x.certificado ? true : x.implantado })) }, msgSugestoes: this.tr('deploy.dyn.marked-n', { n: chaves.length }) }));
+    this.carregarSugestoes();
+  }
+  async desmarcarTudoDeployed() {
+    const chaves = (this.state.implantacao?.sets || []).filter((s) => s.certificado).map((s) => s.chave);
+    try { await this.postReal('/api/implantacao/marcar', { chaves, implantado: false }); } catch (e) { this.setState({ offline: true }); }
+    this.setState((s) => ({ implantacao: { ...s.implantacao, sets: s.implantacao.sets.map((x) => ({ ...x, implantado: x.certificado ? false : x.implantado })) }, msgSugestoes: this.tr('deploy.dyn.cleared-n', { n: chaves.length }) }));
+    this.carregarSugestoes();
+  }
+
+  getPal() {
+    const fam = PALETTES[this.state.familia] || PALETTES.MULTI;
+    const base = fam[this.state.tema] || fam.dark;
+    const dark = this.state.tema !== 'light';
+    return {
+      ...base,
+      cardGradient: `linear-gradient(180deg, ${base.cardTop}, ${base.cardBottom})`,
+      boxGradient: dark ? 'linear-gradient(180deg, #0e131a, #07090c)' : `linear-gradient(180deg, ${base.cardTop}, ${base.bg2})`,
+      btnGradient: `linear-gradient(135deg, ${base.accent2}, ${base.accent})`,
+      btnText: '#ffffff',
+      shadowCard: dark ? '0 1px 2px rgba(0,0,0,.5), 0 20px 44px -26px rgba(0,0,0,.65)' : '0 1px 2px rgba(20,30,35,.06), 0 16px 36px -22px rgba(20,30,35,.18)',
+      shadowModal: dark ? '0 24px 64px rgba(0,0,0,.55)' : '0 24px 64px rgba(20,30,35,.22)',
+      bodyBg: `radial-gradient(circle at top, ${base.bg3} 0%, ${base.bg} 68%)`,
+    };
+  }
+
+  buildL() {
+    const tr = (k, v) => this.tr(k, v);
+    return {
+      lang: { label: tr('lang.label') }, install: { button: tr('install.button') },
+      nav: { live: tr('nav.live'), setup: tr('nav.setup'), sets: tr('nav.sets'), portfolios: tr('nav.portfolios'), broker: tr('nav.broker'), nativeCost: tr('nav.native-cost'), implantacao: tr('nav.implantacao') },
+      familia: { multi: tr('familia.multi'), bollinger: tr('familia.bollinger'), ichimoku: tr('familia.ichimoku') },
+      campaign: { robustness: tr('campaign.robustness'), assetMap: tr('campaign.asset-map'), progress: tr('campaign.progress'), reports: tr('campaign.reports'), stopRun: tr('campaign.stop-run'), pauseRun: tr('campaign.pause-run'), resumeRun: tr('campaign.resume-run'), bySystem: tr('campaign.by-system'), recentCombos: tr('campaign.recent-combos') },
+      table: { system: tr('table.system'), tests: tr('table.tests'), approved: tr('table.approved'), symbol: tr('table.symbol'), variant: tr('table.variant'), verdict: tr('table.verdict'), retention: tr('table.retention'), minutes: tr('table.minutes') },
+      setup: { mode: tr('setup.mode'), auto: tr('setup.auto'), manual: tr('setup.manual'), systems: tr('setup.systems'), assets: tr('setup.assets'), detect: tr('setup.detect'), selectAllSystems: tr('setup.select-all-systems'), clearSystems: tr('setup.clear-systems'), selectAllAssets: tr('setup.select-all-assets'), clearAssets: tr('setup.clear-assets'), parameters: tr('setup.parameters'), from: tr('setup.from'), to: tr('setup.to'), deposit: tr('setup.deposit'), depositAuto: tr('setup.deposit-auto'), minRetention: tr('setup.min-retention'), startRun: tr('setup.start-run') },
+      autoModal: { title: tr('auto-modal.title'), p1: tr('auto-modal.p1'), p2: tr('auto-modal.p2'), p3: tr('auto-modal.p3'), dontAsk: tr('auto-modal.dont-ask'), confirm: tr('auto-modal.confirm'), preferManual: tr('auto-modal.prefer-manual') },
+      library: { current: tr('library.current'), loading: tr('library.loading'), regenerate: tr('library.regenerate') },
+      portfolio: { generalMap: tr('portfolio.general-map'), loading: tr('portfolio.loading'), bySystem: tr('portfolio.by-system'), note: tr('portfolio.note'), generate: tr('portfolio.generate'), correlationPanel: tr('portfolio.correlation-panel') },
+      profile: { interests: tr('profile.interests'), assets: tr('profile.assets'), systems: tr('profile.systems'), risk: tr('profile.risk'), riskPerTrade: tr('profile.risk-per-trade'), fixedLot: tr('profile.fixed-lot'), walkForward: tr('profile.walk-forward'), finalDate: tr('profile.final-date'), dryRun: tr('profile.dry-run'), apply: tr('profile.apply'), lastSync: tr('profile.last-sync') },
+      cost: { title: tr('cost.title'), symbol: tr('cost.symbol'), commission: tr('cost.commission'), swap: tr('cost.swap'), when: tr('cost.when'), measureNew: tr('cost.measure-new'), measureNow: tr('cost.measure-now') },
+      deploy: {
+        certifiedTitle: tr('deploy.certified-title'), certifiedNote: tr('deploy.certified-note'), selectAllCertified: tr('deploy.select-all-certified'), clearSelection: tr('deploy.clear-selection'), exportSelected: tr('deploy.export-selected'), sortNote: tr('deploy.sort-note'),
+        colProfitFull: tr('deploy.col-profit-full'), colProfitFullTip: tr('deploy.col-profit-full-tip'), colProfitOos: tr('deploy.col-profit-oos'), colProfitOosTip: tr('deploy.col-profit-oos-tip'), colCertificate: tr('deploy.col-certificate'), colDeployed: tr('deploy.col-deployed'),
+        suggestionsTitle: tr('deploy.suggestions-title'), suggestionsNote: tr('deploy.suggestions-note'), accountBalance: tr('deploy.account-balance'), recalculate: tr('deploy.recalculate'), markAllDeployed: tr('deploy.mark-all-deployed'), markNoneDeployed: tr('deploy.mark-none-deployed'), noSuggestionYet: tr('deploy.no-suggestion-yet'), previous: tr('deploy.previous'), nextSuggestion: tr('deploy.next-suggestion'),
+        dyn: { combosLabel: tr('deploy.dyn.combos-label'), weight: tr('deploy.dyn.weight'), hedgingAccount: tr('deploy.dyn.hedging-account'), account: tr('deploy.dyn.account'), capitalUnknown: tr('deploy.dyn.capital-unknown'), markSuggestion: tr('deploy.dyn.mark-suggestion') },
+      },
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const pal = this.getPal();
+    const L = this.buildL();
+    const dark = s.tema !== 'light';
+    const toggleBtnStyle = (active, extra) => ({ background: active ? pal.btnGradient : 'transparent', color: active ? pal.btnText : pal.muted, border: 'none', borderRadius: '7px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', ...extra });
+
+    // header badges
+    const estado = s.estado || {};
+    const badgeMt5Text = this.tr('badge.mt5') + (estado.terminal_aberto ? this.tr('mt5.status-busy') : this.tr('mt5.status-free'));
+    const badgeMt5Bg = estado.terminal_aberto ? pal.noBg : pal.okBg;
+    let statusTxt;
+    if (estado.rodando) statusTxt = (estado.pausando ? this.tr('campaign.status-pausing') : this.tr('campaign.status-running')) + ' (' + (estado.modo || '?') + ')';
+    else if (estado.pausado) statusTxt = this.tr('campaign.status-paused');
+    else statusTxt = this.tr('campaign.status-stopped');
+    const badgeCampanhaText = this.tr('badge.campaign') + statusTxt;
+    const badgeCampanhaBg = estado.rodando ? (estado.pausando ? '#7c4a03' : pal.okBg) : (estado.pausado ? '#4a3a03' : pal.bg3);
+    const p = estado.progresso;
+    const badgeProgresso = p && p.symbol
+      ? { show: true, text: [p.symbol, p.sistema, p.variante, p.estagio, p.rodada ? `rodada ${p.rodada}` : null, p.finalista_atual ? `finalista ${p.finalista_atual}` : null].filter(Boolean).join(' | '), title: 'atualizado ' + (p.atualizado_em || '') }
+      : { show: false, text: '', title: '' };
+
+    const navKeys = [['campanha', L.nav.live], ['configurar', L.nav.setup], ['biblioteca', L.nav.sets], ['portfolios', L.nav.portfolios], ['perfil', L.nav.broker], ['custo', L.nav.nativeCost], ['implantacao', L.nav.implantacao]];
+    const navItems = navKeys.map(([key, label]) => ({
+      key, label, onClick: () => this.setTab(key),
+      style: { background: 'none', border: 'none', borderBottom: s.tab === key ? `2px solid ${pal.accent2}` : '2px solid transparent', color: s.tab === key ? pal.accent2 : pal.muted, padding: '12px 16px', cursor: 'pointer', fontSize: '13.5px', whiteSpace: 'nowrap' },
+    }));
+
+    const familiaLocked = !!(estado.rodando || estado.pausado);
+    const familiaItems = [['MULTI', L.familia.multi], ['BOLLINGER', L.familia.bollinger], ['ICHIMOKU', L.familia.ichimoku]].map(([key, label]) => ({
+      key, label, onClick: () => this.setFamilia(key),
+      style: { ...toggleBtnStyle(s.familia === key), cursor: familiaLocked ? 'not-allowed' : 'pointer', opacity: familiaLocked && s.familia !== key ? .55 : 1, outline: familiaLocked && s.familia === key ? `2px solid ${pal.accent2}` : 'none', outlineOffset: '1px' },
+    }));
+
+    const langOptions = this.I18N ? this.I18N.LANGS.map((l) => ({ code: l.code, label: l.label })) : [{ code: 'en', label: 'English' }];
+
+    // ---- campaign tab ----
+    const status = s.status;
+    const cardsItems = status ? [
+      { label: 'Done', value: status.total_feitos, color: pal.text },
+      { label: 'Approved', value: status.aprovados, color: pal.ok },
+      { label: 'Rejected', value: status.reprovados, color: pal.no },
+      { label: 'In progress', value: status.atual ? 1 : 0, color: pal.accent2 },
+    ] : [];
+    const a = status?.atual;
+    const atualNode = a
+      ? { show: true, showEmpty: false, text: `[${a.posicao}] ${a.simbolo} ${a.sistema} ${a.variante}`, sub: a.estagio || '...', bg: pal.cardGradient }
+      : { show: false, showEmpty: true, text: '', sub: '', bg: pal.cardGradient };
+
+    const q = status?.qualidade || {};
+    const mcMedido = q.mc_pass_rate != null;
+    const mcPct = Number(q.mc_pass_rate ?? 0);
+    const ret = Number(q.retencao_media ?? 0);
+    const narrativa = !mcMedido ? "no Monte Carlo measurement yet — judge by retention alone for now"
+      : (mcPct >= 70 && ret >= 70) ? 'robust: MC and out-of-sample retention are aligned'
+      : mcPct >= 40 ? 'mixed: evidence is acceptable, but there is still robustness noise to clean up'
+      : 'fragile: not enough robustness evidence to run without filtering';
+    const ring = (pct, color) => `conic-gradient(${color} 0% ${pct}%, ${pal.bg3} ${pct}% 100%)`;
+    const qualityMetrics = status ? [
+      mcMedido
+        ? { isDonut: true, isText: false, label: 'MC pass rate', valueLabel: q.mc_pass_rate + '%', sub: `${q.mc_medidos ?? 0}/${status.total_feitos}`, ringStyle: ring(mcPct, pal.accent2) }
+        : { isDonut: false, isText: true, label: 'MC pass rate', valueLabel: 'n/d' },
+      { isDonut: true, isText: false, label: 'Avg retention', valueLabel: (q.retencao_media ?? '-') + '%', sub: `${q.mc_cobertura_pct ?? 0}% coverage`, ringStyle: ring(ret, pal.accent2) },
+      { isDonut: false, isText: true, label: 'Avg real tick profit', valueLabel: fmtN(q.lucro_medio_tick_real) },
+      { isDonut: false, isText: true, label: 'Status', valueLabel: narrativa.split(':')[0] },
+    ] : [];
+    const qualitySummaryText = status ? narrativa : '';
+
+    const porSistema = status?.por_sistema || {};
+    const sistemaBars = Object.entries(porSistema).map(([sistema, v]) => {
+      const pct = v.total ? Math.round((v.aprovados / v.total) * 100) : 0;
+      const barColor = pct >= 70 ? pal.ok : pct >= 40 ? pal.accent2 : pal.no;
+      return { sistema, total: v.total, aprovados: v.aprovados, pct, frac: `${v.aprovados}/${v.total}`, barColor };
+    });
+
+    const diagnosticRows = status ? [
+      { label: 'MC approved in ledger', value: mcMedido ? q.mc_pass_rate + '%' : `n/d (${q.mc_medidos ?? 0} measured)` },
+      { label: 'Average OOS retention', value: (q.retencao_media ?? '-') + '%' },
+      { label: 'Average real tick profit', value: fmtN(q.lucro_medio_tick_real) },
+      { label: 'Interpretation', value: narrativa },
+    ] : [];
+
+    const hm = s.heatmap;
+    const buildGrid = (classes, sistemaCodes) => Object.entries(classes || {}).map(([classe, info]) => ({
+      title: `${classe} (${(info.ativos || Object.keys(info)).length ?? 0})`,
+      rows: (info.ativos || []).map((linha) => ({
+        simbolo: linha.simbolo,
+        cells: sistemaCodes.map((sc) => {
+          const c = linha.celulas[sc] || { status: 'sem_teste' };
+          const color = c.status === 'sem_teste' ? pal.bg3 : c.status === 'reprovado' ? '#8a2c2c' : (c.melhor_retencao >= 70 ? '#1f7a43' : c.melhor_retencao >= 40 ? '#96803a' : '#7a5a30');
+          const title = c.status === 'sem_teste' ? `${sc}: not tested` : `${sc}: ${c.aprovados}/${c.testados} approved — best retention ${c.melhor_retencao != null ? c.melhor_retencao + '%' : 'n/d'}`;
+          return { sistema: sc, color, title };
+        }),
+      })),
+    }));
+    const heatmapGrid = hm ? buildGrid(hm.classes, hm.sistemas || []) : [];
+    const heatmapEmpty = !!hm && heatmapGrid.length === 0;
+
+    const recentesRows = (status?.recentes || []).map((r) => {
+      const chave = `${r.simbolo}|${r.sistema}|${r.variante}|${r.quando}`;
+      const expanded = !!s.expandedRecentes[chave];
+      const mcLine = (r.mc_dd_p95 != null || r.mc_dd_observado != null || r.mc_prob_ruina != null)
+        ? `MC: DD p95 ${fmtN(r.mc_dd_p95)} | DD observado ${fmtN(r.mc_dd_observado)} | prob. ruína ${r.mc_prob_ruina != null ? (r.mc_prob_ruina * 100).toFixed(1) + '%' : '-'}`
+        : 'MC: não medido (fora de Fixed-R ou poucos trades)';
+      return {
+        chave, simbolo: r.simbolo, sistema: r.sistema, variante: r.variante,
+        pillBg: r.aprovado ? pal.okBg : pal.noBg, pillColor: r.aprovado ? pal.ok : pal.no, pillLabel: r.aprovado ? 'approved' : 'rejected',
+        retencao: r.retencao_oos ?? '-', expectancy: r.expectancy_r != null ? r.expectancy_r.toFixed(3) + 'R' : '-',
+        trades: r.trades_oos ?? (r.trades_is != null ? '~' + r.trades_is + ' (IS)' : '-'), minutos: r.minutos ?? '-',
+        expanded, onToggle: () => this.toggleRecenteExpand(chave),
+        lucroOhlc: fmtN(r.lucro_ohlc), lucroTickReal: fmtN(r.lucro_tick_real), retencaoPct: r.retencao_pct != null ? r.retencao_pct + '%' : '-', mcLine,
+      };
+    });
+
+    const msgStopColor = s.msgStopOk === true ? pal.ok : s.msgStopOk === false ? pal.no : pal.muted;
+
+    // ---- setup tab ----
+    const modoManual = s.modo === 'manual';
+    const modoItems = [['auto', L.setup.auto], ['manual', L.setup.manual]].map(([key, label]) => ({
+      key, label, onClick: () => this.setModo(key),
+      style: { flex: 1, padding: '10px', borderRadius: '7px', border: `1px solid ${pal.line}`, background: s.modo === key ? pal.btnGradient : pal.bg3, color: s.modo === key ? pal.btnText : pal.text, cursor: 'pointer', fontSize: '12.5px', fontWeight: 600 },
+    }));
+    const cfg = s.config;
+    const sistemasCheckItems = (cfg?.sistemas || []).map((sy) => ({
+      code: sy.code, label: sy.label, checked: !!s.sistemasSel[sy.code], onToggle: () => this.toggleSistema(sy.code),
+      nota: !sy.capital_aplica ? 'n/a (fixed lot)' : sy.capital_agregado > 0 ? `validated capital: ${sy.capital_agregado.toLocaleString()}` : 'no validated capital yet',
+    }));
+    const classesAtivos = Object.entries(cfg?.classes || {}).sort(([, a], [, b]) => a.capital_base - b.capital_base).map(([classe, info]) => ({
+      classe, titulo: `${classe} (capital base ${info.capital_base})`,
+      onAll: () => this.selectAllAtivosClasse(info.ativos, true), onNone: () => this.selectAllAtivosClasse(info.ativos, false),
+      ativos: info.ativos.map((sym) => ({
+        symbol: sym, checked: !!s.ativosSel[sym], onToggle: () => this.toggleAtivo(sym),
+        title: s.ativosReal[sym] ? `usa ${s.ativosReal[sym]} nesta conta` : '', borderColor: s.ativosReal[sym] ? pal.accent2 : pal.line,
+      })),
+    }));
+    const distintos = s.depositoAuto ? this.capitaisBaseDistintos(s.modo !== 'auto') : [];
+    const depositoDisplay = s.depositoAuto ? (distintos.length === 1 ? String(distintos[0]) : distintos.length > 1 ? `auto por classe (${distintos.join(' / ')})` : '1000') : s.campoDeposito;
+    const msgIniciarColor = s.msgIniciarOk === true ? pal.ok : s.msgIniciarOk === false ? pal.no : pal.muted;
+    const msgRegenerarColor = s.msgRegenerarOk === true ? pal.ok : s.msgRegenerarOk === false ? pal.no : pal.muted;
+
+    // ---- portfolios tab ----
+    const pf = s.portfolios;
+    const portfolioMapGrid = pf?.mapa ? buildGrid(Object.fromEntries(Object.entries(pf.mapa.classes).map(([classe, ativos]) => [classe, { ativos: Object.entries(ativos).map(([simbolo, porSis]) => ({ simbolo, celulas: Object.fromEntries((cfg?.sistemas || []).map((sy) => [sy.code, porSis[sy.code]?.length ? { status: 'aprovado', melhor_retencao: 100, aprovados: 1, testados: 1 } : { status: 'sem_teste' }])) })) }])), (cfg?.sistemas || []).map((sy) => sy.code)) : [];
+    const portfolioMapSummary = pf?.mapa ? `Atualizado: ${pf.mapa.atualizado_em} | prontos: ${pf.mapa.prontos} de ${pf.mapa.templates} templates.` : '';
+    const portfolioSystemTabs = Object.keys(pf?.sistemas || {}).map((nome) => ({ nome, onClick: () => this.selecionarPortfolio(nome), style: { background: 'none', border: 'none', color: s.portfolioSel === nome ? pal.btnText : pal.muted, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', backgroundColor: s.portfolioSel === nome ? undefined : pal.bg3, background: s.portfolioSel === nome ? pal.btnGradient : pal.bg3 } }));
+    const portfolioSystemNode = (pf?.sistemas && s.portfolioSel && pf.sistemas[s.portfolioSel]) ? React.createElement('div', { dangerouslySetInnerHTML: { __html: pf.sistemas[s.portfolioSel] } }) : null;
+    const capitalVal = pf?.capital_por_sistema?.[s.portfolioSel];
+    const portfolioCapitalBadge = capitalVal ? { show: true, value: Number(capitalVal).toLocaleString() } : { show: false, value: '' };
+    const portfolioGeneratedTabs = (pf?.gerados || []).map((g) => ({ nome: g.nome, onClick: () => this.selecionarGerado(g.url), style: { background: s.portfolioGeradoSel === g.url ? pal.btnGradient : pal.bg3, border: 'none', color: s.portfolioGeradoSel === g.url ? pal.btnText : pal.muted, padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' } }));
+    const portfolioIframeShow = !!s.portfolioGeradoSel;
+    const msgPortfolioColor = s.msgPortfolioOk === true ? pal.ok : s.msgPortfolioOk === false ? pal.no : pal.muted;
+
+    // ---- perfil tab ----
+    const perfilSistemasItems = (cfg?.sistemas || []).map((sy) => ({ code: sy.code, checked: !!s.perfilSistemasSel[sy.code], onToggle: () => this.togglePerfilSistema(sy.code) }));
+    const ultimaSyncText = s.perfil?.ultima_sincronizacao ? JSON.stringify(s.perfil.ultima_sincronizacao, null, 2) : 'nenhuma ainda';
+    const msgPerfilColor = s.msgPerfilOk === true ? pal.ok : s.msgPerfilOk === false ? pal.no : pal.muted;
+
+    // ---- custo tab ----
+    const custoRows = Object.entries(s.custo || {}).map(([symbol, c]) => ({ symbol, comissao: c.comissao_por_lote.toFixed(4), swap: c.swap_por_lote.toFixed(4), entradas: c.entradas ?? '-', volume: c.volume_lotes != null ? c.volume_lotes.toFixed(2) : '-', periodo: c.periodo ?? '-', quando: c.quando }));
+    const msgCustoColor = s.msgCustoOk === true ? pal.ok : s.msgCustoOk === false ? pal.no : pal.muted;
+
+    // ---- implantacao tab ----
+    const EM_PROVA_ROTULO = { SEM_BASELINE: 'no R baseline', EM_PROVA: 'on trial', DENTRO_DA_FAIXA: 'within band', REBAIXAR: 'demote', PROMOVER: 'promote' };
+    const implantacaoRows = (s.implantacao?.sets || []).map((it) => {
+      const lucroCompleto = it.sobrevivencia_medida && it.sobrevivencia_saldo_final != null ? it.sobrevivencia_saldo_final.toFixed(2) : (it.sobrevivencia_medida ? 'n/d' : 'not measured (non-grid)');
+      const ep = s.emProva[it.chave];
+      const emProvaLabel = it.implantado ? (ep ? (EM_PROVA_ROTULO[ep.status] || ep.status) : '…') : '-';
+      const emProvaTone = ep && (ep.status === 'PROMOVER' || ep.status === 'DENTRO_DA_FAIXA') ? 'ok' : ep && ep.status === 'REBAIXAR' ? 'no' : 'neutral';
+      return {
+        chave: it.chave, simbolo: it.simbolo, sistema: it.sistema, variante: it.variante, retencao: it.retencao != null ? it.retencao + '%' : '-',
+        lucroCompleto, lucroOos: it.lucro_oos != null ? it.lucro_oos.toFixed(2) : '-',
+        certBg: it.certificado ? pal.okBg : pal.noBg, certColor: it.certificado ? pal.ok : pal.no, certLabel: it.certificado ? 'certified' : 'no report archived',
+        deployBg: it.implantado ? pal.okBg : pal.noBg, deployColor: it.implantado ? pal.ok : pal.no, deployLabel: it.implantado ? 'deployed' : 'not deployed',
+        selecionado: !!s.implantacaoSel[it.chave], selDisabled: !it.certificado, onToggleSel: () => this.toggleImplantacaoSel(it.chave),
+        implantado: it.implantado, implDisabled: !it.certificado, onToggleDeployed: (e) => this.marcarDeployed(it.chave, e.target.checked),
+        showChart: it.certificado, onToggleChart: () => this.toggleImplantacaoExpand(it.chave), expanded: !!s.implantacaoExpandida[it.chave],
+        legendaGrafico: it.sobrevivencia_grafico ? 'Full-period equity curve (the one the survival gate actually measured).' : 'OOS window equity curve (tick-real confirmation pass).',
+        emProvaLabel, emProvaBg: emProvaTone === 'ok' ? pal.okBg : emProvaTone === 'no' ? pal.noBg : pal.bg3, emProvaColor: emProvaTone === 'ok' ? pal.ok : emProvaTone === 'no' ? pal.no : pal.muted,
+        onDelete: () => this.deletarImplantacao(it.chave),
+        resumoLoading: !!s.implantacaoExpandida[it.chave] && !s.resumoImplantacao[it.chave],
+        resumoErro: s.resumoImplantacao[it.chave]?.erro || null,
+        resumoLinhas: (() => {
+          const m = s.resumoImplantacao[it.chave];
+          if (!m || m.erro) return [];
+          return [
+            { rot: 'Profit factor', val: fmtN(m.profit_factor, 2) },
+            { rot: 'Recovery factor', val: fmtN(m.recovery_factor, 2) },
+            { rot: 'Sharpe ratio', val: fmtN(m.sharpe_ratio, 2) },
+            { rot: 'Balance DD (rel.)', val: m.balance_dd_relative ?? '-' },
+            { rot: 'Max consecutive wins', val: m.max_consecutive_wins ?? '-' },
+            { rot: 'Max consecutive losses', val: m.max_consecutive_losses ?? '-' },
+          ];
+        })(),
+      };
+    });
+    const implantacaoEmpty = !!s.implantacao && implantacaoRows.length === 0;
+    const msgImplantacaoColor = s.msgImplantacaoOk === true ? pal.ok : s.msgImplantacaoOk === false ? pal.no : pal.muted;
+
+    const fila = s.sugestoesFila;
+    const sugestaoEmpty = fila.length === 0;
+    let sugestaoMotivo = '';
+    if (sugestaoEmpty) {
+      sugestaoMotivo = s.ultimoPool === 0 ? this.tr('deploy.dyn.no-pool') : s.ultimoComSerie === 0 ? this.tr('deploy.dyn.no-parseable', { pool: s.ultimoPool }) : this.tr('deploy.dyn.no-bar', { serie: s.ultimoComSerie });
+    }
+    const cursor = Math.min(s.sugestaoCursor, fila.length - 1);
+    const atual = fila[cursor];
+    const sugestaoContas = atual ? atual.contas.map((c) => {
+      const capital = c.capital_minimo != null ? `$${c.capital_minimo.toFixed(0)}` : L.deploy.dyn.capitalUnknown;
+      const tipo = c.tipo === 'hedging' ? L.deploy.dyn.hedgingAccount : L.deploy.dyn.account;
+      return { text: `${tipo} (piso de capital ${capital}): ${c.combos.length} combo(s)` };
+    }) : [];
+    const sugestaoCombos = atual ? atual.combos.map((c) => ({ text: `${c.simbolo} / ${c.sistema} / ${c.variante} — ${L.deploy.dyn.weight} ${(c.peso * 100).toFixed(1)}%` })) : [];
+    const msgSugestoesColor = pal.muted;
+
+    return {
+      pal, L, offline: s.offline, tab: s.tab,
+      tabCampanha: s.tab === 'campanha', tabConfigurar: s.tab === 'configurar', tabBiblioteca: s.tab === 'biblioteca', tabPortfolios: s.tab === 'portfolios', tabPerfil: s.tab === 'perfil', tabCusto: s.tab === 'custo', tabImplantacao: s.tab === 'implantacao',
+      navItems, familiaItems, familiaLocked, langOptions, locale: s.locale, onChangeLocale: (e) => this.onChangeLocale(e),
+      showInstall: s.showInstall, onClickInstall: () => this.clickInstall(),
+      badgeMt5Text, badgeMt5Bg, badgeCampanhaText, badgeCampanhaBg, badgeProgresso,
+      cardsItems, atualNode, qualityMetrics, qualitySummaryText, sistemaBars, sistemaBarsEmpty: !!status && sistemaBars.length === 0,
+      heatmapGrid, heatmapEmpty, diagnosticRows, recentesRows,
+      msgStop: s.msgStop, msgStopColor,
+      btnStopDisabled: !estado.rodando, btnStopOpacity: !estado.rodando ? .5 : 1,
+      btnPausarShow: !!estado.rodando, btnPausarDisabled: !!estado.pausando, btnRetomarShow: !!estado.pausado,
+      onClickStop: () => this.clickStop(), onClickPausar: () => this.clickPausar(), onClickRetomar: () => this.clickRetomar(),
+
+      modoItems, modoManual, sistemasCheckItems, onSelectAllSistemas: () => this.selectAllSistemas(), onClearSistemas: () => this.clearSistemas(),
+      classesAtivos, onSelectAllAtivos: () => this.selectAllAtivos(), onClearAtivos: () => this.clearAtivos(),
+      onClickDetectar: () => this.clickDetectar(), msgDetectar: s.msgDetectar,
+      depositoAutoChecked: s.depositoAuto, onToggleDepositoAuto: () => this.toggleDepositoAuto(), depositoDisabled: s.depositoAuto, depositoDisplay,
+      onChangeDeposito: (e) => this.setState({ campoDeposito: e.target.value }),
+      campoInicio: s.campoInicio, onChangeCampoInicio: (e) => this.setState({ campoInicio: e.target.value }),
+      campoFim: s.campoFim, onChangeCampoFim: (e) => this.setState({ campoFim: e.target.value }),
+      campoRetencao: s.campoRetencao, onChangeCampoRetencao: (e) => this.setState({ campoRetencao: e.target.value }),
+      onClickIniciar: () => this.clickIniciar(), msgIniciar: s.msgIniciar, msgIniciarColor,
+      showAutoModal: s.showAutoModal, autoModalDontAsk: s.autoModalDontAsk, onToggleAutoModalDontAsk: () => this.setState((st) => ({ autoModalDontAsk: !st.autoModalDontAsk })),
+      onConfirmAutoModal: () => this.confirmarAutoModal(), onPreferManual: () => this.setState({ showAutoModal: false, modo: 'manual' }),
+
+      bibliotecaText: s.biblioteca?.manifesto ? `${s.biblioteca.manifesto.total_sets} sets | gerado em ${s.biblioteca.manifesto.gerado_em}` : (this.I18N ? L.library.loading : ''),
+      onClickRegenerar: () => this.clickRegenerar(), msgRegenerar: s.msgRegenerar, msgRegenerarColor,
+
+      portfolioMapSummary, portfolioMapGrid, portfolioSystemTabs, portfolioSystemNode, portfolioCapitalBadge,
+      portfolioPasta: s.portfolioPasta, onChangePortfolioPasta: (e) => this.setState({ portfolioPasta: e.target.value }),
+      onClickGerarPortfolio: () => this.clickGerarPortfolio(), msgPortfolio: s.msgPortfolio, msgPortfolioColor,
+      portfolioGeneratedTabs, portfolioIframeShow, portfolioIframeUrl: s.portfolioGeradoSel, portfolioIframeMsgShow: !portfolioIframeShow,
+
+      perfilAtivos: s.perfilAtivos, onChangePerfilAtivos: (e) => this.setState({ perfilAtivos: e.target.value }),
+      perfilSistemasItems, perfilRisco: s.perfilRisco, onChangePerfilRisco: (e) => this.setState({ perfilRisco: e.target.value }),
+      perfilLote: s.perfilLote, onChangePerfilLote: (e) => this.setState({ perfilLote: e.target.value }),
+      perfilWfoFim: s.perfilWfoFim, onChangePerfilWfoFim: (e) => this.setState({ perfilWfoFim: e.target.value }),
+      onClickPerfilDry: () => this.sincronizarPerfil(true), onClickPerfilAplicar: () => this.sincronizarPerfil(false),
+      msgPerfil: s.msgPerfil, msgPerfilColor, saidaPerfil: s.saidaPerfil, ultimaSyncText,
+
+      custoRows, custoSimbolo: s.custoSimbolo, onChangeCustoSimbolo: (e) => this.setState({ custoSimbolo: e.target.value }),
+      onClickMedirCusto: () => this.clickMedirCusto(), msgCusto: s.msgCusto, msgCustoColor,
+
+      implantacaoRows, implantacaoEmpty, onSelectAllImplantacao: () => this.selectAllImplantacao(), onClearImplantacao: () => this.clearImplantacao(),
+      onClickExportarImplantacao: () => this.clickExportarImplantacao(), msgImplantacao: s.msgImplantacao, msgImplantacaoColor,
+      sugestoesSaldo: s.sugestoesSaldo, onChangeSugestoesSaldo: (e) => this.setState({ sugestoesSaldo: e.target.value }),
+      onClickRecalcularSugestoes: () => this.carregarSugestoes(),
+      sugestaoEmpty, sugestaoTemDados: !sugestaoEmpty, sugestaoMotivo, sugestaoNumero: atual?.numero,
+      sugestaoContasLabel: atual ? this.tr('deploy.dyn.accounts-needed', { n: atual.contas.length }) : '', sugestaoContas, sugestaoCombos,
+      onMarcarSugestao: () => this.marcarSugestaoAtual(),
+      onPrevSugestao: () => this.anteriorSugestao(), onNextSugestao: () => this.proximaSugestao(), prevDisabled: cursor <= 0, nextDisabled: cursor >= fila.length - 1,
+      sugestaoPosicaoText: fila.length ? `${cursor + 1} / ${fila.length}` : '',
+      onMarcarTudoDeployed: () => this.marcarTudoDeployed(), onDesmarcarTudoDeployed: () => this.desmarcarTudoDeployed(),
+      msgSugestoes: s.msgSugestoes, msgSugestoesColor,
+    };
+  }
+}
+
+// PWA installability depende de um service worker registrado (nao so do
+// beforeinstallprompt) -- sem isto o botao "Install app" nunca chega a
+// aparecer em Chrome/Edge. sw.js e um no-op de proposito (ver seu topo):
+// so existe pra passar esse criterio, os dados aqui sao sempre ao vivo.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
+}
+
+</script>
 </body>
 </html>
