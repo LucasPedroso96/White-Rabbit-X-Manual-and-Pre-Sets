@@ -205,7 +205,16 @@ def main() -> None:
         ac = CLASSES[class_code]
         for asset in assets:
             for system in SYSTEMS:
-                for side in (("BOTH",) if system.code in BILATERAL
+                # ADITIVO, nao substitutivo -- espelha generate_system_sets.py
+                # (mesma mudanca, "Modo Economico", 2026-09-07): todo sistema
+                # em BILATERAL ganha "BOTH" JUNTO com BUY/SELL separados,
+                # nunca no lugar deles. Achado ao auditar a biblioteca depois
+                # da regeneracao (dono, 2026-09-07): esta linha ainda tinha a
+                # semantica antiga (BOTH SUBSTITUI, de quando BILATERAL era
+                # so um sistema removido) -- com BILATERAL agora cobrindo os
+                # 11 sistemas, gerava SO BOTH pra tudo, zero BUY_BOLLINGER/
+                # SELL_BOLLINGER na biblioteca inteira.
+                for side in (("BUY", "SELL", "BOTH") if system.code in BILATERAL
                              else ("BUY", "SELL")):
                     name = f"WRX {system.code} {asset} {side} {variant}"
                     magic = magic_estavel(
