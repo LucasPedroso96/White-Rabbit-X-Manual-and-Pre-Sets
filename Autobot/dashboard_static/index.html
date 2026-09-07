@@ -1160,11 +1160,21 @@ class Component extends DCLogic {
     const qualitySummaryText = status ? narrativa : '';
 
     const porSistema = status?.por_sistema || {};
-    const sistemaBars = Object.entries(porSistema).map(([sistema, v]) => {
-      const pct = v.total ? Math.round((v.aprovados / v.total) * 100) : 0;
-      const barColor = pct >= 70 ? pal.ok : pct >= 40 ? pal.accent2 : pal.no;
-      return { sistema, total: v.total, aprovados: v.aprovados, pct, frac: `${v.aprovados}/${v.total}`, barColor };
-    });
+    // Object.entries segue a ordem de insercao do JSON, que por sua vez
+    // segue a ordem em que os combos foram gravados no ledger -- ou seja, a
+    // ordem de EXECUCAO da campanha (campanha.SISTEMAS agrupa grid primeiro:
+    // 07, 12, 09, 10, 11), nao a ordem numerica dos codigos. Sem ordenar
+    // aqui a lista pula na tela (07 -> 12 -> 09...) e parece bugada (achado
+    // do dono, 2026-09-07: "a ordem ainda ta errada, nao temos sistema 8" --
+    // o 8 realmente nao existe [retirado, ver generate_system_sets.py], mas
+    // o 12 fora de ordem era o problema de verdade).
+    const sistemaBars = Object.entries(porSistema)
+      .sort(([a], [b]) => (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0))
+      .map(([sistema, v]) => {
+        const pct = v.total ? Math.round((v.aprovados / v.total) * 100) : 0;
+        const barColor = pct >= 70 ? pal.ok : pct >= 40 ? pal.accent2 : pal.no;
+        return { sistema, total: v.total, aprovados: v.aprovados, pct, frac: `${v.aprovados}/${v.total}`, barColor };
+      });
 
     const diagnosticRows = status ? [
       { label: 'MC approved in ledger', value: mcMedido ? q.mc_pass_rate + '%' : `n/d (${q.mc_medidos ?? 0} measured)` },
