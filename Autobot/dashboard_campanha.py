@@ -1144,6 +1144,57 @@ def implantacao_marcar(body: dict) -> JSONResponse:
     return JSONResponse({"ok": True, "implantados": sorted(atuais)})
 
 
+def _origem_do_set(chave: str) -> Path | None:
+    """Acha o VALIDADO_*.set (raiz do Tester) dono da `chave` -- mesmo
+    calculo de chave que _sets_certificados() usa, pra garantir que o
+    arquivo apagado e exatamente o que a linha da tabela representa."""
+    for origem in ready_library.TESTER.glob("VALIDADO_*.set"):
+        info = ready_library.analisar_nome(origem.name)
+        if info is None:
+            continue
+        if f"{info['simbolo']}__{info['sistema']}__{info['variante']}" == chave:
+            return origem
+    return None
+
+
+@app.post("/api/implantacao/deletar")
+def implantacao_deletar(body: dict) -> JSONResponse:
+    """Remove um set ENTREGUE (VALIDADO_*.set) da raiz do Tester -- pra
+    limpar combos que nunca passaram do "sem certificado" (achado do dono,
+    2026-09-07: sets orfaos de corridas antigas ficavam empacando a lista
+    de implantacao pra sempre, sem jeito de tirar de la fora de mexer na
+    pasta na mao). Tambem apaga o relatorio arquivado (se certificado) e a
+    marca de implantado (se tiver) -- NUNCA mexe no ledger
+    (campanha_resultados.jsonl): so a ENTREGA some, o historico de
+    pesquisa que levou ate ali continua existindo."""
+    chaves = set(body.get("chaves") or [])
+    if not chaves:
+        return JSONResponse({"ok": False, "erro": "nenhum set selecionado"},
+                            status_code=400)
+    metricas = ready_library.metricas_do_ledger(LEDGER)
+    removidos = []
+    nao_encontrados = []
+    for chave in chaves:
+        origem = _origem_do_set(chave)
+        if origem is None:
+            nao_encontrados.append(chave)
+            continue
+        info = ready_library.analisar_nome(origem.name)
+        reg = metricas.get(
+            (info["simbolo"], info["sistema"], info["variante"]), {})
+        relatorio_dir = reg.get("relatorio_dir")
+        origem.unlink(missing_ok=True)
+        if relatorio_dir and (RELATORIOS_DIR / relatorio_dir).is_dir():
+            shutil.rmtree(RELATORIOS_DIR / relatorio_dir, ignore_errors=True)
+        removidos.append(chave)
+    if removidos:
+        atuais = _carregar_implantados()
+        atuais -= set(removidos)
+        _salvar_implantados(atuais)
+    return JSONResponse({"ok": bool(removidos), "removidos": removidos,
+                         "nao_encontrados": nao_encontrados})
+
+
 @app.post("/api/implantacao/exportar")
 def implantacao_exportar(body: dict):
     """Zip so com o `.set` real (sem ＊, e so marcador de exibicao no

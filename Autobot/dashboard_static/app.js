@@ -2321,7 +2321,26 @@ async function carregarResumoRelatorio(dir, nome, elId) {
 }
 
 const implantacaoExpandida = new Set();
-document.querySelector("#tbl-implantacao").addEventListener("click", (ev) => {
+document.querySelector("#tbl-implantacao").addEventListener("click", async (ev) => {
+  const btnDel = ev.target.closest("button[data-deletar]");
+  if (btnDel) {
+    const chave = btnDel.dataset.deletar;
+    // Confirmacao dupla de proposito (achado do dono, 2026-09-07): isto
+    // apaga o VALIDADO_*.set da raiz do Tester -- pra um set CERTIFICADO
+    // (relatorio arquivado), tambem apaga o relatorio junto. Nao mexe no
+    // ledger (campanha_resultados.jsonl): so a ENTREGA some, o historico
+    // de pesquisa que levou ate ali continua existindo.
+    if (!confirm(`Delete ${chave}? This removes the delivered .set (and its archived report, if certified). This cannot be undone from here.`)) return;
+    btnDel.disabled = true;
+    const r = await post("/api/implantacao/deletar", { chaves: [chave] });
+    if (r.ok) {
+      carregarImplantacao();
+    } else {
+      btnDel.disabled = false;
+      alert(r.erro || "delete failed");
+    }
+    return;
+  }
   const btn = ev.target.closest("button[data-grafico]");
   if (!btn) return;
   const chave = btn.dataset.grafico;
@@ -2366,6 +2385,7 @@ async function carregarImplantacao() {
         ? `<button class="acao secundario" style="padding:2px 8px;font-size:11px" data-grafico="${s.chave}">chart</button>`
         : ""}</td>
       <td class="em-prova-cell" data-chave="${s.chave}">${s.implantado ? "…" : "-"}</td>
+      <td><button class="acao perigo" style="padding:2px 8px;font-size:11px" data-deletar="${s.chave}">delete</button></td>
     </tr>`;
     // Grid/martingale/dalembert passam pelo gate de sobrevivencia (periodo
     // completo, sem WFO) e tem sobrevivencia.*; sistemas fora disso (trail,
@@ -2380,7 +2400,7 @@ async function carregarImplantacao() {
       ? "Full-period equity curve (the one the survival gate actually measured — not the short OOS window):"
       : "OOS window equity curve (tick-real confirmation pass — this system has native per-position SL, so it doesn't run the full-period survival gate; this is NOT the full-period result):";
     const linhaGrafico = s.certificado ? `
-    <tr id="${idGraf}" class="linha-detalhe ${oculta}"><td colspan="11">
+    <tr id="${idGraf}" class="linha-detalhe ${oculta}"><td colspan="12">
       <div id="resumo-${idGraf}" class="detalhe-grid"><span class="status-msg">loading summary...</span></div>
       <div class="detalhe-grid" style="margin-top:8px">
         <span>${legendaGrafico}</span>
