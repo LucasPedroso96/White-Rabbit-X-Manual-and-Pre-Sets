@@ -108,7 +108,7 @@ _pid_vivo_original = painel._pid_vivo
 _terminal_aberto_original = painel.terminal_aberto
 painel._pid_vivo = lambda pid: False  # processo sempre "morto" -- controla
                                        # so via _processo/LOCK no teste
-painel.terminal_aberto = lambda: False
+painel.terminal_aberto = lambda *a, **k: False
 
 try:
     # --- nunca rodou: tudo parado, nada pausado -----------------------------

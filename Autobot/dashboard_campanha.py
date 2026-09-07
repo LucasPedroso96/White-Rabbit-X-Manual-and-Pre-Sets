@@ -17,7 +17,7 @@ Duas categorias de acao, por causa do tempo que cada uma leva:
              `GET /api/jobs/{id}` ate `status` virar "feito"/"erro".
 
 GUARDA-CORPO: nenhuma acao que toca o MT5 roda se outra ja estiver em
-andamento -- `mt5_runner.terminal_aberto()` e a fonte da verdade (nao um
+andamento -- `mt5_runner.terminal_aberto(base.TERMINAL)` e a fonte da verdade (nao um
 lockfile proprio, que poderia mentir se algo travou fora do painel).
 
 Uso:
@@ -473,7 +473,7 @@ def estado_campanha() -> dict:
     # os combos sozinha (LOCK so e apagado pelo Stop, nunca ao concluir).
     pausado = (not vivo and LOCK.exists() and bool(progresso)
               and progresso.get("estagio") == "pausado")
-    return {"rodando": vivo, "terminal_aberto": terminal_aberto(),
+    return {"rodando": vivo, "terminal_aberto": terminal_aberto(base.TERMINAL),
            "progresso": progresso if vivo else None,
            "pausando": vivo and base.PAUSA.exists(),
            "pausado": pausado,
@@ -502,7 +502,7 @@ def campanha_start(body: dict) -> JSONResponse:
             return JSONResponse(
                 {"ok": False, "erro": "ja ha uma corrida rodando"}, status_code=409
             )
-        if terminal_aberto():
+        if terminal_aberto(base.TERMINAL):
             return JSONResponse(
                 {"ok": False, "erro": "MT5 ocupado por outra acao -- espere terminar"},
                 status_code=409,
@@ -628,7 +628,7 @@ def campanha_stop() -> JSONResponse:
     # optimize_two_stage.py (neto) e quem de fato abre o terminal64.exe a
     # cada combo. `Popen.terminate()` mata so o pai e deixa o neto (e o
     # terminal dele) orfaos rodando -- confirmado na pratica: apos um Stop,
-    # `terminal_aberto()` continuava True com um PID novo, de um combo que
+    # `terminal_aberto(base.TERMINAL)` continuava True com um PID novo, de um combo que
     # campanha.py ja tinha avancado antes do sinal chegar. "/T" no taskkill
     # mata a arvore inteira de uma vez, fechando essa janela de corrida.
     pid = None
@@ -702,7 +702,7 @@ def campanha_retomar() -> JSONResponse:
             status_code=409,
         )
     try:
-        if terminal_aberto():
+        if terminal_aberto(base.TERMINAL):
             return JSONResponse(
                 {"ok": False, "erro": "MT5 ocupado por outra acao -- espere terminar"},
                 status_code=409,
@@ -740,7 +740,7 @@ def campanha_retomar() -> JSONResponse:
 
 @app.post("/api/ativos/detectar")
 def ativos_detectar() -> JSONResponse:
-    if estado_campanha()["rodando"] or terminal_aberto():
+    if estado_campanha()["rodando"] or terminal_aberto(base.TERMINAL):
         return JSONResponse(
             {"ok": False, "erro": "MT5 ocupado -- pare a corrida atual primeiro"},
             status_code=409,
@@ -786,13 +786,13 @@ def biblioteca(familia: str = "MULTI") -> JSONResponse:
 
 @app.post("/api/biblioteca/regenerar")
 def biblioteca_regenerar(body: dict | None = None) -> JSONResponse:
-    # terminal_aberto() e a checagem que importa de verdade: uma corrida
+    # terminal_aberto(base.TERMINAL) e a checagem que importa de verdade: uma corrida
     # iniciada FORA do painel (por CLI, como aconteceu na pratica) nao
     # aparece em estado_campanha()["rodando"] (isso so ve o que o proprio
     # painel lancou) -- confirmado num teste real: sem esta linha, uma
     # regeneracao concorrente corrompeu a biblioteca (3738 -> 2920 sets)
     # enquanto uma campanha rodando por fora ainda lia os templates.
-    if estado_campanha()["rodando"] or terminal_aberto():
+    if estado_campanha()["rodando"] or terminal_aberto(base.TERMINAL):
         return JSONResponse(
             {
                 "ok": False,
@@ -1259,7 +1259,7 @@ def perfil() -> JSONResponse:
 @app.post("/api/perfil/sincronizar")
 def perfil_sincronizar(body: dict) -> JSONResponse:
     dry_run = bool(body.get("dry_run", True))
-    if not dry_run and (estado_campanha()["rodando"] or terminal_aberto()):
+    if not dry_run and (estado_campanha()["rodando"] or terminal_aberto(base.TERMINAL)):
         return JSONResponse(
             {"ok": False, "erro": "MT5 ocupado -- so dry-run agora"}, status_code=409
         )
@@ -1296,7 +1296,7 @@ def custo_nativo_medir(body: dict) -> JSONResponse:
         return JSONResponse(
             {"ok": False, "erro": "informe o simbolo nativo"}, status_code=400
         )
-    if estado_campanha()["rodando"] or terminal_aberto():
+    if estado_campanha()["rodando"] or terminal_aberto(base.TERMINAL):
         return JSONResponse(
             {"ok": False, "erro": "MT5 ocupado -- pare a corrida atual primeiro"},
             status_code=409,
