@@ -63,6 +63,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 import optimize_sets as base
+import campeoes_arquivo
 import ready_library
 import relatorio_resumo
 import auto_manager_live
@@ -364,6 +365,16 @@ def config(familia: str = "MULTI") -> JSONResponse:
     # numerada em que os sistemas ja sao declarados.
     sistemas.sort(key=lambda s: (0 if s["capital_agregado"] > 0 else 1,
                                   -s["capital_agregado"], s["code"]))
+    # numero_exibicao (dono, 2026-09-07: "ainda nao existe sistema 8!"): so
+    # cosmetico -- sequencial 1..N na ordem ja decidida acima, nunca troca
+    # `code` (que continua "01_SLTP".."12_GRID_INVERSO", o identificador real
+    # usado em toggleSistema()/achar_set()/nomes de arquivo). O buraco no 08
+    # e historico de proposito (08_GRID_UNIFIED foi removido, ver comentario
+    # em generate_system_sets.py) -- renumerar o codigo de verdade invalidaria
+    # templates/VALIDADO_/ledger/memoria que ja usam 09/10/11/12. Isto so
+    # tira o "buraco" que aparece NA TELA.
+    for i, s in enumerate(sistemas, start=1):
+        s["numero_exibicao"] = i
     classes = {
         codigo: {"capital_base": CLASSES[codigo].capital_base, "ativos": ativos}
         for codigo, ativos in ASSETS.items()
@@ -532,6 +543,11 @@ def _lancar_campanha(body: dict) -> JSONResponse:
         "--familia",
         body.get("familia", "MULTI"),
     ]
+    # Modo Economico (dono, 2026-09-07): compra+venda juntos (Hedge) em vez
+    # de BUY/SELL separados, pros sistemas em campanha.BILATERAL -- ver
+    # campanha.variantes()/fila(). Default False preserva o fluxo de sempre.
+    if body.get("modo_economico"):
+        cmd += ["--modo-economico"]
     # --deposit so vai explicito se o chamador mandou um numero de verdade
     # -- sem isso, cai no default do proprio campanha.py (None = automatico,
     # resolve o capital minimo pela CLASSE de CADA simbolo). Achado do dono,
@@ -1183,6 +1199,18 @@ def implantacao_deletar(body: dict) -> JSONResponse:
         reg = metricas.get(
             (info["simbolo"], info["sistema"], info["variante"]), {})
         relatorio_dir = reg.get("relatorio_dir")
+        # Arquiva ANTES de apagar (mesmo principio de todo outro caminho que
+        # toca um VALIDADO_ real, ver campeoes_arquivo.py) -- achado ao vivo,
+        # 2026-09-07: um reset do ledger (campanha_resultados.jsonl) fez 3
+        # campeoes REAIS aparecerem como "sem certificado" nesta mesma lista
+        # (metricas_do_ledger() ficou vazia), e este endpoint os apagou sem
+        # nenhuma copia de seguranca -- 1 dos 3 (XAUUSD/11_SIGNAL_ONLY) nao
+        # tinha versao arquivada antes e nao foi recuperavel. "Sem
+        # certificado no ledger" nao e o mesmo que "sem valor": o ledger
+        # pode ficar vazio por outros motivos (reset, corrupcao, migracao)
+        # sem que o campeao deixe de ser real.
+        campeoes_arquivo.arquivar_campeao_anterior(
+            info["sistema"], info["simbolo"], info["variante"], origem)
         origem.unlink(missing_ok=True)
         if relatorio_dir and (RELATORIOS_DIR / relatorio_dir).is_dir():
             shutil.rmtree(RELATORIOS_DIR / relatorio_dir, ignore_errors=True)

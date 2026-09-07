@@ -33,9 +33,12 @@
 }
 :root[data-familia="ichimoku"] {
   /* Levain "ocean": --primary-color #006994, --accent-color #00a8cc,
-     --dark-color #001e2b, --dark-card #003045, --muted-text #87ceeb. */
+     --dark-color #001e2b, --dark-card #003045, --muted-text #87ceeb.
+     --accent-2 escurecido de #00a8cc pra #0086a3 (dono, 2026-09-07: "azul
+     mais claro do tema" cansava a vista na aba ativa) -- so este tom, o
+     resto da paleta "ocean" continua identico ao Levain. */
   --bg: #001e2b; --bg2: #00283a; --bg3: #003045;
-  --line: #006994; --accent: #006994; --accent-2: #00a8cc;
+  --line: #006994; --accent: #006994; --accent-2: #0086a3;
   --title-gold: #87ceeb;
   --header-bg: rgba(0, 30, 43, 0.9); --nav-bg: rgba(0, 30, 43, 0.72);
   --card-top: #003045; --card-bottom: #001e2b;

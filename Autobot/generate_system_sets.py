@@ -715,11 +715,27 @@ SYSTEMS: list[System] = [
 ]
 
 # Sistemas cuja gestao atravessa compra e venda, entao o set liga os dois lados
-# num arquivo unico ("BOTH") em vez de um por lado. Vazio de proposito desde
-# a remocao do 08_GRID_UNIFIED (2026-08-16) -- era o unico membro. Mantido
+# num arquivo unico ("BOTH") em vez de um por lado. Ficou vazio desde a
+# remocao do 08_GRID_UNIFIED (2026-08-16) -- era o unico membro -- e mantido
 # como mecanismo (nao apagado) porque um sistema bilateral futuro so
 # precisaria entrar aqui de novo, sem reescrever quem consome este set.
-BILATERAL: set[str] = set()
+#
+# ATIVADO DE NOVO em 2026-09-07 ("Modo Economico", pedido do dono): todos os
+# 11 sistemas do roster ganham a variante "BOTH" -- compra e venda na MESMA
+# conta/certificado em vez de dois arquivos/campanhas separados (dai
+# "economico": metade do trabalho de calibracao por sistema). `Hedging` fica
+# OPTIMIZAVEL nesse modo (set_exposure(), "BOTH") -- o genetico decide se
+# manter os dois lados abertos ao mesmo tempo rende mais do que a dinamica
+# de conta netting, exatamente como o dono descreveu em 2026-07-31 ("otimizar
+# o hedge"). Nao contorna nenhum gate existente: sobrevivencia, holdout longo
+# + WFA e Monte Carlo continuam rodando igual, e reprovam um "BOTH" ruim como
+# reprovariam qualquer outro candidato -- so adiciona mais um regime pro
+# genetico explorar. Gap conhecido, registrado como pendencia separada (nao
+# bloqueia isto): portfolio_builder.ler_html() (usado por monte_carlo_wrx.py)
+# nao guarda a coluna de direcao, entao um relatorio BOTH nao permite
+# atribuir risco por lado depois -- os numeros agregados de MC continuam
+# validos, so a quebra por direcao que fica indisponivel.
+BILATERAL: set[str] = {s.code for s in SYSTEMS}
 
 
 def apply_sizing_and_formula(p: Profile, system: str, ac: AssetClass) -> None:
@@ -1247,10 +1263,16 @@ def main() -> None:
         ac = CLASSES[class_code]
         for asset in assets:
             for system in SYSTEMS:
-                # Sistema bilateral gera UM arquivo em vez de BUY e SELL: com os
-                # dois lados ligados, os dois arquivos seriam identicos.
-                for side in (("BOTH",) if system.code in BILATERAL
-                             else ("BUY", "SELL")):
+                # ADITIVO, nao substitutivo (2026-09-07, "Modo Economico" --
+                # dono pediu um BOTAO no dashboard, nao uma migracao forcada):
+                # todo sistema em BILATERAL ganha "BOTH" JUNTO com BUY/SELL
+                # separados, nunca no lugar deles. O toggle no dashboard
+                # escolhe qual gerar/rodar numa campanha manual; sets/
+                # VALIDADO_/ledger de BUY_*/SELL_* existentes continuam
+                # existindo e funcionando exatamente como antes.
+                lados = ("BUY", "SELL", "BOTH") if system.code in BILATERAL \
+                    else ("BUY", "SELL")
+                for side in lados:
                     for ichimoku in (False, True):
                         variant = "ICHIMOKU" if ichimoku else "MULTI"
                         name = f"WRX {system.code} {asset} {side} {variant}"

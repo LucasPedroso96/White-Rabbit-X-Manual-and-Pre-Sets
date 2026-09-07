@@ -125,14 +125,24 @@ def rodadas_da_familia(familia: str) -> list[tuple[str, str | None]]:
     return RODADAS
 
 
-def variantes(sistema: str, familia: str = "MULTI") -> list[str]:
-    duplo = sistema in BILATERAL
+def variantes(sistema: str, familia: str = "MULTI",
+             economico: bool = False) -> list[str]:
+    """`economico=True` (Modo Economico, dashboard) troca BUY+SELL por UM
+    "BOTH" (compra e venda na mesma conta/certificado, Hedging otimizavel --
+    ver set_exposure() em generate_system_sets.py) pros sistemas em
+    BILATERAL. Default False preserva o comportamento de sempre: desde
+    2026-09-07 o gerador emite os DOIS conjuntos (separado E "BOTH") pra todo
+    sistema bilateral-capaz, entao esta funcao e que decide qual usar numa
+    corrida -- nunca os dois ao mesmo tempo (isso so dobraria o trabalho, o
+    oposto de "economico").
+    """
+    duplo = economico and sistema in BILATERAL
     rodadas = rodadas_da_familia(familia)
     return [b if duplo else a for a, b in rodadas if not (duplo and b is None)]
 
 
 def fila(simbolos: list[str], sistemas: list[str] | None = None,
-        familia: str = "MULTI") -> list[tuple[str, str, str]]:
+        familia: str = "MULTI", economico: bool = False) -> list[tuple[str, str, str]]:
     """Combos na ordem de execucao: SIMBOLO por fora, depois variante,
     depois SISTEMA por dentro (grid primeiro por default).
 
@@ -158,7 +168,8 @@ def fila(simbolos: list[str], sistemas: list[str] | None = None,
     for simbolo in simbolos:
         for unilateral, bilateral in rodadas_da_familia(familia):
             for sistema in sistemas:
-                v = bilateral if sistema in BILATERAL else unilateral
+                duplo = economico and sistema in BILATERAL
+                v = bilateral if duplo else unilateral
                 if v is None:              # bilateral nao tem BUY_* proprio
                     continue
                 if base.achar_set(simbolo, sistema, v) is not None:
@@ -363,6 +374,15 @@ def main() -> int:
                          "(so a fatia Ichimoku, pra priorizar/repetir sem "
                          "rodar MULTI de novo) ou BOLLINGER (EA propria, "
                          "ver generate_bollinger_sets.py)")
+    ap.add_argument("--modo-economico", action="store_true",
+                    help="Modo Economico (dono, 2026-09-07): pros sistemas "
+                         "em BILATERAL, roda UM combo 'BOTH' (compra e "
+                         "venda na mesma conta/certificado, Hedging "
+                         "otimizavel) em vez de BUY+SELL separados -- metade "
+                         "do trabalho de calibracao por sistema. Default "
+                         "False preserva o fluxo de sempre (BUY+SELL). Nao "
+                         "contorna nenhum gate -- sobrevivencia, holdout "
+                         "longo/WFA e Monte Carlo continuam rodando iguais.")
     args = ap.parse_args()
 
     if args.simbolos.strip():
@@ -382,7 +402,7 @@ def main() -> int:
                   flush=True)
             return 1
 
-    todos = fila(simbolos, sistemas, args.familia)
+    todos = fila(simbolos, sistemas, args.familia, args.modo_economico)
     ja = feitos()
     pendentes = [c for c in todos if c not in ja]
     print(f"campanha: {len(todos)} combos | {len(ja)} feitos | "

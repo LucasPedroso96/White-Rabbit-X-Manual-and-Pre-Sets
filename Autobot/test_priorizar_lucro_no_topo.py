@@ -70,15 +70,21 @@ checar("sem coluna Profit: inalterado", sem_profit, [["1", "5"]])
 checar("lista vazia", _priorizar_lucro_na_fatia(CAB, [], 0.5, 1), [])
 
 # --- campo_da_formula: cada sistema afetado usa a formula REAL dele, nao --
-# GridSurvivalScore hardcoded (achado do dono, 2026-08-24) -----------------
-checar("07_GRID_SEPARATE usa resilience_dd, nao grid_survival",
-       campo_da_formula("07_GRID_SEPARATE"), "resilience_dd")
-checar("12_GRID_INVERSO usa resilience_dd, nao grid_survival",
-       campo_da_formula("12_GRID_INVERSO"), "resilience_dd")
-checar("03_TRAIL_ONLY usa return_uniformity, nao grid_survival",
-       campo_da_formula("03_TRAIL_ONLY"), "return_uniformity")
-checar("05_BE_TRAIL usa profit_rel_dd_deposit, nao grid_survival",
-       campo_da_formula("05_BE_TRAIL"), "profit_rel_dd_deposit")
+# GridSurvivalScore hardcoded (achado do dono, 2026-08-24). Valores abaixo
+# atualizados em 2026-09-06 (novo padrao pos-triagem rapida, ver
+# generate_system_sets.py/FORMULA_POR_SISTEMA e
+# project_wfa_real_e_engine_custom.md: 7 de 10 campeoes antigos reprovaram no
+# gate de holdout longo + WFA) -- nao e mais teste de regressao contra o
+# hardcode antigo, e checagem de que campo_da_formula acompanha
+# FORMULA_POR_SISTEMA corretamente. ------------------------------------------
+checar("07_GRID_SEPARATE usa profit_rel_dd_deposit (formula 6, pos-triagem)",
+       campo_da_formula("07_GRID_SEPARATE"), "profit_rel_dd_deposit")
+checar("12_GRID_INVERSO usa profit_formula (formula 2, pos-triagem)",
+       campo_da_formula("12_GRID_INVERSO"), "profit_formula")
+checar("03_TRAIL_ONLY usa system_robustness (formula 12, pos-triagem)",
+       campo_da_formula("03_TRAIL_ONLY"), "system_robustness")
+checar("05_BE_TRAIL usa soma_r (formula 14, pos-triagem)",
+       campo_da_formula("05_BE_TRAIL"), "soma_r")
 
 try:
     campo_da_formula("99_INEXISTENTE")
@@ -102,7 +108,7 @@ with tempfile.TemporaryDirectory() as tmp:
     set_sem_campo.write_text("OutroInput=1||1||1||1||N\r\n", encoding="utf-16")
     checar("campo_da_formula_ativa cai pra FORMULA_POR_SISTEMA quando o .set "
            "nao tem selectedFormula",
-           campo_da_formula_ativa("03_TRAIL_ONLY", set_sem_campo), "return_uniformity")
+           campo_da_formula_ativa("03_TRAIL_ONLY", set_sem_campo), "system_robustness")
 
     checar("indice_formula_do_set: arquivo inexistente devolve None",
            indice_formula_do_set(Path(tmp) / "nao_existe.set"), None)

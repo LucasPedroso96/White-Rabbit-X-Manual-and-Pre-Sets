@@ -114,11 +114,15 @@ checar("holdout: MetodoDeEntradawfo=1 (IS+OOS, nao o 0 do .set entregue)",
 # --deposit global -- mesma familia do bug de margem do grid (07_GRID_
 # SEPARATE/AUDNZD reprovou 12/14 formulas por deposito pequeno demais pra
 # classe do ativo; rodar --todos com UM valor fixo repetiria esse erro pra
-# TODOS os combos de menor deposito) --------------------------------------
-checar("deposito_do_combo: 01_SLTP/EURUSD usa o CapitalBaseR do campeao "
-       "(1000, classe 01_Forex), nao um fallback generico",
-       deposito_do_combo("EURUSD", "01_SLTP", "BUY_MULTI", fallback=999),
-       1000)
+# TODOS os combos de menor deposito). 01_SLTP/EURUSD trocado por
+# 04_SLTP_TRAIL/BTCUSD em 2026-09-07: aquele reprovou no gate de holdout
+# longo + WFA (ver project_wfa_real_e_engine_custom.md) e nao tem mais
+# VALIDADO_ ao vivo -- este teste precisa de um campeao que exista de
+# verdade, nao de um combo especifico. ------------------------------------
+checar("deposito_do_combo: 04_SLTP_TRAIL/BTCUSD usa o CapitalBaseR do "
+       "campeao (2500, classe 02_Cryptocurrencies), nao um fallback generico",
+       deposito_do_combo("BTCUSD", "04_SLTP_TRAIL", "BUY_MULTI", fallback=999),
+       2500)
 checar("deposito_do_combo: combo sem campeao VALIDADO_ cai no fallback",
        deposito_do_combo("XXXXXX", "01_SLTP", "BUY_MULTI", fallback=777),
        777)

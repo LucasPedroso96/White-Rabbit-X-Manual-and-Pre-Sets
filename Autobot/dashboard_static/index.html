@@ -280,6 +280,17 @@
             </sc-for>
           </div>
 
+          <fieldset style="border:2px solid {{ pal.accent2 }};border-radius:10px;margin:0 0 16px;padding:12px 14px;background:{{ pal.bg3 }};">
+            <legend style="color:{{ pal.accent2 }};padding:0 6px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">{{ L.setup.economicMode }}</legend>
+            <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+              <input type="checkbox" checked="{{ modoEconomicoChecked }}" onChange="{{ onToggleModoEconomico }}" style="accent-color:{{ pal.accent2 }};width:18px;height:18px;margin-top:2px;flex-shrink:0;" />
+              <span>
+                <strong style="font-size:13.5px;">{{ L.setup.economicModeLabel }}</strong>
+                <div style="color:{{ pal.muted }};font-size:12px;margin-top:4px;line-height:1.5;">{{ L.setup.economicModeDesc }}</div>
+              </span>
+            </label>
+          </fieldset>
+
           <sc-if value="{{ modoManual }}" hint-placeholder-val="{{ false }}">
             <div>
               <fieldset style="border:1px solid {{ pal.line }};border-radius:10px;margin:12px 0;padding:12px 14px;">
@@ -292,7 +303,7 @@
                   <sc-for list="{{ sistemasCheckItems }}" as="sc_item" hint-placeholder-count="11">
                     <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;background:{{ pal.bg3 }};border-radius:7px;padding:7px 10px;cursor:pointer;">
                       <input type="checkbox" checked="{{ sc_item.checked }}" onChange="{{ sc_item.onToggle }}" style="accent-color:{{ pal.accent2 }};" />
-                      <span>{{ sc_item.code }} — {{ sc_item.label }} <em style="color:{{ pal.muted }};font-style:normal;font-size:11px;">({{ sc_item.nota }})</em></span>
+                      <span>{{ sc_item.display }} — {{ sc_item.label }} <em style="color:{{ pal.muted }};font-style:normal;font-size:11px;">({{ sc_item.nota }})</em></span>
                     </label>
                   </sc-for>
                 </div>
@@ -702,7 +713,7 @@ class Component extends DCLogic {
     locale: this.props.idiomaPadrao || 'en',
     offline: false, showInstall: false, installEvt: null,
     status: null, estado: null, heatmap: null, expandedRecentes: {},
-    modo: 'auto', config: null, sistemasSel: {}, ativosSel: {}, ativosReal: {}, ativosMeta: {},
+    modo: 'auto', modoEconomico: false, config: null, sistemasSel: {}, ativosSel: {}, ativosReal: {}, ativosMeta: {},
     campoInicio: anosAtrasMT5(3), campoFim: hojeMT5(), campoDeposito: 1000, depositoAuto: true, campoRetencao: 30,
     showAutoModal: false, autoModalDontAsk: false, msgIniciar: '', msgIniciarOk: null, msgDetectar: '',
     biblioteca: null, msgRegenerar: '', msgRegenerarOk: null,
@@ -830,6 +841,7 @@ class Component extends DCLogic {
     return d;
   }
   toggleSistema(code) { this.setState((s) => ({ sistemasSel: { ...s.sistemasSel, [code]: !s.sistemasSel[code] } })); }
+  toggleModoEconomico() { this.setState((s) => ({ modoEconomico: !s.modoEconomico })); }
   selectAllSistemas() { const sel = {}; (this.state.config?.sistemas || []).forEach((s) => sel[s.code] = true); this.setState({ sistemasSel: sel }); }
   clearSistemas() { this.setState({ sistemasSel: {} }); }
   toggleAtivo(sym) { this.setState((s) => ({ ativosSel: { ...s.ativosSel, [sym]: !s.ativosSel[sym] } })); }
@@ -877,6 +889,7 @@ class Component extends DCLogic {
     const body = {
       modo: this.state.modo, familia: this.state.familia, inicio: this.state.campoInicio, fim: this.state.campoFim,
       deposit: this.state.depositoAuto ? null : Number(this.state.campoDeposito), min_retencao: Number(this.state.campoRetencao),
+      modo_economico: !!this.state.modoEconomico,
     };
     if (this.state.modo === 'manual') {
       body.sistemas = Object.keys(this.state.sistemasSel).filter((k) => this.state.sistemasSel[k]);
@@ -1076,7 +1089,7 @@ class Component extends DCLogic {
       familia: { multi: tr('familia.multi'), bollinger: tr('familia.bollinger'), ichimoku: tr('familia.ichimoku') },
       campaign: { robustness: tr('campaign.robustness'), assetMap: tr('campaign.asset-map'), progress: tr('campaign.progress'), reports: tr('campaign.reports'), stopRun: tr('campaign.stop-run'), pauseRun: tr('campaign.pause-run'), resumeRun: tr('campaign.resume-run'), bySystem: tr('campaign.by-system'), recentCombos: tr('campaign.recent-combos') },
       table: { system: tr('table.system'), tests: tr('table.tests'), approved: tr('table.approved'), symbol: tr('table.symbol'), variant: tr('table.variant'), verdict: tr('table.verdict'), retention: tr('table.retention'), minutes: tr('table.minutes') },
-      setup: { mode: tr('setup.mode'), auto: tr('setup.auto'), manual: tr('setup.manual'), systems: tr('setup.systems'), assets: tr('setup.assets'), detect: tr('setup.detect'), selectAllSystems: tr('setup.select-all-systems'), clearSystems: tr('setup.clear-systems'), selectAllAssets: tr('setup.select-all-assets'), clearAssets: tr('setup.clear-assets'), parameters: tr('setup.parameters'), from: tr('setup.from'), to: tr('setup.to'), deposit: tr('setup.deposit'), depositAuto: tr('setup.deposit-auto'), minRetention: tr('setup.min-retention'), startRun: tr('setup.start-run') },
+      setup: { mode: tr('setup.mode'), auto: tr('setup.auto'), manual: tr('setup.manual'), systems: tr('setup.systems'), assets: tr('setup.assets'), detect: tr('setup.detect'), selectAllSystems: tr('setup.select-all-systems'), clearSystems: tr('setup.clear-systems'), selectAllAssets: tr('setup.select-all-assets'), clearAssets: tr('setup.clear-assets'), parameters: tr('setup.parameters'), from: tr('setup.from'), to: tr('setup.to'), deposit: tr('setup.deposit'), depositAuto: tr('setup.deposit-auto'), minRetention: tr('setup.min-retention'), startRun: tr('setup.start-run'), economicMode: tr('setup.economic-mode'), economicModeLabel: tr('setup.economic-mode-label'), economicModeDesc: tr('setup.economic-mode-desc') },
       autoModal: { title: tr('auto-modal.title'), p1: tr('auto-modal.p1'), p2: tr('auto-modal.p2'), p3: tr('auto-modal.p3'), dontAsk: tr('auto-modal.dont-ask'), confirm: tr('auto-modal.confirm'), preferManual: tr('auto-modal.prefer-manual') },
       library: { current: tr('library.current'), loading: tr('library.loading'), regenerate: tr('library.regenerate') },
       portfolio: { generalMap: tr('portfolio.general-map'), loading: tr('portfolio.loading'), bySystem: tr('portfolio.by-system'), note: tr('portfolio.note'), generate: tr('portfolio.generate'), correlationPanel: tr('portfolio.correlation-panel') },
@@ -1226,6 +1239,9 @@ class Component extends DCLogic {
     const cfg = s.config;
     const sistemasCheckItems = (cfg?.sistemas || []).map((sy) => ({
       code: sy.code, label: sy.label, checked: !!s.sistemasSel[sy.code], onToggle: () => this.toggleSistema(sy.code),
+      // numero_exibicao: sequencial 1..N sem buraco, so pra tela -- `code`
+      // (usado em toggleSistema/arquivos reais) nunca muda, ver /api/config.
+      display: `${String(sy.numero_exibicao ?? 0).padStart(2, '0')}_${sy.code.replace(/^\d+_/, '')}`,
       nota: !sy.capital_aplica ? 'n/a (fixed lot)' : sy.capital_agregado > 0 ? `validated capital: ${sy.capital_agregado.toLocaleString()}` : 'no validated capital yet',
     }));
     const classesAtivos = Object.entries(cfg?.classes || {}).sort(([, a], [, b]) => a.capital_base - b.capital_base).map(([classe, info]) => ({
@@ -1329,6 +1345,7 @@ class Component extends DCLogic {
       onClickStop: () => this.clickStop(), onClickPausar: () => this.clickPausar(), onClickRetomar: () => this.clickRetomar(),
 
       modoItems, modoManual, sistemasCheckItems, onSelectAllSistemas: () => this.selectAllSistemas(), onClearSistemas: () => this.clearSistemas(),
+      modoEconomicoChecked: !!s.modoEconomico, onToggleModoEconomico: () => this.toggleModoEconomico(),
       classesAtivos, onSelectAllAtivos: () => this.selectAllAtivos(), onClearAtivos: () => this.clearAtivos(),
       onClickDetectar: () => this.clickDetectar(), msgDetectar: s.msgDetectar,
       depositoAutoChecked: s.depositoAuto, onToggleDepositoAuto: () => this.toggleDepositoAuto(), depositoDisabled: s.depositoAuto, depositoDisplay,

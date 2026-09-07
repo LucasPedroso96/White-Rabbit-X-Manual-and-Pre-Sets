@@ -105,7 +105,11 @@ def _tabela_magics_recomputada() -> dict[int, str]:
     for classe, ativos in ASSETS.items():
         for ativo in ativos:
             for sistema in SYSTEMS:
-                lados = ("BOTH",) if sistema.code in _BILATERAL else ("BUY", "SELL")
+                # ADITIVO (2026-09-07, Modo Economico) -- espelha
+                # generate_system_sets.py:main() exatamente: todo sistema em
+                # BILATERAL ganha "BOTH" JUNTO com BUY/SELL, nunca no lugar.
+                lados = ("BUY", "SELL", "BOTH") if sistema.code in _BILATERAL \
+                    else ("BUY", "SELL")
                 for lado in lados:
                     for ichimoku in (False, True):
                         tipo_variante = "ICHIMOKU" if ichimoku else "MULTI"

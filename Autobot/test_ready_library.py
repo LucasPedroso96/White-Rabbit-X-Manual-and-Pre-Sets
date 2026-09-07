@@ -57,14 +57,22 @@ vs = campanha.variantes("01_SLTP")
 checar("variantes unilaterais", vs,
        ["BUY_MULTI", "SELL_MULTI", "BUY_ICHIMOKU", "SELL_ICHIMOKU"])
 
-# BILATERAL esta vazio desde a remocao do 08_GRID_UNIFIED (2026-08-16, era o
-# unico membro) -- injeta uma entrada sintetica so pra este teste continuar
-# cobrindo o MECANISMO bilateral em variantes(), que continua no codigo
-# mesmo sem nenhum sistema real usando.
+# BILATERAL ficou vazio entre a remocao do 08_GRID_UNIFIED (2026-08-16) e a
+# ativacao do Modo Economico (2026-09-07, dono: "botao no dashboard... buy e
+# sell juntos"), que populou com os 11 sistemas -- ADITIVO, nao substitutivo
+# (o gerador emite BUY/SELL separados E o "BOTH" pra todo sistema bilateral-
+# capaz; variantes() e que escolhe qual devolver por corrida, via
+# `economico`). Injeta uma entrada sintetica so pra este teste nao depender
+# do conteudo real de BILATERAL, que pode mudar.
 campanha.BILATERAL.add("99_TESTE_BILATERAL")
 try:
-    vs = campanha.variantes("99_TESTE_BILATERAL")
-    checar("variantes bilaterais", vs, ["BOTH_MULTI", "BOTH_ICHIMOKU"])
+    vs_padrao = campanha.variantes("99_TESTE_BILATERAL")
+    checar("variantes bilaterais: default (economico=False) continua "
+          "separado -- nunca perde BUY/SELL so por o sistema aceitar BOTH",
+          vs_padrao, ["BUY_MULTI", "SELL_MULTI", "BUY_ICHIMOKU", "SELL_ICHIMOKU"])
+    vs_economico = campanha.variantes("99_TESTE_BILATERAL", economico=True)
+    checar("variantes bilaterais: economico=True junta em BOTH",
+          vs_economico, ["BOTH_MULTI", "BOTH_ICHIMOKU"])
 finally:
     campanha.BILATERAL.discard("99_TESTE_BILATERAL")
 
