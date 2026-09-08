@@ -96,7 +96,7 @@ import custo_nativo
 import monte_carlo_wrx
 import optimize_sets as base
 import ready_library
-from generate_system_sets import FORMULA_POR_SISTEMA
+from generate_system_sets import FORMULA_POR_SISTEMA, SISTEMAS_RECUPERACAO_OPCIONAL
 from mt5_runner import contar_agentes, garantir_terminal_livre, lancar_terminal
 
 AQUI = Path(__file__).resolve().parent
@@ -392,10 +392,58 @@ ANOS_HOLDOUT_LONGO = 3.0
 # de resetar. Achado do dono, 2026-08-16, revisando o primeiro smoke test do
 # D'Alembert: o JSON de saida trazia MaxMartingaleSteps sem DAlembertStep ter
 # saido junto do Estagio 2.5 -- a lista tinha so 1 eixo, faltava o segundo.
-SISTEMAS_RECUPERACAO_DUAS_ETAPAS = {"09_MARTINGALE", "10_DALEMBERT"}
-EIXOS_RECUPERACAO = {"09_MARTINGALE": ["MaxMartingaleSteps"],
-                     "10_DALEMBERT": ["DAlembertStep", "MaxMartingaleSteps"]}
-RECOVERY_MODE_LIGADO = {"09_MARTINGALE": "1", "10_DALEMBERT": "2"}
+# Generalizado (dono, 2026-09-08: "eles nao sao sistemas a parte e sim um
+# booster dos sistemas normais"). Antes EIXOS_RECUPERACAO/RECOVERY_MODE_LIGADO
+# eram indexados por SISTEMA (so 09_MARTINGALE/10_DALEMBERT existiam); agora
+# sao indexados por TIPO de recuperacao, que qualquer sistema em
+# generate_system_sets.SISTEMAS_RECUPERACAO_OPCIONAL pode pedir via
+# --recuperacao. RECUPERACAO_DA_IDENTIDADE preserva o comportamento antigo
+# pra quem nao passa a flag: 09_MARTINGALE/10_DALEMBERT continuam ligando a
+# propria recuperacao sozinhos, exatamente como sempre.
+EIXOS_RECUPERACAO_POR_TIPO = {"martingale": ["MaxMartingaleSteps"],
+                              "dalembert": ["DAlembertStep", "MaxMartingaleSteps"]}
+# Uniao dos dois -- excluida dos Estagios 1/2 INCONDICIONALMENTE (dono,
+# 2026-09-08): agora que os 7 sistemas boosteveis tambem tem faixa REAL pra
+# MaxMartingaleSteps/DAlembertStep no .set (generate_system_sets.py), sem
+# gate ligando isto a RecoveryMode (nao existe chave "RecoveryMode" em
+# GATES/GATES_DEPENDENCIAS, so flags booleanas), a exclusao NAO PODE
+# depender de `eixos_recuperacao` estar vazio -- vazio e justamente o caso
+# comum (sem --recuperacao pedido), onde estes 2 eixos continuam mortos
+# (RecoveryMode fica em "0" o combo inteiro) mas agora TERIAM faixa pra
+# entrar no genetico se nao forem tirados aqui, dobrando passes por nada em
+# QUALQUER corrida normal dos 7 sistemas. So o Estagio 2.5 reabre o
+# subconjunto certo, e so quando duas_etapas e de fato True.
+EIXOS_RECUPERACAO_TODOS = sorted({eixo for eixos in
+                                  EIXOS_RECUPERACAO_POR_TIPO.values()
+                                  for eixo in eixos})
+RECOVERY_MODE_POR_TIPO = {"martingale": "1", "dalembert": "2"}
+RECUPERACAO_DA_IDENTIDADE = {"09_MARTINGALE": "martingale",
+                             "10_DALEMBERT": "dalembert"}
+# Quem pode pedir --recuperacao explicito: os 7 boosteveis + os 2 que ja SAO a
+# propria recuperacao (pedir a propria identidade e redundante, mas inofensivo
+# -- so nao aceita nada fora dessa uniao, como 07_GRID_SEPARATE/12_GRID_INVERSO,
+# que o .mq5 rejeita no OnInit por combinar recuperacao com grid).
+SISTEMAS_RECUPERACAO_ELEGIVEIS = (SISTEMAS_RECUPERACAO_OPCIONAL
+                                  | set(RECUPERACAO_DA_IDENTIDADE))
+
+# Compat: nome antigo, indexado por sistema, so pros 2 que ja eram assim --
+# test_eixos_reotimizaveis.py importa isto pelo nome.
+EIXOS_RECUPERACAO = {sistema: EIXOS_RECUPERACAO_POR_TIPO[tipo]
+                     for sistema, tipo in RECUPERACAO_DA_IDENTIDADE.items()}
+SISTEMAS_RECUPERACAO_DUAS_ETAPAS = set(RECUPERACAO_DA_IDENTIDADE)
+RECOVERY_MODE_LIGADO = {sistema: RECOVERY_MODE_POR_TIPO[tipo]
+                        for sistema, tipo in RECUPERACAO_DA_IDENTIDADE.items()}
+
+
+def tipo_de_recuperacao(sistema: str, pedido: str | None) -> str | None:
+    """Resolve qual recuperacao esta corrida usa: `pedido` ("martingale"/
+    "dalembert"/"nenhuma"/None) explicito sempre vence; sem pedido, cai no
+    que o SISTEMA ja e por identidade (09/10, comportamento de sempre)."""
+    if pedido and pedido != "nenhuma":
+        return pedido
+    if pedido == "nenhuma":
+        return None
+    return RECUPERACAO_DA_IDENTIDADE.get(sistema)
 
 # Parametro -> indicadores que REALMENTE o usam, lido na criacao dos handles
 # do EA (~1234-1290). Fora dessa lista o parametro nao entra no calculo, entao
@@ -463,16 +511,19 @@ def eixos_reotimizaveis(sistema: str, indicador: str | None) -> list[str]:
     WFA de verdade) pra virar chamavel de fora, sem duplicar a regra.
 
     Mesma logica que estava inline: eixos_do_indicador(NUMEROS, indicador)
-    menos os eixos de recuperacao (MaxMartingaleSteps/DAlembertStep), que so
-    tem efeito com RecoveryMode ligado -- o Estagio 2 roda com ele em "0"
-    (ver duas_etapas/eixos_recuperacao em main()), entao reotimiza-los aqui
-    seria abrir um eixo morto.
+    menos os eixos de recuperacao (MaxMartingaleSteps/DAlembertStep) --
+    INCONDICIONAL (dono, 2026-09-08, corrigido durante a generalizacao do
+    booster): os dois so tem efeito com RecoveryMode ligado, e RecoveryMode
+    fica em "0" durante os Estagios 1/2 pra QUALQUER sistema, boostavel ou
+    nao -- reotimiza-los aqui seria sempre abrir um eixo morto, nao so
+    quando uma recuperacao especifica foi pedida. `sistema` fica no
+    parametro por compatibilidade de assinatura (wfa_real.py chama assim),
+    mas a exclusao ja nao depende dele. `tipo_de_recuperacao()`/Estagio 2.5
+    e que decidem qual dos dois eixos reabrir DE VERDADE, depois que a
+    entrada/saida ja esta travada.
     """
     numeros = eixos_do_indicador(NUMEROS, indicador)
-    if sistema in SISTEMAS_RECUPERACAO_DUAS_ETAPAS:
-        eixos_recuperacao = EIXOS_RECUPERACAO.get(sistema, [])
-        numeros = [e for e in numeros if e not in eixos_recuperacao]
-    return numeros
+    return [e for e in numeros if e not in EIXOS_RECUPERACAO_TODOS]
 
 
 # FASE 3 = FILTROS DE EXECUCAO, os ULTIMOS a rodar (dono, 2026-07-31):
@@ -1939,9 +1990,24 @@ def main() -> int:
                     help="apos o torneio do Estagio 1, rebusca os mesmos eixos "
                          "com EntryIndicator cravado no vencedor; so adota se "
                          "a retencao melhorar")
+    # Camada de recuperacao OPCIONAL (dono, 2026-09-08: "eles nao sao sistemas
+    # a parte e sim um booster dos sistemas normais"). "auto" (default) so
+    # liga pra 09_MARTINGALE/10_DALEMBERT (identidade, comportamento de
+    # sempre); "nenhuma" desliga mesmo pra esses dois (util pra medir o
+    # sinal puro deles sozinho); "martingale"/"dalembert" boosta QUALQUER
+    # sistema em SISTEMAS_RECUPERACAO_ELEGIVEIS (Estagio 2.5 explicado la).
+    ap.add_argument("--recuperacao", choices=["auto", "nenhuma", "martingale",
+                                              "dalembert"], default="auto")
     ap.add_argument("--timeout", type=int, default=21600)
     ap.add_argument("--fechar-terminal", action="store_true")
     args = ap.parse_args()
+    if args.recuperacao in ("martingale", "dalembert"):
+        if args.sistema not in SISTEMAS_RECUPERACAO_ELEGIVEIS:
+            raise SystemExit(
+                f"--recuperacao {args.recuperacao} nao se aplica a "
+                f"{args.sistema}: grid/pyramid ja SAO a propria recuperacao "
+                "(cesta), e o .mq5 rejeita a combinacao no OnInit.")
+    args.recuperacao = None if args.recuperacao == "auto" else args.recuperacao
 
     if args.min_trades_per_year is not None:
         piso_antigo = args.min_trades
@@ -2034,8 +2100,10 @@ def main() -> int:
     # (Portugues aqui) para o painel. A entrega (linha ~980) volta pra Auto --
     # so o nosso set de trabalho roda em EN.
     travados["InterfaceLanguage"] = "1"
-    duas_etapas = args.sistema in SISTEMAS_RECUPERACAO_DUAS_ETAPAS
-    eixos_recuperacao = EIXOS_RECUPERACAO.get(args.sistema, []) if duas_etapas else []
+    tipo_recuperacao = tipo_de_recuperacao(args.sistema, args.recuperacao)
+    duas_etapas = tipo_recuperacao is not None
+    eixos_recuperacao = (EIXOS_RECUPERACAO_POR_TIPO.get(tipo_recuperacao, [])
+                         if duas_etapas else [])
     if duas_etapas:
         # RecoveryMode=0 (Recovery_None) pelos Estagios 1-2: o vencedor de
         # entrada/saida precisa nascer medido em lote fixo puro, sem a
@@ -2043,8 +2111,7 @@ def main() -> int:
         # Estagio 2.5, depois do vencedor ja travado. Ver constante no topo.
         travados["RecoveryMode"] = "0"
     eixos_fase1 = eixos_da_fase1(origem)
-    if eixos_recuperacao:
-        eixos_fase1 = [e for e in eixos_fase1 if e not in eixos_recuperacao]
+    eixos_fase1 = [e for e in eixos_fase1 if e not in EIXOS_RECUPERACAO_TODOS]
     n = reescrever(origem, trabalho, eixos_fase1, travados)
     print(f"  [1/5] regioes em OHLC ({n} parametros: entradas completas + "
           f"saidas + flags) | WFO In-Sample: "
@@ -2359,9 +2426,9 @@ def main() -> int:
     # jogar fora um vencedor de entrada/saida bom por causa so da calibracao
     # da recuperacao.
     if duas_etapas:
-        assert eixos_recuperacao  # SISTEMAS_RECUPERACAO_DUAS_ETAPAS <= EIXOS_RECUPERACAO.keys()
+        assert eixos_recuperacao  # tipo_recuperacao <= EIXOS_RECUPERACAO_POR_TIPO.keys()
         nomes_rec = ", ".join(eixos_recuperacao)
-        travados["RecoveryMode"] = RECOVERY_MODE_LIGADO[args.sistema]
+        travados["RecoveryMode"] = RECOVERY_MODE_POR_TIPO[tipo_recuperacao]
         n = reescrever(origem, trabalho, eixos_recuperacao, travados)
         print(f"\n  [2.5/5] camada de recuperacao em OHLC ({n} parametros: "
               f"{nomes_rec}, entrada/saida ja travada no vencedor "

@@ -245,6 +245,22 @@ FORMULA_POR_SISTEMA = {
 # Dependente -> chave que o liga, conforme o EA. Espelha os GATES do circuito
 # (optimize_two_stage.py); mexeu aqui, mexa la. Trailing: `AtivarTrailATR`
 # governa MetodoDeCalculo ("Trailing Price Source"), TrailVela e Trail.
+# Sistemas que aceitam Martingale/D'Alembert como CAMADA OPCIONAL por cima da
+# propria entrada/saida (achado do dono, 2026-09-08: "eles nao sao sistemas a
+# parte e sim um booster dos sistemas normais"). 09_MARTINGALE/10_DALEMBERT
+# continuam existindo como sistemas proprios (RecoveryMode cravado ligado,
+# bom pra quem quer so isso), mas o motor (RecoveryMode, MaxMartingaleSteps,
+# DAlembertStep) e generico -- ver ApplyMartingaleLogicForBuyOrder/
+# RefreshDAlembertState no .mq5, nenhum dos dois olha pra qual "sistema"
+# esta rodando. Fora da lista: 07_GRID_SEPARATE/12_GRID_INVERSO (o .mq5
+# rejeita no OnInit -- "Grid and recovery modes cannot be combined", a cesta
+# ja e a propria recuperacao) e 09/10 mesmos (ja SAO a camada, boostar a
+# si mesmo nao faz sentido).
+SISTEMAS_RECUPERACAO_OPCIONAL = {
+    "01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
+    "05_BE_TRAIL", "06_REVERSAL_EXIT", "11_SIGNAL_ONLY",
+}
+
 GATES_DEPENDENCIAS = {
     "MetodoDeCalculo": "AtivarTrailATR",
     "TrailVela": "AtivarTrailATR",
@@ -1285,6 +1301,20 @@ def main() -> None:
                                    grid=system.code in ("07_GRID_SEPARATE",
                                                         "12_GRID_INVERSO"))
                         apply_system(p, system.code, ac, side)
+                        if system.code in SISTEMAS_RECUPERACAO_OPCIONAL:
+                            # Mesmo range que 09_MARTINGALE/10_DALEMBERT ja
+                            # usam (ver apply_system) -- RecoveryMode continua
+                            # cravado em "0" aqui (o sistema tem que
+                            # funcionar sozinho, sem a camada); e o Estagio
+                            # 2.5 de optimize_two_stage.py que liga
+                            # RecoveryMode em tempo de campanha (--recuperacao
+                            # martingale/dalembert) e reabre estes dois eixos
+                            # SO entao. Sem gate em GATES_DEPENDENCIAS (nao
+                            # existe chave "RecoveryMode" ali de proposito):
+                            # desativar_inertes() nao pode rebaixar isto pra
+                            # N so porque RecoveryMode nasce em "0" no arquivo.
+                            p.opt("MaxMartingaleSteps", 3, 2, 2, 8)
+                            p.opt("DAlembertStep", 0.02, 0.01, 0.02, 0.09)
                         apply_sizing_and_formula(p, system.code, ac)
                         p.desativar_inertes()
 
