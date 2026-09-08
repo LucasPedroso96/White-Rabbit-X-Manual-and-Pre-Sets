@@ -101,29 +101,32 @@ SISTEMAS = ["01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
 # otimizacoes com buy+sell juntos, 2026-09-07).
 BILATERAL: set[str] = set(SISTEMAS)
 
-# Cada "rodada" percorre os 11 sistemas com UMA variante antes de avancar. As
-# ICHIMOKU entram DEPOIS das MULTI de proposito, nao por esquecimento como
-# antes: a MULTI ja disputa 11 indicadores (0..10) no proprio genetico, entao
-# ela rende o retrato mais largo por corrida -- mas o Ichimoku (11) vive em
-# arquivo proprio (Tenkan<Kijun<SenkouB no OnInit), e sem estas rodadas ele
-# era o unico indicador que NUNCA era testado.
-RODADAS = [("BUY_MULTI", "BOTH_MULTI"), ("SELL_MULTI", None),
-           ("BUY_ICHIMOKU", "BOTH_ICHIMOKU"), ("SELL_ICHIMOKU", None)]
+# Cada "rodada" percorre os 11 sistemas com UMA variante antes de avancar.
+# Tres familias FISICAMENTE SEPARADAS -- MULTI, ICHIMOKU, BOLLINGER -- cada
+# uma so entra numa corrida se o toggle da campanha (dashboard/--familia)
+# pedir por ela explicitamente. NUNCA bundlar duas familias sob o default de
+# uma terceira: o dashboard ja trata as tres como familias independentes
+# desde 2026-09-06 (ver ready_library.familia_da_variante(), o toggle de 3
+# botoes em index.html), entao o runtime tinha que bater com isso.
+#
+# CORRIGIDO (dono, 2026-09-08): entre 2026-09-07 e esta correcao, o default
+# --familia MULTI (nenhuma flag) rodava RODADAS inteiro, que MISTURAVA
+# BUY/SELL/BOTH_MULTI com BUY/SELL/BOTH_ICHIMOKU na mesma corrida -- uma
+# campanha lancada com o toggle em "MULTI" (ou sem passar --familia) rodava
+# Ichimoku de contrabando. Pego ao vivo numa campanha real: 2 dos 6 combos do
+# grupo 1 (03_TRAIL_ONLY, JPY) saíram BOTH_ICHIMOKU sem terem sido pedidos.
+RODADAS_MULTI = [("BUY_MULTI", "BOTH_MULTI"), ("SELL_MULTI", None)]
 
 # Variante BOLLINGER (2026-09-06): EA propria (schema de inputs diferente,
-# sem EntryIndicator plugavel) -- por isso rodada PROPRIA, nao mais um valor
-# dentro de RODADAS junto com MULTI/ICHIMOKU. Uma corrida so processa UMA
-# familia (--familia na CLI/dashboard escolhe qual).
+# sem EntryIndicator plugavel) -- por isso rodada PROPRIA, nunca junto com
+# MULTI/ICHIMOKU. Uma corrida so processa UMA familia (--familia na
+# CLI/dashboard escolhe qual).
 RODADAS_BOLLINGER = [("BUY_BOLLINGER", "BOTH_BOLLINGER"), ("SELL_BOLLINGER", None)]
 
-# Fatia so-ICHIMOKU de RODADAS (2026-09-07): existe para quem quer rodar/
-# priorizar SO Ichimoku via --familia ICHIMOKU (dashboard agora trata Ichimoku
-# como familia propria pra visibilidade -- ver ready_library.familia_da_variante).
-# NAO substitui a rodada MULTI: --familia MULTI (o default, sem flag nenhuma)
-# continua cobrindo RODADAS inteiro (MULTI + ICHIMOKU juntos, como sempre foi
-# -- ver test_ready_library.py) porque MULTI ja e o unico jeito de cobrir os
-# dois em uma corrida so; separar so ICHIMOKU sem separar MULTI reduziria a
-# cobertura por padrao, o que ninguem pediu.
+# Ichimoku (11) vive em arquivo proprio (Tenkan<Kijun<SenkouB no OnInit),
+# mesma EA fisica da MULTI mas indicador cravado no set -- so roda quando o
+# toggle pede "ICHIMOKU" explicitamente, nunca como efeito colateral de
+# "MULTI".
 RODADAS_ICHIMOKU = [("BUY_ICHIMOKU", "BOTH_ICHIMOKU"), ("SELL_ICHIMOKU", None)]
 
 
@@ -133,7 +136,7 @@ def rodadas_da_familia(familia: str) -> list[tuple[str, str | None]]:
         return RODADAS_BOLLINGER
     if f == "ICHIMOKU":
         return RODADAS_ICHIMOKU
-    return RODADAS
+    return RODADAS_MULTI
 
 
 def variantes(sistema: str, familia: str = "MULTI",

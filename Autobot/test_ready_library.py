@@ -52,10 +52,20 @@ checar("simbolo com digitos", (n["simbolo"], n["sistema"]),
 checar("nome fora do padrao", rl.analisar_nome("VALIDADO_qualquercoisa.set"),
        None)
 
-# --- fila da campanha: ICHIMOKU presente, sistemas antes de variantes --------
+# --- fila da campanha: 3 familias SEPARADAS, sistemas antes de variantes ----
+# Default (--familia MULTI, ou nenhuma flag) nunca inclui Ichimoku de
+# contrabando -- cada familia so entra quando o toggle pede por ela (achado
+# do dono, 2026-09-08: uma campanha lancada com o toggle em "MULTI" rodou
+# BOTH_ICHIMOKU sem ter sido pedido).
 vs = campanha.variantes("01_SLTP")
-checar("variantes unilaterais", vs,
-       ["BUY_MULTI", "SELL_MULTI", "BUY_ICHIMOKU", "SELL_ICHIMOKU"])
+checar("variantes unilaterais (default MULTI, sem Ichimoku)", vs,
+       ["BUY_MULTI", "SELL_MULTI"])
+vs_ichimoku = campanha.variantes("01_SLTP", familia="ICHIMOKU")
+checar("variantes unilaterais: familia ICHIMOKU explicita", vs_ichimoku,
+       ["BUY_ICHIMOKU", "SELL_ICHIMOKU"])
+vs_bollinger = campanha.variantes("01_SLTP", familia="BOLLINGER")
+checar("variantes unilaterais: familia BOLLINGER explicita", vs_bollinger,
+       ["BUY_BOLLINGER", "SELL_BOLLINGER"])
 
 # BILATERAL ficou vazio entre a remocao do 08_GRID_UNIFIED (2026-08-16) e a
 # ativacao do Modo Economico (2026-09-07, dono: "botao no dashboard... buy e
@@ -69,10 +79,14 @@ try:
     vs_padrao = campanha.variantes("99_TESTE_BILATERAL")
     checar("variantes bilaterais: default (economico=False) continua "
           "separado -- nunca perde BUY/SELL so por o sistema aceitar BOTH",
-          vs_padrao, ["BUY_MULTI", "SELL_MULTI", "BUY_ICHIMOKU", "SELL_ICHIMOKU"])
+          vs_padrao, ["BUY_MULTI", "SELL_MULTI"])
     vs_economico = campanha.variantes("99_TESTE_BILATERAL", economico=True)
     checar("variantes bilaterais: economico=True junta em BOTH",
-          vs_economico, ["BOTH_MULTI", "BOTH_ICHIMOKU"])
+          vs_economico, ["BOTH_MULTI"])
+    vs_economico_ichi = campanha.variantes("99_TESTE_BILATERAL",
+                                           familia="ICHIMOKU", economico=True)
+    checar("variantes bilaterais: economico=True + familia ICHIMOKU",
+          vs_economico_ichi, ["BOTH_ICHIMOKU"])
 finally:
     campanha.BILATERAL.discard("99_TESTE_BILATERAL")
 
