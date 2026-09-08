@@ -714,10 +714,14 @@ SYSTEMS: list[System] = [
     # 09/10/11.
     System("07_GRID_SEPARATE", "Grid com lucro separado por lado", "HEDGE_ACCOUNT_REQUIRED",
            "Cada lado tem alvo proprio. Exige conta hedging real."),
-    System("09_MARTINGALE", "Martingale em lote fixo", "HIGH_RISK",
-           "Uma posicao por lado; lote cresce apos perda. Curva de risco severa."),
-    System("10_DALEMBERT", "D'Alembert em lote fixo", "HIGH_RISK",
-           "Incremento aritmetico de lote apos perda; menos agressivo."),
+    # 09_MARTINGALE/10_DALEMBERT REMOVIDOS como sistema proprio (dono,
+    # 2026-09-08: "nao sao sistemas! sao extras de todos os outros
+    # sistemas!"). Nao sao mais gerados como .set dedicado -- o motor
+    # (RecoveryMode/MaxMartingaleSteps/DAlembertStep) virou booster opcional
+    # de QUALQUER sistema em SISTEMAS_RECUPERACAO_OPCIONAL, acionado via
+    # optimize_two_stage.py --recuperacao martingale/dalembert (Estagio 2.5).
+    # .set/campeoes/ledger historicos com esses dois nomes continuam existindo
+    # como registro (nao apagados), so nao ha geracao nova a partir de agora.
     System("11_SIGNAL_ONLY", "Signal only (sem SL/TP)", "HIGH_RISK_RESEARCH",
            "Cobertura negativa: mede o sinal cru, sem rede de protecao."),
     # "Grid inverso" (achado do dono, 2026-08-16): abre niveis A FAVOR do
@@ -775,15 +779,19 @@ def apply_sizing_and_formula(p: Profile, system: str, ac: AssetClass) -> None:
     # CalculatePyramidVolume no .mq5), entao R tem contra o que dimensionar.
     # O .mq5 ja foi ajustado pra permitir RiscoRFixo com GridMode=Pyramid
     # especificamente (classico continua bloqueado, sem SL pra medir risco).
-    # 09_MARTINGALE entrou aqui em 2026-08-17 (achado do dono): o .mq5 SEMPRE
-    # soube dimensionar Martingale em R -- MM_Size_R_Buy/Sell tem um ramo
-    # dedicado pra Martingale (ClampMartingaleLot) desde sempre -- so nunca
-    # tinha sido ligado aqui. D'Alembert (10) fica de fora: o EA exige
-    # LoteFixo pra ele explicitamente (DAlembertStep e um incremento de lote
-    # ABSOLUTO, nao escala com nenhum modo de risco).
+    # Martingale em R (dono, 2026-08-17): o .mq5 SEMPRE soube dimensionar
+    # Martingale em R -- MM_Size_R_Buy/Sell tem um ramo dedicado pra
+    # Martingale (ClampMartingaleLot) desde sempre. Vale pro booster opcional
+    # (--recuperacao martingale, ver SISTEMAS_RECUPERACAO_OPCIONAL) em
+    # qualquer um destes sistemas. D'Alembert fica de fora de r_capable: o EA
+    # exige LoteFixo pra ele explicitamente (DAlembertStep e um incremento de
+    # lote ABSOLUTO, nao escala com nenhum modo de risco) -- por isso o
+    # booster --recuperacao dalembert forca PositionSizeMode pra Lote Fixo
+    # na hora (ver Estagio 2.5 em optimize_two_stage.py), independente do que
+    # r_capable escolheu aqui.
     r_capable = system in ("01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY",
                            "04_SLTP_TRAIL", "05_BE_TRAIL", "06_REVERSAL_EXIT",
-                           "12_GRID_INVERSO", "09_MARTINGALE")
+                           "12_GRID_INVERSO")
     if r_capable:
         p.fix("PositionSizeMode", 3)     # Fixed-R
         p.fix("PositionSizeValue", 1.0)  # 1R = 1% do capital base
@@ -1061,79 +1069,6 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         # cobrir).
         p.fix("MinFreeMarginPercent", 20)
         # (criterio vem de FORMULA_POR_SISTEMA, aplicado depois deste bloco)
-
-    elif system == "09_MARTINGALE":
-        p.fix("RecoveryMode", 1)
-        p.fix("GridMode", 0)
-        p.fix("AtivarStop", "true")
-        p.fix("AtivarTake", "true")
-        p.fix("TakeOrganico", "false")
-        p.fix("AtivarTrailATR", "false")
-        p.opt("MetodoDeCalculo", 1, 0, 1, 4)
-        p.opt("TrailVela", 0, 0, 1, 3)
-        p.fix("Trail", sl_mid)
-        p.fix("ReversalExitMode", 0)
-        p.opt("VelaStop", 0, 0, 1, 3)
-        p.opt("VelaTake", 0, 0, 1, 3)
-        p.fix("MaxMartingaleLot", 0)
-        p.opt("Stop", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
-        p.opt("Take", sl_mid, ac.sl_lo, 0.5, ac.tp_hi)
-        # Multiplicador = 1: o lote de recuperacao e dimensionado para cobrir
-        # EXATAMENTE o deficit acumulado (`|TotalLoss| * Multiplicador /
-        # (stop x tickValue)`). A progressao ja nasce da perda -- acima de 1 ela
-        # passa a perseguir a perda MAIS um premio, e o lote cresce
-        # superlinearmente. A faixa anterior comecava em 1.2, entao nenhum
-        # passe chegava a testar a recuperacao fechada.
-        p.fix("Multiplicador", 1)
-        p.opt("MaxMartingaleSteps", 3, 2, 2, 8)
-        p.opt_bool("AtivarBreakeven", "true")
-        # Teto descido de 3.0 para 0.7 (achado do dono, 2026-08-16): o gatilho
-        # do breakeven e Stop*BreakevenDistancia (nao Take), entao nada aqui impede
-        # ele de cair ALEM do Take -- so reduz a chance. Sistema com Take real
-        # (este bloco): teto baixo o suficiente pra, no caso tipico (Stop~Take, os
-        # dois nascem do mesmo sl_mid), o gatilho ficar bem antes do alvo em vez
-        # de emparelhar com ele. Nao mexido em 05_BE_TRAIL/06_REVERSAL_EXIT: nenhum
-        # dos dois tem Take ativo, entao nao ha TP pra correr contra.
-        p.opt("BreakevenDistancia", 0.35, 0.2, 0.15, 0.7)
-        set_exposure(p, side, 1, hedging=False)  # martingale: 1 por lado
-        # MinFreeMarginPercent (dono, 2026-08-10): mesmo raciocinio do grid
-        # -- o lote de recuperacao cresce pra cobrir o deficit acumulado, sem
-        # teto absoluto (MaxMartingaleLot continua 0), entao a margem livre
-        # real e o freio que falta durante a busca. Ver comentario completo
-        # no bloco do grid.
-        p.fix("MinFreeMarginPercent", 20)
-
-    elif system == "10_DALEMBERT":
-        p.fix("RecoveryMode", 2)
-        p.fix("GridMode", 0)
-        p.fix("AtivarStop", "true")
-        p.fix("AtivarTake", "true")
-        p.fix("TakeOrganico", "false")
-        p.fix("AtivarTrailATR", "false")
-        p.opt("MetodoDeCalculo", 1, 0, 1, 4)
-        p.opt("TrailVela", 0, 0, 1, 3)
-        p.fix("Trail", sl_mid)
-        p.fix("ReversalExitMode", 0)
-        p.opt("VelaStop", 0, 0, 1, 3)
-        p.opt("VelaTake", 0, 0, 1, 3)
-        p.fix("MaxMartingaleLot", 0)
-        p.opt("Stop", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
-        p.opt("Take", sl_mid, ac.sl_lo, 0.5, ac.tp_hi)
-        p.opt("DAlembertStep", 0.02, 0.01, 0.02, 0.09)
-        p.opt("MaxMartingaleSteps", 3, 2, 2, 8)
-        p.opt_bool("AtivarBreakeven", "true")
-        # Teto descido de 3.0 para 0.7 (achado do dono, 2026-08-16): o gatilho
-        # do breakeven e Stop*BreakevenDistancia (nao Take), entao nada aqui impede
-        # ele de cair ALEM do Take -- so reduz a chance. Sistema com Take real
-        # (este bloco): teto baixo o suficiente pra, no caso tipico (Stop~Take, os
-        # dois nascem do mesmo sl_mid), o gatilho ficar bem antes do alvo em vez
-        # de emparelhar com ele. Nao mexido em 05_BE_TRAIL/06_REVERSAL_EXIT: nenhum
-        # dos dois tem Take ativo, entao nao ha TP pra correr contra.
-        p.opt("BreakevenDistancia", 0.35, 0.2, 0.15, 0.7)
-        set_exposure(p, side, 1, hedging=False)
-        # MinFreeMarginPercent (dono, 2026-08-10): ver comentario completo no
-        # bloco do grid -- mesma lacuna, mesmo remedio.
-        p.fix("MinFreeMarginPercent", 20)
 
     elif system == "11_SIGNAL_ONLY":
         p.fix("AtivarStop", "false")

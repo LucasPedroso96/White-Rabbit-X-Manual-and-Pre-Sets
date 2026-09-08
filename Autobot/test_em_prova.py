@@ -55,14 +55,13 @@ checar("combo_do_magic: magic desconhecido -> None",
 
 
 # --- tabela_magics recomputada (fallback sem manifesto) ----------------------
-# 5874 (2026-09-07, Modo Economico): BILATERAL passou a cobrir os 11
-# sistemas, e o gerador emite BUY+SELL separados E "BOTH" pra cada um
-# (aditivo -- ver comentario em generate_system_sets.py) -- 3916 (BUY+SELL
-# de sempre) + 1958 (BOTH novo, metade por causa do "Lados: 2, menos N
-# bilateral(is) com arquivo unico").
+# 4806 (2026-09-08): 09_MARTINGALE/10_DALEMBERT saem de SYSTEMS (nao sao
+# mais um "sistema" proprio, viraram booster opcional de qualquer um dos
+# outros -- ver SISTEMAS_RECUPERACAO_OPCIONAL/--recuperacao). 9 sistemas
+# em vez de 11, mesma logica BUY+SELL+BOTH aditivo de antes.
 tabela_recomputada = em_prova._tabela_magics_recomputada()
-checar("recomputada: tamanho bate com o manifesto real (5874 combos)",
-       len(tabela_recomputada), 5874)
+checar("recomputada: tamanho bate com o manifesto real (4806 combos)",
+       len(tabela_recomputada), 4806)
 
 
 # --- ler_relatorio_historico (formato real: Trade History Report) -----------

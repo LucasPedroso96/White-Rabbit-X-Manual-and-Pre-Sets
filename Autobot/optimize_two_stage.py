@@ -2429,6 +2429,29 @@ def main() -> int:
         assert eixos_recuperacao  # tipo_recuperacao <= EIXOS_RECUPERACAO_POR_TIPO.keys()
         nomes_rec = ", ".join(eixos_recuperacao)
         travados["RecoveryMode"] = RECOVERY_MODE_POR_TIPO[tipo_recuperacao]
+        # MinFreeMarginPercent (dono, 2026-08-10, ver test_min_free_margin.py):
+        # os antigos 09_MARTINGALE/10_DALEMBERT fixavam este piso em 20 porque
+        # o lote de recuperacao cresce sem teto absoluto (MaxMartingaleLot
+        # continua 0) -- a margem livre real e' o unico freio que sobra. Os
+        # sistemas boosteveis (01-06/11) zeram isto por padrao (neutro pra
+        # quem tem CapitalBaseR como rede propria) -- mas essa rede e' do
+        # sinal SEM recuperacao; com RecoveryMode ligado o mesmo buraco do
+        # 09/10 original se abre de novo, entao o piso entra junto aqui.
+        travados["MinFreeMarginPercent"] = "20"
+        if tipo_recuperacao == "dalembert":
+            # D'Alembert exige Lote Fixo no .mq5 (OnInit: "D'Alembert requires
+            # Fixed Lot" -- DAlembertStep e um incremento de lote ABSOLUTO,
+            # nao escala com R/Monetario/Percentual). Nenhum dos sistemas
+            # boosteveis nasce em Lote Fixo (01-06 sao Fixed-R, 11 e
+            # Monetary, ver apply_sizing_and_formula() no gerador) -- sem
+            # isto o combo seria rejeitado no OnInit assim que RecoveryMode
+            # virasse D'Alembert. So troca o MODO de dimensionamento; Stop/
+            # Take/filtros ja validados nos Estagios 1-2 continuam intactos,
+            # e os estagios seguintes (3 em diante) medem o resultado de
+            # verdade com essa troca em vigor -- um resultado ruim aqui
+            # reprova normalmente, nao e assumido como seguro.
+            travados["PositionSizeMode"] = "2"
+            travados["PositionSizeValue"] = "0.01"
         n = reescrever(origem, trabalho, eixos_recuperacao, travados)
         print(f"\n  [2.5/5] camada de recuperacao em OHLC ({n} parametros: "
               f"{nomes_rec}, entrada/saida ja travada no vencedor "

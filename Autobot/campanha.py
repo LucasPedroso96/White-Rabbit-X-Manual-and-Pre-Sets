@@ -80,10 +80,16 @@ def anos_atras(anos: int) -> str:
 # (anti-martingale) -- abre niveis A FAVOR do preco, sai por trailing ATR
 # na cesta. Mesma tier HEDGE_ACCOUNT_REQUIRED do 07, entao entra logo
 # depois dele na ordem de medicao.
+#
+# 09_MARTINGALE/10_DALEMBERT REMOVIDOS daqui (dono, 2026-09-08: "nao sao
+# sistemas! sao extras de todos os outros sistemas!") -- generate_system_sets.py
+# nao gera mais .set proprio pra eles. A camada de recuperacao continua
+# existindo, so que como booster OPCIONAL de qualquer sistema abaixo (ver
+# --recuperacao em optimize_two_stage.py, acionado por fora desta fila, nao
+# como mais um "sistema" que entraria nesta lista).
 SISTEMAS = ["01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
             "05_BE_TRAIL", "06_REVERSAL_EXIT",
-            "07_GRID_SEPARATE", "12_GRID_INVERSO",
-            "09_MARTINGALE", "10_DALEMBERT", "11_SIGNAL_ONLY"]
+            "07_GRID_SEPARATE", "12_GRID_INVERSO", "11_SIGNAL_ONLY"]
 
 # Sistemas cuja gestao atravessa compra e venda, entao o set liga os dois
 # lados num arquivo unico ("BOTH") em vez de um por lado.
