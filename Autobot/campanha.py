@@ -29,6 +29,7 @@ from pathlib import Path
 import auto_manager_live
 import descobrir_ativos
 import optimize_sets as base
+from generate_system_sets import SISTEMAS_RECUPERACAO_OPCIONAL
 
 AQUI = Path(__file__).resolve().parent
 LEDGER = AQUI / "campanha_resultados.jsonl"
@@ -297,6 +298,17 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
            # extra pra ICHIMOKU/BOLLINGER: eixos_do_indicador() so ativa
            # quando ha EntryIndicator vencedor de verdade (variante MULTI).
            "--indicador-solo"]
+    # Camada de recuperacao (dono, 2026-09-08/09): so repassa --recuperacao
+    # pros sistemas ELEGIVEIS. Sem este filtro, uma campanha com 07/12
+    # misturados aos outros e --recuperacao martingale pedido travaria os
+    # combos de grid/pyramid com SystemExit ANTES de qualquer JSON final --
+    # rodar_combo() gravaria "erro" (falha de infraestrutura), e feitos()
+    # exclui "erro" de proposito, entao a campanha tentaria esses combos de
+    # novo pra sempre. Fora da lista elegivel, roda como se nada tivesse
+    # sido pedido (comportamento identico a --recuperacao nenhuma).
+    if (getattr(args, "recuperacao", "nenhuma") != "nenhuma"
+            and sistema in SISTEMAS_RECUPERACAO_OPCIONAL):
+        cmd += ["--recuperacao", args.recuperacao]
     t0 = time.time()
     # CREATE_NO_WINDOW: so suprime a janela de console que este python.exe
     # filho abriria sozinho (achado do dono, 2026-08-06 -- cada combo novo
@@ -383,7 +395,7 @@ def main() -> int:
     ap.add_argument("--listar", action="store_true")
     ap.add_argument("--sistemas", default="",
                     help="lista separada por virgula, filtra e ordena "
-                         "(ex.: 07_GRID_SEPARATE,01_SLTP); vazio = os 11 default")
+                         "(ex.: 07_GRID_SEPARATE,01_SLTP); vazio = os 9 default")
     ap.add_argument("--simbolos", default="",
                     help="lista separada por virgula, sobrepoe a "
                          "auto-deteccao/campanha_ativos.json so nesta corrida")
@@ -403,6 +415,18 @@ def main() -> int:
                          "False preserva o fluxo de sempre (BUY+SELL). Nao "
                          "contorna nenhum gate -- sobrevivencia, holdout "
                          "longo/WFA e Monte Carlo continuam rodando iguais.")
+    # Camada de recuperacao opcional (dono, 2026-09-08/09: "nao sao sistemas!
+    # sao extras de todos os outros sistemas!"). Repassado pra
+    # optimize_two_stage.py --recuperacao SO nos combos elegiveis (ver
+    # rodar_combo()) -- sistemas de grid/pyramid (07/12) ficam de fora
+    # silenciosamente, nunca crasham por causa disto.
+    ap.add_argument("--recuperacao", choices=["nenhuma", "martingale", "dalembert"],
+                    default="nenhuma",
+                    help="Martingale/D'Alembert como booster opcional em "
+                         "cima de qualquer sistema elegivel (01,02,03,04,05,"
+                         "06,11) -- ver generate_system_sets."
+                         "SISTEMAS_RECUPERACAO_OPCIONAL. Ignorado nos demais "
+                         "sistemas da corrida (grid/pyramid nao aceitam).")
     args = ap.parse_args()
 
     if args.simbolos.strip():

@@ -548,6 +548,14 @@ def _lancar_campanha(body: dict) -> JSONResponse:
     # campanha.variantes()/fila(). Default False preserva o fluxo de sempre.
     if body.get("modo_economico"):
         cmd += ["--modo-economico"]
+    # Camada de recuperacao (dono, 2026-09-08/09): booster opcional
+    # Martingale/D'Alembert, so tem efeito nos sistemas elegiveis (ver
+    # SISTEMAS_RECUPERACAO_OPCIONAL) -- campanha.py ja filtra por sistema,
+    # aqui so repassa o que veio do painel. Default "nenhuma" preserva o
+    # fluxo de sempre.
+    recuperacao = body.get("recuperacao") or "nenhuma"
+    if recuperacao != "nenhuma":
+        cmd += ["--recuperacao", recuperacao]
     # --deposit so vai explicito se o chamador mandou um numero de verdade
     # -- sem isso, cai no default do proprio campanha.py (None = automatico,
     # resolve o capital minimo pela CLASSE de CADA simbolo). Achado do dono,
@@ -580,6 +588,16 @@ def _lancar_campanha(body: dict) -> JSONResponse:
         if simbolos:
             cmd += ["--simbolos", ",".join(simbolos)]
 
+    # Limpa um sinal de pausa que tenha sobrado no disco ANTES de lancar
+    # (achado do dono, 2026-09-09): /retomar ja limpava isto, mas /start
+    # (uma corrida NOVA, sem relacao com a que foi pausada) nao -- uma
+    # pausa pedida e nunca retomada/parada deixava o arquivo no disco pra
+    # sempre, e todo Start seguinte (o painel foi clicado repetidas vezes
+    # numa noite inteira, >5h, 0 combos em cada tentativa) topava com
+    # pausa_solicitada()==True antes do primeiro combo e saia na hora.
+    # Centralizado aqui (chamado por /start e por /retomar) em vez de cada
+    # endpoint lembrar de limpar por conta propria.
+    base.PAUSA.unlink(missing_ok=True)
     with LOG.open("a", encoding="utf-8") as fh:
         fh.write(
             f"\n### painel: iniciando ({modo}) em "
