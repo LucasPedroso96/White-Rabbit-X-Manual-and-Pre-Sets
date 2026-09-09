@@ -1,5 +1,7 @@
 # Deposit Auto-suggest Implementation Plan
 
+> **SUPERSEDED (2026-09-09):** the feature (auto-suggest checkbox next to Deposit) shipped and is live. But every step below targets `dashboard_static/app.js` by line number, which no longer exists — commit `a30f9c54` replaced the dashboard with a single-component `index.html`, and `73721fed` removed `app.js` as dead code afterward. The equivalent logic lives today inside `dashboard_static/index.html` (search for `depositoAuto`/`toggleDepositoAuto`/`capitaisBaseDistintos`). Do not follow this plan's `app.js` edits on a fresh checkout — the file is gone.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a checkbox next to the dashboard's Deposit field that auto-fills it with the recommended capital for the asset classes in play, instead of always requiring a hand-typed number.

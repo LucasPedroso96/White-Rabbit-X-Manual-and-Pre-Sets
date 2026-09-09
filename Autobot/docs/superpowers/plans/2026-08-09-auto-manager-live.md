@@ -1,5 +1,7 @@
 # AutoManagerLive (suggestion engine) Implementation Plan
 
+> **SUPERSEDED (2026-09-09):** the engine (`auto_manager_live.py`, `GET /api/implantacao/sugestoes`) was built as planned and is live. But the UI steps below target `dashboard_static/app.js`, which no longer exists — commit `a30f9c54` replaced the whole dashboard with a single-component `index.html` (state, rendering and event wiring inline), and `73721fed` removed `app.js` as dead code afterward. The suggestion panel that Task 7 describes lives today inside `dashboard_static/index.html` (search for `sugestoesFila`/`carregarSugestoes`). Do not follow Task 7's `app.js` edits on a fresh checkout — the file is gone.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the AutoManagerLive suggestion engine described in `PLANO_TREINAMENTO_100_A_MILHAO.md` §8 — a numbered queue of certified-set combinations that fit together (low correlation), each stating how many live accounts it needs — and wire it into the existing "Certified sets" dashboard panel.
