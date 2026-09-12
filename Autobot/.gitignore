@@ -21,6 +21,7 @@ campanha_ativos.json
 
 # Resultados de campanha e logs sao dados de UMA maquina/conta, nao codigo
 campanha_resultados*.jsonl
+campanha_resultados*.jsonl.lock
 amostra_noite_resultados.jsonl
 *.log
 *.bak

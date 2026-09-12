@@ -18,7 +18,9 @@ outros 10), simbolo por dentro -- ver o docstring de `fila()` para o porque
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -33,6 +35,7 @@ from generate_system_sets import SISTEMAS_RECUPERACAO_OPCIONAL
 
 AQUI = Path(__file__).resolve().parent
 LEDGER = AQUI / "campanha_resultados.jsonl"
+_LEDGER_LOCK = AQUI / "campanha_resultados.jsonl.lock"
 
 
 def anos_atras(anos: int) -> str:
@@ -247,9 +250,41 @@ def feitos() -> set[tuple[str, str, str]]:
     return vistos
 
 
+@contextlib.contextmanager
+def _lock_ledger(timeout: float = 30.0):
+    """Trava exclusiva minima em arquivo, so pra `registrar()` -- necessaria
+    desde que 2 processos `campanha.py` (cada um contra uma instalacao MT5
+    diferente, ver WRX_MT5_DATA_DIR/WRX_MT5_INSTALL_DIR em wrx_paths.py)
+    passaram a poder rodar ao mesmo tempo contra o MESMO ledger. Sem isto,
+    dois `fh.write()` proximos no tempo podiam intercalar bytes e corromper
+    a linha de AMBOS -- `feitos()` ja tolera linha corrompida (so refaz
+    aquele combo), mas e desperdicio evitavel, nao so cosmetico.
+
+    Criacao atomica via O_EXCL (mesmo principio do sinal de pausa,
+    campanha_pausa.json: so a PRESENCA do arquivo importa). Trava presa (um
+    processo morreu sem soltar) se autodestranca apos `timeout` em vez de
+    travar a campanha pra sempre.
+    """
+    fim = time.monotonic() + timeout
+    while True:
+        try:
+            os.close(os.open(_LEDGER_LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            break
+        except FileExistsError:
+            if time.monotonic() > fim:
+                _LEDGER_LOCK.unlink(missing_ok=True)
+                continue
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        _LEDGER_LOCK.unlink(missing_ok=True)
+
+
 def registrar(reg: dict) -> None:
-    with LEDGER.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(reg, ensure_ascii=False) + "\n")
+    with _lock_ledger():
+        with LEDGER.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(reg, ensure_ascii=False) + "\n")
 
 
 def resolver_deposito(simbolo: str, explicito: int | None) -> int:
