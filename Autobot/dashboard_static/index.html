@@ -306,6 +306,20 @@
                 </sc-for>
               </div>
             </fieldset>
+
+            <!-- Estagio 0 (dono, 2026-09-10): experimental, sem chave data-i18n
+                 ainda -- texto fixo em PT-BR ate a feature sair do estagio de
+                 validacao (mesmo criterio ja usado pra Deployment em EN). -->
+            <fieldset style="flex:1;min-width:280px;border:2px solid {{ pal.accent2 }};border-radius:10px;margin:0;padding:12px 14px;background:{{ pal.bg3 }};">
+              <legend style="color:{{ pal.accent2 }};padding:0 6px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Estágio 0 (experimental)</legend>
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input type="checkbox" checked="{{ rankearEntradaChecked }}" onChange="{{ onToggleRankearEntrada }}" style="accent-color:{{ pal.accent2 }};width:18px;height:18px;margin-top:2px;flex-shrink:0;" />
+                <span>
+                  <strong style="font-size:13.5px;">Rankear entradas primeiro</strong>
+                  <div style="color:{{ pal.muted }};font-size:12px;margin-top:4px;line-height:1.5;">Antes dos sistemas de administração, mede a entrada pura (11_SIGNAL_ONLY, sem SL/TP/trailing) por ativo/lado e trava a vencedora nos demais — evita redescobrir a entrada em cada sistema. Nenhum gate é pulado ou afrouxado.</div>
+                </span>
+              </label>
+            </fieldset>
           </div>
 
           <sc-if value="{{ modoManual }}" hint-placeholder-val="{{ false }}">
@@ -730,7 +744,7 @@ class Component extends DCLogic {
     locale: this.props.idiomaPadrao || 'en',
     offline: false, showInstall: false, installEvt: null,
     status: null, estado: null, heatmap: null, expandedRecentes: {},
-    modo: 'auto', modoEconomico: false, recuperacao: 'nenhuma', config: null, sistemasSel: {}, ativosSel: {}, ativosReal: {}, ativosMeta: {},
+    modo: 'auto', modoEconomico: false, rankearEntradaPrimeiro: false, recuperacao: 'nenhuma', config: null, sistemasSel: {}, ativosSel: {}, ativosReal: {}, ativosMeta: {},
     campoInicio: anosAtrasMT5(3), campoFim: hojeMT5(), campoDeposito: 1000, depositoAuto: true, campoRetencao: 30,
     showAutoModal: false, autoModalDontAsk: false, msgIniciar: '', msgIniciarOk: null, msgDetectar: '',
     biblioteca: null, msgRegenerar: '', msgRegenerarOk: null,
@@ -859,6 +873,7 @@ class Component extends DCLogic {
   }
   toggleSistema(code) { this.setState((s) => ({ sistemasSel: { ...s.sistemasSel, [code]: !s.sistemasSel[code] } })); }
   toggleModoEconomico() { this.setState((s) => ({ modoEconomico: !s.modoEconomico })); }
+  toggleRankearEntrada() { this.setState((s) => ({ rankearEntradaPrimeiro: !s.rankearEntradaPrimeiro })); }
   setRecuperacao(tipo) { this.setState((s) => ({ recuperacao: s.recuperacao === tipo ? 'nenhuma' : tipo })); }
   selectAllSistemas() { const sel = {}; (this.state.config?.sistemas || []).forEach((s) => sel[s.code] = true); this.setState({ sistemasSel: sel }); }
   clearSistemas() { this.setState({ sistemasSel: {} }); }
@@ -908,6 +923,7 @@ class Component extends DCLogic {
       modo: this.state.modo, familia: this.state.familia, inicio: this.state.campoInicio, fim: this.state.campoFim,
       deposit: this.state.depositoAuto ? null : Number(this.state.campoDeposito), min_retencao: Number(this.state.campoRetencao),
       modo_economico: !!this.state.modoEconomico,
+      rankear_entrada_primeiro: !!this.state.rankearEntradaPrimeiro,
       recuperacao: this.state.recuperacao || 'nenhuma',
     };
     if (this.state.modo === 'manual') {
@@ -1369,6 +1385,7 @@ class Component extends DCLogic {
 
       modoItems, recuperacaoItems, modoManual, sistemasCheckItems, onSelectAllSistemas: () => this.selectAllSistemas(), onClearSistemas: () => this.clearSistemas(),
       modoEconomicoChecked: !!s.modoEconomico, onToggleModoEconomico: () => this.toggleModoEconomico(),
+      rankearEntradaChecked: !!s.rankearEntradaPrimeiro, onToggleRankearEntrada: () => this.toggleRankearEntrada(),
       classesAtivos, onSelectAllAtivos: () => this.selectAllAtivos(), onClearAtivos: () => this.clearAtivos(),
       onClickDetectar: () => this.clickDetectar(), msgDetectar: s.msgDetectar,
       depositoAutoChecked: s.depositoAuto, onToggleDepositoAuto: () => this.toggleDepositoAuto(), depositoDisabled: s.depositoAuto, depositoDisplay,

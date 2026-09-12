@@ -254,6 +254,48 @@ ESCRITA = {"EntryIndicator", "EntryMethod", "TimeFrame", "InpAppliedPrice",
            # EntryIndicator/EntryMethod recebem acima.
            "BollingerEntryMode"}
 
+# Subconjunto de ESCRITA que e IDENTIDADE DE ENTRADA pura -- sem filtro
+# (AtivarFiltroMA/ADX/MTF, EntradaATR), sem saida (AtivarBreakeven/
+# AtivarTrailATR/TakeOrganico/UsarsomenteATRGRID/ReversalExitUseEntryFilters/
+# *Bolinger), sem estrutura de conta (Hedging), sem ATR_TimeFrame (o dono foi
+# explicito: "nada de ATR aqui" pro ranking de entrada). Existe pra
+# --entrada-travada (rankear_entradas.py, 2026-09-10): quando um combo
+# 11_SIGNAL_ONLY vence o ranking de entrada de um ativo/lado, so ESTES campos
+# sao repassados pros outros 9 sistemas -- travar o resto (ex.: AtivarBreakeven
+# do sinal puro, que e sempre false) capinaria a busca de saida de sistemas que
+# dependem exatamente disso.
+ESCRITA_ENTRADA = {"EntryIndicator", "EntryMethod", "TimeFrame",
+                   "InpAppliedPrice", "StochasticMethod",
+                   "StochasticPriceField", "IchimokuUseKumo",
+                   "IchimokuChikouFilter", "BollingerEntryMode"}
+
+
+def carregar_entrada_travada(path: Path, variante: str) -> dict | None:
+    """Le o JSON de rankear_entradas.py e devolve a entrada da FAMILIA que
+    bate com `variante` (ex. "BUY_MULTI"), ou None se o arquivo nao existe,
+    esta corrompido, ou nao tem entrada pra esta variante.
+
+    So ha 3 familias possiveis (MULTI/ICHIMOKU/BOLLINGER) -- rankear_entradas
+    grava uma entrada por familia, entao "achar a minha variante na lista" e
+    tudo que este lookup precisa fazer, sem indice nem escolha de posicao.
+    """
+    try:
+        dados = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"    --entrada-travada: nao consegui ler {path} ({exc}) -- "
+              "seguindo sem trava.", flush=True)
+        return None
+    for entrada in dados.get("entradas", []):
+        if entrada.get("variante") == variante:
+            escrita = {k: v for k, v in entrada.get("escrita", {}).items()
+                      if k in ESCRITA_ENTRADA}
+            if not escrita:
+                return None
+            return {"familia": entrada.get("familia"), "escrita": escrita,
+                    "composite_score": entrada.get("composite_score")}
+    return None
+
+
 # FASE 2 = SO NUMEROS: com a escrita travada, refinam-se os eixos numericos na
 # faixa fina da biblioteca -- periodos, multiplicadores, distancias, limiares.
 # O ajuste dos filtros entra aqui e SO se a flag sobreviveu (GATES corta o
@@ -463,8 +505,24 @@ INDICADOR_USA = {
 }
 
 
-def eixos_da_fase1(origem: Path) -> list[str]:
-    """TUDO que tem faixa no set, menos os filtros de execucao.
+# 11_SIGNAL_ONLY crava AtivarStop/AtivarTake/AtivarBreakeven/AtivarTrailATR
+# em "false" no gerador (generate_system_sets.py) -- toda saida desligada,
+# "modo puro de entrada" (dono, 2026-09-10, ver rankear_entradas.py). Mas o
+# gerador nao crava ATR_TimeFrame/PeriodoATR junto, entao os dois sobrevivem
+# com faixa real no .set e o genetico continua gastando orcamento neles --
+# mesma classe de eixo morto que GATES existe pra evitar (achado ao vivo,
+# 2026-09-11: "nao to usando nenhum ATR aqui"), so que sem bool pra travar
+# (ninguem usa ATR pra nada quando toda saida baseada em ATR esta desligada).
+# Fica aqui, nao em GATES, porque nao e condicionado a uma flag -- e o
+# proprio SISTEMA que torna os dois inertes.
+EIXOS_INERTES_POR_SISTEMA: dict[str, set[str]] = {
+    "11_SIGNAL_ONLY": {"ATR_TimeFrame", "PeriodoATR"},
+}
+
+
+def eixos_da_fase1(origem: Path, sistema: str | None = None) -> list[str]:
+    """TUDO que tem faixa no set, menos os filtros de execucao (e, pro
+    sistema, os eixos inertes de EIXOS_INERTES_POR_SISTEMA).
 
     Dono (2026-07-31): "todos indicadores e inputs devem estar aptos na
     primeira rodada! aqui tudo de acordo com o sistema". Uma lista fixa no
@@ -475,9 +533,10 @@ def eixos_da_fase1(origem: Path) -> list[str]:
     existe ali simplesmente nao aparece aqui.
 
     Fora ficam so os filtros de EXECUCAO (hora, dia, spread), que por ordem
-    dele sao os ultimos a rodar, no estagio 3.
+    dele sao os ultimos a rodar, no estagio 3, mais o que
+    EIXOS_INERTES_POR_SISTEMA cravar pra este `sistema` especifico.
     """
-    fora = set(EXEC_FILTROS)
+    fora = set(EXEC_FILTROS) | EIXOS_INERTES_POR_SISTEMA.get(sistema or "", set())
     nomes = []
     for linha in origem.read_text(encoding="utf-16").replace("\r", "").split("\n"):
         m = re.match(r"^([A-Za-z_0-9]+)=(.*)$", linha)
@@ -787,6 +846,21 @@ def modo_de_sizing(caminho: Path) -> str | None:
     """
     for linha in caminho.read_text(encoding="utf-16").replace("\r", "").split("\n"):
         if linha.startswith("PositionSizeMode="):
+            return linha.split("=", 1)[1].split("||")[0].strip()
+    return None
+
+
+def capital_base_r_do_set(caminho: Path) -> str | None:
+    """CapitalBaseR do set de origem (primeiro campo).
+
+    Reusado pela prova em Monetario do 11_SIGNAL_ONLY (Estagio 5): o gerador
+    (generate_system_sets.py) grava ali o mesmo capital_base por classe de
+    ativo que os sistemas Fixed-R usam de base pro 1R -- nao pra medir R (o
+    11_SIGNAL_ONLY nao mede), so como referencia estavel de
+    PositionSizeValue pra Monetary, dono 2026-09-12.
+    """
+    for linha in caminho.read_text(encoding="utf-16").replace("\r", "").split("\n"):
+        if linha.startswith("CapitalBaseR="):
             return linha.split("=", 1)[1].split("||")[0].strip()
     return None
 
@@ -1990,6 +2064,37 @@ def main() -> int:
                     help="apos o torneio do Estagio 1, rebusca os mesmos eixos "
                          "com EntryIndicator cravado no vencedor; so adota se "
                          "a retencao melhorar")
+    # Opt-in (dono, 2026-09-10): ver rankear_entradas.py (Estagio 0). Path pro
+    # JSON de entrada_vencedora/<SIMBOLO>_<LADO>.json -- quando a familia
+    # desta corrida (--variante) tem entrada la, ESCRITA_ENTRADA vem PRE-
+    # TRAVADA antes do Estagio 1 comecar (eixos_fase1 exclui esses campos, o
+    # genetico nao gasta orcamento neles de novo) e o Estagio 1.5 e pulado
+    # (o indicador ja veio decidido por um genetico dedicado no ranking, nao
+    # ha o que rebuscar sozinho). Sem entrada pra esta variante no arquivo
+    # (ou arquivo ausente/corrompido), segue exatamente como sem a flag.
+    ap.add_argument("--entrada-travada", default=None,
+                    help="path pro JSON de rankear_entradas.py; pre-trava a "
+                         "identidade de entrada (ESCRITA_ENTRADA) e pula o "
+                         "Estagio 1.5")
+    # Opt-in (dono, 2026-09-12): pro ranking de entrada (Estagio 0), nao pra
+    # campanha normal. Achado ao vivo: rodar os 11 indicadores do MULTI
+    # competindo por UM genetico so (11_SIGNAL_ONLY) deu resultado fraco --
+    # RSI venceu com ~44 trades e retencao negativa. Hipotese do dono: os
+    # FILTROS SECUNDARIOS (MA/ADX/MTF/EntradaATR) e que estavam capinando a
+    # busca, mais do que a competicao entre indicadores primarios em si --
+    # cada filtro ligado corta quando o sinal pode disparar, e o genetico
+    # gastava orcamento tambem nisso em vez de só explorar qual indicador
+    # funciona. Testar essa hipotese SEM o custo de separar os 11
+    # indicadores em corridas proprias (13x mais caro): forca os 4 filtros
+    # em "false" ANTES do Estagio 1 -- GATES ja sabe que MA_Period/ADX_*/
+    # MTF_RequererAmbos/VolatilityFilter morrem com a flag deles desligada,
+    # entao reescrever() os corta sozinho, sem precisar listar cada eixo
+    # numerico dependente aqui.
+    ap.add_argument("--sem-filtros-secundarios", action="store_true",
+                    help="Estagio 0 (ranking de entrada): forca AtivarFiltroMA/"
+                         "ADX/MTF e EntradaATR em false antes do Estagio 1 -- "
+                         "so o indicador primario compete, GATES corta os "
+                         "eixos numericos dos filtros sozinho")
     # Camada de recuperacao OPCIONAL (dono, 2026-09-08: "eles nao sao sistemas
     # a parte e sim um booster dos sistemas normais"). "auto" (default) so
     # liga pra 09_MARTINGALE/10_DALEMBERT (identidade, comportamento de
@@ -2110,8 +2215,33 @@ def main() -> int:
         # recuperacao amplificando (ou escondendo) o sinal. Volta a ligar no
         # Estagio 2.5, depois do vencedor ja travado. Ver constante no topo.
         travados["RecoveryMode"] = "0"
-    eixos_fase1 = eixos_da_fase1(origem)
+
+    entrada_travada = None
+    if args.entrada_travada:
+        entrada_travada = carregar_entrada_travada(args.entrada_travada,
+                                                    args.variante)
+        if entrada_travada is None:
+            print(f"    --entrada-travada: sem entrada para {args.variante} "
+                  f"em {args.entrada_travada} -- Estagio 1 busca normal.",
+                  flush=True)
+        else:
+            travados.update(entrada_travada["escrita"])
+            print(f"    entrada pre-travada ({entrada_travada['familia']}, "
+                  f"score do ranking {entrada_travada['composite_score']}): "
+                  f"{entrada_travada['escrita']}", flush=True)
+
+    if args.sem_filtros_secundarios:
+        travados.update({"AtivarFiltroMA": "false", "AtivarFiltroADX": "false",
+                         "AtivarFiltroMTF": "false", "EntradaATR": "false"})
+        print("    --sem-filtros-secundarios: MA/ADX/MTF/EntradaATR travados "
+              "em false antes do Estagio 1 -- so o indicador primario "
+              "compete.", flush=True)
+
+    eixos_fase1 = eixos_da_fase1(origem, args.sistema)
     eixos_fase1 = [e for e in eixos_fase1 if e not in EIXOS_RECUPERACAO_TODOS]
+    if entrada_travada:
+        eixos_fase1 = [e for e in eixos_fase1
+                      if e not in entrada_travada["escrita"]]
     n = reescrever(origem, trabalho, eixos_fase1, travados)
     print(f"  [1/5] regioes em OHLC ({n} parametros: entradas completas + "
           f"saidas + flags) | WFO In-Sample: "
@@ -2292,7 +2422,7 @@ def main() -> int:
     # sweep de formulas tornaria as formulas ja rodadas incomparaveis com as
     # seguintes -- a comparacao entre formulas so vale com o circuito igual
     # pras 15.
-    if args.indicador_solo and ind is not None:
+    if args.indicador_solo and ind is not None and not entrada_travada:
         # EntryIndicator sai de `otimizar` e entra em `travar`: reescrever()
         # checa `nome in travar` ANTES de `otimizar`, entao basta poe-lo aqui
         # (mesmo cuidado que o Estagio 3.5 tomou ao contrario, ver
@@ -2903,6 +3033,7 @@ def main() -> int:
     # e so salva se passar tambem -- a entrega sai no modo que foi provado.
     retencao_pct = None
     sizing_entrega = "origem"
+    capital_ref = None
     if aprovado:
         if modo_de_sizing(origem) == "3":
             print("\n  [5/5] prova em PERCENTUAL (tick real, juros compostos)",
@@ -2939,6 +3070,56 @@ def main() -> int:
                 sizing_entrega = "percentage"
                 print("    OK em %: a entrega sai em Percentage, o modo "
                       "provado.", flush=True)
+        elif args.sistema == "11_SIGNAL_ONLY" and modo_de_sizing(origem) == "2":
+            # Espelha a prova em % acima, pro unico outro sistema que tem um
+            # segundo modo de sizing estavel pra provar sem violar o
+            # invariante "sem SL usa Fixed Lot" (dono, 2026-09-12): a busca
+            # inteira mediu em Fixed Lot (deterministico, sem compor); a
+            # prova final troca pra Monetary com CapitalBaseR do set como
+            # PositionSizeValue -- o mesmo capital de referencia por classe
+            # de ativo que os sistemas Fixed-R usam, agora que
+            # MM_SizeMonetary() fixa a base em EffectiveInitialCapital em
+            # vez do saldo ao vivo (ver .mq5). So entao a entrega sai em
+            # Monetary; se nao sobreviver, entrega continua em Fixed Lot,
+            # igual 07/09/10.
+            capital_ref = capital_base_r_do_set(origem)
+            if capital_ref is None or base.num(capital_ref) <= 0:
+                print("\n  [5/5] prova em MONETARIO nao se aplica: set sem "
+                      "CapitalBaseR de referencia; entrega em Fixed Lot.",
+                      flush=True)
+            else:
+                print("\n  [5/5] prova em MONETARIO (tick real, base fixa em "
+                      "EffectiveInitialCapital)", flush=True)
+                passo = dict(travados, PositionSizeMode="1",
+                            PositionSizeValue=capital_ref,
+                            MetodoDeEntradawfo="1")
+                reescrever(origem, trabalho, [], passo)
+                faltando = conferir_set(trabalho, passo)
+                if faltando:
+                    print(f"    ABORTADO: o set em Monetario saiu incompleto: {faltando}")
+                    limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
+                    return 1
+                mon = passe_unico(trabalho, args.symbol, args.period, args.inicio,
+                                  args.fim, args.deposit, 4, variante=args.variante)
+                retencao_pct = mon["retencao"]
+                print(f"    retencao em Monetario: "
+                      f"{'n/d' if retencao_pct is None else f'{retencao_pct:.1f}%'}"
+                      f" | {mon['trades']} trades | saldo {mon['saldo']}",
+                      flush=True)
+                if (mon["trades"] is not None and oos["trades"] is not None
+                        and mon["trades"] != oos["trades"]):
+                    print(f"    ATENCAO: trades mudaram no modo Monetario "
+                          f"({oos['trades']} -> {mon['trades']}); sizing nao "
+                          "muda entrada -- verifique margem/abortos.", flush=True)
+                if retencao_pct is None or retencao_pct < args.min_retencao:
+                    aprovado = False
+                    print("    REPROVADO na prova em Monetario: o resultado do "
+                          "Fixed Lot nao sobreviveu ao lote escalado pelo "
+                          "capital de referencia.", flush=True)
+                else:
+                    sizing_entrega = "monetary"
+                    print("    OK em Monetario: a entrega sai em Monetary, o "
+                          "modo provado.", flush=True)
         else:
             print("\n  [5/5] prova em % nao se aplica: sistema sem Fixed-R "
                   "(lote fixo/monetary); entrega no modo de origem.",
@@ -2972,6 +3153,11 @@ def main() -> int:
         # A prova do estagio 5 foi em %, entao e em % que o set sai: entregar
         # em Fixed-R seria entregar um modo que a ultima conferencia nao mediu.
         entrega["PositionSizeMode"] = "0"
+    elif sizing_entrega == "monetary":
+        # Mesma logica do ramo Percentage acima, pro 11_SIGNAL_ONLY: a prova
+        # do Estagio 5 foi em Monetary, entao e em Monetary que o set sai.
+        entrega["PositionSizeMode"] = "1"
+        entrega["PositionSizeValue"] = capital_ref
 
     # ---- Gate de sobrevivencia: periodo completo, como o comprador roda de
     # verdade -- achado do dono, 2026-08-03 (grid), estendido 2026-08-08 pra
@@ -3042,10 +3228,37 @@ def main() -> int:
             origem, travados_wfa, numeros_wfa, args.symbol, args.sistema,
             args.period, inicio_holdout, fim_holdout, args.deposit,
             ciclos_alvo=4, timeout=max(args.timeout, 1800))
+        if wfa_reotimizacao["wfe_global_pct"] is None:
+            # Achado ao vivo (2026-09-10): 3 combos BOLLINGER saíram "0/0
+            # ciclos" (nenhuma janela mediu nada) numa campanha real, e os 3
+            # retestados isolados -- MESMO codigo, MESMO set -- mediram
+            # normal (2 teriam aprovado com WFE positivo, 1 reprovaria por
+            # WFE negativo de verdade, nao por 0/0). "Nenhuma janela mediu"
+            # e sintoma de instabilidade transitoria do otimizador/terminal
+            # sob aquela corrida especifica, nao um resultado determinístico
+            # da logica -- um retry custa uma rodada a mais SO nesse caso
+            # degenerado, nunca no caso "mediu e deu negativo" (que ja e
+            # resultado real e nao repete).
+            print("    WFA sem nenhuma janela medida (0/0) -- pode ser "
+                  "instabilidade transitoria do otimizador; tentando mais "
+                  "uma vez antes de reprovar.", flush=True)
+            wfa_reotimizacao = wfa_real.medir_wfa(
+                origem, travados_wfa, numeros_wfa, args.symbol, args.sistema,
+                args.period, inicio_holdout, fim_holdout, args.deposit,
+                ciclos_alvo=4, timeout=max(args.timeout, 1800))
         print(f"    WFA reotimizacao: WFE global "
               f"{wfa_reotimizacao['wfe_global_pct']} | "
               f"{wfa_reotimizacao['ciclos_positivos']} ciclos positivos",
               flush=True)
+        if wfa_reotimizacao["wfe_global_pct"] is None:
+            # As DUAS tentativas deram 0/0 -- o detalhe por janela (motivo
+            # exato de cada uma) nunca era persistido em lugar nenhum antes
+            # disto, só o resumo; diagnosticar exigia reproduzir a mao (foi
+            # assim que o achado de 2026-09-10 apareceu). Fica no proprio
+            # log da campanha, junto do resto do combo.
+            print(f"    detalhe por janela (0/0 nas duas tentativas): "
+                  f"{json.dumps(wfa_reotimizacao['detalhe'], ensure_ascii=False)}",
+                  flush=True)
         if holdout_longo["profit"] is None or holdout_longo["profit"] <= 0:
             aprovado = False
             print("    REPROVADO no holdout longo: prejuizo no periodo "
@@ -3209,6 +3422,15 @@ def main() -> int:
                       "wfa_ciclos_positivos": (
                           wfa_reotimizacao["ciclos_positivos"]
                           if wfa_reotimizacao else None),
+                      # So grava o detalhe por janela no caso degenerado (0/0
+                      # nas duas tentativas) -- ver retry acima. No caso
+                      # normal ele so infla o ledger com parametros de 4
+                      # janelas que ninguem vai olhar.
+                      "wfa_detalhe": (
+                          wfa_reotimizacao["detalhe"]
+                          if wfa_reotimizacao
+                          and wfa_reotimizacao["wfe_global_pct"] is None
+                          else None),
                       "relatorio_dir": relatorio_dir,
                       # True = aprovado (ou nao) com base num candidato
                       # buscado DIRETO em tick real (ver [4.5/5] acima), nao

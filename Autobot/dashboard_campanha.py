@@ -548,6 +548,11 @@ def _lancar_campanha(body: dict) -> JSONResponse:
     # campanha.variantes()/fila(). Default False preserva o fluxo de sempre.
     if body.get("modo_economico"):
         cmd += ["--modo-economico"]
+    # Estagio 0 (dono, 2026-09-10): rankeia a entrada (11_SIGNAL_ONLY, sem
+    # nenhuma administracao) por ativo/lado antes dos sistemas de verdade --
+    # ver rankear_entradas.py. Default False preserva o fluxo de sempre.
+    if body.get("rankear_entrada_primeiro"):
+        cmd += ["--rankear-entrada-primeiro"]
     # Camada de recuperacao (dono, 2026-09-08/09): booster opcional
     # Martingale/D'Alembert, so tem efeito nos sistemas elegiveis (ver
     # SISTEMAS_RECUPERACAO_OPCIONAL) -- campanha.py ja filtra por sistema,

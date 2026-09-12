@@ -271,7 +271,9 @@ def resolver_deposito(simbolo: str, explicito: int | None) -> int:
     return int(capital)
 
 
-def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
+def rodar_combo(simbolo: str, sistema: str, variante: str, args,
+                entrada_travada: Path | None = None,
+                sem_filtros_secundarios: bool = False) -> dict:
     # --period M1 explicito (dono, 2026-07-31): obrigatorio em todos os
     # algoritmos porque cada indicador carrega o proprio TF via input -- com
     # o chart period != M1, qualquer input "Current TF" colapsaria pro period
@@ -309,6 +311,10 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args) -> dict:
     if (getattr(args, "recuperacao", "nenhuma") != "nenhuma"
             and sistema in SISTEMAS_RECUPERACAO_OPCIONAL):
         cmd += ["--recuperacao", args.recuperacao]
+    if entrada_travada is not None:
+        cmd += ["--entrada-travada", str(entrada_travada)]
+    if sem_filtros_secundarios:
+        cmd += ["--sem-filtros-secundarios"]
     t0 = time.time()
     # CREATE_NO_WINDOW: so suprime a janela de console que este python.exe
     # filho abriria sozinho (achado do dono, 2026-08-06 -- cada combo novo
@@ -427,6 +433,23 @@ def main() -> int:
                          "06,11) -- ver generate_system_sets."
                          "SISTEMAS_RECUPERACAO_OPCIONAL. Ignorado nos demais "
                          "sistemas da corrida (grid/pyramid nao aceitam).")
+    # Estagio 0 (dono, 2026-09-10): antes de rodar os sistemas de
+    # administracao pra um (simbolo, lado), garante um ranking de entrada
+    # (rankear_entradas.py -- 11_SIGNAL_ONLY nas 3 familias, "nada de ATR
+    # aqui") e passa --entrada-travada pros sistemas desta FAMILIA (a de
+    # --familia). Cada sistema pula a redescoberta de entrada (Estagio 1/1.5
+    # de optimize_two_stage.py) e ja nasce com a entrada da propria familia
+    # travada. So troca QUEM procura a entrada -- nenhum gate (sobrevivencia,
+    # divergencia, retencao, holdout longo/WFA, Monte Carlo) e pulado ou
+    # afrouxado. 11_SIGNAL_ONLY continua rodando normal (e a fonte do
+    # ranking, nao um consumidor dele). Comparacao entre familias fica
+    # gravada em entrada_vencedora/*.json pra visibilidade; a troca
+    # automatica de familia vencedora ainda nao existe (cada corrida so
+    # trava a entrada dentro da propria --familia pedida).
+    ap.add_argument("--rankear-entrada-primeiro", action="store_true",
+                    help="Estagio 0: rankeia a entrada por (simbolo, lado) "
+                         "nas 3 familias antes dos sistemas de administracao, "
+                         "e trava a entrada da familia desta corrida neles.")
     args = ap.parse_args()
 
     if args.simbolos.strip():
@@ -456,6 +479,8 @@ def main() -> int:
             print(f"  {i:3}. {s:<12} {sis:<18} {v}")
         return 0
 
+    ranking_cache: dict[tuple[str, str], Path] = {}
+
     feitos_agora = 0
     for simbolo, sistema, variante in pendentes:
         if args.limite and feitos_agora >= args.limite:
@@ -471,8 +496,21 @@ def main() -> int:
             break
         print(f"\n{'=' * 70}\n[{feitos_agora + 1}/{len(pendentes)}] "
               f"{simbolo} {sistema} {variante}\n{'=' * 70}", flush=True)
+        entrada_travada = None
+        if args.rankear_entrada_primeiro and sistema != "11_SIGNAL_ONLY":
+            # 11_SIGNAL_ONLY e a FONTE do ranking, nunca um consumidor --
+            # travar a entrada dele contra o proprio ranking seria circular.
+            lado = variante.split("_", 1)[0]
+            chave = (simbolo, lado)
+            if chave not in ranking_cache:
+                import rankear_entradas
+                print(f"  [Estagio 0] ranking de entrada para {simbolo} "
+                      f"{lado}...", flush=True)
+                ranking_cache[chave] = rankear_entradas.garantir_ranking(
+                    simbolo, lado, args)
+            entrada_travada = ranking_cache[chave]
         try:
-            reg = rodar_combo(simbolo, sistema, variante, args)
+            reg = rodar_combo(simbolo, sistema, variante, args, entrada_travada)
         except subprocess.TimeoutExpired:
             reg = {"simbolo": simbolo, "sistema": sistema, "variante": variante,
                    "erro": "timeout", "quando": datetime.now().isoformat(timespec="seconds")}

@@ -168,9 +168,17 @@ def apply_core_bollinger(p: Profile, ac: AssetClass, grid: bool = False) -> None
     if grid:
         p.opt_bool("EntradaATR")
         p.opt("VolatilityFilter", 1, 0, 1, 1)
+        # PeriodoBaselineATR/MultiplicadorATR (dono, 2026-09-12): mesmos
+        # eixos novos do generate_system_sets.py, mesma regra de onde
+        # entram (so grid) -- ver comentario la pro porque da troca de
+        # filtro de volatilidade.
+        p.opt("PeriodoBaselineATR", 100, 50, 25, 200)
+        p.opt("MultiplicadorATR", 1.5, 1.2, 0.1, 2.5)
     else:
         p.fix("EntradaATR", "false")
         p.fix("VolatilityFilter", 1)
+        p.fix("PeriodoBaselineATR", 100)
+        p.fix("MultiplicadorATR", 1.5)
 
     p.fix("AtivarFiltroNoticias", "false")
     p.fix("NewsSomenteAltoImpacto", "false")

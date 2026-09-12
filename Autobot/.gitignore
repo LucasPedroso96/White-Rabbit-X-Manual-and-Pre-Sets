@@ -25,3 +25,15 @@ amostra_noite_resultados.jsonl
 *.log
 *.bak
 *.bak_*
+
+# Mesma razao (dono, 2026-09-12): saidas geradas por rodar o Autobot nesta
+# maquina, nao codigo -- campeoes/rankings/resultados/modelos mudam a cada
+# corrida e nao tem por que viver no historico do repo.
+campeoes_arquivados/
+entrada_vencedora/
+graphify-out/
+ml_data/
+ml_models/
+wfa_real_resultados/
+wfa_real_resumo.csv
+_arquivo_operacional/backups/

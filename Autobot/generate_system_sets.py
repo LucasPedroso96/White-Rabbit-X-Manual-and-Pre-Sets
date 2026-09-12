@@ -517,9 +517,19 @@ def apply_core(p: Profile, ac: AssetClass, ichimoku: bool,
     if grid:
         p.opt_bool("EntradaATR")
         p.opt("VolatilityFilter", 1, 0, 1, 1)   # baixa / alta
+        # PeriodoBaselineATR/MultiplicadorATR (dono, 2026-09-12): a EA trocou
+        # o filtro de volatilidade de "media das proprias ultimas PeriodoATR
+        # leituras, maior/menor sem margem" pra "baseline longo (janela
+        # propria, desacoplada do calculo do ATR) + margem multiplicativa" --
+        # mesmos eixos do EntradaATR/VolatilityFilter acima, mesma regra de
+        # onde entram (so grid). Faixas espelham o default da EA (100/1.5).
+        p.opt("PeriodoBaselineATR", 100, 50, 25, 200)
+        p.opt("MultiplicadorATR", 1.5, 1.2, 0.1, 2.5)
     else:
         p.fix("EntradaATR", "false")
         p.fix("VolatilityFilter", 1)
+        p.fix("PeriodoBaselineATR", 100)
+        p.fix("MultiplicadorATR", 1.5)
 
     # Noticias exigem CSV em Common\Files: fica desligado por padrao. Sub-flag
     # bate com o default da propria EA (false) -- com o filtro mestre desligado
@@ -810,15 +820,30 @@ def apply_sizing_and_formula(p: Profile, system: str, ac: AssetClass) -> None:
         # contra martingale/pyramid perdendo o controle. Ajustavel.
         p.fix("MaxRiscoTradeR", 3.0)
     elif system == "11_SIGNAL_ONLY":
-        # Sem SL por desenho (mede o sinal cru), entao nao entra em
-        # r_capable (nao ha R pra medir) -- mas MM_SizeMonetary() no .mq5
-        # nao exige stop, entao Monetary e viavel sem tocar o EA. Antes
-        # ficava agrupado com 07_GRID_SEPARATE (que SIM tem restricao real
-        # do .mq5) no else generico -- achado do dono, 2026-08-24.
-        # capital_base pra manter consistencia com CapitalBaseR dos outros
-        # 8 sistemas, nao um numero novo as cegas.
-        p.fix("PositionSizeMode", 1)     # Monetary
-        p.fix("PositionSizeValue", ac.capital_base)
+        # Revertido pra Fixed Lot na BUSCA (dono, 2026-09-12) -- o caso
+        # especial em Monetary (2026-08-24) violava o invariante documentado
+        # no topo deste arquivo ("Percentage/Fixed-R exigem SL: os sistemas
+        # sem SL usam Fixed Lot") e causava juros compostos sem freio:
+        # MM_SizeMonetary() dimensionava pelo SALDO AO VIVO (antes do fix no
+        # .mq5 do mesmo dia), entao uma sequencia de vitorias inflava o
+        # saldo e o PROXIMO lote nascia maior, proporcional -- sem stop loss
+        # (por desenho) pra limitar o dano do trade seguinte nesse lote
+        # inflado. Achado ao vivo, EURUSD/BUY_MULTI: saldo 1000 -> 12084 em
+        # 3 trades, lotes 9.79/13.62, CheckStopTradingCondition() travando
+        # entrada pro resto do backtest -- em TODOS os 11 indicadores, ~2.5
+        # anos de silencio, WFA sempre reprovando por falta de trade OOS.
+        # Fixed Lot e deterministico (mesmo lote sempre, sem compor), igual
+        # aos outros sistemas sem SL (07/09/10) neste else abaixo.
+        #
+        # CapitalBaseR continua guardando o mesmo capital_base de referencia
+        # (nao usado pra R aqui -- 11_SIGNAL_ONLY nao mede R -- mas reusado
+        # como PositionSizeValue da prova final em Monetary do Estagio 5,
+        # ver optimize_two_stage.py: mesmo numero por classe de ativo que os
+        # outros 7 sistemas usam de base, agora que MM_SizeMonetary() fixa
+        # em EffectiveInitialCapital em vez do saldo vivo).
+        p.fix("PositionSizeMode", 2)     # Fixed Lot (busca)
+        p.fix("PositionSizeValue", 0.01)
+        p.fix("CapitalBaseR", ac.capital_base)
     else:
         p.fix("PositionSizeMode", 2)     # Fixed Lot
         p.fix("PositionSizeValue", 0.01)
