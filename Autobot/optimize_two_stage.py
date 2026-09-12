@@ -2403,17 +2403,32 @@ def main() -> int:
                   if melhores else float("-inf"))
         print(f"    rodada {rodada}: {(time.time()-t0)/60:.0f} min | melhor "
               f"lucro apto {melhor:.2f} | {aptos} indicadores aptos", flush=True)
-        if rodada >= 2:
-            # So informativo agora -- pedido do dono, 2026-08-05: "no minimo
-            # 3 testes de exploracao inicial". O corte antecipado aqui
-            # economizava uma rodada quando a 2a nao melhorava sobre a 1a,
-            # mas isso deixava de garantir a exploracao minima pedida; as 3
-            # rodadas do range() acima sempre rodam agora, sem early-exit.
+        # Corte antecipado REATIVADO (dono, 2026-09-12: "muita etapa" -- 3
+        # rodadas obrigatorias viraram custo demais). Reverte o "no minimo 3
+        # testes de exploracao inicial" de 2026-08-05, mas com uma
+        # "temperatura" em duas camadas, em vez do corte binario antigo (que
+        # so comparava rodada 2 contra 1):
+        #   1. Rodada 1 sozinha ja para o laco se achou candidato viavel com
+        #      lucro positivo -- dono confirmou explicitamente aceitar o
+        #      risco de perder um indicador que so aparecesse numa 2a/3a
+        #      rodada, em troca do caso comum (1a ja resolve) caindo de 3
+        #      rodadas pra 1.
+        #   2. Sem isso, rodadas 2 e 3 seguem o mecanismo antigo: só roda a
+        #      3a se a 2a melhorou sobre a MELHOR rodada anterior (nao so a
+        #      imediatamente anterior -- melhor_ant/aptos_ant acumulam o
+        #      maximo visto ate aqui).
+        parar = False
+        if rodada == 1 and melhores and melhor > 0:
+            print("    rodada 1 ja achou candidato viavel com lucro positivo "
+                  "-- pulando rodada 2/3.", flush=True)
+            parar = True
+        elif rodada >= 2:
             melhorou = (aptos > aptos_ant
                         or melhor > melhor_ant + max(abs(melhor_ant) * 0.05, 1e-9))
             if not melhorou:
-                print("    rodada sem melhora (seguindo mesmo assim, "
-                      "minimo de 3 rodadas e obrigatorio).", flush=True)
+                print("    rodada sem melhora sobre a melhor anterior -- "
+                      "parando aqui (corte antecipado).", flush=True)
+                parar = True
         melhor_ant = max(melhor_ant, melhor)
         aptos_ant = max(aptos_ant, aptos)
         salvar_checkpoint_estagio1(args.symbol, args.sistema, args.variante,
@@ -2421,6 +2436,8 @@ def main() -> int:
         salvar_progresso(args.symbol, args.sistema, args.variante,
                          estagio="1/5 (regioes)", rodada=f"{rodada}/3",
                          melhor_lucro=melhor, indicadores_aptos=aptos)
+        if parar:
+            break
         # Ponto seguro pra pausa (dono, 2026-08-09): o checkpoint desta
         # rodada acabou de ser gravado, entao parar AQUI nunca perde
         # trabalho -- retomar rele o mesmo checkpoint e segue da proxima
