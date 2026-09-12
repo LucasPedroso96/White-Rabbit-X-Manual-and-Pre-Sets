@@ -252,7 +252,16 @@ ESCRITA = {"EntryIndicator", "EntryMethod", "TimeFrame", "InpAppliedPrice",
            # variante (enum proprio, 3 valores -- Reversal/Breakout/Squeeze,
            # ver mql5 2026-09-06): mesmo tratamento de "escrita" que
            # EntryIndicator/EntryMethod recebem acima.
-           "BollingerEntryMode"}
+           "BollingerEntryMode",
+           # Variante CANDLES (2026-09-12): EA propria "White Rabbit (Candles
+           # Entry).mq5", sem EntryIndicator/Fast_EMA plugavel -- a entrada e
+           # 2-4 "slots" de vela (timeframe de cada um), decidida na fase 1
+           # igual TimeFrame/EntryIndicator acima. AtivarSlot3/4 decidem SE o
+           # 3o/4o slot participa da confluencia -- mesma natureza booleana
+           # de AtivarFiltroMA/ADX/MTF (funil de descoberta). Ausentes do set
+           # MULTI/ICHIMOKU/BOLLINGER, entao inertes la.
+           "CandleTF1", "CandleTF2", "CandleTF3", "CandleTF4",
+           "AtivarSlot3", "AtivarSlot4"}
 
 # Subconjunto de ESCRITA que e IDENTIDADE DE ENTRADA pura -- sem filtro
 # (AtivarFiltroMA/ADX/MTF, EntradaATR), sem saida (AtivarBreakeven/
@@ -267,7 +276,17 @@ ESCRITA = {"EntryIndicator", "EntryMethod", "TimeFrame", "InpAppliedPrice",
 ESCRITA_ENTRADA = {"EntryIndicator", "EntryMethod", "TimeFrame",
                    "InpAppliedPrice", "StochasticMethod",
                    "StochasticPriceField", "IchimokuUseKumo",
-                   "IchimokuChikouFilter", "BollingerEntryMode"}
+                   "IchimokuChikouFilter", "BollingerEntryMode",
+                   # CANDLES (2026-09-12): timeframe de cada slot + se o
+                   # slot 3/4 participa SAO a identidade da entrada (qual
+                   # confluencia de velas define o sinal) -- mesma categoria
+                   # de TimeFrame/BollingerEntryMode acima. CandleIndex1-4
+                   # (qual candle de cada slot) fica de FORA, mesmo
+                   # tratamento de Fast_EMA/Slow_EMA no MULTI: e NUMEROS,
+                   # refinado pelo Estagio 2 de cada sistema, nao herdado do
+                   # ranking de entrada.
+                   "CandleTF1", "CandleTF2", "CandleTF3", "CandleTF4",
+                   "AtivarSlot3", "AtivarSlot4"}
 
 
 def carregar_entrada_travada(path: Path, variante: str) -> dict | None:
@@ -275,9 +294,10 @@ def carregar_entrada_travada(path: Path, variante: str) -> dict | None:
     bate com `variante` (ex. "BUY_MULTI"), ou None se o arquivo nao existe,
     esta corrompido, ou nao tem entrada pra esta variante.
 
-    So ha 3 familias possiveis (MULTI/ICHIMOKU/BOLLINGER) -- rankear_entradas
-    grava uma entrada por familia, entao "achar a minha variante na lista" e
-    tudo que este lookup precisa fazer, sem indice nem escolha de posicao.
+    So ha 4 familias possiveis (MULTI/ICHIMOKU/BOLLINGER/CANDLES) -- rankear_
+    entradas grava uma entrada por familia, entao "achar a minha variante na
+    lista" e tudo que este lookup precisa fazer, sem indice nem escolha de
+    posicao.
     """
     try:
         dados = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -316,7 +336,12 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
            # So tem efeito no ramo Squeeze (BollingerEntryMode==2) -- ver
            # comentario equivalente em generate_bollinger_sets.py sobre a
            # mesma imprecisao ja aceita pra ICHIMOKU.
-           "SqueezeLookback", "SqueezeTolerancePct"]
+           "SqueezeLookback", "SqueezeTolerancePct",
+           # Variante CANDLES (2026-09-12): qual candle de cada slot (indice
+           # de barras atras), mesma categoria de VelaStop/VelaTake/TrailVela
+           # acima -- estrutural mas refinado por numero, nao decisao de
+           # enum/bool. Ausentes do set MULTI/ICHIMOKU/BOLLINGER.
+           "CandleIndex1", "CandleIndex2", "CandleIndex3", "CandleIndex4"]
 
 # Geometria de saida da familia grid (dono, 2026-08-03, estendido
 # 2026-08-17): medido que grid classico diverge OHLC->tick real em ate 45%+
@@ -628,6 +653,13 @@ GATES = {
     "VolatilityFilter": "EntradaATR",
     "NewsMinutosAntes": "AtivarFiltroNoticias",
     "NewsMinutosDepois": "AtivarFiltroNoticias",
+    # Variante CANDLES (2026-09-12): slots 3/4 so tem efeito com o respectivo
+    # AtivarSlot3/AtivarSlot4 ligado -- espelha GATES_DEPENDENCIAS de
+    # generate_candleentry_sets.py.
+    "CandleTF3": "AtivarSlot3",
+    "CandleIndex3": "AtivarSlot3",
+    "CandleTF4": "AtivarSlot4",
+    "CandleIndex4": "AtivarSlot4",
 }
 
 

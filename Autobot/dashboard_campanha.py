@@ -320,9 +320,9 @@ def combo_atual() -> dict | None:
 
 @app.get("/api/status")
 def status(familia: str = "MULTI") -> JSONResponse:
-    """`familia` ("MULTI" ou "BOLLINGER") filtra o ledger pela familia de
-    variante -- ver ready_library.familia_da_variante() -- para o dashboard
-    mostrar cada modo como uma campanha independente."""
+    """`familia` ("MULTI", "ICHIMOKU", "BOLLINGER" ou "CANDLES") filtra o
+    ledger pela familia de variante -- ver ready_library.familia_da_variante()
+    -- para o dashboard mostrar cada modo como uma campanha independente."""
     resultados = [r for r in ler_ledger()
                  if ready_library.familia_da_variante(r.get("variante", "")) == familia]
     aprovados = [r for r in resultados if r.get("aprovado")]
@@ -794,14 +794,19 @@ def ativos_detectar() -> JSONResponse:
 
 
 def _manifesto_stats(familia: str = "MULTI") -> dict | None:
-    """`total_sets` do manifesto da familia. BOLLINGER tem CSV proprio
-    (gerador aditivo separado, ver generate_bollinger_sets.py); ICHIMOKU NAO
-    tem -- ele sai do MESMO generate_system_sets.py que gera MULTI, so mais
-    um valor na coluna Variant do MESMO CSV, entao filtra a coluna em vez de
-    trocar de arquivo (achado do dono, 2026-09-07: dar visibilidade de
-    familia propria no dashboard sem inventar um gerador que nao existe)."""
-    nome = "MANIFESTO_SISTEMAS_BOLLINGER.csv" if familia == "BOLLINGER" \
-        else "MANIFESTO_SISTEMAS.csv"
+    """`total_sets` do manifesto da familia. BOLLINGER e CANDLES tem CSV
+    proprio cada (geradores aditivos separados, ver generate_bollinger_sets.py
+    e generate_candleentry_sets.py); ICHIMOKU NAO tem -- ele sai do MESMO
+    generate_system_sets.py que gera MULTI, so mais um valor na coluna
+    Variant do MESMO CSV, entao filtra a coluna em vez de trocar de arquivo
+    (achado do dono, 2026-09-07: dar visibilidade de familia propria no
+    dashboard sem inventar um gerador que nao existe)."""
+    if familia == "BOLLINGER":
+        nome = "MANIFESTO_SISTEMAS_BOLLINGER.csv"
+    elif familia == "CANDLES":
+        nome = "MANIFESTO_SISTEMAS_CANDLES.csv"
+    else:
+        nome = "MANIFESTO_SISTEMAS.csv"
     caminho = base.SETS / nome
     if not caminho.exists():
         return None
@@ -841,12 +846,17 @@ def biblioteca_regenerar(body: dict | None = None) -> JSONResponse:
             status_code=409,
         )
     familia = (body or {}).get("familia", "MULTI")
-    # BOLLINGER usa o gerador ADITIVO (generate_bollinger_sets.py): nunca
-    # apaga nada, so escreve/atualiza os proprios "*_BOLLINGER.set". MULTI
-    # continua no gerador antigo (generate_system_sets.py), que apaga e
-    # reconstroi a arvore inteira -- comportamento de sempre, intocado.
-    script = "generate_bollinger_sets.py" if familia == "BOLLINGER" \
-        else "generate_system_sets.py"
+    # BOLLINGER e CANDLES usam gerador ADITIVO cada (generate_bollinger_sets.py
+    # / generate_candleentry_sets.py): nunca apagam nada, so escrevem/
+    # atualizam os proprios "*_BOLLINGER.set"/"*_CANDLES.set". MULTI continua
+    # no gerador antigo (generate_system_sets.py), que apaga e reconstroi a
+    # arvore inteira -- comportamento de sempre, intocado.
+    if familia == "BOLLINGER":
+        script = "generate_bollinger_sets.py"
+    elif familia == "CANDLES":
+        script = "generate_candleentry_sets.py"
+    else:
+        script = "generate_system_sets.py"
     job_id = lancar_job(
         [sys.executable, str(AQUI / script)], timeout=600
     )

@@ -81,7 +81,7 @@ SISTEMAS_R_CAPAZES = {"01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY",
 # (EURUSD.HT vira EURUSD_HT na gravacao).
 NOME_ENTREGA = re.compile(
     r"^VALIDADO_(?P<simbolo>.+?)_(?P<sistema>\d{2}_[A-Z_]+?)_"
-    r"(?P<variante>(?:BUY|SELL|BOTH)_(?:MULTI|ICHIMOKU|BOLLINGER))\.set$")
+    r"(?P<variante>(?:BUY|SELL|BOTH)_(?:MULTI|ICHIMOKU|BOLLINGER|CANDLES))\.set$")
 
 
 def analisar_nome(nome: str) -> dict[str, str] | None:
@@ -124,12 +124,14 @@ def familia_da_variante(variante: str) -> str:
     antes as duas ficavam juntas sob "MULTI" -- o Ichimoku roda numa rodada
     propria dentro da campanha (RODADAS em campanha.py, indicador cravado no
     set) mas era invisivel no ledger/biblioteca/capital, so aparecia abrindo
-    o .set na mao. BOLLINGER e uma EA fisicamente diferente, familia propria
-    desde que foi criada.
+    o .set na mao. BOLLINGER e CANDLES sao EAs fisicamente diferentes,
+    familia propria desde que foram criadas.
     """
     v = variante.upper()
     if "BOLLINGER" in v:
         return "BOLLINGER"
+    if "CANDLES" in v:
+        return "CANDLES"
     if "ICHIMOKU" in v:
         return "ICHIMOKU"
     return "MULTI"
@@ -142,7 +144,7 @@ def capital_por_sistema(tester: Path = TESTER,
     VALIDADO_* de cada sistema R-capaz), exposta para o dashboard ordenar o
     checklist de Run Setup por capital decrescente sem custo de sync.
 
-    `familia` (None = todas, "MULTI", "BOLLINGER" ou "ICHIMOKU") filtra pela
+    `familia` (None = todas, "MULTI", "BOLLINGER", "ICHIMOKU" ou "CANDLES") filtra pela
     familia da variante -- ver familia_da_variante() -- para o dashboard
     poder mostrar o capital de cada modo separadamente.
     """

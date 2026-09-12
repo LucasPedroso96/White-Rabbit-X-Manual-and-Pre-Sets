@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Estagio 0: rankeia a ENTRADA (sem nenhuma administracao) por ativo/lado,
-nas 3 familias (MULTI, ICHIMOKU, BOLLINGER), antes de rodar os 9 sistemas de
-administracao de verdade.
+nas 4 familias (MULTI, ICHIMOKU, BOLLINGER, CANDLES), antes de rodar os 9
+sistemas de administracao de verdade.
 
 O PORQUE (dono, 2026-09-10): cada um dos 9 sistemas (01_SLTP..12_GRID_INVERSO)
 descobre a entrada sozinho, com o orcamento do genetico do Estagio 1 dividido
@@ -9,14 +9,15 @@ entre ate 12 indicadores concorrentes -- a mesma pergunta ("qual entrada
 funciona neste ativo?") e respondida de novo, do zero, em cada sistema.
 Rodar 6 meses pra "explorar tudo" e consequencia direta disso.
 
-Este script usa o sistema `11_SIGNAL_ONLY`, que ja existe pronto nas 3
+Este script usa o sistema `11_SIGNAL_ONLY`, que ja existe pronto nas 4
 familias pra todo ativo (AtivarStop/AtivarTake/AtivarBreakeven/AtivarTrailATR
 todos cravados false -- "nada de ATR aqui", literal) -- e o "modo puro de
 entrada" que o dono pediu, sem precisar gerar nenhum .set novo. Roda o
 circuito inteiro do 11_SIGNAL_ONLY (via optimize_two_stage.py, reaproveitando
-rodar_combo() de campanha.py) nas 3 familias, compara por composite_score()
-(a mesma metrica ja usada nos outros gates) e grava as 3 entradas ranqueadas
--- MULTI, ICHIMOKU e BOLLINGER -- em entrada_vencedora/<SIMBOLO>_<LADO>.json.
+rodar_combo() de campanha.py) nas 4 familias, compara por composite_score()
+(a mesma metrica ja usada nos outros gates) e grava as 4 entradas ranqueadas
+-- MULTI, ICHIMOKU, BOLLINGER e CANDLES -- em
+entrada_vencedora/<SIMBOLO>_<LADO>.json.
 
 campanha.py --rankear-entrada-primeiro le esse arquivo e passa
 --entrada-travada pros outros 9 sistemas: cada um pula a redescoberta da
@@ -39,7 +40,7 @@ from optimize_two_stage import ESCRITA_ENTRADA
 AQUI = Path(__file__).resolve().parent
 SAIDA_DIR = AQUI / "entrada_vencedora"
 
-FAMILIAS = ["MULTI", "ICHIMOKU", "BOLLINGER"]
+FAMILIAS = ["MULTI", "ICHIMOKU", "BOLLINGER", "CANDLES"]
 LADOS_VALIDOS = ("BUY", "SELL", "BOTH")
 
 

@@ -66,17 +66,25 @@ EA = r"White Rabbit X (Global Multi-Indicator).ex5"
 # EntryIndicator) -- ao contrario de ICHIMOKU, que e so mais um valor do
 # EntryIndicator DENTRO da EA acima. Ver plano de 2026-09-06.
 EA_BOLLINGER = r"White Rabbit X (Global -  Bolinger Bands).ex5"
+# CANDLES (2026-09-12): mesma razao de BOLLINGER -- EA fisicamente diferente
+# (confluencia de 2-4 velas, sem EntryIndicator/Fast_EMA plugavel).
+EA_CANDLES = r"White Rabbit (Candles Entry).ex5"
 LOGS = DADOS / "Tester" / "logs"
 
 
 def ea_file_for(variante: str) -> str:
     """Nome do .ex5 pela variante do combo (ex.: "BUY_BOLLINGER", "SELL_MULTI").
 
-    MULTI e ICHIMOKU compartilham a mesma EA (`EA`); BOLLINGER usa a EA
-    propria. Variante vazia ou desconhecida cai no padrao (`EA`), preservando
-    o comportamento de todo chamador que ainda nao passa variante.
+    MULTI e ICHIMOKU compartilham a mesma EA (`EA`); BOLLINGER e CANDLES usam
+    EA propria cada. Variante vazia ou desconhecida cai no padrao (`EA`),
+    preservando o comportamento de todo chamador que ainda nao passa variante.
     """
-    return EA_BOLLINGER if "BOLLINGER" in variante.upper() else EA
+    v = variante.upper()
+    if "BOLLINGER" in v:
+        return EA_BOLLINGER
+    if "CANDLES" in v:
+        return EA_CANDLES
+    return EA
 
 # Sinal de pausa (dono, 2026-08-09): so a PRESENCA do arquivo importa, nunca o
 # conteudo -- ver pausa_solicitada(). Fica na mesma pasta dos outros arquivos

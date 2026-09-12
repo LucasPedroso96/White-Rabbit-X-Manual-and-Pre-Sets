@@ -708,7 +708,7 @@
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props="{
   &quot;$preview&quot;: {&quot;width&quot;: 1440, &quot;height&quot;: 900},
-  &quot;familiaPadrao&quot;: {&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;MULTI&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;MULTI&quot;,&quot;BOLLINGER&quot;,&quot;ICHIMOKU&quot;],&quot;section&quot;:&quot;Comportamento&quot;},
+  &quot;familiaPadrao&quot;: {&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;MULTI&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;MULTI&quot;,&quot;BOLLINGER&quot;,&quot;ICHIMOKU&quot;,&quot;CANDLES&quot;],&quot;section&quot;:&quot;Comportamento&quot;},
   &quot;idiomaPadrao&quot;: {&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;en&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;en&quot;,&quot;pt&quot;,&quot;es&quot;,&quot;de&quot;,&quot;fr&quot;,&quot;it&quot;,&quot;ru&quot;,&quot;zh&quot;,&quot;ja&quot;,&quot;ko&quot;,&quot;tr&quot;],&quot;section&quot;:&quot;Comportamento&quot;},
   &quot;intervaloAtualizacaoMs&quot;: {&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:8000,&quot;min&quot;:3000,&quot;max&quot;:30000,&quot;step&quot;:1000,&quot;tsType&quot;:&quot;number&quot;,&quot;unit&quot;:&quot;ms&quot;,&quot;section&quot;:&quot;Comportamento&quot;}
 }">
@@ -725,6 +725,10 @@ const PALETTES = {
     dark: { bg:'#001e2b', bg2:'#00283a', bg3:'#003045', line:'#006994', text:'#e9edf1', muted:'#8bb0bd', accent:'#006994', accent2:'#0086a3', gold:'#87ceeb', ok:'#4caf50', no:'#ef5350', okBg:'#14532d', noBg:'#3a1b1b', headerBg:'rgba(0,30,43,.9)', navBg:'rgba(0,30,43,.72)', cardTop:'#003045', cardBottom:'#001e2b' },
     light:{ bg:'#f2f8fb', bg2:'#e5f0f5', bg3:'#d8e9f0', line:'#b9d7e3', text:'#0f2530', muted:'#4d7484', accent:'#006994', accent2:'#007ea3', gold:'#0f6e8c', ok:'#2e7d32', no:'#c62828', okBg:'#d7ecd9', noBg:'#fbdada', headerBg:'rgba(255,255,255,.85)', navBg:'rgba(255,255,255,.7)', cardTop:'#ffffff', cardBottom:'#eef6f9' },
   },
+  CANDLES: {
+    dark: { bg:'#1f0d0a', bg2:'#29160f', bg3:'#2e1a16', line:'#502d16', text:'#e9edf1', muted:'#b4a292', accent:'#502d16', accent2:'#af7c4c', gold:'#e0a458', ok:'#4caf50', no:'#ef5350', okBg:'#14532d', noBg:'#3a1b1b', headerBg:'rgba(31,13,10,.9)', navBg:'rgba(31,13,10,.72)', cardTop:'#2e1a16', cardBottom:'#1f0d0a' },
+    light:{ bg:'#f8f4f2', bg2:'#f1e6e2', bg3:'#ebd4c9', line:'#dcb9a3', text:'#27170f', muted:'#69544b', accent:'#502d16', accent2:'#7d5a2e', gold:'#7a5b17', ok:'#2e7d32', no:'#c62828', okBg:'#d7ecd9', noBg:'#fbdada', headerBg:'rgba(255,255,255,.85)', navBg:'rgba(255,255,255,.7)', cardTop:'#ffffff', cardBottom:'#f3e8e0' },
+  },
 };
 function hojeMT5() {
   const d = new Date(); const p = (n) => String(n).padStart(2, '0');
@@ -739,7 +743,7 @@ function fmtN(v, digits) { return v == null ? '-' : Number(v).toFixed(digits == 
 class Component extends DCLogic {
   state = {
     tab: 'campanha',
-    familia: (typeof localStorage !== 'undefined' && ['MULTI','BOLLINGER','ICHIMOKU'].includes(localStorage.getItem('wrx_familia'))) ? localStorage.getItem('wrx_familia') : (this.props.familiaPadrao || 'MULTI'),
+    familia: (typeof localStorage !== 'undefined' && ['MULTI','BOLLINGER','ICHIMOKU','CANDLES'].includes(localStorage.getItem('wrx_familia'))) ? localStorage.getItem('wrx_familia') : (this.props.familiaPadrao || 'MULTI'),
     tema: 'dark',
     locale: this.props.idiomaPadrao || 'en',
     offline: false, showInstall: false, installEvt: null,
@@ -1121,7 +1125,7 @@ class Component extends DCLogic {
     return {
       lang: { label: tr('lang.label') }, install: { button: tr('install.button') },
       nav: { live: tr('nav.live'), setup: tr('nav.setup'), sets: tr('nav.sets'), portfolios: tr('nav.portfolios'), broker: tr('nav.broker'), nativeCost: tr('nav.native-cost'), implantacao: tr('nav.implantacao') },
-      familia: { multi: tr('familia.multi'), bollinger: tr('familia.bollinger'), ichimoku: tr('familia.ichimoku') },
+      familia: { multi: tr('familia.multi'), bollinger: tr('familia.bollinger'), ichimoku: tr('familia.ichimoku'), candles: tr('familia.candles') },
       campaign: { robustness: tr('campaign.robustness'), assetMap: tr('campaign.asset-map'), progress: tr('campaign.progress'), reports: tr('campaign.reports'), stopRun: tr('campaign.stop-run'), pauseRun: tr('campaign.pause-run'), resumeRun: tr('campaign.resume-run'), bySystem: tr('campaign.by-system'), recentCombos: tr('campaign.recent-combos') },
       table: { system: tr('table.system'), tests: tr('table.tests'), approved: tr('table.approved'), symbol: tr('table.symbol'), variant: tr('table.variant'), verdict: tr('table.verdict'), retention: tr('table.retention'), minutes: tr('table.minutes') },
       setup: { mode: tr('setup.mode'), auto: tr('setup.auto'), manual: tr('setup.manual'), systems: tr('setup.systems'), assets: tr('setup.assets'), detect: tr('setup.detect'), selectAllSystems: tr('setup.select-all-systems'), clearSystems: tr('setup.clear-systems'), selectAllAssets: tr('setup.select-all-assets'), clearAssets: tr('setup.clear-assets'), parameters: tr('setup.parameters'), from: tr('setup.from'), to: tr('setup.to'), deposit: tr('setup.deposit'), depositAuto: tr('setup.deposit-auto'), minRetention: tr('setup.min-retention'), startRun: tr('setup.start-run'), economicMode: tr('setup.economic-mode'), economicModeLabel: tr('setup.economic-mode-label'), economicModeDesc: tr('setup.economic-mode-desc'), recoveryMode: tr('setup.recovery-mode'), recoveryModeDesc: tr('setup.recovery-mode-desc'), recoveryNone: tr('setup.recovery-none'), recoveryMartingale: tr('setup.recovery-martingale'), recoveryDalembert: tr('setup.recovery-dalembert') },
@@ -1168,7 +1172,7 @@ class Component extends DCLogic {
     }));
 
     const familiaLocked = !!(estado.rodando || estado.pausado);
-    const familiaItems = [['MULTI', L.familia.multi], ['BOLLINGER', L.familia.bollinger], ['ICHIMOKU', L.familia.ichimoku]].map(([key, label]) => ({
+    const familiaItems = [['MULTI', L.familia.multi], ['BOLLINGER', L.familia.bollinger], ['ICHIMOKU', L.familia.ichimoku], ['CANDLES', L.familia.candles]].map(([key, label]) => ({
       key, label, onClick: () => this.setFamilia(key),
       style: { ...toggleBtnStyle(s.familia === key), cursor: familiaLocked ? 'not-allowed' : 'pointer', opacity: familiaLocked && s.familia !== key ? .55 : 1, outline: familiaLocked && s.familia === key ? `2px solid ${pal.accent2}` : 'none', outlineOffset: '1px' },
     }));

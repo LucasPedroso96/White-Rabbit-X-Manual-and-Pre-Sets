@@ -109,12 +109,12 @@ SISTEMAS = ["01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
 BILATERAL: set[str] = set(SISTEMAS)
 
 # Cada "rodada" percorre os 11 sistemas com UMA variante antes de avancar.
-# Tres familias FISICAMENTE SEPARADAS -- MULTI, ICHIMOKU, BOLLINGER -- cada
-# uma so entra numa corrida se o toggle da campanha (dashboard/--familia)
-# pedir por ela explicitamente. NUNCA bundlar duas familias sob o default de
-# uma terceira: o dashboard ja trata as tres como familias independentes
-# desde 2026-09-06 (ver ready_library.familia_da_variante(), o toggle de 3
-# botoes em index.html), entao o runtime tinha que bater com isso.
+# Quatro familias FISICAMENTE SEPARADAS -- MULTI, ICHIMOKU, BOLLINGER,
+# CANDLES -- cada uma so entra numa corrida se o toggle da campanha
+# (dashboard/--familia) pedir por ela explicitamente. NUNCA bundlar duas
+# familias sob o default de uma terceira: o dashboard ja trata as quatro
+# como familias independentes (ver ready_library.familia_da_variante(), o
+# toggle em index.html), entao o runtime tinha que bater com isso.
 #
 # CORRIGIDO (dono, 2026-09-08): entre 2026-09-07 e esta correcao, o default
 # --familia MULTI (nenhuma flag) rodava RODADAS inteiro, que MISTURAVA
@@ -136,6 +136,11 @@ RODADAS_BOLLINGER = [("BUY_BOLLINGER", "BOTH_BOLLINGER"), ("SELL_BOLLINGER", Non
 # "MULTI".
 RODADAS_ICHIMOKU = [("BUY_ICHIMOKU", "BOTH_ICHIMOKU"), ("SELL_ICHIMOKU", None)]
 
+# Variante CANDLES (2026-09-12): EA propria "White Rabbit (Candles Entry).mq5"
+# (confluencia de 2-4 velas contra o open, sem indicador plugavel) -- mesma
+# razao de BOLLINGER acima, rodada PROPRIA, nunca junto com as outras 3.
+RODADAS_CANDLES = [("BUY_CANDLES", "BOTH_CANDLES"), ("SELL_CANDLES", None)]
+
 
 def rodadas_da_familia(familia: str) -> list[tuple[str, str | None]]:
     f = familia.upper()
@@ -143,6 +148,8 @@ def rodadas_da_familia(familia: str) -> list[tuple[str, str | None]]:
         return RODADAS_BOLLINGER
     if f == "ICHIMOKU":
         return RODADAS_ICHIMOKU
+    if f == "CANDLES":
+        return RODADAS_CANDLES
     return RODADAS_MULTI
 
 
@@ -406,12 +413,13 @@ def main() -> int:
                     help="lista separada por virgula, sobrepoe a "
                          "auto-deteccao/campanha_ativos.json so nesta corrida")
     ap.add_argument("--familia", default="MULTI",
-                    choices=["MULTI", "BOLLINGER", "ICHIMOKU"],
+                    choices=["MULTI", "BOLLINGER", "ICHIMOKU", "CANDLES"],
                     help="quais rodadas processar: MULTI (default, cobre "
                          "MULTI+ICHIMOKU juntos, como sempre), ICHIMOKU "
                          "(so a fatia Ichimoku, pra priorizar/repetir sem "
-                         "rodar MULTI de novo) ou BOLLINGER (EA propria, "
-                         "ver generate_bollinger_sets.py)")
+                         "rodar MULTI de novo), BOLLINGER (EA propria, ver "
+                         "generate_bollinger_sets.py) ou CANDLES (EA "
+                         "propria, ver generate_candleentry_sets.py)")
     ap.add_argument("--modo-economico", action="store_true",
                     help="Modo Economico (dono, 2026-09-07): pros sistemas "
                          "em BILATERAL, roda UM combo 'BOTH' (compra e "
