@@ -110,14 +110,19 @@ def simular(trades_r: pd.Series, n: int = 1000, seed: int | None = None) -> dict
                 "mc_prob_ruina": None, "mc_n_trades": int(len(valores))}
     rng = np.random.default_rng(seed)
     dd_observado = abs(drawdown_maximo(pd.Series(valores)))
-    piores_dd = np.empty(n)
-    terminais = np.empty(n)
-    for i in range(n):
-        amostra = rng.choice(valores, size=len(valores), replace=True)
-        curva = np.cumsum(amostra)
-        pico = np.maximum.accumulate(curva)
-        piores_dd[i] = float((curva - pico).min())
-        terminais[i] = float(curva[-1])
+    # Vetorizado (era um for i in range(n) com 1 rng.choice + 1 cumsum por
+    # iteracao): as N reamostragens saem de uma unica chamada de indices
+    # (n x len(valores)) e o cumsum/drawdown rodam nas N linhas de uma vez.
+    # Mesma distribuicao do bootstrap com reposicao anterior (indices
+    # uniformes em [0, len(valores)) equivalem a rng.choice(replace=True)),
+    # so nao reproduz os MESMOS numeros pass a passe para um `seed` fixo --
+    # sem impacto real: nenhum chamador (rodar_mc) passa seed hoje.
+    indices = rng.integers(0, len(valores), size=(n, len(valores)))
+    amostras = valores[indices]
+    curvas = np.cumsum(amostras, axis=1)
+    picos = np.maximum.accumulate(curvas, axis=1)
+    piores_dd = (curvas - picos).min(axis=1)
+    terminais = curvas[:, -1]
     return {
         "mc_dd_p95": float(np.percentile(np.abs(piores_dd), 95)),
         "mc_dd_observado": dd_observado,

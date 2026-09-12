@@ -252,6 +252,23 @@ def texto_novo(antes: dict[Path, int]) -> str:
     return "\n".join(partes)
 
 
+_LIMPEZA_XML = re.compile(
+    r"(?P<doctype><!DOCTYPE.*?>)"
+    r"|(?P<entity><!ENTITY.*?>)"
+    r'|(?P<xmlns>\sxmlns(?::[\w.-]+)?="[^"]*")'
+    r"|<(?P<elemslash>/?)(?P<elemprefix>[A-Za-z_][\w.-]*):"
+    r"|(?P<attrspace>\s)(?P<attrprefix>[A-Za-z_][\w.-]*):(?P<attrname>[A-Za-z_][\w.-]*\s*=)",
+    re.S)
+
+
+def _limpar_xml_match(m: re.Match) -> str:
+    if m.group("elemprefix") is not None:
+        return f"<{m.group('elemslash')}"
+    if m.group("attrprefix") is not None:
+        return f"{m.group('attrspace')}{m.group('attrname')}"
+    return ""  # DOCTYPE, ENTITY ou xmlns: some por completo
+
+
 def ler_relatorio(caminho: Path) -> tuple[list[str], list[list[str]]]:
     """Le o Spreadsheet 2003 do MT5. Devolve (cabecalho, linhas)."""
     if not caminho.exists():
@@ -271,15 +288,14 @@ def ler_relatorio(caminho: Path) -> tuple[list[str], list[list[str]]]:
     # Sem DOCTYPE nao existe entidade para expandir, o que fecha XXE e
     # billion-laughs sem depender de defusedxml. O arquivo e gerado pelo MT5
     # nesta maquina, mas nao custa nada nao confiar nele.
-    texto = re.sub(r"<!DOCTYPE.*?>", "", texto, flags=re.S)
-    texto = re.sub(r"<!ENTITY.*?>", "", texto, flags=re.S)
     # O namespace do Spreadsheet muda entre versoes; remove antes de parsear.
     # Tirar so o xmlns e os prefixos de ELEMENTO nao basta: sobram prefixos em
     # ATRIBUTO (ss:ID, ss:Type, ss:Format) e o parser morre com "unbound
-    # prefix" logo na primeira <Style ss:ID="ce0">.
-    texto = re.sub(r'\sxmlns(:[\w.-]+)?="[^"]*"', "", texto)
-    texto = re.sub(r"<(/?)[A-Za-z_][\w.-]*:", r"<\1", texto)
-    texto = re.sub(r"(\s)[A-Za-z_][\w.-]*:([A-Za-z_][\w.-]*\s*=)", r"\1\2", texto)
+    # prefix" logo na primeira <Style ss:ID="ce0">. As 5 substituicoes
+    # antigas rodavam em 5 passadas sequenciais sobre o texto inteiro;
+    # `_LIMPEZA_XML` faz a mesma coisa numa unica passada (re.sub aceita uma
+    # funcao como replacement e escolhe por qual grupo bateu).
+    texto = _LIMPEZA_XML.sub(_limpar_xml_match, texto)
     try:
         raiz = ET.fromstring(texto)
     except ET.ParseError:

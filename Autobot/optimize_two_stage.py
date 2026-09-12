@@ -91,6 +91,9 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pandas as pd
+import pyarrow.parquet as pq
+
 import campeoes_arquivo
 import custo_nativo
 import monte_carlo_wrx
@@ -105,8 +108,31 @@ RELATORIO_SUFIXOS = (".htm", ".png", "-hst.png", "-mfemae.png", "-holding.png")
 CHECKPOINTS_DIR = AQUI / "campanha_checkpoints"
 
 
-def _checkpoint_estagio1(symbol: str, sistema: str, variante: str) -> Path:
+def _checkpoint_json_antigo(symbol: str, sistema: str, variante: str) -> Path:
+    # Formato pre-parquet (JSON monolitico com `linhas` inteiro por dentro):
+    # so lido para migrar campanhas que ja tinham checkpoint salvo antes
+    # desta troca de formato -- nunca mais escrito.
     return CHECKPOINTS_DIR / f"{symbol}__{sistema}__{variante}.json"
+
+
+def _checkpoint_dir(symbol: str, sistema: str, variante: str) -> Path:
+    return CHECKPOINTS_DIR / f"{symbol}__{sistema}__{variante}"
+
+
+def _checkpoint_meta(symbol: str, sistema: str, variante: str) -> Path:
+    return _checkpoint_dir(symbol, sistema, variante) / "meta.json"
+
+
+def _linhas_ja_salvas(pasta: Path) -> int:
+    """Conta linhas ja persistidas somando so os metadados dos .parquet
+    (num_rows), sem ler os dados -- barato mesmo com dezenas de MB salvos."""
+    total = 0
+    for arq in pasta.glob("rodada_*.parquet"):
+        try:
+            total += pq.ParquetFile(arq).metadata.num_rows
+        except Exception:
+            pass
+    return total
 
 
 def salvar_checkpoint_estagio1(symbol: str, sistema: str, variante: str,
@@ -121,12 +147,23 @@ def salvar_checkpoint_estagio1(symbol: str, sistema: str, variante: str,
     Estagio 1 ja tinha DECIDIDO (quantas rodadas, quais linhas passaram o
     piso). Sem isto, um restart sempre recomeca a contagem do zero mesmo
     com o MT5 respondendo rapido pelo cache.
+
+    2026-09-12: checkpoint media 8-18MB em JSON (rodadas com milhares de
+    passes) e era REESCRITO INTEIRO a cada rodada -- rodada 3 serializava de
+    novo o que as rodadas 1+2 ja tinham gravado. Agora grava so a FATIA NOVA
+    de `linhas` (o combo so acrescenta ao final, nunca reordena) num
+    rodada_N.parquet -- colunar, comprimido, e a rodada anterior nunca e
+    reescrita.
     """
-    CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
-    _checkpoint_estagio1(symbol, sistema, variante).write_text(
+    pasta = _checkpoint_dir(symbol, sistema, variante)
+    pasta.mkdir(parents=True, exist_ok=True)
+    novas = linhas[_linhas_ja_salvas(pasta):]
+    if novas:
+        pd.DataFrame(novas, columns=cab, dtype=str).to_parquet(
+            pasta / f"rodada_{rodada}.parquet", index=False)
+    _checkpoint_meta(symbol, sistema, variante).write_text(
         json.dumps({"symbol": symbol, "sistema": sistema, "variante": variante,
-                    "cab": cab, "linhas": linhas, "rodada_concluida": rodada},
-                   ensure_ascii=False),
+                    "cab": cab, "rodada_concluida": rodada}, ensure_ascii=False),
         encoding="utf-8")
 
 
@@ -137,24 +174,52 @@ def carregar_checkpoint_estagio1(symbol: str, sistema: str,
     opcional, nunca uma dependencia dura: sem checkpoint valido, o Estagio 1
     comeca do zero normalmente, como sempre fez.
     """
-    caminho = _checkpoint_estagio1(symbol, sistema, variante)
-    if not caminho.exists():
-        return None
+    pasta = _checkpoint_dir(symbol, sistema, variante)
+    meta_path = _checkpoint_meta(symbol, sistema, variante)
+    if not meta_path.exists():
+        # Migracao do formato antigo (JSON monolitico, campanha iniciada
+        # antes da troca pra parquet): le uma vez do jeito velho; a proxima
+        # rodada ja grava no formato novo.
+        antigo = _checkpoint_json_antigo(symbol, sistema, variante)
+        if not antigo.exists():
+            return None
+        try:
+            dado = json.loads(antigo.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return None
+        if (dado.get("symbol") != symbol or dado.get("sistema") != sistema
+                or dado.get("variante") != variante
+                or not isinstance(dado.get("linhas"), list)
+                or not isinstance(dado.get("cab"), list)
+                or not isinstance(dado.get("rodada_concluida"), int)):
+            return None
+        return dado
     try:
-        dado = json.loads(caminho.read_text(encoding="utf-8"))
+        dado = json.loads(meta_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return None
     if (dado.get("symbol") != symbol or dado.get("sistema") != sistema
             or dado.get("variante") != variante
-            or not isinstance(dado.get("linhas"), list)
             or not isinstance(dado.get("cab"), list)
             or not isinstance(dado.get("rodada_concluida"), int)):
         return None
+    partes = sorted(pasta.glob("rodada_*.parquet"))
+    if not partes:
+        return None
+    try:
+        tabela = pd.concat([pd.read_parquet(p) for p in partes],
+                           ignore_index=True)
+    except Exception:
+        return None
+    cab = dado["cab"]
+    dado["linhas"] = (tabela[cab].astype(str).values.tolist()
+                      if not tabela.empty else [])
     return dado
 
 
 def limpar_checkpoint_estagio1(symbol: str, sistema: str, variante: str) -> None:
-    _checkpoint_estagio1(symbol, sistema, variante).unlink(missing_ok=True)
+    shutil.rmtree(_checkpoint_dir(symbol, sistema, variante), ignore_errors=True)
+    _checkpoint_json_antigo(symbol, sistema, variante).unlink(missing_ok=True)
 
 
 PROGRESSO_PATH = AQUI / "campanha_progresso.json"
