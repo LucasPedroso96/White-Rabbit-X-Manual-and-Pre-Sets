@@ -28,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import optimize_sets as base
-from optimize_two_stage import formula_soma_r_compativel
+from optimize_two_stage import formula_soma_r_compativel, limpar_checkpoint_estagio1
 
 TODAS_FORMULAS = {
     1: "GridSurvivalScore", 2: "Profit", 3: "ProfitWinTradeDD",
@@ -79,8 +79,6 @@ else:
     formulas = TODAS_FORMULAS
 
 origem = base.achar_set(args.simbolo, args.sistema, args.variante)
-checkpoint = Path(
-    f"campanha_checkpoints/{args.simbolo}__{args.sistema}__{args.variante}.json")
 
 prefixo = f"sweep_{args.sistema}_{args.simbolo}"
 master = Path(f"{prefixo}_master.log")
@@ -166,7 +164,13 @@ try:
                 continue
 
             gravar_formula(formula)
-            checkpoint.unlink(missing_ok=True)
+            # Limpa pela funcao real (nao um caminho fixo montado a mao):
+            # o checkpoint do Estagio 1 mudou de um .json solto para uma
+            # pasta (campanha_checkpoints/<combo>/rodada_N.parquet +
+            # meta.json) em 2026-09-12 -- um unlink() no caminho antigo
+            # virava no-op e deixava o checkpoint da FORMULA ANTERIOR
+            # vazar pra proxima, contaminando o sweep entre formulas.
+            limpar_checkpoint_estagio1(args.simbolo, args.sistema, args.variante)
 
             comando = [
                 sys.executable, "optimize_two_stage.py",
