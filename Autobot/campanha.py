@@ -376,8 +376,23 @@ def _taxa_anual_por_sonda(simbolo: str, sistema: str, variante: str,
             return None
         fim_dt = datetime.strptime(fim, "%Y.%m.%d")
         inicio_dt = fim_dt - timedelta(days=JANELA_SONDA_DIAS)
+        # Achado ao vivo, 2026-09-13: os .set da biblioteca saem do gerador
+        # com AtivarWFO=true CRAVADO e wfo_customWindowSizeDays/
+        # input_end_date de alguma geracao/corrida anterior (ex.:
+        # input_end_date=2026.09.12 num template que nunca rodou de
+        # verdade nesta maquina) -- rodar passe_unico() direto no .set de
+        # ORIGEM sem neutralizar isso faz o OnInit rejeitar o passe
+        # ("invalid IS or OOS window sizes", data nao bate com o ToDate
+        # pedido aqui) e a sonda sempre volta 0 trades, caindo NO MESMO
+        # teto de 3 anos que --janela-dinamica deveria evitar -- exatamente
+        # o "nao muda nada" que o dono viu ao vivo. Uma copia de trabalho
+        # com AtivarWFO desligado forca o backtest simples que a sonda
+        # realmente quer, ignorando qualquer WFO stale do template.
+        trabalho = (ots.base.DADOS / "MQL5" / "Profiles" / "Tester"
+                   / "_SONDA_JANELA_DINAMICA.set")
+        ots.reescrever(caminho, trabalho, [], {"AtivarWFO": "false"})
         resultado = ots.passe_unico(
-            caminho, simbolo, "M1", inicio_dt.strftime("%Y.%m.%d"), fim,
+            trabalho, simbolo, "M1", inicio_dt.strftime("%Y.%m.%d"), fim,
             resolver_deposito(simbolo, None), 1, timeout=120,
             variante=variante)
         trades = resultado.get("trades")

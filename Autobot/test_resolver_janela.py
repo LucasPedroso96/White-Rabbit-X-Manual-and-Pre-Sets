@@ -90,26 +90,37 @@ try:
           obtido, esperado)
 
     # --- registro de OUTRO combo no ledger nao contamina este -------------
-    campanha.LEDGER.write_text(
-        json.dumps({"simbolo": "GBPUSD", "sistema": "01_SLTP",
-                   "variante": "BUY_MULTI", "trades_oos": 5000,
-                   "janela_dias": 30}) + "\n",
-        encoding="utf-8")
-    checar(
-        "combo sem dado proprio nao usa taxa de OUTRO simbolo/sistema/variante",
-        campanha.resolver_janela("EURUSD", "01_SLTP", "BUY_MULTI",
-                                 None, "2026.09.13", dinamica=True,
-                                 janela_maxima_anos=2),
-        campanha.anos_atras(2))
+    # Sonda deliberadamente neutralizada (monkeypatch) pra isolar SO o
+    # comportamento do ledger aqui -- desde que a sonda passou a rodar um
+    # passe real de verdade (fix de 2026-09-13, ver campanha.py), usar um
+    # combo REAL como EURUSD/01_SLTP/BUY_MULTI sem neutralizar a sonda
+    # faria este teste abrir o MT5 de verdade, o que ele nunca deve fazer.
+    sonda_original = campanha._taxa_anual_por_sonda
+    campanha._taxa_anual_por_sonda = lambda *a, **k: None
+    try:
+        campanha.LEDGER.write_text(
+            json.dumps({"simbolo": "GBPUSD", "sistema": "01_SLTP",
+                       "variante": "BUY_MULTI", "trades_oos": 5000,
+                       "janela_dias": 30}) + "\n",
+            encoding="utf-8")
+        checar(
+            "combo sem dado proprio nao usa taxa de OUTRO simbolo/sistema/variante",
+            campanha.resolver_janela("EURUSD", "01_SLTP", "BUY_MULTI",
+                                     None, "2026.09.13", dinamica=True,
+                                     janela_maxima_anos=2),
+            campanha.anos_atras(2))
 
-    # --- linha corrompida no ledger nao derruba a leitura -------------------
-    campanha.LEDGER.write_text("isso nao e json valido {{{\n", encoding="utf-8")
-    checar(
-        "ledger corrompido: nao explode, cai no teto",
-        campanha.resolver_janela("EURUSD", "01_SLTP", "BUY_MULTI",
-                                 None, "2026.09.13", dinamica=True,
-                                 janela_maxima_anos=2),
-        campanha.anos_atras(2))
+        # --- linha corrompida no ledger nao derruba a leitura ---------------
+        campanha.LEDGER.write_text("isso nao e json valido {{{\n",
+                                   encoding="utf-8")
+        checar(
+            "ledger corrompido: nao explode, cai no teto (sonda neutralizada)",
+            campanha.resolver_janela("EURUSD", "01_SLTP", "BUY_MULTI",
+                                     None, "2026.09.13", dinamica=True,
+                                     janela_maxima_anos=2),
+            campanha.anos_atras(2))
+    finally:
+        campanha._taxa_anual_por_sonda = sonda_original
 finally:
     campanha.LEDGER = ledger_original
     campanha._LEDGER_LOCK = lock_original
