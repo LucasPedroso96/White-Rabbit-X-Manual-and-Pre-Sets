@@ -911,6 +911,38 @@ def piso_trades_da_janela(inicio: str, fim: str, taxa_anual: float,
     return max(piso_minimo, round(taxa_anual * dias / 365))
 
 
+def dias_para_trades_alvo(trades_alvo: float, taxa_anual: float,
+                          minimo_dias: int = BLOCO_MINIMO_WFO * 2,
+                          maximo_dias: int | None = None) -> int:
+    """Inversa de `piso_trades_da_janela()`: quantos dias de janela pra
+    acumular `trades_alvo` trades, dada a taxa anual observada/estimada do
+    combo -- em vez de sempre pedir os mesmos 3 anos fixos independente de
+    quao rapido o sistema opera.
+
+    `minimo_dias` protege o mesmo piso que `dimensionar_wfo()` ja exige
+    pra nao degenerar num unico ciclo de WFO sem sentido (auditoria
+    2026-09-03, ver docstring de `dimensionar_wfo`): mesmo um sistema
+    hiperativo nunca pede menos que o suficiente pra pelo menos 2 blocos
+    de `BLOCO_MINIMO_WFO` dias caberem. `maximo_dias` e o teto (quando
+    dado) pra nunca pedir MAIS periodo do que o status quo, mesmo se a
+    taxa medida for baixa demais -- sem teto, um sistema muito lento
+    pediria decadas de historico que nao existe.
+
+    `taxa_anual <= 0` (nunca deveria acontecer com dado real, mas uma
+    sonda malformada pode devolver isso) cai direto no minimo: pedir
+    infinitos dias pra uma taxa zero seria pior que simplesmente avisar
+    via um numero pequeno e deixar o piso de trades pos-hoc reprovar como
+    sempre fez.
+    """
+    if taxa_anual <= 0:
+        dias = minimo_dias
+    else:
+        dias = max(minimo_dias, round(trades_alvo * 365 / taxa_anual))
+    if maximo_dias is not None:
+        dias = min(dias, max(minimo_dias, maximo_dias))
+    return dias
+
+
 def conferir_set(caminho: Path, travados: dict[str, str]) -> list[str]:
     """Le o .set de volta e devolve os travados que NAO chegaram nele.
 
@@ -2109,6 +2141,7 @@ def emitir_reprovado_cedo(symbol: str, sistema: str, variante: str,
                       "retencao_oos": None, "retencao_pct": None,
                       "sizing_entrega": None, "expectancy_r": None,
                       "trades_oos": None, "trades_is": None,
+                      "janela_dias": None,
                       "mc_dd_p95": None, "mc_dd_observado": None,
                       "mc_prob_ruina": None, "mc_aprovado": True,
                       "mc_medido": False, "sobrevivencia_medida": False,
@@ -3483,6 +3516,16 @@ def main() -> int:
                       "expectancy_r": oos["expectancy"],
                       "trades_oos": oos["trades"],
                       "trades_is": oos.get("trades_is"),
+                      # Duracao real do periodo pedido (args.inicio..args.fim,
+                      # NAO so o OOS) -- mesma convencao ja usada por
+                      # piso_trades_da_janela() (taxa_anual*dias/365 contra o
+                      # periodo INTEIRO, nao so a fatia OOS). Aditivo: alimenta
+                      # campanha.resolver_janela() (--janela-dinamica) pra
+                      # dimensionar o --from de campanhas futuras pela taxa de
+                      # trades REAL deste combo em vez de sempre 3 anos fixos.
+                      "janela_dias": (datetime.strptime(args.fim, "%Y.%m.%d")
+                                     - datetime.strptime(args.inicio, "%Y.%m.%d")
+                                     ).days,
                       # Gate relativo completo (2026-08-30, espelha
                       # should_promote()/composite_score() do Zeus): do MESMO
                       # passe combinado IS+OOS acima, nao um passe OOS-puro

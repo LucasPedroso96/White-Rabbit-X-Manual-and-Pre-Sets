@@ -25,7 +25,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import auto_manager_live
@@ -313,6 +313,120 @@ def resolver_deposito(simbolo: str, explicito: int | None) -> int:
     return int(capital)
 
 
+# Trades-alvo padrao pra dimensionar a janela dinamica (--janela-dinamica) --
+# mesma ordem de grandeza do --min-trades default do circuito completo (100,
+# ver optimize_two_stage.py), nao o piso1 mais frouxo do Estagio 1.
+JANELA_TRADES_ALVO = 100.0
+# Sonda progressiva (cold start, sem dado no ledger): janela de referencia
+# curta e fixa, so pra medir uma taxa de trades aproximada.
+JANELA_SONDA_DIAS = 180
+# Parametros DEFAULT do .set tendem a operar MAIS que o sistema ja otimizado
+# (a otimizacao afunila a entrada) -- a sonda sozinha subestimaria a janela
+# necessaria sem essa margem.
+JANELA_SONDA_MARGEM = 1.5
+
+
+def _taxa_anual_do_ledger(simbolo: str, sistema: str, variante: str) -> float | None:
+    """Taxa de trades/ano do combo, a partir do registro MAIS RECENTE do
+    ledger que ja tenha `trades_oos` e `janela_dias` (aditivo -- so
+    existe em registros gravados a partir de 2026-09-13). `None` quando nao
+    ha dado ainda -- resolver_janela() cai pra sonda progressiva.
+    """
+    if not LEDGER.exists():
+        return None
+    achado = None
+    for linha in LEDGER.read_text(encoding="utf-8").splitlines():
+        if not linha.strip():
+            continue
+        try:
+            r = json.loads(linha)
+        except json.JSONDecodeError:
+            continue
+        if (r.get("simbolo"), r.get("sistema"), r.get("variante")) != (
+                simbolo, sistema, variante):
+            continue
+        trades, dias = r.get("trades_oos"), r.get("janela_dias")
+        if trades is None or not dias:
+            continue
+        achado = trades * 365.0 / dias
+    return achado
+
+
+def _taxa_anual_por_sonda(simbolo: str, sistema: str, variante: str,
+                          fim: str) -> float | None:
+    """Sonda progressiva (cold start): 1 passe unico OHLC curto (~9s) com os
+    parametros DEFAULT do .set de origem -- sem reescrever nenhum eixo --
+    so pra estimar quantos trades/ano este combo produz quando ainda nao ha
+    dado no ledger.
+
+    Best-effort de proposito: terminal ocupado por outra campanha, set
+    ausente, timeout -- qualquer falha aqui devolve None e resolver_janela()
+    cai pro teto de seguranca (--janela-maxima-anos). Uma sonda que nao
+    consegue rodar nunca deve travar nem atrasar a campanha.
+
+    Import tardio de optimize_two_stage (so entra aqui, dentro da chamada
+    real): campanha.py nunca importava esse modulo pesado (pandas/pyarrow/
+    campeoes_arquivo/ready_library/monte_carlo_wrx) no topo do arquivo, e
+    invocacoes triviais como --listar nao devem pagar esse custo.
+    """
+    try:
+        import optimize_two_stage as ots
+        caminho = ots.base.achar_set(simbolo, sistema, variante)
+        if caminho is None:
+            return None
+        fim_dt = datetime.strptime(fim, "%Y.%m.%d")
+        inicio_dt = fim_dt - timedelta(days=JANELA_SONDA_DIAS)
+        resultado = ots.passe_unico(
+            caminho, simbolo, "M1", inicio_dt.strftime("%Y.%m.%d"), fim,
+            resolver_deposito(simbolo, None), 1, timeout=120,
+            variante=variante)
+        trades = resultado.get("trades")
+        if not trades:
+            return None
+        return trades * 365.0 / JANELA_SONDA_DIAS / JANELA_SONDA_MARGEM
+    except (SystemExit, Exception):
+        return None
+
+
+def resolver_janela(simbolo: str, sistema: str, variante: str,
+                    inicio_explicito: str | None, fim: str,
+                    dinamica: bool, trades_alvo: float = JANELA_TRADES_ALVO,
+                    janela_maxima_anos: int = 3) -> str:
+    """Janela efetiva (--from) pra ESTE combo -- mesmo padrao de
+    `resolver_deposito()`: override explicito SEMPRE vence, nunca e
+    sobreposto por logica automatica nenhuma.
+
+    Achado do dono, 2026-09-13: o circuito inteiro sempre pediu 3 anos fixos
+    de historico, e o piso de trades so reprova DEPOIS que o Tester ja
+    rodou a janela inteira -- puro desperdicio de tempo de maquina quando o
+    combo so precisava de uma fatia do periodo pra acumular trades
+    suficientes (trades/ano varia ~19x entre simbolos no mesmo sistema, ver
+    ledger). `--janela-dinamica` inverte a logica: descobre a taxa de
+    trades do combo (ledger, ou sonda progressiva se ainda nao ha dado) e
+    pede so os dias necessarios pra `trades_alvo` trades, respeitando o
+    piso de seguranca do WFO (`dias_para_trades_alvo()`,
+    optimize_two_stage.py) e um teto (`janela_maxima_anos`, nunca pede MAIS
+    periodo que o status quo sem pedido explicito).
+
+    Desligada (default), devolve `anos_atras(3)` -- comportamento identico
+    ao que existia antes desta funcao, byte a byte.
+    """
+    if inicio_explicito is not None:
+        return inicio_explicito
+    if not dinamica:
+        return anos_atras(3)
+    taxa = _taxa_anual_do_ledger(simbolo, sistema, variante)
+    if taxa is None:
+        taxa = _taxa_anual_por_sonda(simbolo, sistema, variante, fim)
+    if taxa is None:
+        return anos_atras(janela_maxima_anos)
+    import optimize_two_stage as ots
+    dias = ots.dias_para_trades_alvo(
+        trades_alvo, taxa, maximo_dias=janela_maxima_anos * 365)
+    fim_dt = datetime.strptime(fim, "%Y.%m.%d")
+    return (fim_dt - timedelta(days=dias)).strftime("%Y.%m.%d")
+
+
 def rodar_combo(simbolo: str, sistema: str, variante: str, args,
                 entrada_travada: Path | None = None,
                 sem_filtros_secundarios: bool = False) -> dict:
@@ -321,10 +435,14 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args,
     # o chart period != M1, qualquer input "Current TF" colapsaria pro period
     # do chart. O default de optimize_two_stage.py ja e M1, mas nao vale a
     # pena depender disso silenciosamente aqui.
+    inicio = resolver_janela(simbolo, sistema, variante, args.inicio,
+                             args.fim, getattr(args, "janela_dinamica", False),
+                             janela_maxima_anos=getattr(
+                                 args, "janela_maxima_anos", 3))
     cmd = [sys.executable, str(AQUI / "optimize_two_stage.py"),
            "--symbol", simbolo, "--sistema", sistema, "--variante", variante,
            "--period", "M1",
-           "--from", args.inicio, "--to", args.fim,
+           "--from", inicio, "--to", args.fim,
            "--deposit", str(resolver_deposito(simbolo, args.deposit)),
            "--min-retencao", str(args.min_retencao),
            "--fechar-terminal", "--timeout", str(args.timeout),
@@ -431,8 +549,27 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args,
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--from", dest="inicio", default=anos_atras(3))
+    # default=None (sentinela) e nao anos_atras(3) direto: precisa distinguir
+    # "usuario passou --from" de "usuario nao passou" pra resolver_janela()
+    # so aplicar a logica dinamica quando NAO ha override explicito -- mesmo
+    # padrao ja usado por --deposit/resolver_deposito().
+    ap.add_argument("--from", dest="inicio", default=None,
+                    help="vazio = 3 anos atras (ou dimensionado por trades "
+                         "necessarios com --janela-dinamica); um valor "
+                         "explicito forca essa data pra TODOS os combos")
     ap.add_argument("--to", dest="fim", default=datetime.now().strftime("%Y.%m.%d"))
+    ap.add_argument("--janela-dinamica", action="store_true",
+                    help="dimensiona --from por trades necessarios em vez "
+                         "de sempre 3 anos fixos -- usa a taxa de trades/ano "
+                         "do combo (ledger, ou 1 sonda de ~9s se ainda nao "
+                         "houver dado), respeitando o piso do WFO e o teto "
+                         "de --janela-maxima-anos. Sistemas de alta "
+                         "frequencia (grid-like) tendem a pedir bem menos "
+                         "que 3 anos; --from explicito sempre vence, mesmo "
+                         "com esta flag ligada")
+    ap.add_argument("--janela-maxima-anos", type=int, default=3,
+                    help="teto de --janela-dinamica -- nunca pede mais "
+                         "periodo que isto, mesmo se a taxa medida for baixa")
     ap.add_argument("--deposit", type=int, default=None,
                     help="vazio = automatico (capital minimo da classe de "
                          "cada simbolo); um valor fixo forca esse deposito "
