@@ -490,6 +490,8 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args,
         cmd += ["--entrada-travada", str(entrada_travada)]
     if sem_filtros_secundarios:
         cmd += ["--sem-filtros-secundarios"]
+    if getattr(args, "triagem_sensibilidade", False):
+        cmd += ["--triagem-sensibilidade"]
     t0 = time.time()
     # CREATE_NO_WINDOW: so suprime a janela de console que este python.exe
     # filho abriria sozinho (achado do dono, 2026-08-06 -- cada combo novo
@@ -585,6 +587,13 @@ def main() -> int:
     ap.add_argument("--janela-maxima-anos", type=int, default=3,
                     help="teto de --janela-dinamica -- nunca pede mais "
                          "periodo que isto, mesmo se a taxa medida for baixa")
+    # Fase 2 da mudanca de direcao (2026-09-13): repassa pro
+    # optimize_two_stage.py de cada combo -- so existia la, faltava o
+    # encanamento ate aqui (achado ao vivo tentando ligar as duas juntas).
+    ap.add_argument("--triagem-sensibilidade", action="store_true",
+                    help="repassa --triagem-sensibilidade pra cada combo "
+                         "(ver optimize_two_stage.py) -- triagem de "
+                         "sensibilidade OAT/Morris antes do Estagio 1")
     ap.add_argument("--deposit", type=int, default=None,
                     help="vazio = automatico (capital minimo da classe de "
                          "cada simbolo); um valor fixo forca esse deposito "
