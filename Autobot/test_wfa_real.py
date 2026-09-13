@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import ready_library
 from wfa_real import (deposito_do_combo, janelas_sequenciais, ler_valores_set,
                       medir_holdout, wfe)
 
@@ -114,15 +115,26 @@ checar("holdout: MetodoDeEntradawfo=1 (IS+OOS, nao o 0 do .set entregue)",
 # --deposit global -- mesma familia do bug de margem do grid (07_GRID_
 # SEPARATE/AUDNZD reprovou 12/14 formulas por deposito pequeno demais pra
 # classe do ativo; rodar --todos com UM valor fixo repetiria esse erro pra
-# TODOS os combos de menor deposito). 01_SLTP/EURUSD trocado por
-# 04_SLTP_TRAIL/BTCUSD em 2026-09-07: aquele reprovou no gate de holdout
-# longo + WFA (ver project_wfa_real_e_engine_custom.md) e nao tem mais
-# VALIDADO_ ao vivo -- este teste precisa de um campeao que exista de
-# verdade, nao de um combo especifico. ------------------------------------
-checar("deposito_do_combo: 04_SLTP_TRAIL/BTCUSD usa o CapitalBaseR do "
-       "campeao (2500, classe 02_Cryptocurrencies), nao um fallback generico",
-       deposito_do_combo("BTCUSD", "04_SLTP_TRAIL", "BUY_MULTI", fallback=999),
-       2500)
+# TODOS os combos de menor deposito). Depender de um campeao VALIDADO_ real
+# ja quebrou duas vezes (01_SLTP/EURUSD, depois 04_SLTP_TRAIL/BTCUSD --
+# ambos reprovados/removidos por campanhas reais desde que o teste foi
+# escrito, achado 2026-09-13) -- exatamente o que o docstring do modulo no
+# topo deste arquivo promete NAO acontecer aqui ("testa as pecas que NAO
+# precisam do MT5"). Escreve o proprio fixture agora, hermetico como o
+# resto do arquivo. ---------------------------------------------------------
+combo_fixture = ("ZZZTESTE", "00_FIXTURE_WFA_REAL", "BUY_MULTI")
+alvo_fixture = (ready_library.TESTER /
+                f"VALIDADO_{combo_fixture[0]}_{combo_fixture[1]}_{combo_fixture[2]}.set")
+alvo_fixture.write_text(
+    "CapitalBaseR=2500||2500||0||2500||N\r\nFast_EMA=9||6||2||24||N\r\n",
+    encoding="utf-16")
+try:
+    checar("deposito_do_combo: usa o CapitalBaseR do proprio campeao "
+           "(2500), nao um fallback generico",
+           deposito_do_combo(*combo_fixture, fallback=999),
+           2500)
+finally:
+    alvo_fixture.unlink()
 checar("deposito_do_combo: combo sem campeao VALIDADO_ cai no fallback",
        deposito_do_combo("XXXXXX", "01_SLTP", "BUY_MULTI", fallback=777),
        777)
