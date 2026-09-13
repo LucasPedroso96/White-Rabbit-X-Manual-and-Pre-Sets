@@ -1,0 +1,4 @@
+{"symbol": "EURUSD", "sistema": "01_SLTP", "variante": "BUY_MULTI", "backend": "genetico", "minutos": 2.9, "passes": 4790, "melhor_nota": 147.503467, "quando": "2026-09-13T02:41:08"}
+{"symbol": "EURUSD", "sistema": "01_SLTP", "variante": "BUY_MULTI", "backend": "optuna", "minutos": 8.6, "passes": 60, "melhor_nota_profit": 203.5, "quando": "2026-09-13T02:49:45"}
+{"symbol": "XAUUSD", "sistema": "12_GRID_INVERSO", "variante": "BUY_MULTI", "backend": "genetico", "minutos": 5.3, "passes": 7288, "melhor_nota": 3380.076, "quando": "2026-09-13T02:55:04"}
+{"symbol": "XAUUSD", "sistema": "12_GRID_INVERSO", "variante": "BUY_MULTI", "backend": "optuna", "minutos": 8.1, "passes": 60, "melhor_nota_profit": 863.8900000000001, "quando": "2026-09-13T03:03:08"}
