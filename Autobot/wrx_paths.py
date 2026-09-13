@@ -45,6 +45,31 @@ def _tem_sets_gerados(terminal_dir: Path) -> bool:
                             "White_Rabbit_X_Sets"))
 
 
+# Nome do marcador que uma instalacao CLONE (2a instancia so pra rodar
+# campanhas em paralelo, ver campanha.py) grava na propria pasta de dados.
+# 2026-09-13, achado ao vivo: clonar a instalacao original (bases/ + MQL5/,
+# pra ter uma 2a instancia funcional) fez o autodetect abaixo PASSAR A
+# ESCOLHER O CLONE como padrao sempre que nenhuma env var explicita esta
+# setada -- os dois agora tem "sets gerados", e o desempate por
+# sorted()[0] cai no hash que vier primeiro em ordem alfabetica, que por
+# acaso e o do clone. Exatamente o mesmo tipo de mira-errada-silenciosa do
+# incidente Levain 2026-08-10 (comentario abaixo), so que desta vez causado
+# por este proprio projeto, nao por uma copia externa. O marcador garante
+# que o clone NUNCA vence o autodetect implicito -- so e usado quando
+# alguem aponta pra ele de proposito via WRX_MT5_DATA_DIR.
+MARCADOR_CLONE = "wrx_optimizer_clone.marker"
+
+
+def _e_clone_de_otimizacao(terminal_dir: Path) -> bool:
+    return (terminal_dir / MARCADOR_CLONE).is_file()
+
+
+def marcar_como_clone_de_otimizacao(data_dir: Path, motivo: str = "") -> None:
+    """Grava o marcador nesta pasta de dados -- so a PRESENCA importa, como
+    o sinal de pausa da campanha. Chamar uma vez ao criar um clone novo."""
+    (data_dir / MARCADOR_CLONE).write_text(motivo, encoding="utf-8")
+
+
 def _autodetect_data_dir() -> Path | None:
     base = Path(os.environ.get("APPDATA", "")) / "MetaQuotes" / "Terminal"
     if not base.exists():
@@ -53,6 +78,8 @@ def _autodetect_data_dir() -> Path | None:
     # sem isso o candidato "vencedor" varia entre execucoes na mesma maquina.
     candidatos = []
     for terminal_dir in sorted(base.iterdir()):
+        if _e_clone_de_otimizacao(terminal_dir):
+            continue
         experts = terminal_dir / "MQL5" / "Experts"
         if not experts.exists():
             continue

@@ -77,6 +77,21 @@ try:
     base.mkdir(parents=True)
     checar("pasta Terminal sem nenhuma instalacao da EA: None",
            wrx_paths._autodetect_data_dir(), None)
+
+    shutil.rmtree(base)
+    base.mkdir(parents=True)
+    # Achado ao vivo, 2026-09-13: clonar a instalacao original (bases/ +
+    # MQL5/) pra rodar uma 2a campanha em paralelo (ver campanha.py) fez
+    # este mesmo clone GANHAR o autodetect implicito -- os dois passam a
+    # "ter Sets", e sorted()[0] desempata por hash alfabetico, que pode
+    # cair no clone. O marcador precisa excluir o clone do autodetect
+    # mesmo quando ele vem primeiro na ordem alfabetica.
+    original = _criar_terminal(base, "AAAA_original_com_sets", com_sets=True)
+    clone = _criar_terminal(base, "ZZZZ_clone_tambem_com_sets", com_sets=True)
+    wrx_paths.marcar_como_clone_de_otimizacao(clone, "teste")
+    checar("clone marcado nunca vence o autodetect implicito, mesmo com "
+           "Sets e vindo antes na ordem alfabetica",
+           wrx_paths._autodetect_data_dir(), original)
 finally:
     if appdata_original is not None:
         os.environ["APPDATA"] = appdata_original
