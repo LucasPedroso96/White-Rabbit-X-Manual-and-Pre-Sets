@@ -4,3 +4,4 @@ pandas
 pyarrow
 fastapi
 uvicorn
+optuna

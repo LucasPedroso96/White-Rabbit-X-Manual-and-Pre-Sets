@@ -822,6 +822,135 @@ def triagem_sensibilidade(origem: Path, eixos: list[str],
     return [e for e in eixos if e not in cortados]
 
 
+def _formatar_valor_eixo(valor: float, start: str, stop: str) -> str:
+    """Formata o valor sugerido no MESMO tipo (inteiro vs. float) que o
+    eixo ja usa no .set -- faixa sem ponto decimal em start/stop vira
+    inteiro (evita gravar `Nome=3.0` onde o .set espera `3`, que o MT5
+    pode rejeitar em parametros declarados `int`/`enum` no .mq5)."""
+    inteiro = "." not in start and "." not in stop
+    return str(int(round(valor))) if inteiro else str(valor)
+
+
+def _linhas_do_optuna(eixos_validos: list[str],
+                      resultados: dict[int, tuple[dict[str, str], dict]],
+                      deposito: int) -> tuple[list[str], list[list[str]]]:
+    """Monta (cab, linhas) no formato que `escolher_candidatos()`/
+    `torneio_retencao()` esperam, a partir dos trials medidos do Optuna --
+    separado de `otimizar_estagio2_optuna()` pra testar sem optuna nem MT5.
+
+    `Profit`/`Trades` ja fazem parte do `metricas` definido em main(), que
+    `torneio_retencao()` usa pra excluir colunas de metrica do dict de
+    eixos (`cand`) -- por isso os nomes tem que bater exatamente com esses
+    dois, nao um rotulo livre.
+    """
+    cab = eixos_validos + ["Profit", "Trades"]
+    linhas = []
+    for valores, resultado in resultados.values():
+        saldo = resultado.get("saldo")
+        profit = (saldo - deposito) if saldo is not None else 0.0
+        trades = resultado.get("trades") or 0
+        linhas.append([valores[n] for n in eixos_validos]
+                      + [str(profit), str(trades)])
+    return cab, linhas
+
+
+def otimizar_estagio2_optuna(origem: Path, trabalho: Path, numeros: list[str],
+                             travados: dict[str, str], args,
+                             n_trials: int | None = None,
+                             timeout_trial: int | None = 60
+                             ) -> tuple[list[str], list[list[str]]]:
+    """Busca do Estagio 2 (refino numerico) via Optuna/TPE -- backend
+    EXPERIMENTAL alternativo ao genetico nativo do MT5 (Fase 3 da mudanca
+    de direcao, 2026-09-13; `--estagio2-backend optuna`). Ver plano pro
+    criterio de sucesso/abandono -- nao e generalizado sem um piloto A/B
+    medido contra o genetico no mesmo combo.
+
+    Mesmo CONTRATO DE SAIDA que `rodar()` devolveria: `(cab, linhas)`
+    prontos pra `escolher_candidatos()`/`torneio_retencao()` sem alterar
+    nenhuma delas -- so a BUSCA muda de backend, a VALIDACAO (torneio de
+    retencao IS+OOS) e IDENTICA nos dois caminhos. `cab` = eixos numericos
+    + "Profit"/"Trades" (as duas ja fazem parte do `metricas` de main(),
+    entao `torneio_retencao()` as exclui de `cand` automaticamente, do
+    mesmo jeito que faria com uma linha vinda do relatorio do genetico).
+
+    Cada trial: Optuna sugere um valor por eixo (faixas de
+    `parametros_do_set()`), trava TUDO no .set (nenhum eixo em Y -- quem
+    escolhe o proximo ponto e' o Optuna, nao o Tester) e roda 1 passe
+    unico OHLC (mesmo `travados`/WFO que o genetico usaria aqui). Nota =
+    campo da formula ativa, do MESMO mecanismo de arquivo compartilhado
+    que `triagem_sensibilidade()` usa (`limpar_todas_formulas()`/
+    `carregar_todas_formulas()`, NAO o log do passe -- ver comentario de
+    `ARQUIVO_TODAS_FORMULAS`) -- fiel ao que o genetico realmente otimiza.
+
+    Mesma guarda de `_outra_instancia_mt5_ativa()` que a triagem: outra
+    instalacao MT5 ativa aborta pra `([], [])` (relatorio "vazio") em vez
+    de arriscar colisao no arquivo compartilhado -- o chamador ja trata
+    isso como reprovacao precoce normal, o mesmo caminho de "genetico nao
+    achou nada".
+    """
+    if _outra_instancia_mt5_ativa():
+        print("    [2/5-optuna] outra instalacao MT5 ativa -- pulando "
+              "pra nao arriscar colisao no arquivo de formulas.", flush=True)
+        return [], []
+    import optuna
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+    n_trials = n_trials if n_trials is not None else args.estagio2_optuna_trials
+    parametros = parametros_do_set(origem)
+    campo = campo_da_formula_ativa(args.sistema, origem)
+    eixos_validos = [n for n in numeros if n in parametros]
+    if not eixos_validos:
+        return [], []
+
+    def sugerir(trial: "optuna.trial.Trial") -> dict[str, str]:
+        valores = {}
+        for nome in eixos_validos:
+            _, start, step, stop, _ = parametros[nome]
+            # Nem todo eixo "numerico" e numero de verdade: bool cravavel
+            # como eixo (start/stop "true"/"false", achado ao vivo,
+            # 2026-09-13 -- ValueError tentando float("false")) precisa de
+            # categorico, nao de faixa continua/discreta.
+            if start in ("true", "false") or stop in ("true", "false"):
+                valores[nome] = trial.suggest_categorical(nome,
+                                                          ["false", "true"])
+                continue
+            lo, hi = sorted((float(start), float(stop)))
+            passo = float(step) if step not in ("0", "") else 0.0
+            if passo > 0:
+                n_passos = max(1, round((hi - lo) / passo))
+                v = lo + trial.suggest_int(nome, 0, n_passos) * passo
+            else:
+                v = trial.suggest_float(nome, lo, hi)
+            valores[nome] = _formatar_valor_eixo(v, start, stop)
+        return valores
+
+    resultados: dict[int, tuple[dict[str, str], dict]] = {}
+
+    def objetivo(trial: "optuna.trial.Trial") -> float:
+        valores = sugerir(trial)
+        limpar_todas_formulas()
+        reescrever(origem, trabalho, [], {**travados, **valores})
+        try:
+            resultado = passe_unico(trabalho, args.symbol, args.period,
+                                    args.inicio, args.fim, args.deposit, 1,
+                                    timeout=timeout_trial,
+                                    variante=args.variante)
+        except subprocess.TimeoutExpired:
+            resultado = {"saldo": None, "trades": None}
+        formulas = carregar_todas_formulas()
+        nota = formulas[-1].get(campo) if formulas else None
+        resultados[trial.number] = (valores, resultado)
+        return nota if nota is not None else float("-inf")
+
+    study = optuna.create_study(direction="maximize")
+    study.optimize(objetivo, n_trials=n_trials)
+
+    cab, linhas = _linhas_do_optuna(eixos_validos, resultados, args.deposit)
+    print(f"    [2/5-optuna] {len(eixos_validos)} eixos, {len(linhas)} de "
+          f"{n_trials} trials com resultado medido", flush=True)
+    return cab, linhas
+
+
 # FASE 3 = FILTROS DE EXECUCAO, os ULTIMOS a rodar (dono, 2026-07-31):
 # hora, dia da semana e spread maximo. Higiene de execucao, nao tese de
 # mercado -- por isso so entram depois de sinal e numeros resolvidos, e por
@@ -2383,6 +2512,24 @@ def main() -> int:
                          "reduz o espaco que o genetico do Estagio 1 "
                          "precisa cobrir. Nao capta interacao entre eixos "
                          "(trajetoria unica); corte sempre conservador")
+    # Fase 3 da mudanca de direcao (2026-09-13, PILOTO EXPERIMENTAL -- ver
+    # plano): backend alternativo pro Estagio 2 (refino numerico). Default
+    # "genetico" preserva o comportamento atual byte a byte. "optuna" so
+    # troca a BUSCA -- torneio_retencao() (validacao) roda identico nos
+    # dois. Nao e garantia de ganho: ver aritmetica de overhead no plano
+    # (~9s/trial sem warm reuse do terminal vs. ~5,8 passes/s do genetico
+    # nativo com paralelismo interno) -- exige piloto A/B medido antes de
+    # promover pra default.
+    ap.add_argument("--estagio2-backend", choices=["genetico", "optuna"],
+                    default="genetico",
+                    help="backend da BUSCA do Estagio 2 -- 'optuna' e "
+                         "experimental (TPE), precisa da lib optuna "
+                         "instalada. Validacao (torneio de retencao) "
+                         "identica nos dois")
+    ap.add_argument("--estagio2-optuna-trials", type=int, default=40,
+                    help="numero de trials do Optuna quando "
+                         "--estagio2-backend optuna (~9s cada, sem warm "
+                         "reuse do terminal)")
     # Camada de recuperacao OPCIONAL (dono, 2026-09-08: "eles nao sao sistemas
     # a parte e sim um booster dos sistemas normais"). "auto" (default) so
     # liga pra 09_MARTINGALE/10_DALEMBERT (identidade, comportamento de
@@ -2798,18 +2945,22 @@ def main() -> int:
     # 2026-09-04 pra ser reusavel fora de main(), ver wfa_real.py).
     numeros = eixos_reotimizaveis(args.sistema, ind)
     cortados = [c for c in NUMEROS if c not in numeros]
-    n = reescrever(origem, trabalho, numeros, travados)
-    print(f"  [2/5] numeros em OHLC ({n} parametros, escrita travada)",
-          flush=True)
     if cortados:
         print(f"    fora por nao pertencerem ao {nome_ind}: {cortados}",
               flush=True)
-    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
-        limpar_todas_formulas()
     t0 = time.time()
-    cab, linhas = rodar(trabalho, args.symbol, args.period, args.inicio,
-                        args.fim, args.deposit, 1, args.timeout,
-                        variante=args.variante)
+    if args.estagio2_backend == "optuna":
+        cab, linhas = otimizar_estagio2_optuna(origem, trabalho, numeros,
+                                               travados, args)
+    else:
+        n = reescrever(origem, trabalho, numeros, travados)
+        print(f"  [2/5] numeros em OHLC ({n} parametros, escrita travada)",
+              flush=True)
+        if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+            limpar_todas_formulas()
+        cab, linhas = rodar(trabalho, args.symbol, args.period, args.inicio,
+                            args.fim, args.deposit, 1, args.timeout,
+                            variante=args.variante)
     if not linhas:
         print("    relatorio vazio no estagio 2")
         emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
