@@ -610,6 +610,31 @@ EIXOS_INERTES_POR_SISTEMA: dict[str, set[str]] = {
 }
 
 
+def parametros_do_set(origem: Path) -> dict[str, list[str]]:
+    """Le um .set e devolve {nome: [valor, start, step, stop, flag]} pra todo
+    parametro no formato de faixa (5 campos separados por "||"). Parametro
+    sem faixa (valor unico, sem "||") fica de fora.
+
+    Extraido de dentro de `eixos_da_fase1()` (2026-09-13, Fase 2 da mudanca
+    de direcao): virou a base tanto dela quanto de `triagem_sensibilidade()`,
+    que precisa dos MESMOS start/step/stop pra saber o valor alto de cada
+    eixo. NAO substitui o parsing de `reescrever()` -- aquele precisa tambem
+    de parametros ESCALARES (sem faixa, ex. flags booleanas cravadas sem
+    "||") pra resolver GATES, e usa uma regex de nome mais permissiva
+    (`[^;=]+` vs. `[A-Za-z_0-9]+` aqui); misturar os dois arriscaria mudar
+    silenciosamente o gate-checking que roda em TODA otimizacao.
+    """
+    parametros: dict[str, list[str]] = {}
+    for linha in origem.read_text(encoding="utf-16").replace("\r", "").split("\n"):
+        m = re.match(r"^([A-Za-z_0-9]+)=(.*)$", linha)
+        if not m:
+            continue
+        partes = m.group(2).split("||")
+        if len(partes) == 5:
+            parametros[m.group(1)] = partes
+    return parametros
+
+
 def eixos_da_fase1(origem: Path, sistema: str | None = None) -> list[str]:
     """TUDO que tem faixa no set, menos os filtros de execucao (e, pro
     sistema, os eixos inertes de EIXOS_INERTES_POR_SISTEMA).
@@ -627,15 +652,8 @@ def eixos_da_fase1(origem: Path, sistema: str | None = None) -> list[str]:
     EIXOS_INERTES_POR_SISTEMA cravar pra este `sistema` especifico.
     """
     fora = set(EXEC_FILTROS) | EIXOS_INERTES_POR_SISTEMA.get(sistema or "", set())
-    nomes = []
-    for linha in origem.read_text(encoding="utf-16").replace("\r", "").split("\n"):
-        m = re.match(r"^([A-Za-z_0-9]+)=(.*)$", linha)
-        if not m:
-            continue
-        partes = m.group(2).split("||")
-        if len(partes) == 5 and partes[1] != partes[3] and m.group(1) not in fora:
-            nomes.append(m.group(1))
-    return nomes
+    return [nome for nome, partes in parametros_do_set(origem).items()
+            if partes[1] != partes[3] and nome not in fora]
 
 
 def eixos_do_indicador(nomes: list[str], indicador: str | None) -> list[str]:
@@ -673,6 +691,135 @@ def eixos_reotimizaveis(sistema: str, indicador: str | None) -> list[str]:
     """
     numeros = eixos_do_indicador(NUMEROS, indicador)
     return [e for e in numeros if e not in EIXOS_RECUPERACAO_TODOS]
+
+
+def _cortar_por_efeito(efeitos: dict[str, float], corte_pct: float) -> set[str]:
+    """So a aritmetica de ranking/corte de `triagem_sensibilidade()`,
+    separada pra testar em milissegundos com tuplas fabricadas, sem MT5.
+
+    Corta o percentil INFERIOR de `efeitos` (o "efeito elementar" de cada
+    eixo, ja em magnitude -- ver `triagem_sensibilidade()`). `corte_pct`
+    e uma fracao (0.25 = corta os 25% de eixos com menor efeito medido).
+    Eixo que nao aparece em `efeitos` (passe falhou pra ele) nunca e
+    cortado por construcao -- so decide sobre o que foi de fato medido.
+    """
+    if not efeitos:
+        return set()
+    ordenados = sorted(efeitos.items(), key=lambda kv: kv[1])
+    n_cortar = int(len(ordenados) * corte_pct)
+    return {nome for nome, _ in ordenados[:n_cortar]}
+
+
+def _outra_instancia_mt5_ativa() -> bool:
+    """Alguma OUTRA instalacao de MT5 (nao a que este processo vai usar)
+    esta rodando agora?
+
+    Existe porque `ARQUIVO_TODAS_FORMULAS` (a nota da formula ativa por
+    passe) vive em `Common\\Files\\` -- compartilhado por TODA A MAQUINA,
+    nao por instalacao do MT5 (achado ao vivo, 2026-09-13, testando a 2a
+    instancia MT5_Optimizer2 montada pra rodar campanhas em paralelo). Se
+    outra instancia estiver mid-flight numa campanha real de verdade, ela
+    tambem chama `limpar_todas_formulas()` nas proprias transicoes de
+    estagio -- rodar a triagem/piloto ao mesmo tempo arrisca um lado
+    limpar o arquivo bem na hora em que o outro esperava ler a propria
+    nota. Best-effort via `tasklist`/CIM, nunca bloqueia por engano se a
+    checagem falhar (prefere rodar a travar a campanha por uma checagem
+    que nao respondeu).
+    """
+    try:
+        saida = subprocess.run(  # noqa: S603
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name='terminal64.exe'\" "
+             "| Select-Object -ExpandProperty ExecutablePath"],
+            capture_output=True, text=True, timeout=15, check=False).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    caminhos = {l.strip() for l in saida.splitlines() if l.strip()}
+    return any(Path(c) != base.TERMINAL for c in caminhos)
+
+
+def triagem_sensibilidade(origem: Path, eixos: list[str],
+                          travados: dict[str, str], sistema: str,
+                          symbol: str, periodo: str, inicio: str, fim: str,
+                          deposito: int, corte_pct: float = 0.25,
+                          timeout: int | None = 120) -> list[str]:
+    """Triagem de sensibilidade tipo Morris (OAT, trajetoria unica): descarta
+    de `eixos` os que produzem MENOR variacao na nota da EA (mesmo campo que
+    o genetico otimiza, via `campo_da_formula_ativa()`/`carregar_todas_formulas()`)
+    quando movidos do valor BAIXO pro valor ALTO da propria faixa, com todo
+    o resto travado num baseline comum. Existe pra nao gastar orcamento do
+    Estagio 1 em eixos que, isolados, quase nao mudam o resultado.
+
+    Custo: `len(eixos)+1` passes unicos OHLC (~9s cada) -- barato frente aos
+    15-45 min de uma rodada do Estagio 1.
+
+    LIMITACAO CONHECIDA, nao bug (2026-09-13, Fase 2 da mudanca de
+    direcao): trajetoria unica (r=1) nao capta INTERACAO entre eixos -- dois
+    eixos individualmente "planos" mas conjuntamente relevantes escapam
+    desta triagem. Por isso e sempre opt-in (--triagem-sensibilidade,
+    default off) e o corte e conservador (so a cauda de baixo, `corte_pct`)
+    -- nunca a unica fonte de verdade sobre um eixo. Roda com o indicador
+    DEFAULT do .set de origem (o Estagio 1 ainda nao escolheu vencedor
+    neste ponto) -- o ranking de sensibilidade e condicional a esse
+    indicador; ver ressalva no plano de 2026-09-13 sobre testar tambem a
+    variante "antes do Estagio 2", onde a entrada ja esta travada.
+
+    Best-effort: qualquer falha (terminal ocupado, timeout, sem log
+    legivel, OUTRA instancia MT5 ativa -- ver `_outra_instancia_mt5_ativa()`)
+    faz aquele eixo sobreviver por seguranca -- e, se o BASELINE em si
+    falhar, devolve `eixos` inteiro sem cortar nada. Uma triagem que nao
+    consegue medir nunca deve inventar um corte, nem travar a campanha.
+    """
+    if len(eixos) < 2:
+        return eixos
+    if _outra_instancia_mt5_ativa():
+        print("    triagem de sensibilidade: outra instalacao MT5 esta "
+              "ativa (arquivo de formulas e compartilhado pela maquina "
+              "inteira) -- pulando pra nao arriscar colisao.", flush=True)
+        return eixos
+    parametros = parametros_do_set(origem)
+    campo = campo_da_formula_ativa(sistema, origem)
+    # Precisa morar DENTRO de MQL5/Profiles/Tester (mesmo padrao de
+    # `_ETAPA.set`/`_MEDIR_DESEMPENHO.set` no resto do arquivo) -- e de la
+    # que `passe_unico()` monta o caminho RELATIVO que o .ini exige (achado
+    # ao vivo, 2026-09-13: um tempfile.TemporaryDirectory() generico quebra
+    # com ValueError, "nao e subpath de Tester", na primeira chamada).
+    trabalho = base.DADOS / "MQL5" / "Profiles" / "Tester" / "_TRIAGEM_SENSIBILIDADE.set"
+
+    def nota_do_passe(travar: dict[str, str]) -> float | None:
+        # ALL_FORMULAS nao vai pro log do passe (achado ao vivo, 2026-09-13):
+        # a EA grava num arquivo FILE_COMMON compartilhado (Print/PrintFormat
+        # dentro de OnTester() nao aparece em log nenhum de forma confiavel --
+        # ver comentario de ARQUIVO_TODAS_FORMULAS). limpar+rodar+ler, mesmo
+        # padrao ja usado no resto do circuito (ex.: antes do Estagio 1).
+        limpar_todas_formulas()
+        reescrever(origem, trabalho, [], {**travados, **travar})
+        passe_unico(trabalho, symbol, periodo, inicio, fim, deposito, 1,
+                   timeout=timeout, variante=origem.stem)
+        formulas = carregar_todas_formulas()
+        return formulas[-1].get(campo) if formulas else None
+
+    baixo = {e: parametros[e][1] for e in eixos if e in parametros}
+    base_nota = nota_do_passe(baixo)
+    if base_nota is None:
+        return eixos
+
+    efeitos: dict[str, float] = {}
+    for eixo in eixos:
+        if eixo not in parametros:
+            continue
+        alto = dict(baixo)
+        alto[eixo] = parametros[eixo][3]
+        nota = nota_do_passe(alto)
+        if nota is not None:
+            efeitos[eixo] = abs(nota - base_nota)
+
+    cortados = _cortar_por_efeito(efeitos, corte_pct)
+    if cortados:
+        print(f"    triagem de sensibilidade: {len(cortados)} de "
+              f"{len(eixos)} eixo(s) cortados por baixo efeito elementar "
+              f"(corte_pct={corte_pct}): {sorted(cortados)}", flush=True)
+    return [e for e in eixos if e not in cortados]
 
 
 # FASE 3 = FILTROS DE EXECUCAO, os ULTIMOS a rodar (dono, 2026-07-31):
@@ -2225,6 +2372,17 @@ def main() -> int:
                          "ADX/MTF e EntradaATR em false antes do Estagio 1 -- "
                          "so o indicador primario compete, GATES corta os "
                          "eixos numericos dos filtros sozinho")
+    # Fase 2 da mudanca de direcao (2026-09-13): triagem de sensibilidade
+    # OAT/Morris ANTES do Estagio 1, pra nao gastar orcamento do genetico em
+    # eixos que isolados quase nao mudam a nota -- ver triagem_sensibilidade().
+    # Opt-in, default off: comportamento identico ao atual sem a flag.
+    ap.add_argument("--triagem-sensibilidade", action="store_true",
+                    help="antes do Estagio 1, roda 1 passe unico por eixo "
+                         "(baixo vs. alto da faixa, ~9s cada) e corta os "
+                         "25%% de menor efeito medido na nota da EA -- "
+                         "reduz o espaco que o genetico do Estagio 1 "
+                         "precisa cobrir. Nao capta interacao entre eixos "
+                         "(trajetoria unica); corte sempre conservador")
     # Camada de recuperacao OPCIONAL (dono, 2026-09-08: "eles nao sao sistemas
     # a parte e sim um booster dos sistemas normais"). "auto" (default) so
     # liga pra 09_MARTINGALE/10_DALEMBERT (identidade, comportamento de
@@ -2372,6 +2530,10 @@ def main() -> int:
     if entrada_travada:
         eixos_fase1 = [e for e in eixos_fase1
                       if e not in entrada_travada["escrita"]]
+    if args.triagem_sensibilidade:
+        eixos_fase1 = triagem_sensibilidade(
+            origem, eixos_fase1, travados, args.sistema, args.symbol,
+            args.period, args.inicio, args.fim, args.deposit)
     n = reescrever(origem, trabalho, eixos_fase1, travados)
     print(f"  [1/5] regioes em OHLC ({n} parametros: entradas completas + "
           f"saidas + flags) | WFO In-Sample: "
