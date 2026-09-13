@@ -16,7 +16,9 @@ from datetime import datetime, timedelta
 
 from optimize_two_stage import (
     BLOCO_MINIMO_WFO,
+    PISO_JANELA_DINAMICA_DIAS,
     dias_para_trades_alvo,
+    dimensionar_wfo,
     piso_trades_da_janela,
 )
 
@@ -51,7 +53,7 @@ checar_que(
 
 # --- clamp de piso: nunca menor que o WFO tolera ----------------------------
 checar("taxa altissima ainda respeita o piso minimo",
-      dias_para_trades_alvo(10, 1_000_000.0), BLOCO_MINIMO_WFO * 2)
+      dias_para_trades_alvo(10, 1_000_000.0), PISO_JANELA_DINAMICA_DIAS)
 checar("piso minimo customizado e respeitado",
       dias_para_trades_alvo(10, 1_000_000.0, minimo_dias=90), 90)
 
@@ -64,14 +66,30 @@ checar_que(
 
 # --- taxa zero ou negativa: cai no minimo, nunca divide por zero -----------
 checar("taxa zero cai no minimo, sem excecao",
-      dias_para_trades_alvo(100, 0.0), BLOCO_MINIMO_WFO * 2)
+      dias_para_trades_alvo(100, 0.0), PISO_JANELA_DINAMICA_DIAS)
 checar("taxa negativa (sonda malformada) tambem cai no minimo",
-      dias_para_trades_alvo(100, -5.0), BLOCO_MINIMO_WFO * 2)
+      dias_para_trades_alvo(100, -5.0), PISO_JANELA_DINAMICA_DIAS)
 
 # --- teto nunca fica abaixo do proprio minimo -------------------------------
 checar_que(
     "teto menor que o minimo nao produz janela menor que o minimo",
     dias_para_trades_alvo(1000, 1.0, minimo_dias=90, maximo_dias=10) >= 90)
+
+# --- REGRESSAO, 2026-09-13: o piso default preserva os 6 ciclos de WFO -----
+# Achado ao vivo: o piso antigo (BLOCO_MINIMO_WFO*2 = 60 dias TOTAIS) dava
+# so 2 ciclos de ~26 IS/8 OOS -- tao fino quanto o incidente de 2026-09-03
+# que dimensionar_wfo() foi escrito pra evitar (retencao saindo de UMA
+# janela OOS de 15 dias). No piso NOVO (mesmo pra um sistema hiperativo,
+# taxa altissima cai direto no minimo), dimensionar_wfo() tem que devolver
+# os ciclos_alvo=6 completos, cada bloco com folga sobre BLOCO_MINIMO_WFO.
+piso_padrao = dias_para_trades_alvo(10, 1_000_000.0)  # taxa hiperativa -> cai no piso
+ciclos, is_d, oos_d = dimensionar_wfo(piso_padrao)
+checar("piso default preserva os 6 ciclos de WFO (nao degenera pra 1-2)",
+      ciclos, 6)
+checar_que(f"cada bloco do piso tem folga sobre BLOCO_MINIMO_WFO "
+          f"(IS {is_d}d + OOS {oos_d}d = {is_d + oos_d}d, deveria ser "
+          f">= {BLOCO_MINIMO_WFO * 2}d)",
+          is_d + oos_d >= BLOCO_MINIMO_WFO * 2)
 
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")

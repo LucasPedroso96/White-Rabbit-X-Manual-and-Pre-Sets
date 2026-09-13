@@ -133,9 +133,25 @@ def medir_e_cachear(simbolo_nativo: str, caminho_set: Path, inicio: str, fim: st
                     deposito: int = 500, timeout: int = 1800) -> dict:
     # Import tardio: optimize_two_stage tambem importa este modulo, e
     # importar passe_unico no topo do arquivo criaria um ciclo.
-    from optimize_two_stage import passe_unico
-    r = passe_unico(caminho_set, simbolo_nativo, "M1", inicio, fim, deposito,
-                    4, timeout=timeout)
+    from optimize_two_stage import passe_unico, reescrever
+
+    # Os .set da biblioteca saem do gerador com AtivarWFO=true CRAVADO e
+    # input_end_date/wfo_customWindowSizeDays de quando a biblioteca foi
+    # gerada (generate_system_sets.py, andaime pra otimizacao manual) --
+    # nao necessariamente batendo com o `--inicio`/`--fim` pedidos aqui.
+    # Achado ao vivo, 2026-09-13 (mesma causa raiz do bug de
+    # campanha._taxa_anual_por_sonda): rodar passe_unico() DIRETO no .set
+    # de origem faz o OnInit rejeitar o passe quando a data nao bate
+    # ("invalid IS or OOS window sizes"), e este script sempre aceitou
+    # `--inicio`/`--fim` arbitrarios na linha de comando (ver docstring,
+    # "janela mais curta, mais rapido") -- praticamente garantido de
+    # nao bater com o que o template trouxe cravado. Uma copia de
+    # trabalho com AtivarWFO desligado forca o backtest simples que este
+    # script sempre quis medir.
+    trabalho = base.DADOS / "MQL5" / "Profiles" / "Tester" / "_CUSTO_NATIVO.set"
+    reescrever(caminho_set, trabalho, [], {"AtivarWFO": "false"})
+    r = passe_unico(trabalho, simbolo_nativo, "M1", inicio, fim, deposito,
+                    4, timeout=timeout, variante=caminho_set.stem)
     relatorio = base.DADOS / "conf_wrx.htm"
     if not relatorio.exists():
         raise SystemExit(f"sem relatorio apos o passe em {simbolo_nativo}")

@@ -1187,19 +1187,34 @@ def piso_trades_da_janela(inicio: str, fim: str, taxa_anual: float,
     return max(piso_minimo, round(taxa_anual * dias / 365))
 
 
+# O piso de dias_para_trades_alvo() nao pode so evitar o DEGENERADO (1
+# ciclo) -- precisa preservar os MESMOS `ciclos_alvo` ciclos que
+# janelas_wfo()/dimensionar_wfo() usam em toda corrida (6), cada um com
+# folga sobre o piso absoluto do WFO (2x BLOCO_MINIMO_WFO, nao o proprio
+# piso). Achado ao vivo, 2026-09-13 (dono, testando --janela-dinamica):
+# o piso antigo (BLOCO_MINIMO_WFO*2 = 60 dias TOTAIS) dava so 2 ciclos de
+# ~26 IS/8 OOS cada -- tao fino quanto o incidente de 2026-09-03 que
+# dimensionar_wfo() foi escrito pra matar (retencoes de 429%/1.193%/
+# -4.107% saindo de UMA janela OOS de 15 dias). O WFA continua LIGADO
+# (era antes, continua agora) -- o que faltava era garantir que o
+# periodo total desse pra ele respirar de verdade, nao so "nao quebrar".
+_WFO_CICLOS_SAUDAVEL = 6         # mesmo ciclos_alvo default de janelas_wfo()
+_WFO_BLOCO_SAUDAVEL_DIAS = BLOCO_MINIMO_WFO * 2   # 60d/ciclo, folga sobre o piso
+PISO_JANELA_DINAMICA_DIAS = _WFO_CICLOS_SAUDAVEL * _WFO_BLOCO_SAUDAVEL_DIAS  # 360
+
+
 def dias_para_trades_alvo(trades_alvo: float, taxa_anual: float,
-                          minimo_dias: int = BLOCO_MINIMO_WFO * 2,
+                          minimo_dias: int = PISO_JANELA_DINAMICA_DIAS,
                           maximo_dias: int | None = None) -> int:
     """Inversa de `piso_trades_da_janela()`: quantos dias de janela pra
     acumular `trades_alvo` trades, dada a taxa anual observada/estimada do
     combo -- em vez de sempre pedir os mesmos 3 anos fixos independente de
     quao rapido o sistema opera.
 
-    `minimo_dias` protege o mesmo piso que `dimensionar_wfo()` ja exige
-    pra nao degenerar num unico ciclo de WFO sem sentido (auditoria
-    2026-09-03, ver docstring de `dimensionar_wfo`): mesmo um sistema
-    hiperativo nunca pede menos que o suficiente pra pelo menos 2 blocos
-    de `BLOCO_MINIMO_WFO` dias caberem. `maximo_dias` e o teto (quando
+    `minimo_dias` (default `PISO_JANELA_DINAMICA_DIAS`, ~1 ano) garante que
+    o periodo total ainda comporte os MESMOS 6 ciclos de WFO de uma corrida
+    normal, cada um com folga sobre o piso absoluto de `dimensionar_wfo()`
+    -- nao so "sem degenerar pra 1 ciclo". `maximo_dias` e o teto (quando
     dado) pra nunca pedir MAIS periodo do que o status quo, mesmo se a
     taxa medida for baixa demais -- sem teto, um sistema muito lento
     pediria decadas de historico que nao existe.
