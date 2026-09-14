@@ -121,6 +121,60 @@ try:
             campanha.anos_atras(2))
     finally:
         campanha._taxa_anual_por_sonda = sonda_original
+
+    # --- sonda escalona a janela de referencia antes de desistir -----------
+    # Achado do dono, 2026-09-14: "por que nao ofereceu 2? 2 e meio?" -- um
+    # combo com parametros DEFAULT pouco ativos pode dar 0 trades numa sonda
+    # de 180d sem ser inviavel de verdade; a sonda antiga desistia na
+    # primeira tentativa e pulava direto pro teto cheio. Simula aqui achar_set
+    # bem-sucedido mas passe_unico devolvendo 0 trades nas duas primeiras
+    # janelas (180d, 360d) e so achando trade na terceira (720d) -- confere
+    # que a sonda USA essa janela maior em vez de desistir cedo, e que ela
+    # nunca ultrapassa o teto pedido.
+    achar_set_original = ots.base.achar_set
+    reescrever_original = ots.reescrever
+    passe_unico_original = ots.passe_unico
+    tentativas: list[int] = []
+    try:
+        ots.base.achar_set = lambda *a, **k: Path("fake_origem.set")
+        ots.reescrever = lambda *a, **k: None
+
+        def passe_unico_fake(caminho, symbol, periodo, inicio, fim, *a, **k):
+            from datetime import datetime as _dt
+            dias = (_dt.strptime(fim, "%Y.%m.%d")
+                   - _dt.strptime(inicio, "%Y.%m.%d")).days
+            tentativas.append(dias)
+            # so a partir de ~720 dias de referencia este combo fake produz
+            # trade (180 e 360 continuam em 0, como um sistema pouco ativo
+            # com parametros DEFAULT desligados demais pra disparar rapido).
+            trades = 50 if dias >= 700 else 0
+            return {"trades": trades}
+
+        ots.passe_unico = passe_unico_fake
+
+        taxa = campanha._taxa_anual_por_sonda(
+            "EURUSD", "01_SLTP", "BUY_MULTI", "2026.09.13", teto_dias=3 * 365)
+        checar_que(
+            "sonda escalonada tentou mais de uma janela antes de achar trade",
+            len(tentativas) >= 3)
+        checar_que(
+            "sonda escalonada NUNCA excede o teto pedido (3 anos = 1095 dias)",
+            all(d <= 1095 for d in tentativas))
+        checar_que(
+            "sonda escalonada achou taxa (nao desistiu) quando a janela maior "
+            "tem trade", taxa is not None and taxa > 0)
+
+        # --- nem no teto acha trade: desiste de verdade (None) -------------
+        tentativas.clear()
+        ots.passe_unico = lambda *a, **k: {"trades": 0}
+        taxa_zero = campanha._taxa_anual_por_sonda(
+            "EURUSD", "01_SLTP", "BUY_MULTI", "2026.09.13", teto_dias=3 * 365)
+        checar("sonda sem trade nenhum ate o teto devolve None (desiste "
+              "de verdade)", taxa_zero, None)
+    finally:
+        ots.base.achar_set = achar_set_original
+        ots.reescrever = reescrever_original
+        ots.passe_unico = passe_unico_original
 finally:
     campanha.LEDGER = ledger_original
     campanha._LEDGER_LOCK = lock_original

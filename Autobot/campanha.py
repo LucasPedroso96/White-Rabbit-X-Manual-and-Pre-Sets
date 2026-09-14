@@ -353,11 +353,21 @@ def _taxa_anual_do_ledger(simbolo: str, sistema: str, variante: str) -> float | 
 
 
 def _taxa_anual_por_sonda(simbolo: str, sistema: str, variante: str,
-                          fim: str) -> float | None:
-    """Sonda progressiva (cold start): 1 passe unico OHLC curto (~9s) com os
+                          fim: str, teto_dias: int = 3 * 365) -> float | None:
+    """Sonda progressiva (cold start): passe unico OHLC curto (~9s) com os
     parametros DEFAULT do .set de origem -- sem reescrever nenhum eixo --
     so pra estimar quantos trades/ano este combo produz quando ainda nao ha
     dado no ledger.
+
+    Escalona a janela de referencia (180d -> 360d -> 720d -> ... ate
+    `teto_dias`) quando a tentativa anterior devolve 0 trades, em vez de
+    desistir na primeira (achado do dono, 2026-09-14: "por que nao
+    ofereceu 2? 2 e meio? tem que resolver isso" -- um combo com parametros
+    DEFAULT pouco ativos pode simplesmente nao gerar nenhum trade em 180
+    dias sem que o combo seja inviavel; render-se direto pro teto cheio
+    joga fora toda a granularidade que --janela-dinamica existe pra dar).
+    So devolve None (resolver_janela cai pro teto de seguranca de verdade)
+    quando NEM o teto encontra trade nenhum.
 
     Best-effort de proposito: terminal ocupado por outra campanha, set
     ausente, timeout -- qualquer falha aqui devolve None e resolver_janela()
@@ -375,30 +385,35 @@ def _taxa_anual_por_sonda(simbolo: str, sistema: str, variante: str,
         if caminho is None:
             return None
         fim_dt = datetime.strptime(fim, "%Y.%m.%d")
-        inicio_dt = fim_dt - timedelta(days=JANELA_SONDA_DIAS)
-        # Achado ao vivo, 2026-09-13: os .set da biblioteca saem do gerador
-        # com AtivarWFO=true CRAVADO e wfo_customWindowSizeDays/
-        # input_end_date de alguma geracao/corrida anterior (ex.:
-        # input_end_date=2026.09.12 num template que nunca rodou de
-        # verdade nesta maquina) -- rodar passe_unico() direto no .set de
-        # ORIGEM sem neutralizar isso faz o OnInit rejeitar o passe
-        # ("invalid IS or OOS window sizes", data nao bate com o ToDate
-        # pedido aqui) e a sonda sempre volta 0 trades, caindo NO MESMO
-        # teto de 3 anos que --janela-dinamica deveria evitar -- exatamente
-        # o "nao muda nada" que o dono viu ao vivo. Uma copia de trabalho
-        # com AtivarWFO desligado forca o backtest simples que a sonda
-        # realmente quer, ignorando qualquer WFO stale do template.
         trabalho = (ots.base.DADOS / "MQL5" / "Profiles" / "Tester"
                    / "_SONDA_JANELA_DINAMICA.set")
-        ots.reescrever(caminho, trabalho, [], {"AtivarWFO": "false"})
-        resultado = ots.passe_unico(
-            trabalho, simbolo, "M1", inicio_dt.strftime("%Y.%m.%d"), fim,
-            resolver_deposito(simbolo, None), 1, timeout=120,
-            variante=variante)
-        trades = resultado.get("trades")
-        if not trades:
-            return None
-        return trades * 365.0 / JANELA_SONDA_DIAS / JANELA_SONDA_MARGEM
+        dias_janela = JANELA_SONDA_DIAS
+        while True:
+            inicio_dt = fim_dt - timedelta(days=dias_janela)
+            # Achado ao vivo, 2026-09-13: os .set da biblioteca saem do
+            # gerador com AtivarWFO=true CRAVADO e
+            # wfo_customWindowSizeDays/input_end_date de alguma
+            # geracao/corrida anterior (ex.: input_end_date=2026.09.12 num
+            # template que nunca rodou de verdade nesta maquina) -- rodar
+            # passe_unico() direto no .set de ORIGEM sem neutralizar isso
+            # faz o OnInit rejeitar o passe ("invalid IS or OOS window
+            # sizes", data nao bate com o ToDate pedido aqui) e a sonda
+            # sempre volta 0 trades, caindo NO MESMO teto de 3 anos que
+            # --janela-dinamica deveria evitar -- exatamente o "nao muda
+            # nada" que o dono viu ao vivo. Uma copia de trabalho com
+            # AtivarWFO desligado forca o backtest simples que a sonda
+            # realmente quer, ignorando qualquer WFO stale do template.
+            ots.reescrever(caminho, trabalho, [], {"AtivarWFO": "false"})
+            resultado = ots.passe_unico(
+                trabalho, simbolo, "M1", inicio_dt.strftime("%Y.%m.%d"), fim,
+                resolver_deposito(simbolo, None), 1, timeout=120,
+                variante=variante)
+            trades = resultado.get("trades")
+            if trades:
+                return trades * 365.0 / dias_janela / JANELA_SONDA_MARGEM
+            if dias_janela >= teto_dias:
+                return None
+            dias_janela = min(dias_janela * 2, teto_dias)
     except (SystemExit, Exception):
         return None
 
@@ -432,7 +447,8 @@ def resolver_janela(simbolo: str, sistema: str, variante: str,
         return anos_atras(3)
     taxa = _taxa_anual_do_ledger(simbolo, sistema, variante)
     if taxa is None:
-        taxa = _taxa_anual_por_sonda(simbolo, sistema, variante, fim)
+        taxa = _taxa_anual_por_sonda(simbolo, sistema, variante, fim,
+                                     teto_dias=janela_maxima_anos * 365)
     if taxa is None:
         return anos_atras(janela_maxima_anos)
     import optimize_two_stage as ots
