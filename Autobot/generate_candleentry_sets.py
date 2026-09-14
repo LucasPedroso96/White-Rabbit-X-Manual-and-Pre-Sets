@@ -4,9 +4,9 @@
 Espelha generate_bollinger_sets.py (mesmos 11 sistemas, mesma filosofia de
 fases, mesmo padrao aditivo), mas para a EA "White Rabbit (Candles Entry).mq5"
 -- schema de inputs sem EntryIndicator/Fast_EMA/Stochastic/Ichimoku como eixo
-de entrada; em vez disso 4 "slots" de vela (CandleTF1-4/CandleIndex1-4,
-slots 1-2 obrigatorios, 3-4 opcionais via AtivarSlot3/AtivarSlot4) que
-comparam o preco aplicado contra o open de cada slot pra definir direcao.
+de entrada; em vez disso 3 "slots" de vela fixos (CandleTF1-3/CandleIndex1-3,
+sempre ativos, sem toggle -- ver nota de 2026-09-14 em apply_core_candles())
+que comparam o preco aplicado contra o open de cada slot pra definir direcao.
 
 ADITIVO DE PROPOSITO, mesma razao de generate_bollinger_sets.py: NUNCA apaga
 nada, so escreve arquivos novos terminados em "_CANDLES.set", ao lado dos que
@@ -82,18 +82,6 @@ def load_schema(source: Path) -> tuple[list[str], list[str]]:
 SCHEMA, STRUCTURE = load_schema(EA_SOURCE)
 BLANKS = [n for n in SCHEMA if n.startswith("myBlankSpace")]
 
-# Gates extras, so relevantes pra Candles: os slots 3/4 so tem efeito com o
-# respectivo AtivarSlot3/AtivarSlot4 ligado -- sem isto, desativar_inertes()
-# (herdado de generate_system_sets.py) nao sabe que CandleTF3/CandleIndex3 e
-# CandleTF4/CandleIndex4 ficam inertes quando o slot correspondente esta
-# desligado, e a fase 1 desperdicaria busca em eixos mortos. Espelha
-# GATES_DEPENDENCIAS/GATES do gerador/optimize_two_stage.py -- mexeu aqui,
-# mexa la tambem (ver optimize_two_stage.py:GATES).
-base.GATES_DEPENDENCIAS.setdefault("CandleTF3", "AtivarSlot3")
-base.GATES_DEPENDENCIAS.setdefault("CandleIndex3", "AtivarSlot3")
-base.GATES_DEPENDENCIAS.setdefault("CandleTF4", "AtivarSlot4")
-base.GATES_DEPENDENCIAS.setdefault("CandleIndex4", "AtivarSlot4")
-
 
 def apply_core_candles(p: Profile, ac: AssetClass, grid: bool = False) -> None:
     """Entrada + filtros da variante Candle Entry.
@@ -101,13 +89,21 @@ def apply_core_candles(p: Profile, ac: AssetClass, grid: bool = False) -> None:
     Espelha apply_core() de generate_system_sets.py: mesma filosofia de fase 1
     (tudo aberto), mesmas faixas nos filtros que nao dependem do indicador de
     entrada (MTF/MA/ADX/ATR-volatilidade/noticias). So a secao de ENTRADA
-    muda -- Candles nao tem MACD/Stochastic/Ichimoku, tem 4 "slots" de vela
-    (timeframe + indice), os dois primeiros obrigatorios, os dois ultimos
-    opcionais via AtivarSlot3/AtivarSlot4.
+    muda -- Candles nao tem MACD/Stochastic/Ichimoku, tem 3 "slots" de vela
+    fixos (timeframe + indice), sempre ativos, sem toggle.
+
+    3 slots, nao 2+2 opcionais (dono, 2026-09-14: "o original sao 3 candles!
+    mantenha os 3 apenas!" -- referencia "Hello Old Friend"/EABuilder, 3
+    condicoes Close-vs-Open em cascata, sem enable/disable por condicao).
+    Ate 2026-09-14 havia AtivarSlot3/AtivarSlot4 opcionais: removido porque a
+    bateria de logica mediu os 2 slots opcionais como redundantes (slot 3/4
+    com os defaults duplicava o slot 1; variando o TF, davam resultado
+    identico ao slot 2 valor-a-valor) -- 4 slots so inflava graus de
+    liberdade sem info nova.
     """
     p.opt("InpAppliedPrice", 1, 1, 1, 7)
 
-    # Slots 1-2: OBRIGATORIOS, sempre abertos desde a fase 1 (sem gate --
+    # 3 slots, todos OBRIGATORIOS, sempre abertos desde a fase 1 (sem gate --
     # HasRawBuyIndicatorSignal() os exige incondicionalmente, ver .mq5).
     # Timeframe segue a mesma faixa por classe de ativo que TimeFrame usa no
     # Multi/Bollinger; indice de vela (quantas barras atras) fica numa faixa
@@ -117,17 +113,8 @@ def apply_core_candles(p: Profile, ac: AssetClass, grid: bool = False) -> None:
     p.opt("CandleIndex1", 1, 1, 1, 5)
     p.opt("CandleTF2", ac.timeframe, ac.tf_lo, 1, ac.tf_hi)
     p.opt("CandleIndex2", 1, 1, 1, 5)
-
-    # Slots 3-4: OPCIONAIS -- o proprio flag decide se entram na confluencia.
-    # Abertos desde a fase 1 (mesmo "funil" dos filtros MA/ADX/MTF abaixo);
-    # desativar_inertes() rebaixa os dependentes (CandleTF3/4, CandleIndex3/4)
-    # pra N quando o flag correspondente morre em false nesta fase.
-    p.opt_bool("AtivarSlot3")
     p.opt("CandleTF3", ac.timeframe, ac.tf_lo, 1, ac.tf_hi)
     p.opt("CandleIndex3", 1, 1, 1, 5)
-    p.opt_bool("AtivarSlot4")
-    p.opt("CandleTF4", ac.timeframe, ac.tf_lo, 1, ac.tf_hi)
-    p.opt("CandleIndex4", 1, 1, 1, 5)
 
     p.opt("ATR_TimeFrame", ac.timeframe, max(0, ac.tf_lo - 1), 1, ac.tf_hi)
     p.opt("PeriodoATR", 14, 7, 7, 28)

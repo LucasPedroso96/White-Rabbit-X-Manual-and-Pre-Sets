@@ -324,13 +324,12 @@ ESCRITA = {"EntryIndicator", "EntryMethod", "TimeFrame", "InpAppliedPrice",
            "BollingerEntryMode",
            # Variante CANDLES (2026-09-12): EA propria "White Rabbit (Candles
            # Entry).mq5", sem EntryIndicator/Fast_EMA plugavel -- a entrada e
-           # 2-4 "slots" de vela (timeframe de cada um), decidida na fase 1
-           # igual TimeFrame/EntryIndicator acima. AtivarSlot3/4 decidem SE o
-           # 3o/4o slot participa da confluencia -- mesma natureza booleana
-           # de AtivarFiltroMA/ADX/MTF (funil de descoberta). Ausentes do set
-           # MULTI/ICHIMOKU/BOLLINGER, entao inertes la.
-           "CandleTF1", "CandleTF2", "CandleTF3", "CandleTF4",
-           "AtivarSlot3", "AtivarSlot4"}
+           # 3 "slots" de vela fixos (timeframe de cada um), decidida na
+           # fase 1 igual TimeFrame/EntryIndicator acima. Ausentes do set
+           # MULTI/ICHIMOKU/BOLLINGER, entao inertes la. Ate 2026-09-14 havia
+           # tambem CandleTF4/AtivarSlot3/AtivarSlot4 (slots 3-4 opcionais) --
+           # removidos, ver generate_candleentry_sets.py:apply_core_candles.
+           "CandleTF1", "CandleTF2", "CandleTF3"}
 
 # Subconjunto de ESCRITA que e IDENTIDADE DE ENTRADA pura -- sem filtro
 # (AtivarFiltroMA/ADX/MTF, EntradaATR), sem saida (AtivarBreakeven/
@@ -346,16 +345,15 @@ ESCRITA_ENTRADA = {"EntryIndicator", "EntryMethod", "TimeFrame",
                    "InpAppliedPrice", "StochasticMethod",
                    "StochasticPriceField", "IchimokuUseKumo",
                    "IchimokuChikouFilter", "BollingerEntryMode",
-                   # CANDLES (2026-09-12): timeframe de cada slot + se o
-                   # slot 3/4 participa SAO a identidade da entrada (qual
-                   # confluencia de velas define o sinal) -- mesma categoria
-                   # de TimeFrame/BollingerEntryMode acima. CandleIndex1-4
-                   # (qual candle de cada slot) fica de FORA, mesmo
-                   # tratamento de Fast_EMA/Slow_EMA no MULTI: e NUMEROS,
-                   # refinado pelo Estagio 2 de cada sistema, nao herdado do
-                   # ranking de entrada.
-                   "CandleTF1", "CandleTF2", "CandleTF3", "CandleTF4",
-                   "AtivarSlot3", "AtivarSlot4"}
+                   # CANDLES (2026-09-12): timeframe de cada slot E a
+                   # identidade da entrada (qual confluencia de velas define
+                   # o sinal) -- mesma categoria de TimeFrame/BollingerEntry
+                   # Mode acima. CandleIndex1-3 (qual candle de cada slot)
+                   # fica de FORA, mesmo tratamento de Fast_EMA/Slow_EMA no
+                   # MULTI: e NUMEROS, refinado pelo Estagio 2 de cada
+                   # sistema, nao herdado do ranking de entrada. 3 slots
+                   # fixos desde 2026-09-14 (ver ESCRITA acima).
+                   "CandleTF1", "CandleTF2", "CandleTF3"}
 
 
 def carregar_entrada_travada(path: Path, variante: str) -> dict | None:
@@ -409,8 +407,9 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
            # Variante CANDLES (2026-09-12): qual candle de cada slot (indice
            # de barras atras), mesma categoria de VelaStop/VelaTake/TrailVela
            # acima -- estrutural mas refinado por numero, nao decisao de
-           # enum/bool. Ausentes do set MULTI/ICHIMOKU/BOLLINGER.
-           "CandleIndex1", "CandleIndex2", "CandleIndex3", "CandleIndex4"]
+           # enum/bool. Ausentes do set MULTI/ICHIMOKU/BOLLINGER. 3 slots
+           # fixos desde 2026-09-14 (era CandleIndex1-4, ver ESCRITA acima).
+           "CandleIndex1", "CandleIndex2", "CandleIndex3"]
 
 # Geometria de saida da familia grid (dono, 2026-08-03, estendido
 # 2026-08-17): medido que grid classico diverge OHLC->tick real em ate 45%+
@@ -1043,13 +1042,6 @@ GATES = {
     "VolatilityFilter": "EntradaATR",
     "NewsMinutosAntes": "AtivarFiltroNoticias",
     "NewsMinutosDepois": "AtivarFiltroNoticias",
-    # Variante CANDLES (2026-09-12): slots 3/4 so tem efeito com o respectivo
-    # AtivarSlot3/AtivarSlot4 ligado -- espelha GATES_DEPENDENCIAS de
-    # generate_candleentry_sets.py.
-    "CandleTF3": "AtivarSlot3",
-    "CandleIndex3": "AtivarSlot3",
-    "CandleTF4": "AtivarSlot4",
-    "CandleIndex4": "AtivarSlot4",
 }
 
 
@@ -2300,11 +2292,21 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
             if TESTE_CONCLUIDO.search(log):
                 break
             time.sleep(1)
-        if not AGENTE_RECUSOU.search(log) or tentativa == TENTATIVAS_AGENTE:
+        recusou = bool(AGENTE_RECUSOU.search(log))
+        concluiu = bool(TESTE_CONCLUIDO.search(log))
+        # Achado ao vivo, 2026-09-14 (refactor da Candles pra 3 slots):
+        # alem da recusa explicita do agente, o poll as vezes estoura os 90s
+        # SEM nenhum sinal (nem "finished" nem "authorization failed") --
+        # lancar_terminal() ja documenta um processo que "nao fecha a tempo,
+        # mesmo com o teste tendo terminado". Antes so `recusou` repetia o
+        # passe; um estouro silencioso desses caia direto em ler_metricas()
+        # com o log incompleto -> trades/saldo None, sem nunca retentar.
+        if (concluiu and not recusou) or tentativa == TENTATIVAS_AGENTE:
             break
-        print(f"    agente do tester recusou a conexao (authorization "
-              f"failed) -- repetindo o passe ({tentativa + 1}/"
-              f"{TENTATIVAS_AGENTE})", flush=True)
+        motivo = ("recusou a conexao (authorization failed)" if recusou
+                  else "nao respondeu em 90s (sem sinal de conclusao)")
+        print(f"    agente do tester {motivo} -- repetindo o passe "
+              f"({tentativa + 1}/{TENTATIVAS_AGENTE})", flush=True)
         time.sleep(5)
 
     return ler_metricas(log)

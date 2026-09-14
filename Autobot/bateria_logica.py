@@ -16,8 +16,8 @@ sem sentido. E essa classe de defeito que esta bateria procura.
 Cada eixo com faixa no .set e variado sozinho (o resto no valor do
 template), num passe unico curto, em OHLC -- a pergunta e de LOGICA, nao de
 precisao de tick. Antes de variar um eixo, liga a dependencia dele (GATES:
-CandleTF3 so vale com AtivarSlot3; INDICADOR_USA: Slow_EMA so com MACD/EMA/
-OsMA), senao todo eixo dependente pareceria morto. As invariantes sao
+MA_TimeFrame so vale com AtivarFiltroMA; INDICADOR_USA: Slow_EMA so com
+MACD/EMA/OsMA), senao todo eixo dependente pareceria morto. As invariantes sao
 medidas DENTRO do proprio eixo -- um valor contra os outros valores do
 mesmo eixo --, entao nao dependem de a base estar bem configurada:
 
