@@ -502,6 +502,16 @@ EIXOS_GEOMETRIA_TICK_REAL = {
     # 06_REVERSAL_EXIT e o oposto: Take vem cravado (quem fecha a posicao e o
     # sinal de reversao), mas o trailing existe -- entao entra Trail/TrailVela/
     # MetodoDeCalculo e sai Take/VelaTake.
+    #
+    # NAO TIRAR o 06 daqui por medicao com parametros DEFAULT. Ele chegou a
+    # sair em 2026-09-14 porque o template default deu 8.5% de divergencia
+    # (EURUSD) -- e voltou no mesmo dia: com os parametros VENCEDORES de uma
+    # otimizacao real (AUDCAD, piloto --janela-dinamica) deu OHLC 826.93 ->
+    # tick real 375.15 = 54.6%, reprovado. O genetico procura exatamente o
+    # que o OHLC favorece, entao o default subestima o estrago: o
+    # 12_GRID_INVERSO faz o mesmo (8.6% no default, 73.1% otimizado, medido
+    # pelo dono em 2026-08-17). Pra decidir se um sistema precisa desta
+    # protecao, medir com parametros vencedores, nunca com o template.
     "01_SLTP": ["Stop", "VelaStop", "Take", "VelaTake",
                 "BreakevenDistancia"],
     "02_SLTP_ORGANIC": ["Stop", "VelaStop", "Take", "VelaTake",
