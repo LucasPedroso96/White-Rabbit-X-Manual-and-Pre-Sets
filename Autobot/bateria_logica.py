@@ -65,7 +65,13 @@ ERROS_RUNTIME = re.compile(r"critical error|array out of range|zero divide|"
                            r"invalid pointer|stack overflow|cannot load|"
                            r"failed to create", re.I)
 RECUSA = re.compile(r"incorrect input parameters", re.I)
-MOTIVO = re.compile(r"(Invalid [^\r\n]{0,150}|[A-Za-z_]+ requires [^\r\n]{0,150})")
+# Falha do AGENTE do tester, nao da EA: o teste nem roda. O passe_unico ja
+# repete sozinho; se ainda assim sobrar, e falha de infraestrutura -- nunca
+# "recusa" (achado 2026-09-14: 17 passes classificados como recusa por
+# causa do "(Invalid parameters)" dentro desta mensagem).
+FALHA_AGENTE = re.compile(r"authorization failed", re.I)
+MOTIVO = re.compile(r"(?<!\()(Invalid [^\r\n]{0,150}|"
+                    r"[A-Za-z_]+ requires [^\r\n]{0,150})")
 
 
 def valores_do_eixo(partes: list[str], max_valores: int) -> list[str]:
@@ -188,8 +194,12 @@ def rodar(passes: list[dict], simbolo: str, inicio: str, fim: str,
         for linha in arq.read_text(encoding="utf-8").splitlines():
             if linha.strip():
                 r = json.loads(linha)
+                if (r.get("falha_infra")
+                        or r.get("motivo") == "Invalid parameters)"):
+                    continue  # falha do agente, nao resultado: refazer
                 feitos.add((r["familia"], r["sistema"], r["eixo"], r["valor"],
                             r["simbolo"], r["inicio"], r["fim"]))
+
     def minha(p: dict) -> bool:
         if n_partes <= 1 or (parte_em and p["familia"] not in parte_em):
             return True
@@ -222,8 +232,12 @@ def rodar(passes: list[dict], simbolo: str, inicio: str, fim: str,
                "travar": p["travar"], "simbolo": simbolo, "inicio": inicio,
                "fim": fim, "trades": r.get("trades"), "saldo": r.get("saldo"),
                "compras": c, "vendas": v,
-               "recusado": bool(RECUSA.search(log)) or bool(
-                   motivo and r.get("trades") is None and c + v == 0),
+               "recusado": (rej := bool(RECUSA.search(log)) or bool(
+                   motivo and r.get("trades") is None and c + v == 0)),
+               # recusa da EA vence: se o agente falhou numa tentativa e o
+               # OnInit recusou na seguinte, e recusa, nao infraestrutura
+               "falha_infra": (bool(FALHA_AGENTE.search(log))
+                               and r.get("saldo") is None and not rej),
                "motivo": motivo.group(1) if motivo else None,
                "erros": sorted({m.group(0).lower()
                                 for m in ERROS_RUNTIME.finditer(log)}),
@@ -243,13 +257,29 @@ def rodar(passes: list[dict], simbolo: str, inicio: str, fim: str,
 def analisar(arquivos: list[Path]) -> str:
     regs = []
     for a in arquivos:
-        regs += [json.loads(l) for l in a.read_text(encoding="utf-8")
-                 .splitlines() if l.strip()]
-    grupos: dict[tuple, list[dict]] = defaultdict(list)
+        regs += [json.loads(linha) for linha in a.read_text(encoding="utf-8")
+                 .splitlines() if linha.strip()]
+
+    def falhou(r: dict) -> bool:
+        # registros antigos, de antes de existir falha_infra, so tem o motivo
+        return bool(r.get("falha_infra")
+                    or r.get("motivo") == "Invalid parameters)")
+
+    # Um passe refeito aparece duas vezes (falha + medicao nova, ate em
+    # arquivos de terminais diferentes): a medicao valida vence.
+    ultimo: dict[tuple, dict] = {}
     for r in regs:
-        if r["eixo"] != "__base__":
+        k = (r["familia"], r["sistema"], r["eixo"], r["valor"])
+        if k not in ultimo or falhou(ultimo[k]) or not falhou(r):
+            ultimo[k] = r
+    grupos: dict[tuple, list[dict]] = defaultdict(list)
+    for r in ultimo.values():
+        if r["eixo"] != "__base__" and not falhou(r):
             grupos[(r["familia"], r["sistema"], r["eixo"])].append(r)
-    achados = []
+    achados = [("0 FALHA_INFRA", f"{r['familia']:<9} {r['sistema']:<16} "
+                f"{r['eixo']}", f"{r['eixo']}={r['valor']}: agente do tester "
+                "recusou a conexao -- refazer (o teste nem rodou)")
+               for r in ultimo.values() if falhou(r)]
     for (fam, sis, eixo), rs in sorted(grupos.items()):
         ok = [r for r in rs if not r["recusado"]]
         operou = [r for r in ok if (r["trades"] or 0) > 0]

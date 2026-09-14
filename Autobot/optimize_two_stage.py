@@ -290,6 +290,10 @@ REGIOES = ["TimeFrame", "EntryIndicator", "InpAppliedPrice", "Fast_EMA",
 # aceitar as duas e a unica versao que sobrevive a uma atualizacao do
 # terminal sem virar bug de novo.
 TESTE_CONCLUIDO = re.compile(r"automatic(al)? testing finished")
+# Agente local do tester recusando a conexao do terminal -- o teste nem
+# roda. Transitorio; passe_unico() repete ate TENTATIVAS_AGENTE vezes.
+AGENTE_RECUSOU = re.compile(r"authorization failed")
+TENTATIVAS_AGENTE = 3
 
 # Enum do EA (ENUM_ENTRY_INDICATOR). Ichimoku (11) vive em set proprio porque o
 # OnInit exige Tenkan<Kijun<SenkouB; os MULTI disputam 0..10 num eixo so.
@@ -2270,24 +2274,38 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
     intacto.
     """
     rel = str(caminho_set.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
-    antes = base.marcar_logs()
-    with tempfile.TemporaryDirectory() as tmp:
-        ini = Path(tmp) / "conf.ini"
-        base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
-                          inicio, fim, deposito, modelo, 6, "conf_wrx",
-                          variante=(variante or caminho_set.stem))
-        # escrever_ini monta otimizacao; aqui queremos um passe so.
-        texto_ini = ini.read_text(encoding="utf-16")
-        ini.write_text(texto_ini.replace("Optimization=2", "Optimization=0"),
-                       encoding="utf-16")
-        lancar_terminal(base.TERMINAL, ini, timeout)
-    limite = time.monotonic() + 90
-    log = ""
-    while time.monotonic() < limite:
-        log = base.texto_novo(antes)
-        if TESTE_CONCLUIDO.search(log):
+    # Achado ao vivo, 2026-09-14: o agente local do tester as vezes recusa a
+    # conexao do terminal ("authorization failed (Invalid parameters)") e o
+    # teste nem roda -- 17 de ~800 passes da bateria_logica, 14 vezes num dia
+    # so no terminal original, mais frequente com lancamentos em sequencia.
+    # O resultado saia vazio e, numa conferencia em tick real, virava
+    # lucro_real=None -> "SEM VEREDITO" -> reprovado em silencio. E
+    # transitorio: repetir o passe resolve.
+    for tentativa in range(1, TENTATIVAS_AGENTE + 1):
+        antes = base.marcar_logs()
+        with tempfile.TemporaryDirectory() as tmp:
+            ini = Path(tmp) / "conf.ini"
+            base.escrever_ini(ini, symbol, periodo, rel.replace("/", "\\"),
+                              inicio, fim, deposito, modelo, 6, "conf_wrx",
+                              variante=(variante or caminho_set.stem))
+            # escrever_ini monta otimizacao; aqui queremos um passe so.
+            texto_ini = ini.read_text(encoding="utf-16")
+            ini.write_text(texto_ini.replace("Optimization=2", "Optimization=0"),
+                           encoding="utf-16")
+            lancar_terminal(base.TERMINAL, ini, timeout)
+        limite = time.monotonic() + 90
+        log = ""
+        while time.monotonic() < limite:
+            log = base.texto_novo(antes)
+            if TESTE_CONCLUIDO.search(log):
+                break
+            time.sleep(1)
+        if not AGENTE_RECUSOU.search(log) or tentativa == TENTATIVAS_AGENTE:
             break
-        time.sleep(1)
+        print(f"    agente do tester recusou a conexao (authorization "
+              f"failed) -- repetindo o passe ({tentativa + 1}/"
+              f"{TENTATIVAS_AGENTE})", flush=True)
+        time.sleep(5)
 
     return ler_metricas(log)
 
