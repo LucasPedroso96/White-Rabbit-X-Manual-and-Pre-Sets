@@ -450,7 +450,26 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
 # rebuscar, a divergencia dele (se houver) e de outra natureza.
 SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE", "12_GRID_INVERSO",
                                 "03_TRAIL_ONLY", "05_BE_TRAIL",
-                                "04_SLTP_TRAIL"}
+                                "04_SLTP_TRAIL",
+                                # 01_SLTP/02_SLTP_ORGANIC/06_REVERSAL_EXIT
+                                # entraram em 2026-09-14 (dono: "ou tira essa
+                                # porra ou resolve de um jeito"), pelo MESMO
+                                # sintoma que trouxe o 04_SLTP_TRAIL em
+                                # 2026-08-27: reprovavam por divergencia, nao
+                                # por retencao. Medido com os parametros
+                                # VENCEDORES de AUDCAD/02_SLTP_ORGANIC, mesmo
+                                # set e mesma janela, so trocando o Model:
+                                # OHLC 494.34 -> tick real 100.81 (390% de
+                                # divergencia, e 15% menos trades). E o
+                                # "Testing Grail" que o manual do MQL5
+                                # descreve na pag. 1074: em "1 minute OHLC" a
+                                # sequencia O->H->L->C e deterministica, e o
+                                # genetico acha esse exploit sozinho em
+                                # milhares de passes. Sem geometria em tick
+                                # real, SL/TP ficavam escolhidos por um
+                                # caminho intrabar que nao existe.
+                                "01_SLTP", "02_SLTP_ORGANIC",
+                                "06_REVERSAL_EXIT"}
 EIXOS_GEOMETRIA_TICK_REAL = {
     "07_GRID_SEPARATE": ["Take", "DistanciaMinima", "VelaTake",
                          "UsarsomenteATRGRID"],
@@ -473,6 +492,22 @@ EIXOS_GEOMETRIA_TICK_REAL = {
     "04_SLTP_TRAIL": ["Stop", "VelaStop", "Take", "VelaTake",
                       "Trail", "TrailVela", "MetodoDeCalculo",
                       "BreakevenDistancia"],
+    # Os tres abaixo entraram em 2026-09-14. Eixos conferidos UM A UM contra
+    # o .set real (parametros_do_set + reescrever, contando quantos viram Y
+    # de verdade): so entra o que tem FAIXA e sobrevive a GATES ali.
+    # 01_SLTP e 02_SLTP_ORGANIC nao tem trailing (Trail vem cravado no .set,
+    # AtivarTrailATR false), entao MetodoDeCalculo/TrailVela ficam de fora --
+    # GATES os amarra em AtivarTrailATR e eles seriam eixo morto. A geometria
+    # deles e SL + TP + breakeven, que e onde o nivel e tocado intrabar.
+    # 06_REVERSAL_EXIT e o oposto: Take vem cravado (quem fecha a posicao e o
+    # sinal de reversao), mas o trailing existe -- entao entra Trail/TrailVela/
+    # MetodoDeCalculo e sai Take/VelaTake.
+    "01_SLTP": ["Stop", "VelaStop", "Take", "VelaTake",
+                "BreakevenDistancia"],
+    "02_SLTP_ORGANIC": ["Stop", "VelaStop", "Take", "VelaTake",
+                        "BreakevenDistancia"],
+    "06_REVERSAL_EXIT": ["Stop", "VelaStop", "Trail", "TrailVela",
+                         "MetodoDeCalculo", "BreakevenDistancia"],
 }
 
 # Gate de sobrevivencia de periodo completo (dono, 2026-08-08): DESACOPLADO
@@ -1433,6 +1468,7 @@ def relatar_cobertura(cab: list[str], todas: list[list[str]],
 def medir_divergencia(lucro_real: float | None, lucro_ohlc: float | None,
                       lucro_ohlc_pre_geometria: float | None,
                       geometria_refeita_tick_real: bool, deposito: int,
+                      lucro_ohlc_final: float | None = None,
                       ) -> tuple[float | None, float | None, str]:
     """Divergencia entre o que a busca em OHLC prometeu e o que o tick real
     entregou. Devolve (divergencia %, base usada, motivo quando nao mediu).
@@ -1450,14 +1486,35 @@ def medir_divergencia(lucro_real: float | None, lucro_ohlc: float | None,
     as 12 corridas, entre 61% e 89% -- inclusive os 2 campeoes aprovados
     daquele sistema.
 
-    Com a geometria refeita, a base certa e `lucro_ohlc_pre_geometria`: o que
-    a busca em OHLC prometia ANTES do Estagio 3.5 reabrir os eixos de saida.
-    O numero ja era calculado e impresso como "memo" -- so nunca entrava no
-    veredito. A comparacao deixa de ser mesmos-parametros-em-dois-modelos e
-    vira promessa-do-OHLC contra entrega-em-tick-real; e a pergunta economica
-    certa (o Estagio 3.5 existe pra TROCAR a geometria, entao exigir
-    parametros identicos seria exigir que ele nao tivesse rodado) e a unica
-    que sobra medindo alguma coisa nesses 5 sistemas.
+    BASE CERTA COM GEOMETRIA REFEITA (revisao de 2026-09-14). A correcao de
+    2026-09-03 passou a usar `lucro_ohlc_pre_geometria` -- a promessa do OHLC
+    ANTES do Estagio 3.5 reabrir as saidas. Isso matou o 0.0% falso, mas
+    trocou a pergunta: virou promessa-antiga contra entrega-nova, com
+    PARAMETROS DIFERENTES nos dois lados. Efeito medido nos logs de
+    producao: sistemas COM Estagio 3.5 reprovavam por divergencia em 46%
+    (16 de 35), contra 19% (9 de 48) dos SEM -- invertido, porque quanto
+    MELHOR o 3.5 corrige o otimismo do OHLC, MAIOR a diferenca medida e mais
+    provavel a reprovacao. O mecanismo de protecao alimentava o gate que
+    reprova. Caso concreto: AUDCAD/03_TRAIL_ONLY entregou +405 em tick real,
+    retencao 55% (piso 30%), PF 3.5, DD 10.5% -- reprovado porque um conjunto
+    de parametros JA DESCARTADO tinha prometido 819.
+
+    A base certa e `lucro_ohlc_final`: os parametros FINAIS rodados de novo
+    em OHLC (modelo=1). Volta a ser mesmos-parametros-em-dois-modelos -- a
+    pergunta que veredito() documenta ("Compara o MESMO conjunto de
+    parametros nos dois modelos de tick") -- sem reabrir o bug de 0.0%, que
+    vinha de `lucro_ohlc` ter virado o torneio de TICK REAL; aqui o numero e
+    uma medicao NOVA em OHLC, que nao tem como coincidir com o tick real por
+    construcao. Custa um passe OHLC (~0,44s medido). Medido a mao nos dois
+    combos que motivaram a revisao (mesmo set, mesma janela, so trocando o
+    Model): 03_TRAIL_ONLY deu OHLC 496.41 contra tick real 405.40 = 18.3%
+    (entrega, passa no piso de 30%), e 02_SLTP_ORGANIC deu OHLC 494.34
+    contra tick real 100.81 = 79.6% (fraude do OHLC, reprova). Separa limpo
+    os dois casos, que era exatamente o que a base antiga nao fazia -- nela
+    o 03_TRAIL_ONLY marcava 50.5% e ia pro lixo junto.
+
+    `lucro_ohlc_pre_geometria` continua como reserva: se o passe OHLC final
+    falhar, cai nele em vez de ficar sem gate nenhum.
 
     PISO DO DENOMINADOR, mesma auditoria: o teste antigo era `abs(base) >
     1e-9`, que deixa passar base ~ 0. Um lucro base de 1,50 contra 26,00 em
@@ -1470,8 +1527,14 @@ def medir_divergencia(lucro_real: float | None, lucro_ohlc: float | None,
     if lucro_real is None:
         return None, None, ("a conferencia em tick real nao produziu "
                             "resultado -- verifique o log.")
-    base = (lucro_ohlc_pre_geometria if geometria_refeita_tick_real
-            else lucro_ohlc)
+    if geometria_refeita_tick_real:
+        # Preferencia: parametros FINAIS medidos de novo em OHLC. Reserva:
+        # a promessa pre-geometria (comportamento de 2026-09-03) -- pior
+        # pergunta, mas melhor que ficar sem gate se o passe OHLC falhar.
+        base = (lucro_ohlc_final if lucro_ohlc_final is not None
+                else lucro_ohlc_pre_geometria)
+    else:
+        base = lucro_ohlc
     if base is None:
         return None, None, ("a busca em OHLC nao deixou lucro de referencia "
                             "(torneio do estagio 2/3 sem medida).")
@@ -3252,6 +3315,21 @@ def main() -> int:
     lucro_real = (real["saldo"] - args.deposit) if real["saldo"] is not None else None
     print(f"    conferencia In-Sample: {real['trades']} trades | "
           f"saldo {real['saldo']} | {real['abortos']} abortos", flush=True)
+
+    # Mesmo set (`trabalho` ja esta escrito com os parametros FINAIS logo
+    # acima), so trocando o Model: e o lado esquerdo honesto da divergencia
+    # quando o Estagio 3.5 refez a geometria -- ver medir_divergencia(). So
+    # roda nesse caso: sem o 3.5, `lucro_ohlc` do torneio ja e uma medida em
+    # OHLC dos mesmos parametros, e um passe a mais nao acrescentaria nada.
+    lucro_ohlc_final = None
+    if geometria_refeita_tick_real:
+        ohlc_final = passe_unico(trabalho, args.symbol, args.period,
+                                 args.inicio, args.fim, args.deposit, 1,
+                                 variante=args.variante)
+        if ohlc_final["saldo"] is not None:
+            lucro_ohlc_final = ohlc_final["saldo"] - args.deposit
+            print(f"    mesmos parametros em OHLC: {ohlc_final['trades']} "
+                  f"trades | saldo {ohlc_final['saldo']}", flush=True)
     if oos["expectancy"] is not None:
         print(f"    fora da amostra: expectancy {oos['expectancy']:+.3f}R | "
               f"total {oos['total_r']:+.1f}R | acerto {oos['win_rate']:.1f}%",
@@ -3271,26 +3349,46 @@ def main() -> int:
     # e passaram lendo 0.0%. Em 07_GRID_SEPARATE/AUDNZD foram as 12, entre
     # 61% e 89% -- inclusive os 2 campeoes aprovados daquele sistema.
     #
-    # O lado esquerdo certo e `lucro_ohlc_pre_geometria`: o que a busca em
-    # OHLC prometeu ANTES do Estagio 3.5 reabrir a geometria. Ele ja era
-    # calculado e impresso como "memo" -- so nunca entrava no veredito.
+    # REVISAO DE 2026-09-14. Aquela correcao usou `lucro_ohlc_pre_geometria`
+    # (a promessa do OHLC antes do 3.5). Matou o 0.0% falso, mas passou a
+    # comparar PARAMETROS DIFERENTES nos dois lados -- e como o 3.5 existe
+    # justamente pra corrigir o otimismo do OHLC, quanto melhor ele fazia o
+    # trabalho, maior o numero e mais provavel a reprovacao. Medido nos logs:
+    # 46% de reprovacao por divergencia nos sistemas COM 3.5 contra 19% nos
+    # SEM -- a protecao alimentando o gate que reprova.
     #
-    # A comparacao deixa de ser mesmos-parametros-dois-modelos e vira
-    # promessa-do-OHLC contra entrega-em-tick-real. E a pergunta economica
-    # certa (o Estagio 3.5 existe pra TROCAR a geometria, entao exigir
-    # parametros identicos seria exigir que ele nao tivesse rodado), e e a
-    # unica que sobra medindo alguma coisa nestes 5 sistemas.
+    # Agora o lado esquerdo e `lucro_ohlc_final`: os parametros FINAIS
+    # rodados de novo em OHLC, logo acima. Volta a ser
+    # mesmos-parametros-dois-modelos sem reabrir o 0.0% (aquele vinha de
+    # `lucro_ohlc` ja ser tick real; este e uma medicao nova em OHLC). A
+    # promessa pre-geometria continua impressa como memo, e serve de reserva
+    # se o passe OHLC falhar. Ver medir_divergencia() para os numeros.
     div, base_div, motivo_div = medir_divergencia(
         lucro_real, lucro_ohlc, lucro_ohlc_pre_geometria,
-        geometria_refeita_tick_real, args.deposit)
+        geometria_refeita_tick_real, args.deposit,
+        lucro_ohlc_final=lucro_ohlc_final)
+    usou_ohlc_final = (geometria_refeita_tick_real
+                       and lucro_ohlc_final is not None)
     if base_div is not None:
-        rotulo_base = ("prometido em OHLC:" if geometria_refeita_tick_real
-                       else "lucro em OHLC:")
+        if usou_ohlc_final:
+            rotulo_base = "mesmo set em OHLC:"
+        elif geometria_refeita_tick_real:
+            rotulo_base = "prometido em OHLC:"
+        else:
+            rotulo_base = "lucro em OHLC:"
         print(f"\n    {rotulo_base:<21}{base_div:>10.2f}")
         print(f"    lucro em tick real:  {lucro_real:>10.2f}")
     if div is not None:
         print(f"    divergencia:         {div:>9.1f}%")
-        if geometria_refeita_tick_real:
+        if usou_ohlc_final:
+            # memo: a promessa pre-geometria continua util pra enxergar o
+            # tamanho da correcao que o Estagio 3.5 fez -- so nao e mais o
+            # criterio de reprovacao (ver medir_divergencia).
+            if lucro_ohlc_pre_geometria is not None:
+                print("    (mesmos parametros nos dois modelos; a busca em "
+                      f"OHLC prometia {lucro_ohlc_pre_geometria:.2f} antes "
+                      f"do Estagio 3.5 refazer a geometria em tick real)")
+        elif geometria_refeita_tick_real:
             print("    (a geometria foi refeita em tick real e entregou "
                   f"{lucro_ohlc:.2f} na propria busca; a divergencia acima "
                   "compara a PROMESSA do OHLC com a entrega em tick real)")

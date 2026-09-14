@@ -109,6 +109,31 @@ if "lucro de referencia" not in motivo:
 div, _, _ = medir_divergencia(4530.59, 4530.59, 2467.74, True, 10000)
 checar_perto("tick real acima do OHLC: divergencia mesmo assim", div, 83.6)
 
+# --- caso 9: com 3.5, os parametros FINAIS em OHLC viram a base -----------
+# Revisao 2026-09-14. Medido a mao em AUDCAD/03_TRAIL_ONLY (mesmo set, mesma
+# janela, so trocando o Model): OHLC 496.41, tick real 405.40 -> 18.3% sobre
+# a base OHLC. A base antiga (promessa pre-geometria, 819.45) dava 50.5% e
+# reprovava um candidato que entregou +405 reais, retencao 55% e PF 3.5.
+div, base, _ = medir_divergencia(405.40, 405.40, 819.45, True, 1000,
+                                 lucro_ohlc_final=496.41)
+checar("com 3.5: base e o mesmo set em OHLC, nao a promessa antiga",
+      base, 496.41)
+checar_perto("com 3.5: divergencia dos mesmos parametros", div, 18.33)
+
+# --- caso 10: sem o passe OHLC final, cai na reserva (nao fica sem gate) ---
+div, base, _ = medir_divergencia(405.40, 405.40, 819.45, True, 1000,
+                                 lucro_ohlc_final=None)
+checar("sem passe OHLC final: volta pra promessa pre-geometria", base, 819.45)
+checar_perto("reserva ainda mede (nao vira None)", div, 50.53)
+
+# --- caso 11: sem 3.5, lucro_ohlc_final e ignorado ------------------------
+# Sem o Estagio 3.5 o proprio `lucro_ohlc` ja e OHLC dos mesmos parametros --
+# passar lucro_ohlc_final por engano nao pode trocar a base.
+div, base, _ = medir_divergencia(90.0, 100.0, None, False, 1000,
+                                 lucro_ohlc_final=500.0)
+checar("sem 3.5: base continua sendo lucro_ohlc", base, 100.0)
+checar_perto("sem 3.5: divergencia inalterada", div, 10.0)
+
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")
     for f in FALHAS:
