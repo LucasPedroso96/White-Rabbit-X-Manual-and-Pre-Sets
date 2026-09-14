@@ -63,6 +63,34 @@ checar("retencao n/a", ler_metricas(NAO_APLICA)["retencao"], None)
 ZERO = COMPLETO.replace("Retention: 41.50%", "Retention: 0.00%")
 checar("retencao zero", ler_metricas(ZERO)["retencao"], 0.0)
 
+# --- FixedLot/Monetario: sem bloco R METRICS, so "Total Trades" incondicional
+# (dono, 2026-09-14: 07_GRID_SEPARATE com sizing default sempre lia
+# trades=None mesmo operando de verdade, porque o bloco R METRICS so
+# imprime com RiscoRFixo/Porcentagem ativos). total_r/expectancy continuam
+# None de proposito -- sem sizing baseado em R, esses numeros nao existem.
+SEM_R_METRICS = """
+2026.09.14 01:12:00   Total Trades: 27
+final balance 1678.00 USD
+automatical testing finished
+"""
+m2 = ler_metricas(SEM_R_METRICS)
+checar("sem R METRICS: trades vem do fallback incondicional", m2["trades"], 27)
+checar("sem R METRICS: saldo continua lido normalmente", m2["saldo"], 1678.00)
+checar("sem R METRICS: total_r continua None (nao existe sem sizing em R)",
+      m2["total_r"], None)
+checar("sem R METRICS: expectancy continua None (nao existe sem sizing em R)",
+      m2["expectancy"], None)
+
+# --- bloco R METRICS presente: continua vencendo sobre o fallback ----------
+# Corrida com RiscoRFixo/Porcentagem imprime OS DOIS ("Total Trades" e o
+# bloco R) -- o valor mais completo (com Total R/expectancy) tem que
+# prevalecer, nao o fallback.
+COM_OS_DOIS = COMPLETO.replace(
+    "==================== R METRICS ====================",
+    "Total Trades: 999\n==================== R METRICS ====================")
+checar("com os dois blocos: bloco R METRICS vence (nao o fallback)",
+      ler_metricas(COM_OS_DOIS)["trades"], 410)
+
 # --- log vazio: tudo None, nada de excecao ---------------------------------
 vazio = ler_metricas("")
 checar("vazio/saldo", vazio["saldo"], None)

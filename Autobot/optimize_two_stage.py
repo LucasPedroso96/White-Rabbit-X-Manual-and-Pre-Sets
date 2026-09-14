@@ -1834,11 +1834,22 @@ def ler_metricas(log: str) -> dict:
     saldo = ultimo(r"final balance ([\d.]+)")
     r_met = ultimo(r"Trades: (\d+) \| Total R: ([+-]?[\d.]+) \| "
                    r"Average R \(expectancy\): ([+-]?[\d.]+)")
+    # Fallback (dono, 2026-09-14): "Total Trades: %d" e incondicional (roda
+    # em QUALQUER modo de sizing, via TesterStatistics nativo) -- o bloco
+    # "Trades: X | Total R..." acima so imprime com RiscoRFixo/Porcentagem
+    # ativos. Sem isto, combo em FixedLot/Monetario (ex.: 07_GRID_SEPARATE
+    # default) sempre lia trades=None mesmo operando de verdade, quebrando
+    # silenciosamente qualquer consumidor que precise so de CONTAGEM (a
+    # sonda de --janela-dinamica, por exemplo) -- total_r/expectancy
+    # continuam None de proposito quando o bloco R nao aparece: sem sizing
+    # baseado em R, esses dois numeros genuinamente nao existem.
+    total_trades = ultimo(r"Total Trades: (\d+)")
     ret = ultimo(r"Out-of-Sample Retention: (-?[\d.]+)%")
     win = ultimo(r"Win rate: ([\d.]+)%")
+    trades = r_met[0] if r_met else total_trades
     return {
         "saldo": float(saldo) if saldo else None,
-        "trades": int(r_met[0]) if r_met else None,
+        "trades": int(trades) if trades is not None else None,
         "total_r": float(r_met[1]) if r_met else None,
         "expectancy": float(r_met[2]) if r_met else None,
         "win_rate": float(win) if win else None,
