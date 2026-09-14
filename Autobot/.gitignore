@@ -38,3 +38,7 @@ ml_models/
 wfa_real_resultados/
 wfa_real_resumo.csv
 _arquivo_operacional/backups/
+# Arquivamento de veredictos antigos (dono, 2026-09-14: "limpe todos
+# reprovados, arquive") -- ledger, relatorios e REPROVADO_*.set de UMA
+# maquina, mesma regra de campanha_relatorios/ e campanha_resultados*.jsonl.
+_arquivo_operacional/reprovados_*/
