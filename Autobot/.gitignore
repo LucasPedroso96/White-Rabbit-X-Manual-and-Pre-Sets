@@ -42,3 +42,4 @@ _arquivo_operacional/backups/
 # reprovados, arquive") -- ledger, relatorios e REPROVADO_*.set de UMA
 # maquina, mesma regra de campanha_relatorios/ e campanha_resultados*.jsonl.
 _arquivo_operacional/reprovados_*/
+bateria_logica/
