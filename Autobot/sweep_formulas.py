@@ -24,6 +24,7 @@ import argparse
 import re
 import subprocess
 import sys
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -52,8 +53,12 @@ parser.add_argument("--sistema", required=True)
 parser.add_argument("--simbolo", required=True)
 parser.add_argument("--deposit", type=int, required=True)
 parser.add_argument("--variante", default="BUY_MULTI")
-parser.add_argument("--from-data", dest="de", default="2026.05.22")
-parser.add_argument("--to-data", dest="ate", default="2026.08.22")
+parser.add_argument("--from-data", dest="de", default=None,
+                    help="default: hoje menos 90 dias -- mesmo espirito de "
+                         "campanha.anos_atras(), nunca uma data cravada que "
+                         "fica mais defasada a cada dia (achado 2026-08-06)")
+parser.add_argument("--to-data", dest="ate", default=None,
+                    help="default: hoje")
 parser.add_argument("--min-retencao", type=float, default=30.0)
 parser.add_argument(
     "--min-trades-por-ano", type=float, default=33.0,
@@ -71,6 +76,10 @@ parser.add_argument(
          "as formulas deste sweep. Ou nenhuma ou todas: metade do sweep com o "
          "estagio e metade sem nao compara formula, compara circuito.")
 args = parser.parse_args()
+if args.de is None:
+    args.de = (datetime.now() - timedelta(days=90)).strftime("%Y.%m.%d")
+if args.ate is None:
+    args.ate = datetime.now().strftime("%Y.%m.%d")
 
 if args.formulas.strip():
     ids = [int(x) for x in args.formulas.split(",")]
