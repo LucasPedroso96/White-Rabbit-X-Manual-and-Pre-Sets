@@ -171,18 +171,33 @@ def chave(p: dict, simbolo: str, inicio: str, fim: str) -> tuple:
 
 
 def rodar(passes: list[dict], simbolo: str, inicio: str, fim: str,
-          saida: Path) -> None:
+          saida: Path, partes: frozenset[int] = frozenset({1}),
+          n_partes: int = 1, parte_em: set[str] | None = None) -> None:
+    """`partes`/`n_partes` dividem os passes entre terminais pela CHAVE do
+    passe (crc32 -- hash() do Python muda a cada processo e nao serve pra
+    isto), so nas familias de `parte_em`; as demais rodam inteiras. Um
+    terminal pode pegar mais de uma fatia ({1,2} de 3) pra compensar carga
+    desigual. Ja feito e lido de TODOS os .jsonl da pasta, nao so da propria
+    --saida: um terminal nunca repete o que o outro gravou, mesmo depois de
+    trocar a divisao no meio (dono, 2026-09-14: "usa os dois terminais")."""
+    import zlib
     import campanha  # tardio: so quem roda paga o import
     saida.parent.mkdir(parents=True, exist_ok=True)
     feitos = set()
-    if saida.exists():
-        for linha in saida.read_text(encoding="utf-8").splitlines():
+    for arq in saida.parent.glob("*.jsonl"):
+        for linha in arq.read_text(encoding="utf-8").splitlines():
             if linha.strip():
                 r = json.loads(linha)
                 feitos.add((r["familia"], r["sistema"], r["eixo"], r["valor"],
                             r["simbolo"], r["inicio"], r["fim"]))
+    def minha(p: dict) -> bool:
+        if n_partes <= 1 or (parte_em and p["familia"] not in parte_em):
+            return True
+        k = "|".join(map(str, chave(p, simbolo, inicio, fim)))
+        return zlib.crc32(k.encode("utf-8")) % n_partes + 1 in partes
+
     pendentes = [p for p in passes
-                 if chave(p, simbolo, inicio, fim) not in feitos]
+                 if chave(p, simbolo, inicio, fim) not in feitos and minha(p)]
     print(f"terminal: {base.TERMINAL}\n{len(passes)} passes no plano | "
           f"{len(passes) - len(pendentes)} ja feitos | "
           f"{len(pendentes)} a rodar", flush=True)
@@ -340,6 +355,10 @@ def main() -> None:
     ap.add_argument("--planejar", action="store_true")
     ap.add_argument("--analisar", action="store_true")
     ap.add_argument("--estatico", action="store_true")
+    ap.add_argument("--parte", default="1/1",
+                    help="fatia(s) deste terminal, ex.: 1/2 ou 1,2/3")
+    ap.add_argument("--parte-em", default="",
+                    help="familias divididas por --parte (vazio = todas)")
     a = ap.parse_args()
 
     if a.estatico:
@@ -367,7 +386,11 @@ def main() -> None:
         print(f"TOTAL {len(passes)} passes (~{len(passes) * 10 / 60:.0f} min "
               f"a ~10s por passe)")
         return
-    rodar(passes, a.simbolo, a.inicio, a.fim, Path(a.saida))
+    idx, _, n = a.parte.partition("/")
+    partes = frozenset(int(x) for x in idx.split(",") if x.strip())
+    parte_em = {f.strip().upper() for f in a.parte_em.split(",") if f.strip()}
+    rodar(passes, a.simbolo, a.inicio, a.fim, Path(a.saida),
+          partes=partes, n_partes=int(n or 1), parte_em=parte_em or None)
 
 
 if __name__ == "__main__":
