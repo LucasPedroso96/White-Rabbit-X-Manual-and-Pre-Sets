@@ -30,6 +30,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import optimize_sets as base
 from generate_system_sets import FORMULA_POR_SISTEMA
+from mt5_watchdog import rodar_com_watchdog
 from optimize_two_stage import formula_soma_r_compativel, limpar_checkpoint_estagio1
 
 TODAS_FORMULAS = {
@@ -76,6 +77,11 @@ parser.add_argument(
     help="liga o Estagio 1.5 (refino do indicador vencedor sozinho) em TODAS "
          "as formulas deste sweep. Ou nenhuma ou todas: metade do sweep com o "
          "estagio e metade sem nao compara formula, compara circuito.")
+parser.add_argument(
+    "--watchdog-minutos", type=float, default=15.0,
+    help="mata e considera travado um circuito cujo log ficar esse tanto "
+         "de minutos SEM CRESCER (ver mt5_watchdog.py). 0 desliga o "
+         "watchdog (comportamento antigo, subprocess.run sem teto).")
 args = parser.parse_args()
 if args.de is None:
     args.de = (datetime.now() - timedelta(days=90)).strftime("%Y.%m.%d")
@@ -201,7 +207,11 @@ try:
             limpar_checkpoint_estagio1(args.simbolo, args.sistema, args.variante)
 
             comando = [
-                sys.executable, "optimize_two_stage.py",
+                # -u: sem isso o stdout do filho fica bufferizado e o
+                # watchdog (que mede progresso pelo CRESCIMENTO do arquivo
+                # de log) veria o arquivo parado mesmo com o circuito
+                # avancando normal -- falso-positivo de travamento.
+                sys.executable, "-u", "optimize_two_stage.py",
                 "--symbol", args.simbolo, "--sistema", args.sistema,
                 "--variante", args.variante, "--period", "M1",
                 "--from", args.de, "--to", args.ate,
@@ -213,8 +223,36 @@ try:
                 comando.append("--indicador-solo")
 
             log = Path(f"{prefixo}_{formula:02d}_{nome}.log")
-            with log.open("w", encoding="utf-8") as fh:
-                subprocess.run(comando, stdout=fh, stderr=subprocess.STDOUT)
+            if args.watchdog_minutos > 0:
+                # Ate 2 tentativas: travamento pode ser transitorio (achado
+                # ja visto com o agente do tester, ver passe_unico()). Na
+                # segunda vez, desiste da formula (nao do sistema inteiro)
+                # e segue pra proxima -- mesmo padrao do pulo da formula 14.
+                status = rodar_com_watchdog(
+                    comando, log, sem_progresso_max=args.watchdog_minutos * 60)
+                if status == "travado":
+                    aviso = (f"    TRAVADO ({args.watchdog_minutos:.0f} min "
+                            "sem o log crescer) -- repetindo uma vez")
+                    print(aviso, flush=True)
+                    fm.write(aviso + "\n")
+                    status = rodar_com_watchdog(
+                        comando, log,
+                        sem_progresso_max=args.watchdog_minutos * 60)
+                if status == "travado":
+                    linha = (f"    PULADA: travou 2x seguidas (>="
+                            f"{2 * args.watchdog_minutos:.0f} min sem "
+                            "progresso no log) -- log em " + str(log) +
+                            ". Se isto se repetir em VARIAS formulas deste "
+                            "sistema, o problema provavelmente e o ativo "
+                            f"({args.simbolo}), nao a formula: considere "
+                            "relancar este sistema com --simbolo num par "
+                            "mais leve (ex.: EURUSD).")
+                    print(linha, flush=True)
+                    fm.write(linha + "\n")
+                    continue
+            else:
+                with log.open("w", encoding="utf-8") as fh:
+                    subprocess.run(comando, stdout=fh, stderr=subprocess.STDOUT)
             linha = f"    log salvo em {log}"
             print(linha, flush=True)
             fm.write(linha + "\n")
