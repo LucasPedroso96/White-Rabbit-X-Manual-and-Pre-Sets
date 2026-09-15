@@ -29,6 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import optimize_sets as base
+from generate_system_sets import FORMULA_POR_SISTEMA
 from optimize_two_stage import formula_soma_r_compativel, limpar_checkpoint_estagio1
 
 TODAS_FORMULAS = {
@@ -104,8 +105,26 @@ PADRAO_FORMULA = re.compile(r"selectedFormula=\d+\|\|\d+\|\|1\|\|\d+\|\|N")
 # de producao naquele ativo passaria a filtrar pela formula do sweep.
 formula_original = None
 _m = PADRAO_FORMULA.search(origem.read_text(encoding="utf-16"))
+esperado = FORMULA_POR_SISTEMA.get(args.sistema)
 if _m:
     formula_original = int(re.search(r"\d+", _m.group(0)).group(0))
+    if esperado is not None and formula_original != esperado:
+        # Achado ao vivo, 2026-09-14: o `finally` que restaura o valor la
+        # embaixo NAO roda se o processo for morto a forca (Stop-Process
+        # -Force, TaskStop no processo pai) -- o kill nao e uma excecao
+        # Python, e o template fica preso na ULTIMA formula testada antes
+        # do kill. Um relancamento sem este cross-check leria esse valor
+        # sujo como se fosse "producao" e prometeria restaurar o numero
+        # ERRADO ao fim -- corrompeu 04_SLTP_TRAIL (leu 1, era 5) e
+        # 12_GRID_INVERSO (leu 1, era 2) de verdade nesta sessao antes de
+        # eu notar e corrigir a mao. FORMULA_POR_SISTEMA e a fonte de
+        # verdade; vence quando os dois discordam.
+        print(f"AVISO: selectedFormula no template ({formula_original}) "
+              f"diverge de FORMULA_POR_SISTEMA[{args.sistema!r}] "
+              f"({esperado}) -- template provavelmente sujo por um sweep "
+              f"anterior morto a forca. Usando {esperado} (FORMULA_POR_"
+              "SISTEMA) como o valor de producao.", flush=True)
+        formula_original = esperado
     print(f"selectedFormula de producao no template: {formula_original} "
           "(restaurado ao fim do sweep)", flush=True)
 else:
