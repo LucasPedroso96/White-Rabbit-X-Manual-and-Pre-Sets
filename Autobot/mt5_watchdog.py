@@ -18,7 +18,7 @@ redirecionado pra arquivo). Exige que o comando rode com saida SEM buffer
 enche, e o watchdog dispararia falso-positivo.
 
     from mt5_watchdog import rodar_com_watchdog
-    status = rodar_com_watchdog(comando, log_path, sem_progresso_max=900)
+    status = rodar_com_watchdog(comando, log_path, sem_progresso_max=4500)
     # status: "ok" (o processo terminou sozinho -- sucesso ou falha do
     #         proprio comando, o log de dentro conta qual dos dois foi)
     #         ou "travado" (matei o processo, o log parou de crescer)
@@ -36,7 +36,7 @@ from pathlib import Path
 
 
 def rodar_com_watchdog(comando: list[str], log_path: Path,
-                       sem_progresso_max: int = 900,
+                       sem_progresso_max: int = 4500,
                        checar_a_cada: int = 60) -> str:
     """Roda `comando`, escrevendo stdout/stderr em `log_path` (sobrescrito).
 

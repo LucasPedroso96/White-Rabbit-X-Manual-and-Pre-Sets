@@ -78,10 +78,24 @@ parser.add_argument(
          "as formulas deste sweep. Ou nenhuma ou todas: metade do sweep com o "
          "estagio e metade sem nao compara formula, compara circuito.")
 parser.add_argument(
-    "--watchdog-minutos", type=float, default=15.0,
+    # Achado ao vivo, 2026-09-19 (dono: "veja se nao e log ou print"): 15 min
+    # dava falso positivo -- cada rodada do genetico no Estagio 1 e UMA
+    # chamada bloqueante so, sem print nenhum ate ela terminar, e o proprio
+    # optimize_two_stage.py ja documentava "pode ser 45min+ em grid" antes
+    # de eu mexer em qualquer coisa. 15 min matava rodada legitima no meio
+    # achando que travou -- foi isso que fez 04_SLTP_TRAIL/07_GRID_SEPARATE
+    # perderem quase toda formula sem travamento real nenhum. 75 min cobre
+    # o pior caso documentado (45min) com folga (contencao de CPU externa
+    # pode alongar isso ainda mais) sem deixar de pegar travamento de
+    # verdade (custa so 75min de espera, nao dias).
+    "--watchdog-minutos", type=float, default=75.0,
     help="mata e considera travado um circuito cujo log ficar esse tanto "
          "de minutos SEM CRESCER (ver mt5_watchdog.py). 0 desliga o "
-         "watchdog (comportamento antigo, subprocess.run sem teto).")
+         "watchdog (comportamento antigo, subprocess.run sem teto). Uma "
+         "rodada do Estagio 1 e uma chamada bloqueante sem print ate "
+         "terminar -- 45min+ e documentado como normal em grid, entao o "
+         "teto tem que ficar bem acima disso pra nao matar rodada legitima "
+         "achando que travou.")
 args = parser.parse_args()
 if args.de is None:
     args.de = (datetime.now() - timedelta(days=90)).strftime("%Y.%m.%d")
