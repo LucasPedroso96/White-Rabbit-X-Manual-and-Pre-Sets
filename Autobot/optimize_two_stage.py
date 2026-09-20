@@ -1914,6 +1914,11 @@ def ler_metricas(log: str) -> dict:
     # baseado em R, esses dois numeros genuinamente nao existem.
     total_trades = ultimo(r"Total Trades: (\d+)")
     ret = ultimo(r"Out-of-Sample Retention: (-?[\d.]+)%")
+    # Motivo que a EA da quando NAO calcula a retencao ("not applicable - In-
+    # Sample was not profitable ..."): sem ele, retencao=None parecia falha de
+    # leitura e a prova em % reprovava com a mensagem errada (achado
+    # 2026-09-20, CHFJPY/03_TRAIL_ONLY: IS negativo em %, nada a reter).
+    ret_na = ultimo(r"Out-of-Sample Retention: (not applicable[^\r\n]*)")
     win = ultimo(r"Win rate: ([\d.]+)%")
     trades = r_met[0] if r_met else total_trades
     return {
@@ -1926,6 +1931,7 @@ def ler_metricas(log: str) -> dict:
         # "In-Sample sem lucro, nada a reter") -- confundir os dois foi o que
         # fez a retencao parecer um resultado quando era so o modo In-Sample.
         "retencao": float(ret) if ret else None,
+        "retencao_motivo": ret_na,
         "abortos": len(re.findall(r"aborted", log)),
     }
 
@@ -3693,10 +3699,18 @@ def main() -> int:
                       "entrada -- verifique margem/abortos.", flush=True)
             if retencao_pct is None or retencao_pct < args.min_retencao:
                 aprovado = False
-                print("    REPROVADO na prova em %: o resultado do Fixed-R nao",
-                      flush=True)
-                print("    sobreviveu aos juros compostos do % do saldo.",
-                      flush=True)
+                if retencao_pct is None:
+                    print("    retencao em % nao calculada -- a EA reporta: "
+                          + (pct.get("retencao_motivo")
+                             or "sem linha de retencao no log (passe abortado?)"),
+                          flush=True)
+                    print("    REPROVADO na prova em %: sem retencao medida "
+                          "nao ha o que aprovar.", flush=True)
+                else:
+                    print("    REPROVADO na prova em %: o resultado do "
+                          "Fixed-R nao", flush=True)
+                    print("    sobreviveu aos juros compostos do % do saldo.",
+                          flush=True)
             else:
                 sizing_entrega = "percentage"
                 print("    OK em %: a entrega sai em Percentage, o modo "

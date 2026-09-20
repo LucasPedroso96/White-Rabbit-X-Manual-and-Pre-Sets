@@ -51,6 +51,20 @@ checar("expectancy negativa", ler_metricas(NEGATIVO)["expectancy"], -0.088)
 NEG_RET = COMPLETO.replace("Retention: 41.50%", "Retention: -12.75%")
 checar("retencao negativa", ler_metricas(NEG_RET)["retencao"], -12.75)
 
+# --- retencao "not applicable": IS sem lucro -> None COM o motivo da EA -----
+# Log real do CHFJPY/03_TRAIL_ONLY em % (2026-09-20): sem o motivo, o gate da
+# prova em % reprovava com a mensagem errada ("nao sobreviveu aos juros
+# compostos") quando a causa era o In-Sample negativo.
+SEM_RETENCAO = COMPLETO.replace(
+    "Out-of-Sample Retention: 41.50% (out-of-sample daily ...)",
+    "Out-of-Sample Retention: not applicable - In-Sample was not profitable "
+    "(average daily -0.76). The strategy failed in-sample; there is nothing "
+    "to retain.")
+m = ler_metricas(SEM_RETENCAO)
+checar("sem retencao: valor", m["retencao"], None)
+checar("sem retencao: motivo lido", "In-Sample was not profitable" in (m["retencao_motivo"] or ""), True)
+checar("com retencao: sem motivo", ler_metricas(COMPLETO)["retencao_motivo"], None)
+
 # --- In-Sample sem lucro: a EA escreve texto, nao numero --------------------
 # None e 0.0 precisam continuar distintos: "nao ha o que reter" nao e "reteve
 # zero". Tratar os dois como 0.0 foi o que fez a retencao parecer medida.
