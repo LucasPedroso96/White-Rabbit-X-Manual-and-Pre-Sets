@@ -1723,6 +1723,37 @@ def avaliar_gate_relativo(campeao: dict, desafiante: dict) -> tuple[bool, list[s
     return aprovado, motivos
 
 
+def escolher_linha_propria(stats_list: list[dict], saldo: float | None,
+                           trades: int | None, deposito: float,
+                           ) -> dict | None:
+    """A linha do arquivo ALL_FORMULAS que e DESTE passe, ou None.
+
+    BUG REAL (2026-09-20, achado ao auditar o primeiro evento do vigia): o
+    arquivo `levain_wrx_all_formulas.txt` e da MAQUINA inteira (FILE_COMMON) e
+    a otimizacao genetica do terminal vizinho grava nele ~15 linhas/s. Ler "a
+    ultima linha" depois de um passe unico (20-90 s) pegava, quase sempre, uma
+    linha do OUTRO terminal. Prova: 6 passes seguidos (holdout 3 anos, periodo
+    anterior e 4 janelas OOS do WFA) com saldo/trades do log LOCAL do MT5
+    (827.60/317 tr, 914.61/287 tr, +210/-52/+35/+78) e lucro/trades do JSON
+    (+1617/367 tr, +1691/185 tr, +1255/+1890/+2385/+2487) sem nenhuma relacao.
+    Explica WFE de 5670%/10668% e PF < 1 em candidato lucrativo. O log do
+    tester e por instalacao, entao e a fonte de verdade: a linha so vale se
+    trades bater EXATO e lucro (= saldo final - deposito) bater dentro da
+    tolerancia. Sem linha confiavel devolve None -- os chamadores usam so o
+    que o log local garante, nunca um numero de outro terminal.
+    """
+    if saldo is None or trades is None or not stats_list:
+        return None
+    alvo = saldo - deposito
+    tol = max(0.5, 0.01 * abs(alvo))
+    for s in reversed(stats_list):
+        lucro = s.get("profit")
+        if (s.get("trades") == trades and lucro is not None
+                and abs(lucro - alvo) <= tol):
+            return s
+    return None
+
+
 def _medir_desempenho(origem: Path, params: dict, simbolo: str, periodo: str,
                       inicio: str, fim: str, deposito: int) -> dict:
     """Nucleo compartilhado: escreve um set com `params` sobre `origem`,
@@ -1742,9 +1773,18 @@ def _medir_desempenho(origem: Path, params: dict, simbolo: str, periodo: str,
     r = passe_unico(trabalho, simbolo, periodo, inicio, fim, deposito, 4,
                     variante=origem.stem)
     stats_list = carregar_todas_formulas()
-    stats = stats_list[-1] if stats_list else None
+    stats = escolher_linha_propria(stats_list, r.get("saldo"), r.get("trades"),
+                                   deposito)
     if stats is None:
-        return {}
+        if r.get("saldo") is None:
+            return {}
+        # Sem linha confiavel do arquivo compartilhado: devolve SO o que o log
+        # LOCAL garante (lucro, trades, expectancy, retencao). PF/DD/Sharpe/
+        # score ficam None -- avaliar_gate_relativo pula o check sem dado.
+        return {"profit_factor": None, "max_dd_pct": None, "sharpe": None,
+                "composite_score": None, "trades": r.get("trades"),
+                "expectancy_r": r["expectancy"],
+                "profit": r["saldo"] - deposito, "retencao": r["retencao"]}
 
     gp, gl = stats.get("gross_profit"), stats.get("gross_loss")
     pf = gp / abs(gl) if gp is not None and gl not in (None, 0) else None
@@ -3401,8 +3441,11 @@ def main() -> int:
     limpar_todas_formulas()
     conf = torneio_retencao([None], cab, metricas, origem, trabalho, travados,
                             args, 4, "vencedor (tick real)")
-    stats_confirmacao = carregar_todas_formulas()
-    stats_confirmacao = stats_confirmacao[-1] if stats_confirmacao else None
+    # Le o arquivo AGORA (antes de qualquer outro passe) e so escolhe a linha
+    # depois de saber saldo/trades deste passe (`oos`, abaixo) -- ver
+    # escolher_linha_propria(): "a ultima linha" era do terminal vizinho.
+    stats_lista_conf = carregar_todas_formulas()
+    stats_confirmacao = None
     if not conf:
         print("    a confirmacao em tick real nao produziu retencao.")
         emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
@@ -3411,6 +3454,8 @@ def main() -> int:
         limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
     retencao_top, _, vencedor, oos = conf[0]
+    stats_confirmacao = escolher_linha_propria(
+        stats_lista_conf, oos.get("saldo"), oos.get("trades"), args.deposit)
     lucro_ohlc = ordenados[0][1]
     print(f"\n    retencao confirmada em tick real: {retencao_top}%", flush=True)
 
@@ -3625,7 +3670,9 @@ def main() -> int:
                               + ("" if mc_aprovado else " -- REPROVADO no Monte Carlo"),
                               flush=True)
                     stats_lista_r = carregar_todas_formulas()
-                    stats_confirmacao = stats_lista_r[-1] if stats_lista_r else None
+                    stats_confirmacao = escolher_linha_propria(
+                        stats_lista_r, real_r.get("saldo"),
+                        real_r.get("trades"), args.deposit)
                     div, base_div = 0.0, lucro_real
                     resgatado = True
 
