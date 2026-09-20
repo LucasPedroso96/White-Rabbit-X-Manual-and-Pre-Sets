@@ -53,6 +53,15 @@ SWEEPS = [
     ("02_SLTP_ORGANIC GBPUSD f04", "sweep_02_SLTP_ORGANIC_GBPUSD_04_EfficiencyRelativeToDeposit.log", 4),
     ("02_SLTP_ORGANIC GBPUSD f11", "sweep_02_SLTP_ORGANIC_GBPUSD_11_ReturnUniformity.log", 11),
 ]
+# Reprovadas NO GATE FINAL (holdout/periodo anterior/WFA) sob a medicao
+# contaminada: se aqui der REVALIDADO, a reprovacao original estava errada.
+REPROVADOS_FINAL = [
+    ("REPROV 01_SLTP EURUSD f15", "sweep_01_SLTP_EURUSD_15_ZeusCompositeScore.log", 15),
+    ("REPROV 02_SLTP_ORGANIC EURUSD f14", "sweep_02_SLTP_ORGANIC_EURUSD_14_SomaR.log", 14),
+    ("REPROV 04_SLTP_TRAIL XAUUSD f01", "sweep_04_SLTP_TRAIL_XAUUSD_01_GridSurvivalScore.log", 1),
+    ("REPROV 04_SLTP_TRAIL XAUUSD f03", "sweep_04_SLTP_TRAIL_XAUUSD_03_ProfitWinTradeDD.log", 3),
+    ("REPROV 05_BE_TRAIL XAUUSD f03", "sweep_05_BE_TRAIL_XAUUSD_03_ProfitWinTradeDD.log", 3),
+]
 # Campeoes REAIS da campanha (bloco APROVADO no log): (rotulo, log, "SIM SIS VAR")
 CAMPEOES = [
     ("CAMPEAO 02_SLTP_ORGANIC GBPUSD", "campanha_clone_handoff_producao.log",
@@ -84,7 +93,7 @@ def _candidato(rotulo: str, texto: str, formula: int | None) -> dict | None:
 def carregar_candidatos() -> list[dict]:
     from generate_system_sets import FORMULA_POR_SISTEMA
     out = []
-    for rotulo, nome, formula in SWEEPS:
+    for rotulo, nome, formula in SWEEPS + REPROVADOS_FINAL:
         f = AQUI / nome
         c = _candidato(rotulo, f.read_text(encoding="utf-8", errors="replace"),
                        formula) if f.exists() else None
