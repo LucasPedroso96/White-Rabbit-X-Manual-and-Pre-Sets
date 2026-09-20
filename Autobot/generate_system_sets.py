@@ -186,7 +186,26 @@ FORMULA_POR_SISTEMA = {
     # neste sweep, mantido como estava por falta de evidencia.
     # 03_TRAIL_ONLY e 05_BE_TRAIL: valores acima (11, 6) reprovaram no gate
     # de holdout longo + WFA em 2026-09-06 -- ver nota no topo do dict.
-    "03_TRAIL_ONLY": 12, "04_SLTP_TRAIL": 5, "05_BE_TRAIL": 14,
+    # 2026-09-20 (dono: "a calibracao foi pra que se nao vai usar a melhor
+    # formula? aplique as melhores formulas nos sistemas"): recalibracao
+    # geral pelo circuito oficial (holdout 3 anos + WFA), 12 formulas por
+    # sistema (sem 2/7/13). Regra: entre as APROVADAS, maior retencao OOS,
+    # desempate por ciclos WFA positivos.
+    #  - 04_SLTP_TRAIL 5 -> 11 (XAUUSD, 12 de 12 testadas): aprovaram 4, 8,
+    #    9, 10, 11 e 12; a 5 (producao) reprovou. 11 ReturnUniformity:
+    #    retencao 69.8%, DD 7.0%, WFA 3/4, WFE 22% (magnitude crivel).
+    #  - 11_SIGNAL_ONLY 4 -> 11 (XAUUSD, 10 de 12; faltam 8 e 10): aprovaram
+    #    3, 9 e 11; a 4 (producao) reprovou. 11: retencao 82.1%, WFA 4/4 --
+    #    RESSALVA: so 52 trades no holdout de 3 anos; a 3 (retencao 81.4%,
+    #    WFA 3/4) tem 1094 trades e e a alternativa mais robusta em amostra.
+    #  - 07_GRID_SEPARATE 6 -> 10 (AUDNZD, so 3 de 12 tem dado -- o resto
+    #    caiu no falso positivo do watchdog de 15 min): unica aprovada
+    #    (retencao 63.3%, WFA 4/4), PROVISORIO; WFE de 10668% nao e crivel.
+    # NAO mudaram: 02_SLTP_ORGANIC e 05_BE_TRAIL (12 de 12 reprovadas -- nao
+    # ha formula melhor pra aplicar), 06_REVERSAL_EXIT/12_GRID_INVERSO (sem
+    # dado valido ainda) e 01_SLTP (redo em andamento). 03_TRAIL_ONLY segue
+    # com o sweep de 2026-08-23/09-06.
+    "03_TRAIL_ONLY": 12, "04_SLTP_TRAIL": 11, "05_BE_TRAIL": 14,
     "06_REVERSAL_EXIT": 9,  # 5 reprovou no holdout longo, ver nota no topo
     # 2026-08-04: testado Profit puro (2) guiando a busca do grid, com
     # GridSurvivalScore (1) so como filtro externo pos-busca -- comparado
@@ -214,7 +233,7 @@ FORMULA_POR_SISTEMA = {
     # de tratar como definitivo. GridSurvivalScore continua sendo lido pelo
     # filtro externo (ler_todas_formulas em optimize_two_stage.py) mesmo
     # sem guiar a busca.
-    "07_GRID_SEPARATE": 6,  # 10 nunca achou campeao valido; ver nota no topo
+    "07_GRID_SEPARATE": 10,  # 2026-09-20: 6 sem dado; 10 unica aprovada (ver 04 acima)
     # 09_MARTINGALE: o fulltest de 2026-08-10 elegeu Profit puro (2), mas
     # revertido pra ResilienceToDrawdown (10) na revisao de peso/risco --
     # ver o bloco de comentario no topo deste dict. Profit puro e
@@ -223,7 +242,7 @@ FORMULA_POR_SISTEMA = {
     # nativo, MaxMartingaleLot ainda 0/sem teto), entao herda o mesmo risco.
     # 2026-09-06: 10 reprovou no holdout longo; ver nota no topo do dict.
     "09_MARTINGALE": 4, "10_DALEMBERT": 5,
-    "11_SIGNAL_ONLY": 4,
+    "11_SIGNAL_ONLY": 11,  # 2026-09-20: era 4 (reprovou); ver nota no 04
     # 12_GRID_INVERSO: A/B proprio agora (dono, 2026-08-19), XAUUSD/
     # 12_GRID_INVERSO/BUY_MULTI, 3 meses, mesmo padrao usado no 07:
     # GridSurvivalScore-guiado REPROVOU (retencao OOS -27.1%, negativa --

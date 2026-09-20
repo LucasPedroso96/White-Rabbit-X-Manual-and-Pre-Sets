@@ -77,8 +77,8 @@ checar("lista vazia", _priorizar_lucro_na_fatia(CAB, [], 0.5, 1), [])
 # gate de holdout longo + WFA) -- nao e mais teste de regressao contra o
 # hardcode antigo, e checagem de que campo_da_formula acompanha
 # FORMULA_POR_SISTEMA corretamente. ------------------------------------------
-checar("07_GRID_SEPARATE usa profit_rel_dd_deposit (formula 6, pos-triagem)",
-       campo_da_formula("07_GRID_SEPARATE"), "profit_rel_dd_deposit")
+checar("07_GRID_SEPARATE usa resilience_dd (formula 10, recalibracao 2026-09-20)",
+       campo_da_formula("07_GRID_SEPARATE"), "resilience_dd")
 checar("12_GRID_INVERSO usa profit_formula (formula 2, pos-triagem)",
        campo_da_formula("12_GRID_INVERSO"), "profit_formula")
 checar("03_TRAIL_ONLY usa system_robustness (formula 12, pos-triagem)",
