@@ -4063,15 +4063,16 @@ def main() -> int:
                       "wfa_ciclos_positivos": (
                           wfa_reotimizacao["ciclos_positivos"]
                           if wfa_reotimizacao else None),
-                      # So grava o detalhe por janela no caso degenerado (0/0
-                      # nas duas tentativas) -- ver retry acima. No caso
-                      # normal ele so infla o ledger com parametros de 4
-                      # janelas que ninguem vai olhar.
-                      "wfa_detalhe": (
-                          wfa_reotimizacao["detalhe"]
-                          if wfa_reotimizacao
-                          and wfa_reotimizacao["wfe_global_pct"] is None
-                          else None),
+                      # Grava SEMPRE o detalhe por janela (lucro IS/OOS, WFE e
+                      # params de cada ciclo). Antes so saia no caso degenerado
+                      # (0/0 nas duas tentativas, ver retry acima) e isso
+                      # impediu de investigar WFE de 5670%/10668% (achado
+                      # 2026-09-20, dono: "nao podem ser reais?"): sem o
+                      # detalhe nao da pra saber se o numero vem de
+                      # denominador minusculo, de mistura OHLC(IS) x tick(OOS)
+                      # ou de regime. Sao ~4 janelas, custo de ledger baixo.
+                      "wfa_detalhe": (wfa_reotimizacao["detalhe"]
+                                      if wfa_reotimizacao else None),
                       "relatorio_dir": relatorio_dir,
                       # True = aprovado (ou nao) com base num candidato
                       # buscado DIRETO em tick real (ver [4.5/5] acima), nao
