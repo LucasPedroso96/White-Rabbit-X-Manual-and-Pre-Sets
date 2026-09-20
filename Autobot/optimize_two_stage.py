@@ -2658,6 +2658,17 @@ def main() -> int:
     ap.add_argument("--recuperacao", choices=["auto", "nenhuma", "martingale",
                                               "dalembert"], default="auto")
     ap.add_argument("--timeout", type=int, default=21600)
+    # Teto proprio do Estagio 3.5 (segundos; 0 = usa --timeout, comportamento
+    # de sempre). Achado ao vivo, 2026-09-20 (dono: "o trail parece nao estar
+    # seguindo os passos"): em XAUUSD o 3.5 e um genetico de ~8 parametros em
+    # TICK REAL sobre a janela toda (~35s por passe, milhares de passes) --
+    # o AutoTesting do MT5 marcou 14% apos 55 min, ou seja ~6h ate o fim. Sob
+    # o --timeout 3600 do sweep_formulas ele era morto em 60,0 min com zero
+    # linhas ("aptos: 0 de 0", geometria de OHLC mantida) em 8 de 8 formulas:
+    # uma hora inteira por formula sem produzir nada. Tetos curtos so fazem
+    # sentido pra varredura de formula (resultado igual, muito mais rapido);
+    # campanha de producao nao passa isto.
+    ap.add_argument("--timeout-geometria", type=int, default=0)
     ap.add_argument("--fechar-terminal", action="store_true")
     args = ap.parse_args()
     if args.recuperacao in ("martingale", "dalembert"):
@@ -3257,15 +3268,21 @@ def main() -> int:
               f"{eixos_geometria})", flush=True)
         limpar_todas_formulas()
         t0 = time.time()
+        teto_geo = (min(args.timeout, args.timeout_geometria)
+                    if args.timeout_geometria > 0 else args.timeout)
         cab_g, linhas_g = rodar(trabalho, args.symbol, args.period,
                                 args.inicio, args.fim, args.deposit, 4,
-                                args.timeout, variante=args.variante)
+                                teto_geo, variante=args.variante)
         geo_ok = (base.escolher_candidatos(cab_g, linhas_g, args.min_trades,
                                            args.min_pf) if linhas_g else [])
         geo_ok = (priorizar_lucro_no_topo(cab_g, geo_ok, campo=campo_da_formula_ativa(args.sistema, origem))
                  if geo_ok else geo_ok)
         print(f"    {(time.time()-t0)/60:.1f} min | aptos: {len(geo_ok)} de "
               f"{len(linhas_g)}", flush=True)
+        if not linhas_g and time.time() - t0 >= teto_geo * 0.95:
+            print(f"    estagio 3.5 cortado pelo teto de {teto_geo/60:.0f} min "
+                  "sem terminar (ativo pesado demais em tick real pra esta "
+                  "janela) -- geometria de OHLC mantida.", flush=True)
         if geo_ok:
             ord_g = torneio_retencao(geo_ok[:args.finalistas], cab_g,
                                      metricas, origem, trabalho, travados,

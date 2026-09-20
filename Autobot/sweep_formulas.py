@@ -70,6 +70,14 @@ parser.add_argument(
          "definitivo -- calibrar por classe de sistema se necessario.")
 parser.add_argument("--timeout", type=int, default=3600)
 parser.add_argument(
+    "--timeout-geometria-min", type=float, default=10.0,
+    help="teto do Estagio 3.5 (geometria em tick real) por formula. Achado "
+         "2026-09-20: em XAUUSD ele levaria ~6h e era morto em 60 min com "
+         "zero resultado em 8 de 8 formulas do 04_SLTP_TRAIL; 10 min da o "
+         "mesmo resultado (geometria de OHLC mantida) sem gastar 1h por "
+         "formula. Onde o 3.5 termina de verdade (EURUSD/BTCUSD: 4-18 min) "
+         "suba este valor.")
+parser.add_argument(
     "--formulas", default="",
     help="lista separada por virgula (ex.: 2,9,11); vazio = todas as 14")
 parser.add_argument(
@@ -232,7 +240,8 @@ try:
                 "--deposit", str(args.deposit),
                 "--min-retencao", str(args.min_retencao),
                 "--min-trades-per-year", str(args.min_trades_por_ano),
-                "--fechar-terminal", "--timeout", str(args.timeout)]
+                "--fechar-terminal", "--timeout", str(args.timeout),
+                "--timeout-geometria", str(int(args.timeout_geometria_min * 60))]
             if args.indicador_solo:
                 comando.append("--indicador-solo")
 
