@@ -1920,6 +1920,17 @@ def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
     desafiante = _medir_desempenho(origem, passo_desafiante, simbolo, periodo,
                                    inicio, fim, deposito)
 
+    # Numeros do passe de N anos no log: antes so saia "OK: trades 400 >= 30" e
+    # a perda de 99% do CHFJPY so apareceu abrindo o log bruto do MT5.
+    def _n(v, fmt):
+        return "n/d" if v is None else fmt.format(v)
+    print(f"    historico completo ({PERIODO_PADRAO_HISTORICO_COMPLETO_ANOS} "
+          f"anos continuos): lucro {_n(desafiante.get('profit'), '{:.2f}')} | "
+          f"{_n(desafiante.get('trades'), '{}')} trades | expectancy "
+          f"{_n(desafiante.get('expectancy_r'), '{:+.3f}')}R | DD "
+          f"{_n(desafiante.get('max_dd_pct'), '{:.1f}')}% | PF "
+          f"{_n(desafiante.get('profit_factor'), '{:.2f}')}", flush=True)
+
     # Camada 1 (catastrofe): vale COM ou SEM campeao -- antes, sem campeao o
     # gate so olhava "trades >= 30" e aprovou um candidato que perdeu 99%.
     ok_catastrofe, motivo_catastrofe = avaliar_catastrofe(
