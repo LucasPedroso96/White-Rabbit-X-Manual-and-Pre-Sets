@@ -1812,6 +1812,69 @@ def remedir_campeao_na_janela(sistema: str, simbolo: str, variante: str,
 # de partida.
 PERIODO_PADRAO_HISTORICO_COMPLETO_ANOS = 3
 
+# Validacao longa em CAMADAS GRADUADAS (dono, 2026-09-20: "vou na sua
+# recomendacao"). Contexto: o treino encolheu (janela dinamica ~1 ano; 90 dias
+# nas calibracoes) mas o gate de 3 anos ficou fixo -- e ele INCLUI o ano de
+# treino, entao nao e holdout, e mede outra pergunta ("parametros parados
+# aguentam 3 anos de regimes?") do que a que o treino recente responde ("o set,
+# reotimizado com frequencia, continua lucrativo?"). Caso real: CHFJPY/
+# 03_TRAIL_ONLY perdeu 99% em 3 anos (-98.5R, saldo 7.11) e o gate historico
+# completo deu OK por contagem de trades. As camadas, da mais barata pra mais
+# cara:
+#   1. CATASTROFE (passe continuo de 3 anos, sem custo extra): reprova se o
+#      saldo final fica abaixo de (100 - LIMITE_CATASTROFE_PCT)% do deposito.
+#   2. PERIODO ANTERIOR AO TREINO (dado que o set nunca viu), criterio MENOR
+#      que "ter lucro": so reprova perda maior que LIMITE_PERDA_ANTERIOR_PCT%
+#      do deposito. Set ajustado ao regime recente pode ficar perto de zero nos
+#      anos velhos; nao pode ser destrutivo.
+#   3. WFA (reotimizacao janela a janela) -- gate PRINCIPAL, criterio inalterado
+#      (WFE global > 0).
+# O antigo "lucro <= 0 nos 3 anos" deixou de reprovar; segue medido e gravado
+# so como informacao (holdout_longo_*). Os limites abaixo sao PROVISORIOS,
+# escolha minha ao implementar -- ajustar com dado real da campanha.
+LIMITE_CATASTROFE_PCT = 50.0
+LIMITE_PERDA_ANTERIOR_PCT = 20.0
+MIN_TRADES_PERIODO_ANTERIOR = 10
+MIN_DIAS_PERIODO_ANTERIOR = 120
+# Validade do set (cadencia de reotimizacao): PROVISORIA, o dono ainda nao
+# definiu -- 90 dias = 6x a janela OOS de 15 dias do WFO. Vai no JSON final
+# (validade_ate) pro dashboard/auto-manager poderem agir.
+VALIDADE_DIAS_PADRAO = 90
+
+
+def avaliar_catastrofe(profit: float | None,
+                       deposito: float) -> tuple[bool, str | None]:
+    """Camada 1: o passe continuo de 3 anos nao pode ter destruido a conta.
+    Sem medida (profit None) nao reprova -- ausencia de dado nunca derruba."""
+    if profit is None or not deposito:
+        return True, None
+    limite = -deposito * LIMITE_CATASTROFE_PCT / 100
+    if profit < limite:
+        return False, (f"catastrofe: prejuizo {profit:.2f} no passe continuo "
+                       f"de {PERIODO_PADRAO_HISTORICO_COMPLETO_ANOS} anos, "
+                       f"pior que -{LIMITE_CATASTROFE_PCT:.0f}% do deposito "
+                       f"({limite:.2f})")
+    return True, None
+
+
+def avaliar_periodo_anterior(profit: float | None, trades: int | None,
+                             deposito: float) -> tuple[bool, str]:
+    """Camada 2: periodo ANTERIOR ao treino, criterio menor que lucrar."""
+    if profit is None:
+        return True, ("periodo anterior ao treino: sem medida -- nao "
+                      "avaliado.")
+    if trades is not None and trades < MIN_TRADES_PERIODO_ANTERIOR:
+        return True, (f"periodo anterior ao treino: {trades} trades < "
+                      f"{MIN_TRADES_PERIODO_ANTERIOR}, amostra pequena "
+                      f"demais -- nao avaliado (lucro {profit:.2f}).")
+    limite = -deposito * LIMITE_PERDA_ANTERIOR_PCT / 100
+    if profit < limite:
+        return False, (f"periodo anterior ao treino: prejuizo {profit:.2f} "
+                       f"pior que -{LIMITE_PERDA_ANTERIOR_PCT:.0f}% do "
+                       f"deposito ({limite:.2f}).")
+    return True, (f"periodo anterior ao treino: lucro {profit:.2f} (piso "
+                  f"{limite:.2f}) -- OK.")
+
 
 def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
                                  origem: Path, params_desafiante: dict,
@@ -1856,6 +1919,13 @@ def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
                            MetodoDeEntradawfo="1")
     desafiante = _medir_desempenho(origem, passo_desafiante, simbolo, periodo,
                                    inicio, fim, deposito)
+
+    # Camada 1 (catastrofe): vale COM ou SEM campeao -- antes, sem campeao o
+    # gate so olhava "trades >= 30" e aprovou um candidato que perdeu 99%.
+    ok_catastrofe, motivo_catastrofe = avaliar_catastrofe(
+        desafiante.get("profit"), deposito)
+    if not ok_catastrofe:
+        return False, [motivo_catastrofe]
 
     campeao_registro = carregar_campeao_atual(sistema, simbolo, variante)
     campeao = {}
@@ -3850,6 +3920,7 @@ def main() -> int:
     # main() o modulo ja esta totalmente carregado quando isto executa.
     holdout_longo = None
     wfa_reotimizacao = None
+    periodo_anterior = None  # lido no JSON final mesmo se o gate nao rodar
     if aprovado:
         import wfa_real
         fim_holdout = datetime.now().strftime("%Y.%m.%d")
@@ -3866,9 +3937,30 @@ def main() -> int:
         holdout_longo = wfa_real.medir_holdout(
             origem, travados, args.symbol, args.period, inicio_holdout,
             fim_holdout, args.deposit)
-        print(f"    holdout longo: lucro {holdout_longo['profit']} | "
+        print(f"    holdout longo (so informativo, inclui o ano de treino): "
+              f"lucro {holdout_longo['profit']} | "
               f"{holdout_longo['metricas'].get('trades')} trades",
               flush=True)
+        # Camada 2: o periodo ANTERIOR ao treino (dado que o set nunca viu).
+        # Mesmo `medir_holdout` de cima, so que terminando onde o treino
+        # comeca. Sem dias suficientes de dado antes do treino, nao avalia.
+        ok_anterior, msg_anterior = True, None
+        dias_anteriores = (datetime.strptime(args.inicio, "%Y.%m.%d")
+                           - datetime.strptime(inicio_holdout, "%Y.%m.%d")).days
+        if dias_anteriores >= MIN_DIAS_PERIODO_ANTERIOR:
+            print(f"    periodo anterior ao treino ({inicio_holdout}.."
+                  f"{args.inicio}, {dias_anteriores} dias)...", flush=True)
+            periodo_anterior = wfa_real.medir_holdout(
+                origem, travados, args.symbol, args.period, inicio_holdout,
+                args.inicio, args.deposit)
+            ok_anterior, msg_anterior = avaliar_periodo_anterior(
+                periodo_anterior["profit"],
+                periodo_anterior["metricas"].get("trades"), args.deposit)
+            print(f"    {msg_anterior}", flush=True)
+        else:
+            print(f"    periodo anterior ao treino: so {dias_anteriores} dias "
+                  f"(< {MIN_DIAS_PERIODO_ANTERIOR}) -- nao avaliado.",
+                  flush=True)
         wfa_reotimizacao = wfa_real.medir_wfa(
             origem, travados_wfa, numeros_wfa, args.symbol, args.sistema,
             args.period, inicio_holdout, fim_holdout, args.deposit,
@@ -3904,11 +3996,11 @@ def main() -> int:
             print(f"    detalhe por janela (0/0 nas duas tentativas): "
                   f"{json.dumps(wfa_reotimizacao['detalhe'], ensure_ascii=False)}",
                   flush=True)
-        if holdout_longo["profit"] is None or holdout_longo["profit"] <= 0:
+        if not ok_anterior:
             aprovado = False
-            print("    REPROVADO no holdout longo: prejuizo no periodo "
-                  "continuo de anos, mesmo tendo vencido a janela curta do "
-                  "sweep.", flush=True)
+            print("    REPROVADO no periodo anterior ao treino: o set "
+                  "ajustado ao regime recente e DESTRUTIVO em dado que nunca "
+                  "viu.", flush=True)
         elif (wfa_reotimizacao["wfe_global_pct"] is None
               or wfa_reotimizacao["wfe_global_pct"] <= 0):
             aprovado = False
@@ -4070,6 +4162,20 @@ def main() -> int:
                       "holdout_longo_trades": (
                           holdout_longo["metricas"].get("trades")
                           if holdout_longo else None),
+                      # Camada 2 (periodo anterior ao treino), ver
+                      # LIMITE_PERDA_ANTERIOR_PCT. None = nao avaliado.
+                      "periodo_anterior_lucro": (
+                          periodo_anterior["profit"]
+                          if periodo_anterior else None),
+                      "periodo_anterior_trades": (
+                          periodo_anterior["metricas"].get("trades")
+                          if periodo_anterior else None),
+                      # Validade PROVISORIA do set (cadencia de reotimizacao),
+                      # ver VALIDADE_DIAS_PADRAO.
+                      "validade_ate": (
+                          datetime.strptime(args.fim, "%Y.%m.%d")
+                          + timedelta(days=VALIDADE_DIAS_PADRAO)
+                          ).strftime("%Y.%m.%d"),
                       "wfa_reotimizacao_medida": wfa_reotimizacao is not None,
                       "wfa_wfe_global_pct": (
                           wfa_reotimizacao["wfe_global_pct"]
