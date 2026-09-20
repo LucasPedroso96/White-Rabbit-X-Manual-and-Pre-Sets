@@ -174,7 +174,12 @@ def steps(start: float, step: float, stop: float) -> int:
 # 02_SLTP_ORGANIC=4, 03_TRAIL_ONLY=11, 05_BE_TRAIL=6, 06_REVERSAL_EXIT=5,
 # 07_GRID_SEPARATE=10, 09_MARTINGALE=10, 12_GRID_INVERSO=10.
 FORMULA_POR_SISTEMA = {
-    "01_SLTP": 12, "02_SLTP_ORGANIC": 5,
+    # 2026-09-20: 01_SLTP 12 -> 14 (EURUSD, 12 de 12 testadas): so a 14 SomaR
+    # aprovou (retencao 314.5%, holdout 3a +11069/188 trades, WFA 3/4); 3 e 6
+    # reprovaram, a 12 (producao) reprovou. PROVISORIO: WFE 5670% nao e
+    # crivel -- checagem cruzada em AUDUSD na fila de calibracao. Todos os
+    # templates 01_SLTP sao FixedR (PositionSizeMode=3), valido pra SomaR.
+    "01_SLTP": 14, "02_SLTP_ORGANIC": 5,
     # 2026-08-23: sweep completo das 14 formulas em XAUUSD (03_TRAIL_ONLY,
     # 3 meses, --deposit 10000) + confirmacao das 3 melhores (Profit,
     # PessimisticProfit, ReturnUniformity) em BTCUSD/USDJPY. ReturnUniformity
