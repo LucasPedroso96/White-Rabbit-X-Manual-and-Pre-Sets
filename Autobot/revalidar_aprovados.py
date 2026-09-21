@@ -126,25 +126,29 @@ def emitir(texto: str) -> None:
         fh.write(texto + "\n")
 
 
-def revalidar(c: dict) -> dict:
+def _contexto(c: dict):
     import optimize_sets as base
     import optimize_two_stage as ots
     import wfa_real
-
     origem = base.achar_set(c["simbolo"], c["sistema"], c["variante"])
-    if origem is None:
-        return {"erro": "sem template (achar_set devolveu None)"}
     travados = {k: str(v) for k, v in c["parametros"].items()}
     if c.get("formula"):
         travados["selectedFormula"] = str(c["formula"])  # criterio do WFA
-    dep = c["deposito"]
     fim_h = datetime.now().strftime("%Y.%m.%d")
     inicio_h = (datetime.now() - timedelta(
         days=round(ots.ANOS_HOLDOUT_LONGO * 365))).strftime("%Y.%m.%d")
-    res: dict = {"rotulo": c["rotulo"], "quando": datetime.now().isoformat(
-        timespec="seconds"), "janela_3a": [inicio_h, fim_h]}
-    t0 = time.time()
+    return ots, wfa_real, origem, travados, inicio_h, fim_h
 
+
+def fase1(c: dict) -> dict:
+    """Camadas BARATAS (2-3 passes): catastrofe e periodo anterior."""
+    ots, wfa_real, origem, travados, inicio_h, fim_h = _contexto(c)
+    if origem is None:
+        return {"erro": "sem template (achar_set devolveu None)"}
+    dep = c["deposito"]
+    res: dict = {"quando": datetime.now().isoformat(timespec="seconds"),
+                 "janela_3a": [inicio_h, fim_h]}
+    t0 = time.time()
     # 1) catastrofe: 3 anos continuos
     d3 = ots._medir_desempenho(
         origem, dict(travados, AtivarWFO="false", MetodoDeEntradawfo="1"),
@@ -152,9 +156,7 @@ def revalidar(c: dict) -> dict:
     res["tres_anos_lucro"] = d3.get("profit")
     res["tres_anos_trades"] = d3.get("trades")
     res["tres_anos_expectancy_r"] = d3.get("expectancy_r")
-    ok_cat, mot_cat = ots.avaliar_catastrofe(d3.get("profit"), dep)
-    res["catastrofe_ok"] = ok_cat
-
+    res["catastrofe_ok"] = ots.avaliar_catastrofe(d3.get("profit"), dep)[0]
     # 2) periodo anterior ao treino
     dias_ant = (datetime.strptime(c["inicio"], "%Y.%m.%d")
                 - datetime.strptime(inicio_h, "%Y.%m.%d")).days
@@ -168,8 +170,17 @@ def revalidar(c: dict) -> dict:
             ant["profit"], ant["metricas"].get("trades"), dep)
     res["anterior_ok"] = ok_ant
     res["anterior_msg"] = msg_ant
+    res["fase1_ok"] = bool(res["catastrofe_ok"] and ok_ant)
+    res["minutos_fase1"] = round((time.time() - t0) / 60, 1)
+    return res
 
-    # 3) WFA de reotimizacao (mesma chamada do circuito)
+
+def fase2(c: dict, res: dict) -> dict:
+    """WFA de reotimizacao (4 ciclos) -- a parte CARA (~8 mil passes por
+    janela no XAUUSD). So roda em quem passou a fase 1."""
+    ots, wfa_real, origem, travados, inicio_h, fim_h = _contexto(c)
+    dep = c["deposito"]
+    t0 = time.time()
     numeros = ots.eixos_reotimizaveis(c["sistema"], travados.get("EntryIndicator"))
     travados_wfa = {k: v for k, v in travados.items() if k not in numeros}
     wfa = wfa_real.medir_wfa(origem, travados_wfa, numeros, c["simbolo"],
@@ -183,28 +194,47 @@ def revalidar(c: dict) -> dict:
     res["wfa_ciclos_positivos"] = wfa["ciclos_positivos"]
     res["wfa_detalhe"] = [{k: v for k, v in j.items() if k != "params"}
                           for j in wfa["detalhe"]]
-    ok_wfa = wfa["wfe_global_pct"] is not None and wfa["wfe_global_pct"] > 0
-    res["wfa_ok"] = ok_wfa
-
-    res["veredito"] = "REVALIDADO" if (ok_cat and ok_ant and ok_wfa) else "REPROVADO"
-    res["falhou_em"] = [n for n, ok in (("catastrofe", ok_cat),
-                                        ("periodo_anterior", ok_ant),
-                                        ("wfa", ok_wfa)) if not ok]
-    res["minutos"] = round((time.time() - t0) / 60, 1)
+    res["wfa_ok"] = (wfa["wfe_global_pct"] is not None
+                     and wfa["wfe_global_pct"] > 0)
+    res["minutos_fase2"] = round((time.time() - t0) / 60, 1)
     return res
 
 
-def resumo(c: dict, r: dict) -> str:
+def fechar(res: dict) -> dict:
+    ok = {"catastrofe": res.get("catastrofe_ok", True),
+          "periodo_anterior": res.get("anterior_ok", True),
+          "wfa": res.get("wfa_ok", True)}
+    res["falhou_em"] = [n for n, v in ok.items() if not v]
+    res["veredito"] = "REVALIDADO" if not res["falhou_em"] else "REPROVADO"
+    return res
+
+
+def _fmt_base(r: dict) -> str:
+    return (f"3 anos: lucro {r.get('tres_anos_lucro')} / "
+            f"{r.get('tres_anos_trades')} tr / exp "
+            f"{r.get('tres_anos_expectancy_r')}R | anterior: "
+            f"{r.get('anterior_lucro')} ({r.get('anterior_trades')} tr)")
+
+
+def resumo_fase1(c: dict, r: dict) -> str:
     if "erro" in r:
         return f"REVALIDACAO {c['rotulo']} -> ERRO: {r['erro']}"
+    if r["fase1_ok"]:
+        return (f"REVALIDACAO fase1 {c['rotulo']} -> PASSOU catastrofe e "
+                f"periodo anterior (WFA a seguir)\n  {_fmt_base(r)}")
+    falhou = [n for n, v in (("catastrofe", r["catastrofe_ok"]),
+                             ("periodo_anterior", r["anterior_ok"])) if not v]
+    return (f"REVALIDACAO {c['rotulo']} -> REPROVADO (falhou: "
+            f"{', '.join(falhou)}) sem precisar de WFA\n  {_fmt_base(r)}")
+
+
+def resumo_final(c: dict, r: dict) -> str:
     wfe = r.get("wfe_global_pct")
     return (f"REVALIDACAO {c['rotulo']} -> {r['veredito']}"
             + (f" (falhou: {', '.join(r['falhou_em'])})" if r["falhou_em"] else "")
-            + f"\n  3 anos: lucro {r.get('tres_anos_lucro')} / "
-            f"{r.get('tres_anos_trades')} tr / exp {r.get('tres_anos_expectancy_r')}R"
-            f" | anterior: {r.get('anterior_lucro')} ({r.get('anterior_trades')} tr)"
-            f" | WFA {r.get('wfa_ciclos_positivos')} WFE "
-            f"{'n/d' if wfe is None else round(wfe)}% | {r.get('minutos')} min")
+            + f"\n  {_fmt_base(r)} | WFA {r.get('wfa_ciclos_positivos')} WFE "
+            f"{'n/d' if wfe is None else round(wfe)}% | fase2 "
+            f"{r.get('minutos_fase2')} min")
 
 
 def main() -> int:
@@ -227,16 +257,43 @@ def main() -> int:
                   f"({len(c['parametros'])} params)")
         print(f"{len(cands)} candidatos")
         return 0
-    for c in cands:
-        try:
-            r = revalidar(c)
-        except Exception as exc:  # um candidato quebrado nao para a fila
-            r = {"erro": f"{type(exc).__name__}: {exc}"}
-            traceback.print_exc()
+    def gravar(c: dict, r: dict) -> None:
         with RESULTADOS.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps({"rotulo": c["rotulo"], **r},
                                 ensure_ascii=False) + "\n")
-        emitir(resumo(c, r))
+
+    # FASE 1: camadas baratas em TODOS (resultado rapido, decide quem precisa
+    # da fase cara).
+    estado: dict[str, dict] = {}
+    for c in cands:
+        try:
+            r = fase1(c)
+        except Exception as exc:  # um candidato quebrado nao para a fila
+            r = {"erro": f"{type(exc).__name__}: {exc}"}
+            traceback.print_exc()
+        estado[c["rotulo"]] = r
+        if "erro" in r:
+            gravar(c, {"fase": 1, **r})
+        elif r["fase1_ok"]:
+            gravar(c, {"fase": 1, **r})
+        else:
+            gravar(c, {"fase": "final", **fechar(r)})
+        emitir(resumo_fase1(c, r))
+    # FASE 2: WFA so nos que sobreviveram.
+    for c in cands:
+        r = estado[c["rotulo"]]
+        if "erro" in r or not r.get("fase1_ok"):
+            continue
+        try:
+            r = fechar(fase2(c, r))
+        except Exception as exc:
+            r = {**r, "erro": f"{type(exc).__name__}: {exc}"}
+            traceback.print_exc()
+            emitir(f"REVALIDACAO {c['rotulo']} -> ERRO no WFA: {r['erro']}")
+            gravar(c, {"fase": "final", **r})
+            continue
+        gravar(c, {"fase": "final", **r})
+        emitir(resumo_final(c, r))
     emitir(f"REVALIDACAO: fila de {len(cands)} candidato(s) terminou.")
     return 0
 
