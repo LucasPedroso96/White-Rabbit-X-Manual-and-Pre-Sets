@@ -69,6 +69,13 @@ CAMPEOES = [
     ("CAMPEAO 03_TRAIL_ONLY GBPUSD", "campanha_clone_handoff_producao.log",
      "GBPUSD 03_TRAIL_ONLY BOTH_MULTI"),
 ]
+# Combos da campanha OFICIAL reprovados so no gate final sob codigo antigo
+# (contaminado): (rotulo, log, "SIM SIS VAR"). Ex.: USDJPY/03_TRAIL_ONLY passou
+# retencao/divergencia/% e caiu em holdout+WFA medidos com o arquivo do vizinho.
+REPROV_CAMPANHA = [
+    ("REPROV-CAMP USDJPY 03_TRAIL_ONLY", "campanha_oficial_trail.log",
+     "USDJPY 03_TRAIL_ONLY BOTH_MULTI"),
+]
 _CAB_JANELA = re.compile(
     r"^=== (\S+) (\S+) (\S+) \| (\d{4}\.\d\d\.\d\d) a (\d{4}\.\d\d\.\d\d) ===",
     re.M)
@@ -101,22 +108,44 @@ def carregar_candidatos() -> list[dict]:
             print(f"AVISO: sem candidato legivel em {nome}", flush=True)
             continue
         out.append(c)
-    for rotulo, nome, chave in CAMPEOES:
+    for rotulo, nome, chave in CAMPEOES + REPROV_CAMPANHA:
+        veredito_alvo = "REPROVADO" if rotulo.startswith("REPROV") else "APROVADO"
         f = AQUI / nome
         if not f.exists():
             continue
         alvo = None
         for rot, bloco in ac.blocos_campanha(
                 f.read_text(encoding="utf-8", errors="replace")):
-            if rot == chave and ac.auditar(bloco, rot)["veredito"] == "APROVADO":
-                alvo = bloco  # o mais recente aprovado
+            if rot == chave and ac.auditar(bloco, rot)["veredito"] == veredito_alvo:
+                alvo = bloco  # o mais recente com o veredito procurado
         if alvo is None:
-            print(f"AVISO: sem bloco APROVADO de {chave}", flush=True)
+            print(f"AVISO: sem bloco {veredito_alvo} de {chave}", flush=True)
             continue
         sistema = chave.split()[1]
         c = _candidato(rotulo, alvo, FORMULA_POR_SISTEMA.get(sistema))
         if c:
             out.append(c)
+    return out
+
+
+def carregar_anteriores() -> dict[str, dict]:
+    """Melhor registro por rotulo em revalidacao_resultados.jsonl: o que tem
+    veredito final vence; senao a fase 1 valida mais recente."""
+    out: dict[str, dict] = {}
+    if not RESULTADOS.exists():
+        return out
+    for ln in RESULTADOS.read_text(encoding="utf-8").splitlines():
+        try:
+            r = json.loads(ln)
+        except json.JSONDecodeError:
+            continue
+        rot = r.get("rotulo")
+        if not rot:
+            continue
+        if r.get("veredito"):
+            out[rot] = r
+        elif rot not in out or not out[rot].get("veredito"):
+            out[rot] = r
     return out
 
 
@@ -244,6 +273,9 @@ def main() -> int:
                                  formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--dry", action="store_true")
     ap.add_argument("--so", default="", help="rotulos separados por ';'")
+    ap.add_argument("--continuar", action="store_true",
+                    help="reaproveita revalidacao_resultados.jsonl: nao refaz "
+                         "candidato com veredito final nem a fase 1 ja medida")
     args = ap.parse_args()
     cands = carregar_candidatos()
     if args.so:
@@ -265,7 +297,15 @@ def main() -> int:
     # FASE 1: camadas baratas em TODOS (resultado rapido, decide quem precisa
     # da fase cara).
     estado: dict[str, dict] = {}
+    anteriores = carregar_anteriores() if args.continuar else {}
     for c in cands:
+        a = anteriores.get(c["rotulo"])
+        if a and a.get("veredito"):  # ja tem veredito final: nao refaz nada
+            estado[c["rotulo"]] = {**a, "_final": True}
+            continue
+        if a and a.get("fase1_ok") is not None and "erro" not in a:
+            estado[c["rotulo"]] = a  # fase 1 ja medida: so falta a fase 2
+            continue
         try:
             r = fase1(c)
         except Exception as exc:  # um candidato quebrado nao para a fila
@@ -282,7 +322,7 @@ def main() -> int:
     # FASE 2: WFA so nos que sobreviveram.
     for c in cands:
         r = estado[c["rotulo"]]
-        if "erro" in r or not r.get("fase1_ok"):
+        if r.get("_final") or "erro" in r or not r.get("fase1_ok"):
             continue
         try:
             r = fechar(fase2(c, r))
