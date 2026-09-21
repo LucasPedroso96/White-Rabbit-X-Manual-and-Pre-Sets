@@ -212,7 +212,12 @@ FORMULA_POR_SISTEMA = {
     # ha formula melhor pra aplicar), 06_REVERSAL_EXIT/12_GRID_INVERSO (sem
     # dado valido ainda) e 01_SLTP (redo em andamento). 03_TRAIL_ONLY segue
     # com o sweep de 2026-08-23/09-06.
-    "03_TRAIL_ONLY": 12, "04_SLTP_TRAIL": 11, "05_BE_TRAIL": 14,
+    # 2026-09-21: REVALIDACAO COMPLETA com a medicao corrigida (3 anos + periodo
+    # anterior + WFA). 04_SLTP_TRAIL XAUUSD: 11 confirmada (+0.162R, WFA 2/3,
+    # WFE 63%; empata com 9 e 3, ~0.16R) -- mantida. 05_BE_TRAIL 14 -> 3: unica
+    # com dado valido (XAUUSD +6946, 1289 tr, +0.054R, WFA 2/3 WFE 69%); a 14
+    # nao tinha evidencia nenhuma. 11_SIGNAL_ONLY 11 -> 9 (mais abaixo).
+    "03_TRAIL_ONLY": 12, "04_SLTP_TRAIL": 11, "05_BE_TRAIL": 3,
     "06_REVERSAL_EXIT": 9,  # 5 reprovou no holdout longo, ver nota no topo
     # 2026-08-04: testado Profit puro (2) guiando a busca do grid, com
     # GridSurvivalScore (1) so como filtro externo pos-busca -- comparado
@@ -249,7 +254,10 @@ FORMULA_POR_SISTEMA = {
     # nativo, MaxMartingaleLot ainda 0/sem teto), entao herda o mesmo risco.
     # 2026-09-06: 10 reprovou no holdout longo; ver nota no topo do dict.
     "09_MARTINGALE": 4, "10_DALEMBERT": 5,
-    "11_SIGNAL_ONLY": 11,  # 2026-09-20: era 4 (reprovou); ver nota no 04
+    # 2026-09-21: 11 -> 9 (XAUUSD, revalidada): f09 +3137 (+31%, 886 tr, WFA 3/3,
+    # WFE 101%) contra f11 +1524 e f03 +1159; a 11 fora aplicada por retencao de
+    # 90 dias (criterio fraco). Antes: 4 (reprovou) -> 11 -> 9.
+    "11_SIGNAL_ONLY": 9,
     # 12_GRID_INVERSO: A/B proprio agora (dono, 2026-08-19), XAUUSD/
     # 12_GRID_INVERSO/BUY_MULTI, 3 meses, mesmo padrao usado no 07:
     # GridSurvivalScore-guiado REPROVOU (retencao OOS -27.1%, negativa --

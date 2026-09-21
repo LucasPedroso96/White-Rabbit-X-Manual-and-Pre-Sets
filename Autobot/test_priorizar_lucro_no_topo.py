@@ -83,8 +83,8 @@ checar("12_GRID_INVERSO usa profit_formula (formula 2, pos-triagem)",
        campo_da_formula("12_GRID_INVERSO"), "profit_formula")
 checar("03_TRAIL_ONLY usa system_robustness (formula 12, pos-triagem)",
        campo_da_formula("03_TRAIL_ONLY"), "system_robustness")
-checar("05_BE_TRAIL usa soma_r (formula 14, pos-triagem)",
-       campo_da_formula("05_BE_TRAIL"), "soma_r")
+checar("05_BE_TRAIL usa profit_win_trade_dd (formula 3, revalidacao 2026-09-21)",
+       campo_da_formula("05_BE_TRAIL"), "profit_win_trade_dd")
 
 try:
     campo_da_formula("99_INEXISTENTE")
