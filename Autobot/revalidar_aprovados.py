@@ -76,6 +76,17 @@ REPROV_CAMPANHA = [
     ("REPROV-CAMP USDJPY 03_TRAIL_ONLY", "campanha_oficial_trail.log",
      "USDJPY 03_TRAIL_ONLY BOTH_MULTI"),
 ]
+# Ordem da fase 2 (WFA, ~85 min/candidato no XAUUSD): primeiro quem pode virar
+# decisao (expectativa alta ou campeao real), por ultimo o edge nulo.
+PRIORIDADE_FASE2 = [
+    "04_SLTP_TRAIL XAUUSD f09", "04_SLTP_TRAIL XAUUSD f11",
+    "REPROV 04_SLTP_TRAIL XAUUSD f03", "11_SIGNAL_ONLY XAUUSD f09",
+    "CAMPEAO 02_SLTP_ORGANIC GBPUSD", "07_GRID_SEPARATE AUDNZD f10",
+    "REPROV 05_BE_TRAIL XAUUSD f03", "04_SLTP_TRAIL XAUUSD f12",
+    "11_SIGNAL_ONLY XAUUSD f11", "11_SIGNAL_ONLY XAUUSD f03",
+    "04_SLTP_TRAIL XAUUSD f10", "04_SLTP_TRAIL XAUUSD f08",
+    "REPROV 04_SLTP_TRAIL XAUUSD f01",
+]
 _CAB_JANELA = re.compile(
     r"^=== (\S+) (\S+) (\S+) \| (\d{4}\.\d\d\.\d\d) a (\d{4}\.\d\d\.\d\d) ===",
     re.M)
@@ -347,8 +358,13 @@ def main() -> int:
         else:
             gravar(c, {"fase": "final", **fechar(r)})
         emitir(resumo_fase1(c, r))
-    # FASE 2: WFA so nos que sobreviveram.
-    for c in cands:
+    # FASE 2: WFA so nos que sobreviveram, MAIS RELEVANTES PRIMEIRO. Ritmo
+    # medido (2026-09-21): ~20 min por janela e ~85 min por candidato no XAUUSD;
+    # a ordem da lista gastava horas em edge nulo (f1/f8/f10) antes das fortes.
+    def _prio(c: dict) -> int:
+        return (PRIORIDADE_FASE2.index(c["rotulo"])
+                if c["rotulo"] in PRIORIDADE_FASE2 else len(PRIORIDADE_FASE2))
+    for c in sorted(cands, key=_prio):
         r = estado[c["rotulo"]]
         if r.get("_final") or "erro" in r or not r.get("fase1_ok"):
             continue
