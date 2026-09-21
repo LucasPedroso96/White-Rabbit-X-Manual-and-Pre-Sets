@@ -149,6 +149,27 @@ def carregar_anteriores() -> dict[str, dict]:
     return out
 
 
+def rejulgar(c: dict, a: dict) -> dict:
+    """Reaplica as regras ATUAIS (catastrofe/periodo anterior) sobre numeros ja
+    medidos -- a medicao nao muda, so o criterio. Se um candidato que estava
+    aprovado (fase 1 ok ou REVALIDADO) passa a falhar, vira REPROVADO e
+    `mudou` fica True."""
+    import optimize_two_stage as ots
+    dep = c["deposito"]
+    cat = ots.avaliar_catastrofe(a.get("tres_anos_lucro"), dep)[0]
+    ant = a.get("anterior_ok", True)
+    if a.get("anterior_lucro") is not None:
+        ant = ots.avaliar_periodo_anterior(a["anterior_lucro"],
+                                           a.get("anterior_trades"), dep)[0]
+    novo = dict(a, catastrofe_ok=cat, anterior_ok=ant,
+                fase1_ok=bool(cat and ant))
+    estava_ok = bool(a.get("fase1_ok")) or a.get("veredito") == "REVALIDADO"
+    if estava_ok and not novo["fase1_ok"]:
+        novo = fechar(novo)
+        novo["mudou"] = True
+    return novo
+
+
 def emitir(texto: str) -> None:
     print(texto, flush=True)
     with EVENTOS.open("a", encoding="utf-8") as fh:
@@ -300,6 +321,13 @@ def main() -> int:
     anteriores = carregar_anteriores() if args.continuar else {}
     for c in cands:
         a = anteriores.get(c["rotulo"])
+        if a and "erro" not in a and a.get("tres_anos_lucro") is not None:
+            a = rejulgar(c, a)  # aplica a regra ATUAL sobre a medicao gravada
+            if a.get("mudou"):
+                gravar(c, {"fase": "final", **{k: v for k, v in a.items()
+                                                if k != "mudou"}})
+                emitir(resumo_final(c, a) + "\n  (re-julgado pela regra "
+                       "atual: resultado liquido nos 3 anos)")
         if a and a.get("veredito"):  # ja tem veredito final: nao refaz nada
             estado[c["rotulo"]] = {**a, "_final": True}
             continue

@@ -37,6 +37,17 @@ checar("um centavo abaixo reprova", avaliar_catastrofe(lim - 0.01, 1000)[0], Fal
 checar("profit None passa", avaliar_catastrofe(None, 1000)[0], True)
 checar("deposito 0 passa", avaliar_catastrofe(-5, 0)[0], True)
 
+# --- camada 1 apertada (2026-09-20): resultado liquido nos 3 anos ------------
+# 02_SLTP_ORGANIC/GBPUSD f11 (medicao corrigida): -156.56 em 3 anos passava com
+# o limite antigo de -50%; agora reprova.
+checar("limite de catastrofe agora e 0%", LIMITE_CATASTROFE_PCT, 0.0)
+checar("f11 GBPUSD -156.56 reprova", avaliar_catastrofe(-156.56, 1000)[0], False)
+checar("prejuizo de 1 centavo reprova", avaliar_catastrofe(-0.01, 1000)[0], False)
+checar("lucro de 1 centavo passa", avaliar_catastrofe(0.01, 1000)[0], True)
+# lucros reais revalidados que continuam passando
+checar("04 XAUUSD f11 +13647 passa", avaliar_catastrofe(13647.53, 10000)[0], True)
+checar("07 AUDNZD f10 +624 passa", avaliar_catastrofe(624.07, 1000)[0], True)
+
 # --- camada 2: periodo anterior ao treino -----------------------------------
 # critério MENOR que lucrar: perda pequena passa.
 ok, msg = avaliar_periodo_anterior(-50.0, 40, 1000)

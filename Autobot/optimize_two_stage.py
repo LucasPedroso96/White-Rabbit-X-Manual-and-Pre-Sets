@@ -1861,18 +1861,24 @@ PERIODO_PADRAO_HISTORICO_COMPLETO_ANOS = 3
 # 03_TRAIL_ONLY perdeu 99% em 3 anos (-98.5R, saldo 7.11) e o gate historico
 # completo deu OK por contagem de trades. As camadas, da mais barata pra mais
 # cara:
-#   1. CATASTROFE (passe continuo de 3 anos, sem custo extra): reprova se o
-#      saldo final fica abaixo de (100 - LIMITE_CATASTROFE_PCT)% do deposito.
+#   1. RESULTADO LIQUIDO NOS 3 ANOS (passe continuo, sem custo extra): reprova
+#      se o saldo final fica abaixo de (100 - LIMITE_CATASTROFE_PCT)% do
+#      deposito. Comecou em 50% ("nao destruir a conta") e foi APERTADO pra 0%
+#      (= reprova se perdeu dinheiro) em 2026-09-20 apos a revalidacao com a
+#      medicao corrigida: 02_SLTP_ORGANIC/GBPUSD f11 passava com -15.7% e
+#      expectancy -0.036R (perde nos 3 anos e no periodo anterior). Achado: o
+#      criterio antigo "lucro > 0 em 3 anos" estava CERTO -- o problema era a
+#      medicao contaminada (ALL_FORMULAS do vizinho), nao a regra.
 #   2. PERIODO ANTERIOR AO TREINO (dado que o set nunca viu), criterio MENOR
 #      que "ter lucro": so reprova perda maior que LIMITE_PERDA_ANTERIOR_PCT%
 #      do deposito. Set ajustado ao regime recente pode ficar perto de zero nos
 #      anos velhos; nao pode ser destrutivo.
 #   3. WFA (reotimizacao janela a janela) -- gate PRINCIPAL, criterio inalterado
 #      (WFE global > 0).
-# O antigo "lucro <= 0 nos 3 anos" deixou de reprovar; segue medido e gravado
-# so como informacao (holdout_longo_*). Os limites abaixo sao PROVISORIOS,
-# escolha minha ao implementar -- ajustar com dado real da campanha.
-LIMITE_CATASTROFE_PCT = 50.0
+# O holdout WFO-intercalado de 3 anos segue medido e gravado so como informacao
+# (holdout_longo_*); o veredito de "lucro nos 3 anos" agora vem da camada 1, no
+# passe continuo. Os limites abaixo sao PROVISORIOS -- ajustar com dado real.
+LIMITE_CATASTROFE_PCT = 0.0
 LIMITE_PERDA_ANTERIOR_PCT = 20.0
 MIN_TRADES_PERIODO_ANTERIOR = 10
 MIN_DIAS_PERIODO_ANTERIOR = 120
@@ -1891,9 +1897,9 @@ def avaliar_catastrofe(profit: float | None,
     limite = -deposito * LIMITE_CATASTROFE_PCT / 100
     if profit < limite:
         return False, (f"catastrofe: prejuizo {profit:.2f} no passe continuo "
-                       f"de {PERIODO_PADRAO_HISTORICO_COMPLETO_ANOS} anos, "
-                       f"pior que -{LIMITE_CATASTROFE_PCT:.0f}% do deposito "
-                       f"({limite:.2f})")
+                       f"de {PERIODO_PADRAO_HISTORICO_COMPLETO_ANOS} anos "
+                       f"(limite {limite:.2f} = "
+                       f"-{LIMITE_CATASTROFE_PCT:.0f}% do deposito)")
     return True, None
 
 
