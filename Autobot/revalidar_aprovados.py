@@ -255,8 +255,8 @@ def fase2(c: dict, res: dict) -> dict:
     res["wfa_ciclos_positivos"] = wfa["ciclos_positivos"]
     res["wfa_detalhe"] = [{k: v for k, v in j.items() if k != "params"}
                           for j in wfa["detalhe"]]
-    res["wfa_ok"] = (wfa["wfe_global_pct"] is not None
-                     and wfa["wfe_global_pct"] > 0)
+    res["wfa_ok"], res["wfa_motivo"] = ots.avaliar_wfa(
+        wfa["wfe_global_pct"], wfa["ciclos_positivos"], c["sistema"])
     res["minutos_fase2"] = round((time.time() - t0) / 60, 1)
     return res
 
@@ -308,6 +308,11 @@ def main() -> int:
     ap.add_argument("--continuar", action="store_true",
                     help="reaproveita revalidacao_resultados.jsonl: nao refaz "
                          "candidato com veredito final nem a fase 1 ja medida")
+    ap.add_argument("--refazer-wfa", action="store_true",
+                    help="com --continuar: descarta so o resultado do WFA "
+                         "(feito ANTES da correcao do WFA cego, 2026-09-21) e "
+                         "o refaz; mantem as camadas 1 e 2, que nao foram "
+                         "afetadas")
     args = ap.parse_args()
     cands = carregar_candidatos()
     if args.so:
@@ -330,6 +335,17 @@ def main() -> int:
     # da fase cara).
     estado: dict[str, dict] = {}
     anteriores = carregar_anteriores() if args.continuar else {}
+    if args.refazer_wfa:
+        campos_wfa = ("veredito", "falhou_em", "wfa_ok", "wfe_global_pct",
+                      "wfa_ciclos_positivos", "wfa_detalhe", "minutos_fase2",
+                      "fase")
+        for rot, v in list(anteriores.items()):
+            if v.get("wfa_ok") is None or "erro" in v:
+                continue  # nunca chegou ao WFA: nada a descartar
+            ok = bool(v.get("catastrofe_ok")) and bool(v.get("anterior_ok"))
+            novo = {k: x for k, x in v.items() if k not in campos_wfa}
+            novo["fase1_ok"] = ok
+            anteriores[rot] = novo
     for c in cands:
         a = anteriores.get(c["rotulo"])
         if a and "erro" not in a and a.get("tres_anos_lucro") is not None:

@@ -81,6 +81,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import shutil
@@ -1886,6 +1887,41 @@ MIN_DIAS_PERIODO_ANTERIOR = 120
 # definiu -- 90 dias = 6x a janela OOS de 15 dias do WFO. Vai no JSON final
 # (validade_ate) pro dashboard/auto-manager poderem agir.
 VALIDADE_DIAS_PADRAO = 90
+
+
+# Piso do WFA (2026-09-21), calibrado com os 14 candidatos revalidados com o
+# WFA CORRIGIDO (input_end_date amarrado): antes o gate era so "WFE global > 0",
+# que deixava passar o campeao real 02_SLTP_ORGANIC/GBPUSD com 2/4 ciclos e WFE
+# ~0%. Entre os candidatos de Fixed-R os bons tem WFE >= 34% e >= 3/4 ciclos; o
+# fraco fica em ~0%. Sistemas de GRADE / sem stop nativo (SISTEMAS_GATE_
+# SOBREVIVENCIA: lucro em rajadas por cesta) tem WFE estruturalmente menor
+# (07_GRID f10 = 12%, 11_SIGNAL f11 = 20%), entao o piso deles e a metade.
+# PROVISORIO -- escolha minha, ajustar com dado da campanha.
+WFA_WFE_MIN_PCT = 20.0
+WFA_WFE_MIN_PCT_SEM_SL = 10.0
+WFA_FRACAO_CICLOS_MIN = 0.5
+
+
+def avaliar_wfa(wfe: float | None, ciclos_positivos: str | None,
+                sistema: str) -> tuple[bool, str]:
+    """Gate PRINCIPAL da validacao longa: WFE global e ciclos positivos.
+
+    Devolve (ok, motivo). `ciclos_positivos` vem como "3/4"."""
+    if wfe is None:
+        return False, "WFA sem nenhuma janela medida"
+    if wfe <= 0:
+        return False, f"WFE global {wfe:.0f}% <= 0"
+    piso = (WFA_WFE_MIN_PCT_SEM_SL if sistema in SISTEMAS_GATE_SOBREVIVENCIA
+            else WFA_WFE_MIN_PCT)
+    if wfe < piso:
+        return False, f"WFE global {wfe:.0f}% abaixo do piso de {piso:.0f}%"
+    m = re.match(r"\s*(\d+)\s*/\s*(\d+)", ciclos_positivos or "")
+    if m and int(m.group(2)) > 0:
+        pos, tot = int(m.group(1)), int(m.group(2))
+        if pos < math.ceil(tot * WFA_FRACAO_CICLOS_MIN):
+            return False, (f"so {pos} de {tot} ciclos positivos (minimo "
+                           f"{math.ceil(tot * WFA_FRACAO_CICLOS_MIN)})")
+    return True, f"WFE {wfe:.0f}%, ciclos {ciclos_positivos}"
 
 
 def avaliar_catastrofe(profit: float | None,
@@ -4133,12 +4169,16 @@ def main() -> int:
             print("    REPROVADO no periodo anterior ao treino: o set "
                   "ajustado ao regime recente e DESTRUTIVO em dado que nunca "
                   "viu.", flush=True)
-        elif (wfa_reotimizacao["wfe_global_pct"] is None
-              or wfa_reotimizacao["wfe_global_pct"] <= 0):
+        elif not avaliar_wfa(wfa_reotimizacao["wfe_global_pct"],
+                             wfa_reotimizacao["ciclos_positivos"],
+                             args.sistema)[0]:
             aprovado = False
-            print("    REPROVADO na WFA de reotimizacao: WFE global <= 0 -- "
-                  "o resultado nao se sustenta quando reotimizado janela a "
-                  "janela (sinal de overfitting na janela curta).",
+            print("    REPROVADO na WFA de reotimizacao: "
+                  + avaliar_wfa(wfa_reotimizacao["wfe_global_pct"],
+                                wfa_reotimizacao["ciclos_positivos"],
+                                args.sistema)[1]
+                  + " -- o resultado nao se sustenta quando reotimizado "
+                  "janela a janela (sinal de overfitting na janela curta).",
                   flush=True)
         else:
             print("    OK: sobreviveu ao holdout longo E a WFA de "
