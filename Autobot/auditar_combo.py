@@ -86,7 +86,15 @@ def auditar(texto: str, rotulo: str = "") -> dict:
     js = json_final(texto)
     aprov = re.search(r"^\s+APROVADO: candidato pronto", texto, re.M) is not None
     repro = re.search(r"^\s+REPROVADO: nao promova", texto, re.M) is not None
-    veredito = ("APROVADO" if aprov else "REPROVADO" if repro
+    # Reprovacao ANTECIPADA (emitir_reprovado_cedo: Estagio 1/2 sem candidato,
+    # confirmacao sem retencao...) nao imprime "REPROVADO: nao promova"; so
+    # grava o JSON com `motivo_reprovacao_precoce` e a linha final
+    # "-> reprovado". Sem isto o auditor lia esses combos como INCOMPLETO
+    # (achado 2026-09-21, AUDCHF/03_TRAIL_ONLY: 0 de 2513 candidatos no
+    # Estagio 2).
+    repro_cedo = bool(js.get("motivo_reprovacao_precoce")
+                      or re.search(r"^\s*-> reprovado\b", texto, re.M))
+    veredito = ("APROVADO" if aprov else "REPROVADO" if (repro or repro_cedo)
                 else "INCOMPLETO")
 
     motivo = None
