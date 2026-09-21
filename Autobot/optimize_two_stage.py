@@ -2281,8 +2281,26 @@ def limpar_todas_formulas() -> None:
     contar_agentes() em mt5_runner.py) gravam no MESMO arquivo
     (FILE_COMMON); sem limpar antes, a proxima rodada leria linhas de uma
     rodada anterior junto com as suas.
+
+    O arquivo e da MAQUINA inteira (ver escolher_linha_propria): o terminal
+    VIZINHO pode estar com ele aberto escrevendo, e no Windows o unlink falha
+    com PermissionError [WinError 32] -- foi isso que derrubou o candidato
+    11_SIGNAL_ONLY f03 da revalidacao (2026-09-21) com "ERRO no WFA". Tenta
+    algumas vezes; se nao conseguir, SEGUE sem limpar: os consumidores casam
+    por fingerprint (escolher_linha_propria / casar_formula_com_relatorio),
+    entao linha sobrando de outra rodada e ignorada, nao corrompe. Falhar aqui
+    era o pior dos mundos (crash de um combo de horas por causa de um arquivo
+    que nem precisa mais estar limpo).
     """
-    ARQUIVO_TODAS_FORMULAS.unlink(missing_ok=True)
+    for tentativa in range(6):
+        try:
+            ARQUIVO_TODAS_FORMULAS.unlink(missing_ok=True)
+            return
+        except PermissionError:
+            time.sleep(1.0)
+    print("    AVISO: nao consegui limpar levain_wrx_all_formulas.txt (aberto "
+          "por outro terminal); sigo sem limpar -- leitura casa por "
+          "fingerprint.", flush=True)
 
 
 def carregar_todas_formulas() -> list[dict]:
@@ -2292,7 +2310,16 @@ def carregar_todas_formulas() -> list[dict]:
     """
     if not ARQUIVO_TODAS_FORMULAS.exists():
         return []
-    texto = ARQUIVO_TODAS_FORMULAS.read_text(encoding="utf-16", errors="replace")
+    texto = None
+    for tentativa in range(6):  # o vizinho pode estar com o arquivo aberto
+        try:
+            texto = ARQUIVO_TODAS_FORMULAS.read_text(encoding="utf-16",
+                                                      errors="replace")
+            break
+        except PermissionError:
+            time.sleep(1.0)
+    if texto is None:
+        return []  # sem a nota externa; os chamadores toleram lista vazia
     return ler_todas_formulas(texto)
 
 
