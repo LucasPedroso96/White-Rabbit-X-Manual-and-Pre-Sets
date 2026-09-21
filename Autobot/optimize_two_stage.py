@@ -2368,6 +2368,39 @@ def _priorizar_lucro_na_fatia(cab: list[str], linhas_por_formula: list[list[str]
     return topo + resto
 
 
+_RX_INPUT_END_DATE = re.compile(r"^(input_end_date=)([^\r\n|]*)", re.M)
+
+
+def alinhar_data_final(caminho_set: Path, fim: str) -> str | None:
+    """Amarra `input_end_date` do .set ao `fim` do teste (ToDate do .ini).
+
+    A EA compara input_end_date com o fim real do teste (EndDateToleranceHours
+    = 80 h); se nao bater, entende que o backtest "quebrou" e o OnTester
+    devolve 0.0 em TODO passe, em silencio -- o genetico evolui as cegas.
+    Foi o bug do WFA cego (2026-09-21, dono: "nao tem como amarrar essa data
+    final com a data do tester sempre?"). Aqui e o PONTO UNICO: rodar() e
+    passe_unico() recebem o `fim` do teste e chamam isto antes de lancar, entao
+    nenhum chamador -- atual ou futuro -- consegue desalinhar. Vale mesmo com
+    AtivarWFO=false (o campo e ignorado, alinhar e inofensivo).
+
+    So mexe em COPIA DE TRABALHO (nome comeca com "_": _ETAPA.set,
+    _MEDIR_DESEMPENHO.set, _WFA_JANELA.set...), nunca em template ou campeao.
+    Devolve o valor ANTERIOR se alterou, None se ja estava certo ou nao se
+    aplica.
+    """
+    if not caminho_set.name.startswith("_") or not caminho_set.exists():
+        return None
+    texto = caminho_set.read_bytes().decode("utf-16")
+    m = _RX_INPUT_END_DATE.search(texto)
+    if not m or m.group(2).strip() == fim:
+        return None
+    novo = _RX_INPUT_END_DATE.sub(lambda mm: mm.group(1) + fim, texto, count=1)
+    tmp = caminho_set.with_suffix(".set.tmp")
+    tmp.write_bytes(novo.encode("utf-16"))
+    os.replace(tmp, caminho_set)
+    return m.group(2).strip()
+
+
 def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
                 fim: str, deposito: int, modelo: int,
                 timeout: int | None = None, variante: str = "") -> dict:
@@ -2399,6 +2432,10 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
     intacto.
     """
     rel = str(caminho_set.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
+    _antigo = alinhar_data_final(caminho_set, fim)
+    if _antigo:
+        print(f"    (input_end_date do set {_antigo} -> {fim}, casado com o "
+              "fim do teste)", flush=True)
     # Achado ao vivo, 2026-09-14: o agente local do tester as vezes recusa a
     # conexao do terminal ("authorization failed (Invalid parameters)") e o
     # teste nem roda -- 17 de ~800 passes da bateria_logica, 14 vezes num dia
@@ -2591,6 +2628,10 @@ def rodar(caminho_set: Path, symbol: str, periodo: str, inicio: str, fim: str,
     sempre a copia de trabalho renomeada (_ETAPA.set), nunca o .set original.
     """
     rel = str(caminho_set.relative_to(base.DADOS / "MQL5" / "Profiles" / "Tester"))
+    _antigo = alinhar_data_final(caminho_set, fim)
+    if _antigo:
+        print(f"    (input_end_date do set {_antigo} -> {fim}, casado com o "
+              "fim do teste)", flush=True)
     nome_rel = "otim_wrx"
     for velho in base.DADOS.glob(f"{nome_rel}*"):
         velho.unlink(missing_ok=True)
