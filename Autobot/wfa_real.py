@@ -241,6 +241,12 @@ def medir_forward(origem: Path, travados: dict, numeros: list[str],
 # Modo 3: wfa -- reotimiza por janela, curva OOS concatenada, WFE de verdade
 # ---------------------------------------------------------------------------
 
+# WFO interno da EA DESLIGADO (backtest simples da janela pedida). MetodoDe
+# Entradawfo=1 = "In-Sample + Out-of-Sample" (mesmo valor de medir_holdout e
+# do passe continuo de confirmar_historico_completo).
+WFO_DESLIGADO = {"AtivarWFO": "false", "MetodoDeEntradawfo": "1"}
+
+
 def medir_wfa(origem: Path, travados: dict, numeros: list[str], symbol: str,
              sistema: str, periodo: str, inicio: str, fim: str,
              deposito: int, ciclos_alvo: int, timeout: int,
@@ -289,7 +295,21 @@ def medir_wfa(origem: Path, travados: dict, numeros: list[str], symbol: str,
         # de reintroduzir a mesma classe de bug a cada mudanca de janela.
         piso = ots.piso_trades_da_janela(is_ini, is_fim, taxa_anual=0,
                                          piso_minimo=12)
-        n = ots.reescrever(origem, trabalho, numeros, travados)
+        # BUG REAL (2026-09-21, dono: "a data final do input esta zerando"):
+        # `travados` carregava os inputs de WFO da corrida ORIGINAL
+        # (input_end_date/wfo_customWindowSizeDays de outra epoca). Numa
+        # janela de anos atras a EA ve o fim do teste != input_end_date
+        # (tolerancia de 80 h), entende que o backtest "quebrou" e o OnTester
+        # devolve 0.0 em TODO passe -- o genetico evoluia as cegas (43 de 43
+        # otimizacoes do WFA de 21/09 com "Best result 0"; 27 de 93 em 20/09).
+        # Teste ao vivo (mesma janela, 20 passes): WFO velho -> Result 0 em 20;
+        # AtivarWFO=false -> Result != 0 em 12. O WFA e 100% Python (IS numa
+        # janela, OOS num passe separado), entao o WFO INTERNO da EA e
+        # redundante aqui: desligado, a janela IS inteira e in-sample por
+        # construcao e o lucro/dia do WFE bate com is_dias. NAO mexer nos
+        # Estagios 1-4 do circuito: la o WFO interno e o que separa IS/OOS.
+        n = ots.reescrever(origem, trabalho, numeros,
+                           dict(travados, **WFO_DESLIGADO))
         cab, linhas = ots.rodar(trabalho, symbol, periodo, is_ini, is_fim,
                                 deposito, 1, timeout, variante=origem.stem)
         total_passes += len(linhas)
@@ -306,8 +326,13 @@ def medir_wfa(origem: Path, travados: dict, numeros: list[str], symbol: str,
                                        "Recovery Factor", "Sharpe Ratio",
                                        "Custom", "Equity DD %", "Trades")}
         lucro_is = base.num(aptos[0][cab.index("Profit")])
-        oos_r = ots._medir_desempenho(origem, dict(travados, **vencedor_janela),
-                                      symbol, periodo, oos_ini, oos_fim, deposito)
+        # Passe OOS tambem sem WFO interno: com o WFO velho o log mostrava
+        # "Optimization Mode is 'In Sample', so no trade is opened
+        # out-of-sample" -- a EA operava so parte da janela e o lucro OOS/dia
+        # do WFE ficava subestimado.
+        oos_r = ots._medir_desempenho(
+            origem, dict(travados, **vencedor_janela, **WFO_DESLIGADO),
+            symbol, periodo, oos_ini, oos_fim, deposito)
         lucro_oos = oos_r.get("profit")
         wfe_i = wfe(lucro_oos, oos_dias, lucro_is, is_dias)
         detalhe.append({"janela": i, "is": [is_ini, is_fim],
