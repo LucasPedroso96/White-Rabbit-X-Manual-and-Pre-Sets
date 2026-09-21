@@ -491,6 +491,12 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args,
            # extra pra ICHIMOKU/BOLLINGER: eixos_do_indicador() so ativa
            # quando ha EntryIndicator vencedor de verdade (variante MULTI).
            "--indicador-solo"]
+    # Teto do Estagio 3.5 (geometria em tick real): em XAUUSD ele levaria ~6 h
+    # e nunca devolvia resultado (ver optimize_two_stage --timeout-geometria).
+    # Opt-in: 0 = comportamento de sempre (usa --timeout).
+    if getattr(args, "timeout_geometria_min", 0) > 0:
+        cmd += ["--timeout-geometria",
+                str(int(args.timeout_geometria_min * 60))]
     # Camada de recuperacao (dono, 2026-09-08/09): so repassa --recuperacao
     # pros sistemas ELEGIVEIS. Sem este filtro, uma campanha com 07/12
     # misturados aos outros e --recuperacao martingale pedido travaria os
@@ -616,6 +622,9 @@ def main() -> int:
                          "pra TODOS os combos, mesmo misturando classes")
     ap.add_argument("--min-retencao", type=float, default=30.0)
     ap.add_argument("--timeout", type=int, default=43200)
+    ap.add_argument("--timeout-geometria-min", type=float, default=0.0,
+                    help="teto (min) do Estagio 3.5 por combo; 0 = sem teto "
+                         "proprio. Use ~15 em XAUUSD (3.5 ~6 h, sem resultado).")
     ap.add_argument("--limite", type=int, default=0, help="0 = sem limite")
     ap.add_argument("--listar", action="store_true")
     ap.add_argument("--sistemas", default="",
