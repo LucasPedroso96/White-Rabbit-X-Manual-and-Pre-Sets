@@ -86,6 +86,15 @@ def eventos_calibracao() -> list[tuple[str, str, bool]]:
                 continue
             texto = ler(f)
             a = ac.auditar(texto, ac.rotulo_sweep(texto, f.stem))
+            if a["veredito"] == "INCOMPLETO":
+                # Formula ainda RODANDO (sweep_formulas.py imprime "log salvo
+                # em X.log" no INICIO da formula, nao no fim -- achado
+                # 2026-09-22): sem isto, cada escrita nova no log muda o
+                # mtime e reemite "INCOMPLETO" pro mesmo combo em curso, uma
+                # vez por checagem, ate ele terminar. Trava genuina ja e
+                # coberta por vigia_saude.py (TRAVADO/CRITERIO_ZERADO); aqui
+                # so vale notificar quando ha veredito de verdade.
+                continue
             curto = re.sub(r"^sweep_|\.log$", "", nome)
             a["rotulo"] += f" [{curto}]"
             relevante = (a["veredito"] != "REPROVADO"
