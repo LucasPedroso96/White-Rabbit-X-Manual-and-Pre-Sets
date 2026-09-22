@@ -431,7 +431,17 @@ ASSETS: dict[str, list[str]] = {
         "EURUSD", "GBPAUD", "GBPCAD", "GBPCHF", "GBPJPY", "GBPNZD", "GBPUSD",
         "NZDCAD", "NZDCHF", "NZDJPY", "NZDUSD", "USDCAD", "USDCHF", "USDJPY"],
     "02_Cryptocurrencies": ["ADAUSD", "BTCUSD", "DOGEUSD", "ETHUSD", "SOLUSD", "XRPUSD"],
-    "03_Indices_Energies": ["BRENT", "WTI"],
+    # .US30Cash/.US500Cash/.USTECHCash/.JP225Cash/.DE40Cash adicionados
+    # 2026-09-22 (dono: "os que voce falou de deixar de fora, vamos fazer em
+    # sequencia") -- mesmo criterio de tendencia sustentada (3 anos
+    # continuos positivos) usado pra escolher XAGUSD/XAUEUR/AAPL/NVDA/AMZN,
+    # focando no 04_SLTP_TRAIL (unico sistema validado de ponta a ponta na
+    # campanha oficial do XAUUSD). Templates gerados por
+    # gerar_templates_indices.py (incremental, nao pelo main() completo
+    # deste arquivo -- ver docstring la, evita rmtree destrutivo na
+    # biblioteca inteira com campanhas ao vivo lendo os arquivos).
+    "03_Indices_Energies": ["BRENT", "WTI", ".US30Cash", ".US500Cash",
+                            ".USTECHCash", ".JP225Cash", ".DE40Cash"],
     "04_US_Stocks_CFD": [
         "AAPL", "ADBE", "AMZN", "BA", "BAC", "BRK.B", "C", "CAT", "CMCSA",
         "CSCO", "CVX", "DAL", "DIS", "EA", "EBAY", "FOXA", "GE", "GM", "GOOGL",
