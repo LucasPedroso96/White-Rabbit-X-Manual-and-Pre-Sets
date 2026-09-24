@@ -33,16 +33,23 @@ from pathlib import Path
 AQUI = Path(__file__).resolve().parent
 EVENTOS = AQUI / "auditoria_eventos.log"
 MEIO = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal")
+# Qualquer terminal pode rodar qualquer driver (achado ao vivo, 2026-09-24: o
+# ORIGINAL so tinha rodado sweep_formulas.py/revalidar_aprovados.py ate a
+# calibracao terminar -- assim que ele passou a rodar campanha.py tambem (foco
+# no trail, terminal livre), o regex por-terminal antigo nao reconheceu o
+# processo como "trabalho" e gerou falso positivo de OCIOSO com o processo
+# vivo e progredindo). Um regex so, comum aos dois.
+_DRIVERS = re.compile(r"sweep_formulas\.py|revalidar_aprovados\.py|campanha\.py")
 TERMINAIS = {
     "ORIGINAL": {
         "instalacao": "RoboForex MT5 Terminal (WhiteRabbitEA)",
         "dados": MEIO / "D2A36B4A61A508797F5C460B1F34DC5D",
-        "drivers": re.compile(r"sweep_formulas\.py|revalidar_aprovados\.py"),
+        "drivers": _DRIVERS,
     },
     "CLONE": {
         "instalacao": "MT5_Optimizer2",
         "dados": MEIO / "4A85BF7BB91E709E95066E8432253C88",
-        "drivers": re.compile(r"campanha\.py"),
+        "drivers": _DRIVERS,
     },
 }
 MEMORIA_MIN_MB = 3000
