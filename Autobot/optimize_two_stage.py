@@ -2272,6 +2272,21 @@ def ler_metricas(log: str) -> dict:
         ret_na = ("sem trade fora da amostra (lucro OOS acumulado 0.00 "
                   "exato) -- nada a medir; se o IS opera normal, desconfie "
                   "de bloqueio de entrada no OOS (rode sonda_oos.py)")
+    # Denominador minusculo (2026-09-26, EURUSD/06 SELL com a EA ja
+    # corrigida): IS acumulou 2.63 em ~270 dias (0.26% do deposito) e a
+    # retencao saiu 14442% -- passaria em qualquer piso e GANHARIA o torneio,
+    # que ordena pela maior razao. A EA so chama de "sem lucro" abaixo de
+    # 0.0001/dia. Mesmo piso da divergencia (medir_divergencia): IS abaixo de
+    # 1% do deposito -> a razao nao mede nada -> None com o motivo.
+    is_acum = ultimo(r"Final accumulated In-Sample profit: (-?[\d.]+)")
+    deposito_log = ultimo(r"Initial deposit recorded: ([\d.]+)")
+    if ret is not None and is_acum is not None and deposito_log:
+        piso_is = max(1.0, float(deposito_log) * 0.01)
+        if 0 < float(is_acum) < piso_is:
+            ret = None
+            ret_na = (f"In-Sample quase sem lucro ({float(is_acum):.2f}, "
+                      f"piso {piso_is:.2f} = 1% do deposito) -- a razao "
+                      "OOS/IS com denominador minusculo nao mede nada")
     win = ultimo(r"Win rate: ([\d.]+)%")
     # Benchmark buy&hold que a EA imprime no OnDeinit (2026-09-26): o proprio
     # ativo no periodo do teste. Ausente em .ex5 antigo -> None.

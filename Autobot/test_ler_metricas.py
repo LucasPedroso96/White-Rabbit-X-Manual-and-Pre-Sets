@@ -89,6 +89,19 @@ checar("OOS sem trade: motivo explicado",
 COM_OOS = ZERO + "\n2026.09.23 23:14:59   Final accumulated Out-Sample profit: -3.20"
 checar("OOS operou e deu ~0%: continua numero", ler_metricas(COM_OOS)["retencao"], 0.0)
 
+# --- denominador minusculo (2026-09-26, EURUSD/06 SELL: IS 2.63, 14442%) ---
+MINUSCULO = (COMPLETO.replace("Retention: 41.50%", "Retention: 14442.32%")
+             + "\n2026.09.24 23:54:44   Initial deposit recorded: 1000.00"
+             "\n2026.09.24 23:54:44   Final accumulated In-Sample profit: 2.63"
+             "\n2026.09.24 23:54:44   Final accumulated Out-Sample profit: 125.68")
+m_min = ler_metricas(MINUSCULO)
+checar("IS < 1% do deposito: retencao vira None", m_min["retencao"], None)
+checar("IS < 1% do deposito: motivo explicado",
+       "quase sem lucro" in (m_min["retencao_motivo"] or ""), True)
+SAUDAVEL = MINUSCULO.replace("In-Sample profit: 2.63", "In-Sample profit: 371.16")
+checar("IS com lucro de verdade: retencao continua numero",
+       ler_metricas(SAUDAVEL)["retencao"], 14442.32)
+
 # --- benchmark buy&hold impresso pela EA (2026-09-26) -----------------------
 from optimize_two_stage import comparar_buy_and_hold
 

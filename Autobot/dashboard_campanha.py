@@ -553,6 +553,22 @@ def campanhas_cli() -> list[dict]:
     return _CLI["lista"]
 
 
+def _progresso_da_corrida_do_painel(info: dict, progresso: dict) -> bool:
+    """O "pausado" gravado no PROGRESSO (global) e da corrida que o PAINEL
+    lancou (LOCK)? Desde que campanha CLI tambem honra a pausa (2026-09-26),
+    ela grava o mesmo marcador -- e com um LOCK velho no disco (hoje: uma
+    corrida BOLLINGER de 12/09) o painel mostraria "Retomar", que RELANCA a
+    corrida do LOCK: duas semanas de atraso, outra familia. Exige o combo
+    pausado dentro dos filtros do LOCK e gravado depois que ela comecou."""
+    simbolos = info.get("simbolos") or []
+    sistemas = info.get("sistemas") or []
+    if simbolos and progresso.get("symbol") not in simbolos:
+        return False
+    if sistemas and progresso.get("sistema") not in sistemas:
+        return False
+    return str(progresso.get("atualizado_em", "")) >= str(info.get("iniciado_em", ""))
+
+
 def estado_campanha() -> dict:
     vivo = False
     info: dict = {}
@@ -577,7 +593,8 @@ def estado_campanha() -> dict:
     # rodando", que tambem seria verdade apos uma campanha terminar todos
     # os combos sozinha (LOCK so e apagado pelo Stop, nunca ao concluir).
     pausado = (not vivo and LOCK.exists() and bool(progresso)
-              and progresso.get("estagio") == "pausado")
+              and progresso.get("estagio") == "pausado"
+              and _progresso_da_corrida_do_painel(info, progresso))
     proprio = {info.get("pid"), _processo.pid if _processo is not None else None}
     cli = [c for c in campanhas_cli() if c["pid"] not in proprio]
     return {"rodando": vivo, "terminal_aberto": terminal_aberto(base.TERMINAL),
