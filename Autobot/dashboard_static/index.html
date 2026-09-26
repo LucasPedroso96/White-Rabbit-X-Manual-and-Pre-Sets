@@ -1384,7 +1384,7 @@ class Component extends DCLogic {
     const msgCustoColor = s.msgCustoOk === true ? pal.ok : s.msgCustoOk === false ? pal.no : pal.muted;
 
     // ---- implantacao tab ----
-    const CERT_ROTULO = { sem_ledger: 'not in ledger', reprovado: 'rejected in ledger', rebaixado: 'demoted', sem_relatorio: 'no report archived', arquivo_diverge: 'file ≠ approved run' };
+    const CERT_ROTULO = { sem_ledger: 'not in ledger', reprovado: 'rejected in ledger', rebaixado: 'demoted', sem_relatorio: 'no report archived', arquivo_diverge: 'file ≠ approved run', relatorio_sobrescrito: 'report overwritten' };
     const EM_PROVA_ROTULO = { SEM_BASELINE: 'no R baseline', EM_PROVA: 'on trial', DENTRO_DA_FAIXA: 'within band', REBAIXAR: 'demote', PROMOVER: 'promote' };
     const implantacaoRows = (s.implantacao?.sets || []).map((it) => {
       const lucroCompleto = it.sobrevivencia_medida && it.sobrevivencia_saldo_final != null ? it.sobrevivencia_saldo_final.toFixed(2) : (it.sobrevivencia_medida ? 'n/d' : 'not measured (non-grid)');

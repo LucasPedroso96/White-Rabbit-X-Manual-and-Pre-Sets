@@ -1215,6 +1215,9 @@ def _motivo_sem_certificado(origem: Path, reg: dict) -> dict | None:
     if not (relatorio_dir and (RELATORIOS_DIR / relatorio_dir).is_dir()):
         return {"codigo": "sem_relatorio",
                 "detalhe": "sem relatorio arquivado em campanha_relatorios/"}
+    sobrescrito = _relatorio_sobrescrito(RELATORIOS_DIR / relatorio_dir, reg)
+    if sobrescrito:
+        return {"codigo": "relatorio_sobrescrito", "detalhe": sobrescrito}
     divergentes = conferir_set(origem, reg.get("parametros") or {})
     if divergentes:
         return {"codigo": "arquivo_diverge",
@@ -1222,6 +1225,27 @@ def _motivo_sem_certificado(origem: Path, reg: dict) -> dict | None:
                            f"{len(divergentes)} parametro(s) "
                            f"({', '.join(divergentes[:4])}) -- e saida de "
                            f"outra corrida (sweep?), nao a aprovada"}
+    return None
+
+
+def _relatorio_sobrescrito(pasta: Path, reg: dict) -> str | None:
+    """A pasta de relatorio foi reescrita por uma corrida POSTERIOR a desta
+    linha? Ate 26/09 a pasta era uma por combo: a refacao do XAUUSD/04
+    (desafiante reprovado) reescreveu a do campeao as 06:20. O relatorio e
+    arquivado ANTES do fim da corrida, entao um conf_wrx.htm mais de 15 min
+    mais novo que o `quando` da linha e de outra corrida. Pastas por corrida
+    (optimize_two_stage.ID_CORRIDA) nao tem mais esse problema."""
+    htm = pasta / "conf_wrx.htm"
+    try:
+        quando = datetime.fromisoformat(str(reg.get("quando")))
+        modificado = datetime.fromtimestamp(htm.stat().st_mtime)
+    except (OSError, ValueError):
+        return None
+    if (modificado - quando).total_seconds() > 15 * 60:
+        return (f"relatorio de {modificado:%d/%m %H:%M}, depois desta "
+                f"corrida ({quando:%d/%m %H:%M}): foi reescrito por outra "
+                "corrida do mesmo combo -- a remedicao do campeao "
+                "(remedir_campeoes.py) gera um novo")
     return None
 
 
