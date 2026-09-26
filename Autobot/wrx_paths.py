@@ -120,6 +120,27 @@ def data_dir() -> Path:
     )
 
 
+def pastas_de_dados_do_projeto() -> list[tuple[str, Path]]:
+    """[(rotulo, pasta_de_dados)]: a pasta ativa (data_dir()) primeiro, depois
+    todo CLONE de otimizacao da maquina (marcador MARCADOR_CLONE).
+
+    Achado do dono, 2026-09-25: a campanha oficial roda no clone e grava os
+    VALIDADO_ la, mas o dashboard so olhava data_dir() -- a aba de
+    implantacao mostrava 0 dos 4 campeoes reais e 2 sobras de sweep do
+    original. Quem precisa ver TODO campeao do projeto usa esta lista; quem
+    vai ESCREVER (rodar campanha, gerar set) continua usando data_dir()."""
+    principal = data_dir()
+    saida = [("clone" if _e_clone_de_otimizacao(principal) else "original",
+              principal)]
+    base = Path(os.environ.get("APPDATA", "")) / "MetaQuotes" / "Terminal"
+    if base.exists():
+        for terminal_dir in sorted(base.iterdir()):
+            if (_e_clone_de_otimizacao(terminal_dir)
+                    and terminal_dir.resolve() != principal.resolve()):
+                saida.append(("clone", terminal_dir))
+    return saida
+
+
 def manuals_staging_root() -> Path:
     """Pasta de staging dos manuais fora do repo (config por maquina, so
     usada pelas ferramentas internas de manutencao de manual)."""

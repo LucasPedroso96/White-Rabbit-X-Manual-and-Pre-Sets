@@ -42,7 +42,7 @@
           <span title="{{ badgeProgresso.title }}" style="font-size:11px;padding:4px 11px;border-radius:999px;background:{{ pal.bg3 }};color:{{ pal.muted }};font-family:'IBM Plex Mono',monospace;">{{ badgeProgresso.text }}</span>
         </sc-if>
         <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
-          <span style="font-size:11px;padding:4px 11px;border-radius:999px;background:{{ pal.bg3 }};color:{{ pal.muted }};border:1px dashed {{ pal.line }};">exemplo — backend não conectado</span>
+          <span style="font-size:11px;padding:4px 11px;border-radius:999px;background:{{ pal.bg3 }};color:{{ pal.muted }};border:1px dashed {{ pal.line }};">{{ offlineLabel }}</span>
         </sc-if>
         <!-- Controles de campanha (Stop/Pause/Resume): moveram do card
              solto pro cabecalho (dono, 2026-09-07) -- o card so existia pra
@@ -619,7 +619,7 @@
                   <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};">{{ ir.retencao }}</td>
                   <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ ir.lucroCompleto }}</td>
                   <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ ir.lucroOos }}</td>
-                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};"><span style="background:{{ ir.certBg }};color:{{ ir.certColor }};padding:2px 9px;border-radius:999px;font-size:11px;">{{ ir.certLabel }}</span></td>
+                  <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};"><span title="{{ ir.certTitle }}" style="background:{{ ir.certBg }};color:{{ ir.certColor }};padding:2px 9px;border-radius:999px;font-size:11px;">{{ ir.certLabel }}</span></td>
                   <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};">
                     <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;">
                       <input type="checkbox" checked="{{ ir.implantado }}" disabled="{{ ir.implDisabled }}" onChange="{{ ir.onToggleDeployed }}" style="accent-color:{{ pal.accent2 }};" />
@@ -790,9 +790,18 @@ class Component extends DCLogic {
       return j;
     }
   }
+  // Dado de exemplo (mock-data.js) SO com ?demo na URL. Antes (ate
+  // 2026-09-25) qualquer falha de endpoint trocava o dado real por exemplo
+  // em silencio -- campeoes/sugestoes/metricas inventadas no mesmo painel
+  // que exporta set e marca "implantado". Sem demo: mantem o ultimo dado
+  // REAL e acende o aviso de backend fora.
+  get DEMO() { try { return new URLSearchParams(location.search).has('demo'); } catch (e) { return false; } }
   async load(path, mockFn, key) {
-    try { const d = await this.getReal(path); this.setState({ [key]: d }); return d; }
-    catch (e) { const d = mockFn(); this.setState({ offline: true, [key]: d }); return d; }
+    try { const d = await this.getReal(path); this.setState({ offline: false, [key]: d }); return d; }
+    catch (e) {
+      if (this.DEMO) { const d = mockFn(); this.setState({ offline: true, [key]: d }); return d; }
+      this.setState({ offline: true }); return this.state[key] || {};
+    }
   }
   // Executa um POST que dispara job assíncrono; em modo offline simula sucesso local.
   async runJob(path, body, mockSaida) {
@@ -803,6 +812,7 @@ class Component extends DCLogic {
       return j;
     } catch (e) {
       this.setState({ offline: true });
+      if (!this.DEMO) return { ok: false, erro: 'backend não respondeu — nada foi executado.' };
       await new Promise((r) => setTimeout(r, 700));
       return { ok: true, status: 'feito', saida: mockSaida || 'concluído (exemplo offline).' };
     }
@@ -848,20 +858,27 @@ class Component extends DCLogic {
       const r = await this.postReal('/api/campanha/stop');
       this.setState({ msgStop: `stopped. terminal closed: ${r.terminal_fechado}. incomplete entries removed: ${r.entradas_incompletas_removidas}`, msgStopOk: true });
     } catch (e) {
-      this.setState((s) => ({ offline: true, msgStop: 'stopped (exemplo offline).', msgStopOk: true, estado: { ...s.estado, rodando: false, pausando: false, pausado: false } }));
+      if (!this.DEMO) this.setState({ offline: true, msgStop: 'backend não respondeu — a campanha NÃO foi parada.', msgStopOk: false });
+      else this.setState((s) => ({ offline: true, msgStop: 'stopped (exemplo offline).', msgStopOk: true, estado: { ...s.estado, rodando: false, pausando: false, pausado: false } }));
     }
     this.carregarEstado();
   }
   async clickPausar() {
     this.setState({ msgStop: this.tr('campaign.msg-pausing'), msgStopOk: null });
     try { await this.postReal('/api/campanha/pausar'); }
-    catch (e) { this.setState((s) => ({ offline: true, estado: { ...s.estado, rodando: false, pausando: false, pausado: true } })); }
+    catch (e) {
+      if (!this.DEMO) this.setState({ offline: true, msgStop: 'backend não respondeu — a campanha NÃO foi pausada.', msgStopOk: false });
+      else this.setState((s) => ({ offline: true, estado: { ...s.estado, rodando: false, pausando: false, pausado: true } }));
+    }
     this.carregarEstado();
   }
   async clickRetomar() {
     this.setState({ msgStop: this.tr('campaign.msg-resuming'), msgStopOk: null });
     try { await this.postReal('/api/campanha/retomar'); this.setState({ msgStop: '', msgStopOk: true }); }
-    catch (e) { this.setState((s) => ({ offline: true, msgStop: '', msgStopOk: true, estado: { ...s.estado, rodando: true, pausado: false } })); }
+    catch (e) {
+      if (!this.DEMO) this.setState({ offline: true, msgStop: 'backend não respondeu — a campanha NÃO foi retomada.', msgStopOk: false });
+      else this.setState((s) => ({ offline: true, msgStop: '', msgStopOk: true, estado: { ...s.estado, rodando: true, pausado: false } }));
+    }
     this.carregarEstado();
   }
 
@@ -938,7 +955,8 @@ class Component extends DCLogic {
       const r = await this.postReal('/api/campanha/start', body);
       this.setState({ msgIniciar: r.ok ? `iniciado (pid ${r.pid})` : r.erro, msgIniciarOk: !!r.ok });
     } catch (e) {
-      this.setState((s) => ({ offline: true, msgIniciar: 'iniciado (exemplo offline)', msgIniciarOk: true, estado: { ...s.estado, rodando: true, modo: this.state.modo, familia: this.state.familia } }));
+      if (!this.DEMO) this.setState({ offline: true, msgIniciar: 'backend não respondeu — a campanha NÃO foi iniciada.', msgIniciarOk: false });
+      else this.setState((s) => ({ offline: true, msgIniciar: 'iniciado (exemplo offline)', msgIniciarOk: true, estado: { ...s.estado, rodando: true, modo: this.state.modo, familia: this.state.familia } }));
     }
     this.carregarEstado();
   }
@@ -1028,8 +1046,8 @@ class Component extends DCLogic {
       const r = await this.getReal(`/api/relatorio/${encodeURIComponent(dir)}/resumo?nome=${nome}`);
       this.setState((s) => ({ resumoImplantacao: { ...s.resumoImplantacao, [chave]: r.ok ? r.resumo : { erro: r.erro || 'summary unavailable' } } }));
     } catch (e) {
-      const r = this.MOCK ? this.MOCK.mockRelatorioResumo() : { resumo: {} };
-      this.setState((s) => ({ resumoImplantacao: { ...s.resumoImplantacao, [chave]: r.resumo } }));
+      const r = this.DEMO && this.MOCK ? this.MOCK.mockRelatorioResumo().resumo : { erro: 'summary unavailable' };
+      this.setState((s) => ({ resumoImplantacao: { ...s.resumoImplantacao, [chave]: r } }));
     }
   }
   async carregarImplantacao() { return this.load('/api/implantacao', () => this.MOCK.mockImplantacao(), 'implantacao'); }
@@ -1040,6 +1058,7 @@ class Component extends DCLogic {
       const d = await this.getReal('/api/implantacao/em_prova');
       this.setState({ emProva: Object.fromEntries((d.combos || []).map((c) => [c.chave, c])) });
     } catch (e) {
+      if (!this.DEMO) { this.setState({ offline: true, emProva: {} }); return; }
       const d = this.MOCK.mockEmProva(chaves);
       this.setState({ offline: true, emProva: Object.fromEntries(d.combos.map((c) => [c.chave, c])) });
     }
@@ -1050,8 +1069,8 @@ class Component extends DCLogic {
   }
   async deletarImplantacao(chave) {
     if (typeof window !== 'undefined' && !window.confirm(`Delete ${chave}? This removes the delivered .set (and its archived report, if certified). This cannot be undone from here.`)) return;
-    try { await this.postReal('/api/implantacao/deletar', { chaves: [chave] }); } catch (e) { this.setState({ offline: true }); }
-    this.setState((s) => ({ implantacao: { ...s.implantacao, sets: s.implantacao.sets.filter((x) => x.chave !== chave) } }));
+    try { await this.postReal('/api/implantacao/deletar', { chaves: [chave] }); } catch (e) { this.setState({ offline: true, msgImplantacao: 'backend não respondeu — nada foi apagado.', msgImplantacaoOk: false }); return; }
+    this.carregarImplantacao();
   }
   async clickExportarImplantacao() {
     const chaves = Object.keys(this.state.implantacaoSel).filter((k) => this.state.implantacaoSel[k]);
@@ -1077,6 +1096,7 @@ class Component extends DCLogic {
       const d = await this.getReal(`/api/implantacao/sugestoes?saldo=${this.state.sugestoesSaldo}`);
       this.setState({ sugestoesFila: d.sugestoes || [], ultimoPool: d.pool ?? 0, ultimoComSerie: d.com_serie ?? 0, sugestaoCursor: 0, msgSugestoes: '' });
     } catch (e) {
+      if (!this.DEMO) { this.setState({ offline: true, sugestoesFila: [], ultimoPool: 0, ultimoComSerie: 0, sugestaoCursor: 0, msgSugestoes: 'backend não respondeu — sem sugestões.' }); return; }
       const d = this.MOCK.mockSugestoes(parseFloat(this.state.sugestoesSaldo) || 0);
       this.setState({ offline: true, sugestoesFila: d.sugestoes, ultimoPool: d.pool, ultimoComSerie: d.com_serie, sugestaoCursor: 0, msgSugestoes: '' });
     }
@@ -1322,6 +1342,7 @@ class Component extends DCLogic {
     const msgCustoColor = s.msgCustoOk === true ? pal.ok : s.msgCustoOk === false ? pal.no : pal.muted;
 
     // ---- implantacao tab ----
+    const CERT_ROTULO = { sem_ledger: 'not in ledger', reprovado: 'rejected in ledger', rebaixado: 'demoted', sem_relatorio: 'no report archived', arquivo_diverge: 'file ≠ approved run' };
     const EM_PROVA_ROTULO = { SEM_BASELINE: 'no R baseline', EM_PROVA: 'on trial', DENTRO_DA_FAIXA: 'within band', REBAIXAR: 'demote', PROMOVER: 'promote' };
     const implantacaoRows = (s.implantacao?.sets || []).map((it) => {
       const lucroCompleto = it.sobrevivencia_medida && it.sobrevivencia_saldo_final != null ? it.sobrevivencia_saldo_final.toFixed(2) : (it.sobrevivencia_medida ? 'n/d' : 'not measured (non-grid)');
@@ -1331,7 +1352,7 @@ class Component extends DCLogic {
       return {
         chave: it.chave, simbolo: it.simbolo, sistema: it.sistema, variante: it.variante, retencao: it.retencao != null ? it.retencao + '%' : '-',
         lucroCompleto, lucroOos: it.lucro_oos != null ? it.lucro_oos.toFixed(2) : '-',
-        certBg: it.certificado ? pal.okBg : pal.noBg, certColor: it.certificado ? pal.ok : pal.no, certLabel: it.certificado ? 'certified' : 'no report archived',
+        certBg: it.certificado ? pal.okBg : pal.noBg, certColor: it.certificado ? pal.ok : pal.no, certLabel: it.certificado ? 'certified' : (CERT_ROTULO[it.motivo_sem_certificado?.codigo] || 'not certified'), certTitle: it.certificado ? `${it.instalacao || ''} install` : `${it.motivo_sem_certificado?.detalhe || ''} [${it.instalacao || ''} install]`,
         deployBg: it.implantado ? pal.okBg : pal.noBg, deployColor: it.implantado ? pal.ok : pal.no, deployLabel: it.implantado ? 'deployed' : 'not deployed',
         selecionado: !!s.implantacaoSel[it.chave], selDisabled: !it.certificado, onToggleSel: () => this.toggleImplantacaoSel(it.chave),
         implantado: it.implantado, implDisabled: !it.certificado, onToggleDeployed: (e) => this.marcarDeployed(it.chave, e.target.checked),
@@ -1376,6 +1397,7 @@ class Component extends DCLogic {
 
     return {
       pal, L, offline: s.offline, tab: s.tab,
+      offlineLabel: this.DEMO ? 'exemplo — backend não conectado' : 'backend não respondeu — mostrando o último dado real',
       tabCampanha: s.tab === 'campanha', tabConfigurar: s.tab === 'configurar', tabBiblioteca: s.tab === 'biblioteca', tabPortfolios: s.tab === 'portfolios', tabPerfil: s.tab === 'perfil', tabCusto: s.tab === 'custo', tabImplantacao: s.tab === 'implantacao',
       navItems, familiaItems, familiaLocked, langOptions, locale: s.locale, onChangeLocale: (e) => this.onChangeLocale(e),
       showInstall: s.showInstall, onClickInstall: () => this.clickInstall(),

@@ -68,8 +68,10 @@ import ready_library
 import relatorio_resumo
 import auto_manager_live
 import em_prova
+import wrx_paths
 from generate_system_sets import ASSETS, CLASSES, SYSTEMS
 from mt5_runner import fechar_terminal, terminal_aberto
+from optimize_two_stage import conferir_set
 
 AQUI = Path(__file__).resolve().parent
 LEDGER = AQUI / "campanha_resultados.jsonl"
@@ -322,9 +324,23 @@ def combo_atual() -> dict | None:
 def status(familia: str = "MULTI") -> JSONResponse:
     """`familia` ("MULTI", "ICHIMOKU", "BOLLINGER" ou "CANDLES") filtra o
     ledger pela familia de variante -- ver ready_library.familia_da_variante()
-    -- para o dashboard mostrar cada modo como uma campanha independente."""
-    resultados = [r for r in ler_ledger()
-                 if ready_library.familia_da_variante(r.get("variante", "")) == familia]
+    -- para o dashboard mostrar cada modo como uma campanha independente.
+
+    Uma linha por COMBO (a ultima vence, mesma regra de
+    ready_library.metricas_do_ledger) -- o ledger e append-only: rebaixar
+    um campeao, refazer um combo interrompido ou revalidar acrescenta
+    linha, nunca apaga a antiga. Contar linhas cruas (achado 2026-09-25)
+    mantinha os 2 campeoes GBPUSD rebaixados em 21/09 no contador de
+    aprovados e contava cada combo refeito duas vezes."""
+    ultimo_por_combo: dict[tuple[str, str, str], dict] = {}
+    for r in ler_ledger():
+        if ready_library.familia_da_variante(r.get("variante", "")) != familia:
+            continue
+        chave = (str(r.get("simbolo", "")).replace(".", "_"),
+                 r.get("sistema", ""), r.get("variante", ""))
+        ultimo_por_combo.pop(chave, None)   # reinsere no fim: ordem = recencia
+        ultimo_por_combo[chave] = r
+    resultados = list(ultimo_por_combo.values())
     aprovados = [r for r in resultados if r.get("aprovado")]
     por_sistema: dict[str, dict[str, int]] = {}
     for r in resultados:
@@ -1024,74 +1040,129 @@ def _salvar_implantados(chaves: set[str]) -> None:
     )
 
 
-def _sets_certificados() -> list[dict]:
-    """Le (sem escrever nada) os `VALIDADO_*.set` da raiz do Tester -- MESMA
-    fonte que `ready_library.sincronizar()` usa pra montar o espelho, so que
-    aqui e so leitura: nao recria pasta nem copia arquivo, so lista pra
-    exibicao. "Certificado" = tem `relatorio_dir` arquivado (Parte C2) pra
-    aquele combo no ledger -- nunca administra um `.set` sem evidencia de
-    validacao completa, so o nome VALIDADO_/marca ＊ sozinho nao basta."""
+def _motivo_sem_certificado(origem: Path, reg: dict) -> dict | None:
+    """None = certificado. Senao, POR QUE nao -- {"codigo", "detalhe"}: o
+    codigo vira o rotulo curto da aba, o detalhe o tooltip.
+
+    Antes (ate 2026-09-25) "certificado" era so "existe a pasta do
+    relatorio", e a pasta e por COMBO, nao por corrida: um VALIDADO_ de
+    SWEEP de formula (que nao escreve no ledger) herdava o relatorio e as
+    metricas da campanha oficial do mesmo combo -- inclusive de uma
+    REPROVADA (XAUUSD/11_SIGNAL_ONLY aparecia certificado com a reprovacao
+    por stop de emergencia do lado). Agora exige as tres coisas: ledger
+    aprovado, relatorio arquivado e o ARQUIVO ser o mesmo que o ledger
+    registrou (conferir_set, a mesma checagem de gravacao do circuito)."""
+    if not reg:
+        return {"codigo": "sem_ledger",
+                "detalhe": "nenhuma linha do ledger para este combo"}
+    if not reg.get("aprovado"):
+        if reg.get("rebaixado"):
+            return {"codigo": "rebaixado",
+                    "detalhe": reg.get("motivo_rebaixamento")
+                    or "rebaixado no ledger"}
+        return {"codigo": "reprovado",
+                "detalhe": f"ultima corrida do combo reprovada "
+                           f"({reg.get('quando', '?')})"}
+    relatorio_dir = reg.get("relatorio_dir")
+    if not (relatorio_dir and (RELATORIOS_DIR / relatorio_dir).is_dir()):
+        return {"codigo": "sem_relatorio",
+                "detalhe": "sem relatorio arquivado em campanha_relatorios/"}
+    divergentes = conferir_set(origem, reg.get("parametros") or {})
+    if divergentes:
+        return {"codigo": "arquivo_diverge",
+                "detalhe": f"{origem.name} difere do ledger em "
+                           f"{len(divergentes)} parametro(s) "
+                           f"({', '.join(divergentes[:4])}) -- e saida de "
+                           f"outra corrida (sweep?), nao a aprovada"}
+    return None
+
+
+def _sets_com_origem() -> list[tuple[dict, Path]]:
+    """(linha da aba, arquivo) de todo `VALIDADO_*.set` de TODAS as
+    instalacoes do projeto (original + clones, wrx_paths) -- a campanha
+    oficial roda no clone e os campeoes reais moram la. So leitura: nao
+    recria pasta nem copia arquivo. Mesmo combo em duas instalacoes (ex.:
+    sobra de sweep num, oficial no outro): fica UM, o certificado."""
     metricas = ready_library.metricas_do_ledger(LEDGER)
     implantados = _carregar_implantados()
-    saida = []
-    for origem in sorted(ready_library.TESTER.glob("VALIDADO_*.set")):
-        info = ready_library.analisar_nome(origem.name)
-        if info is None:
-            continue
-        reg = metricas.get(
-            (info["simbolo"], info["sistema"], info["variante"]), {}
-        )
-        chave = f"{info['simbolo']}__{info['sistema']}__{info['variante']}"
-        relatorio_dir = reg.get("relatorio_dir")
-        saida.append({
-            "chave": chave,
-            "simbolo": info["simbolo_exibicao"],
-            "sistema": info["sistema"],
-            "variante": info["variante"],
-            "retencao": reg.get("retencao_oos"),
-            "expectancy": reg.get("expectancy_r"),
-            "trades": reg.get("trades_oos"),
-            "mc_prob_ruina": reg.get("mc_prob_ruina"),
-            # Lucro na janela OOS != lucro no periodo completo -- o achado
-            # do dono, 2026-08-03/04 (AUDCHF aprovado com lucro OOS alto e
-            # estourando margem no periodo inteiro) e exatamente por isso
-            # que o gate de sobrevivencia existe. Mostrar os dois, nunca so
-            # o OOS: escolher "o melhor set pra subir" olhando so pra ele
-            # foi o que gerou o problema.
-            "lucro_oos": reg.get("lucro_tick_real"),
-            "sobrevivencia_medida": reg.get("sobrevivencia_medida", False),
-            "sobrevivencia_saldo_final": reg.get("sobrevivencia_saldo_final"),
-            # Quantas posicoes o MT5 liquidou a forca no CORTE do periodo
-            # (achado do dono, 2026-08-16) -- nao e a estrategia quebrando,
-            # e uma cesta de recuperacao sem prazo fixo pega no meio do
-            # ciclo pela borda do calendario. Nao afeta o veredito de
-            # sobrevivencia, so avisa quem for avaliar que o saldo final
-            # pode ter uma fatia vinda de fechamento forcado, nao organico.
-            "sobrevivencia_fechados_fim_teste": reg.get(
-                "sobrevivencia_fechados_fim_teste"),
-            "certificado": bool(relatorio_dir
-                                and (RELATORIOS_DIR / relatorio_dir).is_dir()),
-            "relatorio_dir": relatorio_dir,
-            # Curva de equity do PERIODO COMPLETO (nao a da janela OOS) --
-            # achado do dono, 2026-08-04: sem isso nao dava pra CONFERIR
-            # visualmente um veredito de sobrevivencia, so confiar no
-            # numero. Mesma pasta do relatorio_dir (sobrevivencia.* e
-            # conf_wrx.* vivem juntos), mas so existe se o gate rodou.
-            "sobrevivencia_grafico": bool(
-                reg.get("sobrevivencia_relatorio_dir")
-                and (RELATORIOS_DIR / reg["sobrevivencia_relatorio_dir"]
-                    / "sobrevivencia.png").is_file()),
-            "implantado": chave in implantados,
-        })
+    por_chave: dict[str, tuple[dict, Path]] = {}
+    for rotulo, pasta in wrx_paths.pastas_de_dados_do_projeto():
+        tester = pasta / "MQL5" / "Profiles" / "Tester"
+        for origem in sorted(tester.glob("VALIDADO_*.set")):
+            info = ready_library.analisar_nome(origem.name)
+            if info is None:
+                continue
+            reg = metricas.get(
+                (info["simbolo"], info["sistema"], info["variante"]), {}
+            )
+            chave = f"{info['simbolo']}__{info['sistema']}__{info['variante']}"
+            motivo = _motivo_sem_certificado(origem, reg)
+            linha = _linha_implantacao(chave, info, reg, motivo, rotulo,
+                                       chave in implantados)
+            atual = por_chave.get(chave)
+            if atual is None or (linha["certificado"]
+                                 and not atual[0]["certificado"]):
+                por_chave[chave] = (linha, origem)
+    saida = list(por_chave.values())
     # Melhor primeiro: saldo do periodo completo quando medido (a metrica
     # que decide "sobrevive de verdade"), lucro OOS como desempate/
     # fallback pra quem nao passou pelo gate (sistemas fora de grid).
-    saida.sort(key=lambda s: (
-        s["sobrevivencia_saldo_final"] if s["sobrevivencia_medida"]
-        and s["sobrevivencia_saldo_final"] is not None else -1e18,
-        s["lucro_oos"] if s["lucro_oos"] is not None else -1e18,
+    saida.sort(key=lambda par: (
+        par[0]["sobrevivencia_saldo_final"] if par[0]["sobrevivencia_medida"]
+        and par[0]["sobrevivencia_saldo_final"] is not None else -1e18,
+        par[0]["lucro_oos"] if par[0]["lucro_oos"] is not None else -1e18,
     ), reverse=True)
     return saida
+
+
+def _sets_certificados() -> list[dict]:
+    return [linha for linha, _ in _sets_com_origem()]
+
+
+def _linha_implantacao(chave: str, info: dict, reg: dict, motivo: dict | None,
+                       instalacao: str, implantado: bool) -> dict:
+    relatorio_dir = reg.get("relatorio_dir")
+    return {
+        "chave": chave,
+        "simbolo": info["simbolo_exibicao"],
+        "sistema": info["sistema"],
+        "variante": info["variante"],
+        "instalacao": instalacao,
+        "motivo_sem_certificado": motivo,
+        "retencao": reg.get("retencao_oos"),
+        "expectancy": reg.get("expectancy_r"),
+        "trades": reg.get("trades_oos"),
+        "mc_prob_ruina": reg.get("mc_prob_ruina"),
+        # Lucro na janela OOS != lucro no periodo completo -- o achado
+        # do dono, 2026-08-03/04 (AUDCHF aprovado com lucro OOS alto e
+        # estourando margem no periodo inteiro) e exatamente por isso
+        # que o gate de sobrevivencia existe. Mostrar os dois, nunca so
+        # o OOS: escolher "o melhor set pra subir" olhando so pra ele
+        # foi o que gerou o problema.
+        "lucro_oos": reg.get("lucro_tick_real"),
+        "sobrevivencia_medida": reg.get("sobrevivencia_medida", False),
+        "sobrevivencia_saldo_final": reg.get("sobrevivencia_saldo_final"),
+        # Quantas posicoes o MT5 liquidou a forca no CORTE do periodo
+        # (achado do dono, 2026-08-16) -- nao e a estrategia quebrando,
+        # e uma cesta de recuperacao sem prazo fixo pega no meio do
+        # ciclo pela borda do calendario. Nao afeta o veredito de
+        # sobrevivencia, so avisa quem for avaliar que o saldo final
+        # pode ter uma fatia vinda de fechamento forcado, nao organico.
+        "sobrevivencia_fechados_fim_teste": reg.get(
+            "sobrevivencia_fechados_fim_teste"),
+        "certificado": motivo is None,
+        "relatorio_dir": relatorio_dir,
+        # Curva de equity do PERIODO COMPLETO (nao a da janela OOS) --
+        # achado do dono, 2026-08-04: sem isso nao dava pra CONFERIR
+        # visualmente um veredito de sobrevivencia, so confiar no
+        # numero. Mesma pasta do relatorio_dir (sobrevivencia.* e
+        # conf_wrx.* vivem juntos), mas so existe se o gate rodou.
+        "sobrevivencia_grafico": bool(
+            reg.get("sobrevivencia_relatorio_dir")
+            and (RELATORIOS_DIR / reg["sobrevivencia_relatorio_dir"]
+                / "sobrevivencia.png").is_file()),
+        "implantado": implantado,
+    }
 
 
 @app.get("/api/implantacao")
@@ -1194,14 +1265,12 @@ def implantacao_marcar(body: dict) -> JSONResponse:
 
 
 def _origem_do_set(chave: str) -> Path | None:
-    """Acha o VALIDADO_*.set (raiz do Tester) dono da `chave` -- mesmo
-    calculo de chave que _sets_certificados() usa, pra garantir que o
-    arquivo apagado e exatamente o que a linha da tabela representa."""
-    for origem in ready_library.TESTER.glob("VALIDADO_*.set"):
-        info = ready_library.analisar_nome(origem.name)
-        if info is None:
-            continue
-        if f"{info['simbolo']}__{info['sistema']}__{info['variante']}" == chave:
+    """Acha o VALIDADO_*.set dono da `chave` pela MESMA varredura que monta
+    a tabela (_sets_com_origem: todas as instalacoes, uma por combo) --
+    garante que o arquivo apagado/exportado e exatamente o que a linha da
+    tabela representa, nunca o homonimo da outra instalacao."""
+    for linha, origem in _sets_com_origem():
+        if linha["chave"] == chave:
             return origem
     return None
 
@@ -1242,10 +1311,16 @@ def implantacao_deletar(body: dict) -> JSONResponse:
         # certificado no ledger" nao e o mesmo que "sem valor": o ledger
         # pode ficar vazio por outros motivos (reset, corrupcao, migracao)
         # sem que o campeao deixe de ser real.
+        # O relatorio e por COMBO, nao por arquivo: so e deste set se ele
+        # for o certificado (mesmo arquivo que o ledger registrou). Apagar
+        # uma sobra de sweep NAO pode levar junto o relatorio da campanha
+        # oficial do mesmo combo (2026-09-25).
+        relatorio_e_deste_set = _motivo_sem_certificado(origem, reg) is None
         campeoes_arquivo.arquivar_campeao_anterior(
             info["sistema"], info["simbolo"], info["variante"], origem)
         origem.unlink(missing_ok=True)
-        if relatorio_dir and (RELATORIOS_DIR / relatorio_dir).is_dir():
+        if (relatorio_e_deste_set and relatorio_dir
+                and (RELATORIOS_DIR / relatorio_dir).is_dir()):
             shutil.rmtree(RELATORIOS_DIR / relatorio_dir, ignore_errors=True)
         removidos.append(chave)
     if removidos:
@@ -1269,27 +1344,23 @@ def implantacao_exportar(body: dict):
     if not chaves:
         return JSONResponse({"ok": False, "erro": "nenhum set selecionado"},
                             status_code=400)
-    disponiveis = {s["chave"]: s for s in _sets_certificados()}
+    disponiveis = {linha["chave"]: (linha, origem)
+                   for linha, origem in _sets_com_origem()}
     sem_certificado = [c for c in chaves
-                       if c not in disponiveis or not disponiveis[c]["certificado"]]
+                       if c not in disponiveis or not disponiveis[c][0]["certificado"]]
     if sem_certificado:
         return JSONResponse(
             {"ok": False,
-             "erro": f"sem certificado (relatorio arquivado): {sem_certificado}"},
+             "erro": f"sem certificado: {sem_certificado}"},
             status_code=400,
         )
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for chave in chaves:
-            item = disponiveis[chave]
-            nome_arquivo_real = (
-                f"VALIDADO_{item['simbolo'].replace('.', '_')}_"
-                f"{item['sistema']}_{item['variante']}.set"
-            )
-            origem_set = ready_library.TESTER / nome_arquivo_real
+            item, origem_set = disponiveis[chave]
             if origem_set.is_file():
-                zf.write(origem_set, f"{item['sistema']}/{nome_arquivo_real}")
+                zf.write(origem_set, f"{item['sistema']}/{origem_set.name}")
     buffer.seek(0)
     return StreamingResponse(
         buffer, media_type="application/zip",
