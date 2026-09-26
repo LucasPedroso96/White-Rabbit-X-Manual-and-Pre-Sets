@@ -1177,9 +1177,11 @@ class Component extends DCLogic {
     let statusTxt;
     if (estado.rodando) statusTxt = (estado.pausando ? this.tr('campaign.status-pausing') : this.tr('campaign.status-running')) + ' (' + (estado.modo || '?') + ')';
     else if (estado.pausado) statusTxt = this.tr('campaign.status-paused');
+    else if ((estado.campanhas_cli || []).length) statusTxt = this.tr('campaign.status-running') + ' (CLI ×' + estado.campanhas_cli.length + ')';
     else statusTxt = this.tr('campaign.status-stopped');
     const badgeCampanhaText = this.tr('badge.campaign') + statusTxt;
-    const badgeCampanhaBg = estado.rodando ? (estado.pausando ? '#7c4a03' : pal.okBg) : (estado.pausado ? '#4a3a03' : pal.bg3);
+    const cliRodando = !estado.rodando && (estado.campanhas_cli || []).length > 0;
+    const badgeCampanhaBg = estado.rodando || cliRodando ? (estado.pausando ? '#7c4a03' : pal.okBg) : (estado.pausado ? '#4a3a03' : pal.bg3);
     const p = estado.progresso;
     const badgeProgresso = p && p.symbol
       ? { show: true, text: [p.symbol, p.sistema, p.variante, p.estagio, p.rodada ? `rodada ${p.rodada}` : null, p.finalista_atual ? `finalista ${p.finalista_atual}` : null].filter(Boolean).join(' | '), title: 'atualizado ' + (p.atualizado_em || '') }

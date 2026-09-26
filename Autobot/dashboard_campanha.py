@@ -475,6 +475,46 @@ def _pid_vivo(pid: int) -> bool:
     return str(pid) in saida
 
 
+_CLI = {"quando": 0.0, "lista": []}
+_CLI_LOCK = threading.Lock()
+
+
+def _atualizar_campanhas_cli() -> None:
+    ps = ("Get-CimInstance Win32_Process -Filter \"Name='python.exe' OR "
+          "Name='pythonw.exe'\" | Where-Object { $_.CommandLine -match "
+          "'campanha\\.py' } | Select-Object ProcessId,CommandLine | "
+          "ConvertTo-Json -Compress")
+    try:
+        saida = subprocess.run(  # noqa: S603
+            ["powershell", "-NoProfile", "-Command", ps],
+            capture_output=True, text=True, timeout=20, check=False).stdout.strip()
+        dados = json.loads(saida) if saida else []
+        if isinstance(dados, dict):
+            dados = [dados]
+        lista = []
+        for d in dados:
+            m = re.search(r"campanha\.py\"?\s*(.*)$", d.get("CommandLine") or "")
+            lista.append({"pid": d.get("ProcessId"),
+                          "args": (m.group(1) if m else "")[:300]})
+        _CLI["lista"] = lista
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+        pass
+    finally:
+        _CLI_LOCK.release()
+
+
+def campanhas_cli() -> list[dict]:
+    """campanha.py rodando FORA do painel (linha de comando, 2 instalacoes em
+    paralelo). Achado 2026-09-25: o selo dizia "Campaign: stopped" com duas
+    campanhas rodando -- o painel so conhecia a que ele mesmo lancou.
+    Get-CimInstance leva ~1 s: cache de 30 s atualizado em thread, o polling
+    de 8 s nunca espera por ele."""
+    if time.time() - _CLI["quando"] > 30 and _CLI_LOCK.acquire(blocking=False):
+        _CLI["quando"] = time.time()
+        threading.Thread(target=_atualizar_campanhas_cli, daemon=True).start()
+    return _CLI["lista"]
+
+
 def estado_campanha() -> dict:
     vivo = False
     info: dict = {}
@@ -500,11 +540,16 @@ def estado_campanha() -> dict:
     # os combos sozinha (LOCK so e apagado pelo Stop, nunca ao concluir).
     pausado = (not vivo and LOCK.exists() and bool(progresso)
               and progresso.get("estagio") == "pausado")
+    proprio = {info.get("pid"), _processo.pid if _processo is not None else None}
+    cli = [c for c in campanhas_cli() if c["pid"] not in proprio]
     return {"rodando": vivo, "terminal_aberto": terminal_aberto(base.TERMINAL),
-           "progresso": progresso if vivo else None,
+           # PROGRESSO e global (last-writer-wins): com campanha CLI rodando
+           # ele mostra a que gravou por ultimo -- melhor que nada.
+           "progresso": progresso if (vivo or cli) else None,
            "pausando": vivo and base.PAUSA.exists(),
            "pausado": pausado,
-           **info}
+           **info,
+           "campanhas_cli": cli}
 
 
 @app.get("/api/campanha/estado")
@@ -882,10 +927,6 @@ def biblioteca_regenerar(body: dict | None = None) -> JSONResponse:
 # ------------------------------------------------------------------ portfolios
 
 
-def _prontos_dir() -> Path:
-    return base.DADOS / "MQL5" / "Profiles" / "Tester" / "White_Rabbit_X_Sets_Autobot"
-
-
 def _md_para_html(texto: str) -> str:
     """Conversor minimo: cabecalho, lista, tabela, negrito. O conteudo de
     MAPA.md/_PORTFOLIOS e sempre esses quatro elementos -- nao vale trazer a
@@ -948,27 +989,57 @@ def _md_para_html(texto: str) -> str:
     return html
 
 
+def _mesclar_mapas(mapas: list[dict]) -> dict | None:
+    """Uniao dos MAPA.json de cada instalacao: por classe/ativo/sistema, as
+    variantes prontas de qualquer uma. `prontos` e recontado da uniao (o
+    mesmo combo pronto nas duas nao conta duas vezes)."""
+    if not mapas:
+        return None
+    saida = json.loads(json.dumps(mapas[0]))
+    for m in mapas[1:]:
+        saida["atualizado_em"] = max(saida.get("atualizado_em") or "",
+                                     m.get("atualizado_em") or "")
+        for classe, ativos in (m.get("classes") or {}).items():
+            destino = saida.setdefault("classes", {}).setdefault(classe, {})
+            for ativo, sistemas in ativos.items():
+                d_ativo = destino.setdefault(ativo, {})
+                for sistema, variantes in sistemas.items():
+                    d_ativo[sistema] = sorted(set(d_ativo.get(sistema, []))
+                                              | set(variantes))
+    saida["prontos"] = sum(len(v) for ativos in saida.get("classes", {}).values()
+                          for sistemas in ativos.values()
+                          for v in sistemas.values())
+    return saida
+
+
 @app.get("/api/portfolios")
 def portfolios() -> JSONResponse:
-    pasta = _prontos_dir()
-    mapa = pasta / "MAPA.md"
-    mapa_json = pasta / "MAPA.json"
-    resultado = {
-        "mapa_html": (
-            _md_para_html(mapa.read_text(encoding="utf-8")) if mapa.exists() else None
-        ),
-        "mapa": (
-            json.loads(mapa_json.read_text(encoding="utf-8"))
-            if mapa_json.exists() else None
-        ),
-        "sistemas": {},
-    }
-    pasta_port = pasta / "_PORTFOLIOS"
-    if pasta_port.is_dir():
-        for arq in sorted(pasta_port.glob("*.md")):
-            resultado["sistemas"][arq.stem] = _md_para_html(
-                arq.read_text(encoding="utf-8")
-            )
+    """Espelho de sets prontos (＊) de TODAS as instalacoes. Achado
+    2026-09-25: so lia o do ORIGINAL (0 prontos) enquanto os 4 campeoes
+    reais moravam no espelho do CLONE, onde a campanha oficial roda."""
+    htmls, mapas = [], []
+    resultado: dict = {"sistemas": {}}
+    for rotulo, dados in wrx_paths.pastas_de_dados_do_projeto():
+        pasta = dados / "MQL5" / "Profiles" / "Tester" / "White_Rabbit_X_Sets_Autobot"
+        mapa = pasta / "MAPA.md"
+        mapa_json = pasta / "MAPA.json"
+        if mapa.exists():
+            htmls.append(f"<h2>Instalacao: {rotulo}</h2>\n"
+                         + _md_para_html(mapa.read_text(encoding="utf-8")))
+        if mapa_json.exists():
+            try:
+                mapas.append(json.loads(mapa_json.read_text(encoding="utf-8")))
+            except json.JSONDecodeError:
+                pass
+        pasta_port = pasta / "_PORTFOLIOS"
+        if pasta_port.is_dir():
+            for arq in sorted(pasta_port.glob("*.md")):
+                nome = arq.stem if arq.stem not in resultado["sistemas"] \
+                    else f"{arq.stem} ({rotulo})"
+                resultado["sistemas"][nome] = _md_para_html(
+                    arq.read_text(encoding="utf-8"))
+    resultado["mapa_html"] = "\n<br>\n".join(htmls) if htmls else None
+    resultado["mapa"] = _mesclar_mapas(mapas)
     resultado["gerados"] = [
         {"nome": p.stem.removeprefix("portfolio_"), "url": f"/portfolio-out/{p.name}"}
         for p in sorted(PORTFOLIO_OUT.glob("portfolio_*.html"))

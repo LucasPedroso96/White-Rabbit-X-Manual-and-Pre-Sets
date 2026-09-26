@@ -169,7 +169,12 @@ def achar_ativo(biblioteca: Path, simbolo: str) -> Path | None:
     """Pasta do ativo na biblioteca, aceitando sufixo (EURUSD_HT -> EURUSD)."""
     candidatos = [simbolo, simbolo.replace("_", ".")]
     radical = re.split(r"[.\-_]", simbolo)[0]
-    if radical not in candidatos:
+    # Radical VAZIO (simbolo que comeca com separador: _DE40Cash, o
+    # .DE40Cash gravado) virava `classe / ""` == a propria pasta da classe,
+    # e o indice era "achado" como se fosse 01_Forex -- o espelho criou
+    # ＊White_Rabbit_X_Sets_templates/＊01_Forex/ com os sets dos indices e o
+    # MAPA os perdia (achado 2026-09-26).
+    if radical and radical not in candidatos:
         candidatos.append(radical)
     for classe in sorted(p for p in biblioteca.iterdir() if p.is_dir()):
         for nome in candidatos:

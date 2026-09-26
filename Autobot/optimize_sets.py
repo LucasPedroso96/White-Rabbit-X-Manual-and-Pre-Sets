@@ -124,7 +124,7 @@ def achar_set(symbol: str, sistema: str, variante: str) -> Path | None:
     """
     candidatos = [symbol]
     radical = re.split(r"[.\-_]", symbol)[0]
-    if radical != symbol:
+    if radical and radical != symbol:   # vazio em .DE40Cash: ver ready_library.achar_ativo
         candidatos.append(radical)
     for nome in candidatos:
         for classe in CLASSES:
