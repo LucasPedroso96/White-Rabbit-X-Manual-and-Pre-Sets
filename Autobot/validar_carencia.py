@@ -52,6 +52,12 @@ def passes_grid_so_is(log: Path) -> list[dict]:
             atual = {"hora": hora, "oos_dias": 0, "divida": None, "carencia": None}
             continue
         if atual is None:
+            # A EA imprime a carencia DEPOIS da linha da divida (que fecha o
+            # passe): pendura no ultimo passe fechado.
+            m = _CARENCIA.search(msg)
+            if m and saida and saida[-1]["carencia"] is None:
+                saida[-1]["carencia"] = (float(m.group(1)), int(m.group(3)),
+                                         int(m.group(4)))
             continue
         m = _OOS.search(msg)
         if m:
