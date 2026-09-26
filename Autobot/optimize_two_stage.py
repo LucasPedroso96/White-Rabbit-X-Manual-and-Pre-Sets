@@ -2293,8 +2293,14 @@ def ler_metricas(log: str) -> dict:
     bh = ultimo(r"BENCHMARK buy&hold: inicial [\d.]+ \| final [\d.]+ \| "
                 r"retorno (-?[\d.]+)% \| maxDD comprado ([\d.]+)% \| "
                 r"maxDD vendido ([\d.]+)%")
+    # A EA passou (2026-09-26) a atribuir o lucro pela janela de ABERTURA da
+    # posicao; a retencao pelo metodo antigo (janela de SAIDA) sai ao lado,
+    # so pra comparar -- vai pro ledger como A/B.
+    ret_antigo = ultimo(r"Retention \(metodo antigo, lucro na janela de "
+                        r"SAIDA\): (-?[\d.]+)%")
     trades = r_met[0] if r_met else total_trades
     return {
+        "retencao_metodo_antigo": float(ret_antigo) if ret_antigo else None,
         "saldo": float(saldo) if saldo else None,
         "trades": int(trades) if trades is not None else None,
         "total_r": float(r_met[1]) if r_met else None,
@@ -4561,6 +4567,9 @@ def main() -> int:
                       "lucro_tick_real": lucro_real,
                       "lucro_ajustado_custo_nativo": lucro_ajustado,
                       "retencao_oos": oos["retencao"],
+                      # A/B (2026-09-26): mesma corrida pelo metodo antigo
+                      # (lucro na janela de SAIDA) -- a oficial e por ABERTURA.
+                      "retencao_oos_metodo_antigo": oos.get("retencao_metodo_antigo"),
                       "retencao_pct": retencao_pct,
                       "sizing_entrega": sizing_entrega,
                       "expectancy_r": oos["expectancy"],

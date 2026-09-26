@@ -102,6 +102,16 @@ SAUDAVEL = MINUSCULO.replace("In-Sample profit: 2.63", "In-Sample profit: 371.16
 checar("IS com lucro de verdade: retencao continua numero",
        ler_metricas(SAUDAVEL)["retencao"], 14442.32)
 
+# --- retencao pelo metodo antigo (janela de SAIDA), impressa ao lado ---------
+AB = COMPLETO + ("\n2026.09.26 09:10:00   Retention (metodo antigo, lucro na "
+                 "janela de SAIDA): 88.10% -- a oficial acima conta pela janela "
+                 "de ABERTURA da posicao")
+m_ab = ler_metricas(AB)
+checar("A/B: retencao oficial (abertura) intacta", m_ab["retencao"], 41.5)
+checar("A/B: metodo antigo lido", m_ab["retencao_metodo_antigo"], 88.1)
+checar("A/B: .ex5 antigo sem a linha -> None",
+       ler_metricas(COMPLETO)["retencao_metodo_antigo"], None)
+
 # --- benchmark buy&hold impresso pela EA (2026-09-26) -----------------------
 from optimize_two_stage import comparar_buy_and_hold
 
