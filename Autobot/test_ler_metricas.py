@@ -77,6 +77,18 @@ checar("retencao n/a", ler_metricas(NAO_APLICA)["retencao"], None)
 ZERO = COMPLETO.replace("Retention: 41.50%", "Retention: 0.00%")
 checar("retencao zero", ler_metricas(ZERO)["retencao"], 0.0)
 
+# --- OOS sem NENHUM trade (2026-09-25): 0.00% com lucro OOS 0.00 exato e
+# ausencia de medida, nao "reteve zero" -- era o sintoma do bloqueio de
+# entrada no OOS que vazou pro modo IS+OOS.
+SEM_OOS = ZERO + ("\n2026.09.23 23:14:59   Final accumulated In-Sample profit: 371.16"
+                  "\n2026.09.23 23:14:59   Final accumulated Out-Sample profit: 0.00")
+m_sem = ler_metricas(SEM_OOS)
+checar("OOS sem trade: retencao vira None", m_sem["retencao"], None)
+checar("OOS sem trade: motivo explicado",
+       "sem trade fora da amostra" in (m_sem["retencao_motivo"] or ""), True)
+COM_OOS = ZERO + "\n2026.09.23 23:14:59   Final accumulated Out-Sample profit: -3.20"
+checar("OOS operou e deu ~0%: continua numero", ler_metricas(COM_OOS)["retencao"], 0.0)
+
 # --- FixedLot/Monetario: sem bloco R METRICS, so "Total Trades" incondicional
 # (dono, 2026-09-14: 07_GRID_SEPARATE com sizing default sempre lia
 # trades=None mesmo operando de verdade, porque o bloco R METRICS so

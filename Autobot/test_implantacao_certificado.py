@@ -127,6 +127,21 @@ try:
            status["por_sistema"]["03_TRAIL_ONLY"], {"total": 1, "aprovados": 0})
     checar("status: recentes = mais recente primeiro",
            status["recentes"][0]["sistema"], "03_TRAIL_ONLY")
+
+    # Refacao de campeao (2026-09-26): desafiante com OUTROS parametros
+    # reprovado pelo gate relativo acrescenta linha "reprovado" -- o arquivo
+    # do campeao (parametros da linha aprovada) continua certificado.
+    (tester_o / "VALIDADO_XAUUSD_04_SLTP_TRAIL_BUY_MULTI.set").unlink()
+    gravar_set(tester_c, "VALIDADO_XAUUSD_04_SLTP_TRAIL_BUY_MULTI.set", oficial)
+    with ledger.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({
+            "simbolo": "XAUUSD", "sistema": "04_SLTP_TRAIL",
+            "variante": "BUY_MULTI", "aprovado": False,
+            "relatorio_dir": "XAUUSD__04_SLTP_TRAIL__BUY_MULTI",
+            "parametros": sweep, "quando": "2026-09-26T10:00:00"}) + "\n")
+    depois = {l["chave"]: l for l, _ in painel._sets_com_origem()}
+    checar("desafiante reprovado (outros params) nao derruba o campeao",
+           depois["XAUUSD__04_SLTP_TRAIL__BUY_MULTI"]["certificado"], True)
 finally:
     (painel.LEDGER, painel.RELATORIOS_DIR, painel.SETS_IMPLANTADOS,
      painel.ready_library.LEDGER, wrx_paths.pastas_de_dados_do_projeto) = salvos

@@ -2090,6 +2090,19 @@ def ler_metricas(log: str) -> dict:
     # leitura e a prova em % reprovava com a mensagem errada (achado
     # 2026-09-20, CHFJPY/03_TRAIL_ONLY: IS negativo em %, nada a reter).
     ret_na = ultimo(r"Out-of-Sample Retention: (not applicable[^\r\n]*)")
+    # OOS sem NENHUM trade (lucro acumulado 0.00 exato) nao e "reteve 0%",
+    # e ausencia de medida -- achado 2026-09-25: uma regressao da EA
+    # bloqueou entrada nova no OOS tambem em 'In Sample + Out Sample' por 12
+    # dias e o 0.0% exato saia como se fosse resultado (5 SELL reprovados
+    # "na retencao" sem nunca terem operado fora da amostra). Vira None com
+    # o motivo, pra o torneio jogar pro fim e o veredito dizer SEM RETENCAO.
+    oos_acum = ultimo(r"Final accumulated Out-Sample profit: (-?[\d.]+)")
+    if ret is not None and float(ret) == 0.0 and oos_acum is not None \
+            and float(oos_acum) == 0.0:
+        ret = None
+        ret_na = ("sem trade fora da amostra (lucro OOS acumulado 0.00 "
+                  "exato) -- nada a medir; se o IS opera normal, desconfie "
+                  "de bloqueio de entrada no OOS (rode sonda_oos.py)")
     win = ultimo(r"Win rate: ([\d.]+)%")
     trades = r_met[0] if r_met else total_trades
     return {
@@ -3821,6 +3834,8 @@ def main() -> int:
     aprovado, motivos = veredito(div, oos["retencao"], args.min_retencao)
     for m in motivos:
         print(f"    {m}")
+    if oos["retencao"] is None and oos.get("retencao_motivo"):
+        print(f"    (motivo da EA: {oos['retencao_motivo']})")
     if aprovado and not mc_aprovado:
         aprovado = False
         print("    REPROVADO no Monte Carlo: a sequencia de trades depende "

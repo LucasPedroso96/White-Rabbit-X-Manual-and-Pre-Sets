@@ -208,8 +208,16 @@ def fila(simbolos: list[str], sistemas: list[str] | None = None,
     return itens
 
 
-def feitos() -> set[tuple[str, str, str]]:
+def feitos(refazer_antes_de: str | None = None) -> set[tuple[str, str, str]]:
     """Combos ja com resultado definitivo no ledger.
+
+    `refazer_antes_de` (ISO, ex. "2026-09-26T02:06"): linha mais antiga que
+    isso NAO conta como feita -- o combo volta pra fila e a corrida nova
+    ACRESCENTA uma linha (o ledger continua append-only). Criado pro bug da
+    EA achado em 2026-09-25 (entrada bloqueada nas janelas OOS em 'In Sample
+    + Out Sample': toda retencao medida entre 13/09 e 26/09 02:05 era
+    vazamento de borda), mas vale pra qualquer correcao que invalide
+    resultados antigos.
 
     Exclui entradas com "erro" (rodar_combo() grava isso quando o processo
     nunca imprimiu um JSON final -- crash antes de qualquer resultado real,
@@ -237,6 +245,8 @@ def feitos() -> set[tuple[str, str, str]]:
             # leitura do resto do ledger -- so aquele combo volta para a fila.
             continue
         if "erro" in r:
+            continue
+        if refazer_antes_de and str(r.get("quando", "")) < refazer_antes_de:
             continue
         chave = (r.get("simbolo"), r.get("sistema"), r.get("variante"))
         if None in chave:
@@ -679,7 +689,31 @@ def main() -> int:
                     help="Estagio 0: rankeia a entrada por (simbolo, lado) "
                          "nas 3 familias antes dos sistemas de administracao, "
                          "e trava a entrada da familia desta corrida neles.")
+    ap.add_argument("--refazer-antes-de", default="",
+                    help="ISO (ex. 2026-09-26T02:06): resultado do ledger "
+                         "mais antigo que isto nao conta como feito e o "
+                         "combo roda de novo (linha nova, nada apagado)")
+    ap.add_argument("--combos", default="",
+                    help="fila explicita SIMBOLO:SISTEMA:VARIANTE separada "
+                         "por virgula (ex. XAUUSD:04_SLTP_TRAIL:BUY_MULTI) "
+                         "-- refazer so os aprovados sem rodar o lado oposto")
     args = ap.parse_args()
+
+    combos_explicitos = []
+    for item in (c.strip() for c in args.combos.split(",") if c.strip()):
+        partes = item.split(":")
+        if len(partes) != 3:
+            print(f"--combos: '{item}' fora do formato SIMBOLO:SISTEMA:VARIANTE",
+                  flush=True)
+            return 1
+        combos_explicitos.append(tuple(partes))
+    if combos_explicitos:
+        # Os filtros de sempre saem dos proprios combos, pra fila() validar
+        # (familia/variante existentes) e ordenar do jeito de sempre.
+        args.simbolos = args.simbolos or ",".join(
+            dict.fromkeys(c[0] for c in combos_explicitos))
+        args.sistemas = args.sistemas or ",".join(
+            dict.fromkeys(c[1] for c in combos_explicitos))
 
     if args.simbolos.strip():
         simbolos = [s.strip() for s in args.simbolos.split(",") if s.strip()]
@@ -699,7 +733,15 @@ def main() -> int:
             return 1
 
     todos = fila(simbolos, sistemas, args.familia, args.modo_economico)
-    ja = feitos()
+    if combos_explicitos:
+        pedidos = set(combos_explicitos)
+        fora = pedidos - set(todos)
+        if fora:
+            print(f"--combos fora da fila desta familia/sistemas: {sorted(fora)}",
+                  flush=True)
+            return 1
+        todos = [c for c in todos if c in pedidos]
+    ja = feitos(args.refazer_antes_de or None)
     pendentes = [c for c in todos if c not in ja]
     print(f"campanha: {len(todos)} combos | {len(ja)} feitos | "
           f"{len(pendentes)} pendentes", flush=True)

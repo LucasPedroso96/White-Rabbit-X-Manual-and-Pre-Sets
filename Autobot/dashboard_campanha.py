@@ -1077,13 +1077,33 @@ def _motivo_sem_certificado(origem: Path, reg: dict) -> dict | None:
     return None
 
 
+def _registro_do_arquivo(origem: Path, linhas: list[dict]) -> dict:
+    """A linha do ledger que PRODUZIU este arquivo: a ultima com os mesmos
+    parametros. Nao simplesmente a ultima do combo -- um desafiante
+    reprovado pelo gate relativo (outros parametros) acrescenta linha
+    "reprovado" sem derrubar o campeao, e com "a ultima vence" o campeao
+    que continua valido aparecia reprovado (achado ao preparar a refacao
+    dos aprovados, 2026-09-26). Rebaixamento copia os parametros do
+    rebaixado, entao continua valendo. Sem nenhuma com os mesmos
+    parametros: a ultima (e _motivo_sem_certificado acusa a divergencia)."""
+    iguais = [r for r in linhas
+              if r.get("parametros") and not conferir_set(origem, r["parametros"])]
+    if iguais:
+        return iguais[-1]
+    return linhas[-1] if linhas else {}
+
+
 def _sets_com_origem() -> list[tuple[dict, Path]]:
     """(linha da aba, arquivo) de todo `VALIDADO_*.set` de TODAS as
     instalacoes do projeto (original + clones, wrx_paths) -- a campanha
     oficial roda no clone e os campeoes reais moram la. So leitura: nao
     recria pasta nem copia arquivo. Mesmo combo em duas instalacoes (ex.:
     sobra de sweep num, oficial no outro): fica UM, o certificado."""
-    metricas = ready_library.metricas_do_ledger(LEDGER)
+    por_combo: dict[tuple[str, str, str], list[dict]] = {}
+    for r in ler_ledger():
+        por_combo.setdefault(
+            (str(r.get("simbolo", "")).replace(".", "_"),
+             r.get("sistema", ""), r.get("variante", "")), []).append(r)
     implantados = _carregar_implantados()
     por_chave: dict[str, tuple[dict, Path]] = {}
     for rotulo, pasta in wrx_paths.pastas_de_dados_do_projeto():
@@ -1092,9 +1112,8 @@ def _sets_com_origem() -> list[tuple[dict, Path]]:
             info = ready_library.analisar_nome(origem.name)
             if info is None:
                 continue
-            reg = metricas.get(
-                (info["simbolo"], info["sistema"], info["variante"]), {}
-            )
+            reg = _registro_do_arquivo(origem, por_combo.get(
+                (info["simbolo"], info["sistema"], info["variante"]), []))
             chave = f"{info['simbolo']}__{info['sistema']}__{info['variante']}"
             motivo = _motivo_sem_certificado(origem, reg)
             linha = _linha_implantacao(chave, info, reg, motivo, rotulo,
@@ -1289,7 +1308,7 @@ def implantacao_deletar(body: dict) -> JSONResponse:
     if not chaves:
         return JSONResponse({"ok": False, "erro": "nenhum set selecionado"},
                             status_code=400)
-    metricas = ready_library.metricas_do_ledger(LEDGER)
+    ledger = ler_ledger()
     removidos = []
     nao_encontrados = []
     for chave in chaves:
@@ -1298,8 +1317,11 @@ def implantacao_deletar(body: dict) -> JSONResponse:
             nao_encontrados.append(chave)
             continue
         info = ready_library.analisar_nome(origem.name)
-        reg = metricas.get(
-            (info["simbolo"], info["sistema"], info["variante"]), {})
+        reg = _registro_do_arquivo(origem, [
+            r for r in ledger
+            if (str(r.get("simbolo", "")).replace(".", "_"), r.get("sistema"),
+                r.get("variante")) == (info["simbolo"], info["sistema"],
+                                       info["variante"])])
         relatorio_dir = reg.get("relatorio_dir")
         # Arquiva ANTES de apagar (mesmo principio de todo outro caminho que
         # toca um VALIDADO_ real, ver campeoes_arquivo.py) -- achado ao vivo,
