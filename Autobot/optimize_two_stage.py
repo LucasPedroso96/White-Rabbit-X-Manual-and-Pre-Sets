@@ -114,7 +114,49 @@ RELATORIO_SUFIXOS = (".htm", ".png", "-hst.png", "-mfemae.png", "-holding.png")
 # vira CALIBRACAO_/CALIBRACAO_REPROVADO_ e o relatorio ganha prefixo proprio.
 MODO_CALIBRACAO = False
 PREFIXO_RELATORIO_CALIBRACAO = "CALIBRACAO__"
+# Identidade DESTA corrida (main() preenche): sufixo da pasta de relatorio.
+# Achado 2026-09-26, ao vivo: a pasta era uma por COMBO, e a refacao do
+# XAUUSD/04 (desafiante reprovado na divergencia) sobrescreveu o relatorio
+# do campeao, que continuou VALIDADO_ exibindo evidencia de outra corrida.
+# Com uma pasta por corrida cada linha do ledger aponta pro que ELA mediu.
+ID_CORRIDA: str | None = None
 CHECKPOINTS_DIR = AQUI / "campanha_checkpoints"
+
+
+def proveniencia(variante: str) -> dict:
+    """Qual EA (.ex5, hash) e qual versao do Autobot produziram esta corrida.
+    Sem isso (ate 2026-09-26) o bug do OOS na EA so pode ser recortado por
+    DATA (--refazer-antes-de); com isso, por versao exata."""
+    ea = base.DADOS / "MQL5" / "Experts" / base.ea_file_for(variante)
+    saida = {"ea": ea.name, "ea_md5": None, "ea_compilado_em": None,
+             "autobot_commit": None}
+    try:
+        import hashlib
+        saida["ea_md5"] = hashlib.md5(ea.read_bytes()).hexdigest()[:12]
+        saida["ea_compilado_em"] = datetime.fromtimestamp(
+            ea.stat().st_mtime).isoformat(timespec="seconds")
+    except OSError:
+        pass
+    try:
+        saida["autobot_commit"] = subprocess.run(  # noqa: S603
+            ["git", "rev-parse", "--short", "HEAD"], cwd=AQUI,
+            capture_output=True, text=True, timeout=10).stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return saida
+
+
+def gate_do_veredito(div: float | None, retencao: float | None,
+                     min_retencao: float) -> str:
+    """Nome curto do gate que reprovou dentro de veredito() -- mesma ordem de
+    checagem dela (divergencia antes de retencao)."""
+    if div is None:
+        return "divergencia_sem_medida"
+    if div > 30:
+        return "divergencia"
+    if retencao is None:
+        return "retencao_sem_medida"
+    return "retencao"
 
 
 def _checkpoint_json_antigo(symbol: str, sistema: str, variante: str) -> Path:
@@ -2861,6 +2903,10 @@ def arquivar_relatorio(symbol: str, sistema: str, variante: str,
     pasta_rel = f"{symbol.replace('.', '_')}__{sistema}__{variante}"
     if MODO_CALIBRACAO:
         pasta_rel = PREFIXO_RELATORIO_CALIBRACAO + pasta_rel
+    if ID_CORRIDA:
+        # Uma pasta por CORRIDA (ver ID_CORRIDA): a recorrida do mesmo combo
+        # nunca mais apaga a evidencia de quem ja esta no ledger.
+        pasta_rel = f"{pasta_rel}__{ID_CORRIDA}"
     destino = RELATORIOS_DIR / pasta_rel
     try:
         destino.mkdir(parents=True, exist_ok=True)
@@ -3036,8 +3082,10 @@ def main() -> int:
                          "CALIBRACAO_ em vez de VALIDADO_, nunca toca o "
                          "campeao nem o relatorio dele")
     args = ap.parse_args()
-    global MODO_CALIBRACAO
+    global MODO_CALIBRACAO, ID_CORRIDA
     MODO_CALIBRACAO = args.calibracao
+    ID_CORRIDA = datetime.now().strftime("%Y%m%dT%H%M%S")
+    proveniencia_corrida = proveniencia(args.variante)
     div_sonda_estagio1 = None   # ver sonda_divergencia_estagio1()
     if args.recuperacao in ("martingale", "dalembert"):
         if args.sistema not in SISTEMAS_RECUPERACAO_ELEGIVEIS:
@@ -3936,12 +3984,17 @@ def main() -> int:
                   f"em {volume:.2f} lotes)", flush=True)
 
     aprovado, motivos = veredito(div, oos["retencao"], args.min_retencao)
+    # PRIMEIRO gate que reprovou (vai pro ledger/painel) -- antes so dava pra
+    # saber lendo o log (o vigia_auditoria fazia isso por regex).
+    reprovado_em = (None if aprovado else
+                    gate_do_veredito(div, oos["retencao"], args.min_retencao))
     for m in motivos:
         print(f"    {m}")
     if oos["retencao"] is None and oos.get("retencao_motivo"):
         print(f"    (motivo da EA: {oos['retencao_motivo']})")
     if aprovado and not mc_aprovado:
         aprovado = False
+        reprovado_em = reprovado_em or "monte_carlo"
         print("    REPROVADO no Monte Carlo: a sequencia de trades depende "
               "demais da ordem em que aconteceu (ver DD p95 acima).")
 
@@ -3954,6 +4007,7 @@ def main() -> int:
     r_capavel = modo_de_sizing(origem) == "3"
     if aprovado and r_capavel and oos["expectancy"] is not None and oos["expectancy"] <= 0:
         aprovado = False
+        reprovado_em = reprovado_em or "expectancy_r"
         print(f"    REPROVADO em R: expectancy fora da amostra "
               f"{oos['expectancy']:+.3f}R nao e positiva.")
 
@@ -4006,6 +4060,7 @@ def main() -> int:
                     print(f"    gate relativo: {m}", flush=True)
                 if not gate_aprovado:
                     aprovado = False
+                    reprovado_em = reprovado_em or "gate_relativo"
 
     # Segunda trava: confirmacao no HISTORICO COMPLETO disponivel, num
     # unico passe CONTINUO (inspirada no "long-window confirmation gate"
@@ -4028,6 +4083,7 @@ def main() -> int:
                 print(f"    historico completo: {m}", flush=True)
             if not aprovado_completo:
                 aprovado = False
+                reprovado_em = reprovado_em or "historico_completo"
                 print("    REPROVADO na confirmacao no historico completo: "
                       "passou na janela do run atual mas nao segura num "
                       "unico passe cobrindo tudo que a gente tem.",
@@ -4072,6 +4128,7 @@ def main() -> int:
                       "entrada -- verifique margem/abortos.", flush=True)
             if retencao_pct is None or retencao_pct < args.min_retencao:
                 aprovado = False
+                reprovado_em = reprovado_em or "prova_percentual"
                 if retencao_pct is None:
                     print("    retencao em % nao calculada -- a EA reporta: "
                           + (pct.get("retencao_motivo")
@@ -4131,6 +4188,7 @@ def main() -> int:
                           "muda entrada -- verifique margem/abortos.", flush=True)
                 if retencao_pct is None or retencao_pct < args.min_retencao:
                     aprovado = False
+                    reprovado_em = reprovado_em or "prova_monetario"
                     print("    REPROVADO na prova em Monetario: o resultado do "
                           "Fixed Lot nao sobreviveu ao lote escalado pelo "
                           "capital de referencia.", flush=True)
@@ -4207,6 +4265,7 @@ def main() -> int:
               f"{sobrevivencia['saldo_final']}", flush=True)
         if not sobrevivencia["sobreviveu"]:
             aprovado = False
+            reprovado_em = reprovado_em or "sobrevivencia"
             print(f"    REPROVADO no gate de sobrevivencia: "
                   f"{sobrevivencia['motivo']}.", flush=True)
         else:
@@ -4301,6 +4360,7 @@ def main() -> int:
                   flush=True)
         if not ok_anterior:
             aprovado = False
+            reprovado_em = reprovado_em or "periodo_anterior"
             print("    REPROVADO no periodo anterior ao treino: o set "
                   "ajustado ao regime recente e DESTRUTIVO em dado que nunca "
                   "viu.", flush=True)
@@ -4308,6 +4368,7 @@ def main() -> int:
                              wfa_reotimizacao["ciclos_positivos"],
                              args.sistema)[0]:
             aprovado = False
+            reprovado_em = reprovado_em or "wfa"
             print("    REPROVADO na WFA de reotimizacao: "
                   + avaliar_wfa(wfa_reotimizacao["wfe_global_pct"],
                                 wfa_reotimizacao["ciclos_positivos"],
@@ -4509,6 +4570,11 @@ def main() -> int:
                       # So medicao (2026-09-26): estrategia x buy&hold do
                       # proprio ativo no passe continuo de N anos.
                       "benchmark_historico_completo": ULTIMO_BENCHMARK,
+                      # 2026-09-26: primeiro gate que reprovou (None =
+                      # aprovado) e qual EA/Autobot produziu esta linha --
+                      # invalidar resultados por VERSAO, nao por data.
+                      "reprovado_em": None if aprovado else reprovado_em,
+                      "proveniencia": proveniencia_corrida,
                       "relatorio_dir": relatorio_dir,
                       # True = aprovado (ou nao) com base num candidato
                       # buscado DIRETO em tick real (ver [4.5/5] acima), nao
