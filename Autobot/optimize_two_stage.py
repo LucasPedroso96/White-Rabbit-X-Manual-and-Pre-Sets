@@ -4674,12 +4674,13 @@ def main() -> int:
     # ots`), entao o import no topo do arquivo criaria ciclo; aqui dentro de
     # main() o modulo ja esta totalmente carregado quando isto executa.
     # Holdout LACRADO: os ultimos dias que nenhum estagio viu. Passe continuo
-    # (WFO desligado, como o set vai ao ar) com os parametros FINAIS. Poucos
-    # trades = inconclusivo, nunca reprova por amostra (TF alto).
+    # com o set ENTREGUE (`entrega`: WFO fora, sizing/formula da entrega --
+    # ate 26/09 20:40 rodava com `travados`, o sizing de trabalho), como vai
+    # ao ar. Poucos trades = inconclusivo, nunca reprova por amostra (TF alto).
     holdout_lacrado = None
     if aprovado and inicio_lacrado:
         med_l = _medir_desempenho(
-            origem, dict(travados, AtivarWFO="false", MetodoDeEntradawfo="1"),
+            origem, dict(entrega, AtivarWFO="false"),
             args.symbol, args.period, inicio_lacrado, fim_lacrado,
             args.deposit)
         holdout_lacrado = avaliar_holdout_lacrado(
