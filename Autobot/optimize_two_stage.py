@@ -1342,6 +1342,101 @@ def piso_trades_da_janela(inicio: str, fim: str, taxa_anual: float,
     return max(piso_minimo, round(taxa_anual * dias / 365))
 
 
+# Piso de trades POR TIMEFRAME (2026-09-26, dono: "meu sistema levain tem um
+# mapa de tfs, min trades pra cada... deve ser o tf do atr; se nao tiver atr
+# declarado, apenas o indicador"). Mapa copiado do Levain 2.0
+# (scripts/integration/institutional_validation.py, TIMEFRAME_MIN_TRADES,
+# FIX 2026-04-27 -- la ele substituiu o "N<100" fixo que rejeitava H4/D1
+# legitimos, o mesmo defeito do --min-trades 100 daqui: 0 de 6755 no USDCAD
+# 06 BUY com TRIX em H1). Default 30 = o do Levain pra TF desconhecido.
+MIN_TRADES_POR_TF = {"M1": 200, "M5": 150, "M15": 80, "M30": 50,
+                     "H1": 35, "H4": 20, "D1": 12, "W1": 8}
+MIN_TRADES_TF_DESCONHECIDO = 30
+# ENUM_ALLOWED_TIMEFRAMES das 4 EAs (M1=0 ... W1=7).
+TFS_EA = ("M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1")
+# O ATR e o motor de stop, take, trailing, breakeven (fracao do take/stop),
+# grade (DistanciaMinima em ATR) e filtro de volatilidade. Qualquer um ligado
+# = ATR declarado -> o TF do ATR define o ritmo dos trades. Nos templates so
+# o 11_SIGNAL_ONLY nao declara nenhum (cai no TF do indicador).
+FLAGS_ATR = ("AtivarStop", "AtivarTake", "AtivarTrailATR", "TakeOrganico",
+             "EntradaATR", "UsarsomenteATRGRID")
+CAMPOS_PISO_TF = FLAGS_ATR + ("GridMode", "ATR_TimeFrame", "TimeFrame",
+                              "CandleTF1", "CandleTF2", "CandleTF3")
+
+
+def _nome_tf(valor) -> str | None:
+    v = str(valor if valor is not None else "").strip().upper()
+    if v in MIN_TRADES_POR_TF:
+        return v
+    try:
+        i = int(float(v))
+    except ValueError:
+        return None
+    return TFS_EA[i] if 0 <= i < len(TFS_EA) else None
+
+
+def tf_referencia(params: dict) -> tuple[str | None, str]:
+    """(TF, de onde veio) que define o piso de trades deste conjunto.
+
+    ATR declarado (FLAGS_ATR ou grade ligada) -> ATR_TimeFrame. Senao o TF do
+    indicador de entrada (TimeFrame; na Candles, o MAIOR dos 3 slots -- a
+    confluencia so dispara no ritmo do slot mais lento)."""
+    atr = (any(str(params.get(f, "")).strip().lower() == "true"
+               for f in FLAGS_ATR)
+           or str(params.get("GridMode", "0")).strip() not in ("", "0"))
+    if atr and _nome_tf(params.get("ATR_TimeFrame")):
+        return _nome_tf(params.get("ATR_TimeFrame")), "ATR"
+    if _nome_tf(params.get("TimeFrame")):
+        return _nome_tf(params.get("TimeFrame")), "indicador"
+    slots = [_nome_tf(params.get(f"CandleTF{i}")) for i in (1, 2, 3)]
+    slots = [s for s in slots if s]
+    if slots:
+        return max(slots, key=TFS_EA.index), "candles"
+    return None, "sem TF"
+
+
+def piso_trades_tf(params: dict, divisor: int = 1) -> tuple[int, str]:
+    """(piso, rotulo) pelo mapa do Levain. `divisor` 3 no Estagio 1 (regioes
+    com numeros crus, mesma folga do piso1 antigo), com chao no menor valor
+    do mapa (W1 = 8)."""
+    tf, origem = tf_referencia(params)
+    piso = MIN_TRADES_POR_TF.get(tf or "", MIN_TRADES_TF_DESCONHECIDO)
+    if divisor > 1:
+        piso = max(min(MIN_TRADES_POR_TF.values()), piso // divisor)
+    return piso, f"{origem} {tf or '?'} -> {piso}"
+
+
+def valores_do_set(origem: Path) -> dict[str, str]:
+    """{nome: valor} de TODO parametro do .set (o 1o campo, com ou sem
+    faixa) -- a base sobre a qual travados/linha do relatorio se aplicam."""
+    valores: dict[str, str] = {}
+    for linha in origem.read_text(encoding="utf-16").replace("\r", "").split("\n"):
+        m = re.match(r"^([A-Za-z_0-9]+)=(.*)$", linha)
+        if m:
+            valores[m.group(1)] = m.group(2).split("||")[0]
+    return valores
+
+
+def escolher_com_piso_tf(cab: list[str], linhas: list[list[str]],
+                         base_params: dict, min_pf: float, divisor: int = 1,
+                         piso_fixo: int | None = None) -> list[list[str]]:
+    """base.escolher_candidatos com o piso de trades de CADA linha (o TF de
+    cada passe pode ser outro no Estagio 1). `piso_fixo` (--min-trades ou
+    --min-trades-per-year explicitos) mantem o comportamento antigo."""
+    if piso_fixo is not None:
+        return base.escolher_candidatos(cab, linhas, piso_fixo, min_pf)
+    i_tr = cab.index("Trades") if "Trades" in cab else None
+    idx = {c: cab.index(c) for c in CAMPOS_PISO_TF if c in cab}
+    passam = []
+    for linha in linhas:
+        params = dict(base_params)
+        params.update({c: linha[i] for c, i in idx.items()})
+        piso, _ = piso_trades_tf(params, divisor)
+        if i_tr is None or base.num(linha[i_tr]) >= piso:
+            passam.append(linha)
+    return base.escolher_candidatos(cab, passam, 0, min_pf)
+
+
 # O piso de dias_para_trades_alvo() nao pode so evitar o DEGENERADO (1
 # ciclo) -- precisa preservar os MESMOS `ciclos_alvo` ciclos que
 # janelas_wfo()/dimensionar_wfo() usam em toda corrida (6), cada um com
@@ -3160,7 +3255,9 @@ def main() -> int:
     ap.add_argument("--from", dest="inicio", default="2023.08.01")
     ap.add_argument("--to", dest="fim", default=datetime.now().strftime("%Y.%m.%d"))
     ap.add_argument("--deposit", type=int, default=500)
-    ap.add_argument("--min-trades", type=int, default=100)
+    # Sem valor (padrao desde 2026-09-26): piso POR TF, ver MIN_TRADES_POR_TF.
+    # Um numero explicito volta ao piso fixo antigo (era 100).
+    ap.add_argument("--min-trades", type=int, default=None)
     ap.add_argument("--min-pf", type=float, default=1.2)
     # Opt-in (dono, 2026-08-27): ver piso_trades_da_janela(). Quando passado,
     # SUBSTITUI --min-trades por um piso derivado de --from/--to; --min-pf
@@ -3323,7 +3420,7 @@ def main() -> int:
                 - datetime.strptime(args.inicio, "%Y.%m.%d")).days
         print(f"    --min-trades-per-year={args.min_trades_per_year:g} | janela "
               f"{args.inicio}..{args.fim} ({dias}d) -> piso de {args.min_trades} "
-              f"trades (era --min-trades={piso_antigo})", flush=True)
+              f"trades (era {piso_antigo or 'o piso por TF'})", flush=True)
 
     garantir_terminal_livre(fechar=args.fechar_terminal, terminal=base.TERMINAL)
     # Marca o log ANTES de qualquer passe do combo -- so pra contar quantos
@@ -3455,7 +3552,15 @@ def main() -> int:
           f"fim {wfo['input_end_date']}", flush=True)
     # Piso de trades mais baixo aqui: estamos descobrindo REGIOES, e uma
     # regiao boa com numeros ainda crus produz menos trades do que produzira.
-    piso1 = max(30, args.min_trades // 3)
+    # Sem --min-trades explicito o piso e POR LINHA (cada passe tem o seu TF,
+    # ver escolher_com_piso_tf) -- 1/3 do mapa do Levain, chao 8.
+    piso1 = max(30, args.min_trades // 3) if args.min_trades else None
+    params_set = valores_do_set(origem)
+    if piso1 is None:
+        print("    piso de trades por TF (mapa do Levain; ATR declarado -> TF "
+              "do ATR, senao TF do indicador): "
+              + ", ".join(f"{tf} {n}" for tf, n in MIN_TRADES_POR_TF.items())
+              + " | estagio 1 usa 1/3 (chao 8)", flush=True)
     metricas = {"Pass", "Result", "Profit", "Expected Payoff", "Profit Factor",
                 "Recovery Factor", "Sharpe Ratio", "Custom", "Equity DD %", "Trades"}
 
@@ -3504,7 +3609,8 @@ def main() -> int:
             break
         cab = cab_r
         linhas += linhas_r
-        melhores = base.escolher_candidatos(cab, linhas, piso1, 1.0)
+        melhores = escolher_com_piso_tf(cab, linhas, {**params_set, **travados},
+                                        1.0, 3, piso1)
         i_ind = cab.index("EntryIndicator") if "EntryIndicator" in cab else None
         aptos = (len({linha[i_ind] for linha in melhores}) if i_ind is not None
                  else (1 if melhores else 0))
@@ -3562,7 +3668,8 @@ def main() -> int:
                              estagio="pausado")
             return base.CODIGO_PAUSA
 
-    melhores = base.escolher_candidatos(cab, linhas, piso1, 1.0)
+    melhores = escolher_com_piso_tf(cab, linhas, {**params_set, **travados},
+                                    1.0, 3, piso1)
     if not melhores:
         print("    nenhum passe passou o piso no estagio 1")
         emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
@@ -3667,7 +3774,9 @@ def main() -> int:
                                 variante=args.variante)
         # piso1 (o mesmo do Estagio 1), nao args.min_trades: continuamos
         # descobrindo REGIAO -- os numeros so sao refinados no Estagio 2.
-        solo_ok = (base.escolher_candidatos(cab_s, linhas_s, piso1, 1.0)
+        solo_ok = (escolher_com_piso_tf(cab_s, linhas_s,
+                                        {**params_set, **travados_solo},
+                                        1.0, 3, piso1)
                    if linhas_s else [])
         if solo_ok and args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
             solo_ok = priorizar_lucro_no_topo(
@@ -3704,6 +3813,14 @@ def main() -> int:
 
     # ---- Estagio 2: NUMEROS, ainda em OHLC ----------------------------------
     travados.update(escrita_vencedora)
+    # Escrita travada = TFs e flags de ATR decididos: daqui em diante um piso
+    # so pro combo (Estagios 2, 2.5, 3, 3.5, 4), pelo mapa do Levain.
+    piso_trades_origem = "fixo (--min-trades)"
+    if args.min_trades is None:
+        args.min_trades, piso_trades_origem = piso_trades_tf(
+            {**params_set, **travados})
+        print(f"    piso de trades do combo: {piso_trades_origem} "
+              "(mapa do Levain)", flush=True)
     div_sonda_estagio1 = sonda_divergencia_estagio1(origem, trabalho,
                                                     travados, args)
     # Abre so os periodos que ESTE indicador usa: com o vencedor conhecido, os
@@ -3748,7 +3865,8 @@ def main() -> int:
         print("    nenhum candidato passou os pisos.")
         emitir_reprovado_cedo(args.symbol, args.sistema, args.variante,
                               "estagio 2: nenhum candidato passou os pisos "
-                              "de trades/profit factor")
+                              f"de trades/profit factor (piso {piso_trades_origem}"
+                              f", PF {args.min_pf})")
         limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 0
 
@@ -4863,6 +4981,10 @@ def main() -> int:
                       # tick_real_pct}. None = nao rodou.
                       "holdout_lacrado": holdout_lacrado,
                       "janela_treino": f"{args.inicio}..{args.fim}",
+                      # Piso de trades dos Estagios 2+ (mapa do Levain por
+                      # TF, ver MIN_TRADES_POR_TF) e de onde ele veio.
+                      "piso_trades": args.min_trades,
+                      "piso_trades_origem": piso_trades_origem,
                       # Retencao com poucas entradas no OOS (TF alto): nem
                       # aprovou nem reprovou, os gates longos decidiram.
                       "retencao_inconclusiva": retencao_inconclusiva,

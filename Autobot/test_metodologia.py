@@ -86,6 +86,41 @@ try:
 except ots.TerminalNaoExecutou:
     FALHAS.append("log com teste iniciado nao pode levantar erro")
 
+# --- piso de trades por TF (mapa do Levain) -----------------------------------
+p = ots.piso_trades_tf
+SLTP = {"AtivarStop": "true", "AtivarTake": "true", "AtivarTrailATR": "false",
+        "GridMode": "0", "TimeFrame": "4", "ATR_TimeFrame": "5"}
+checar("ATR declarado: vale o TF do ATR (H4=20), nao o do indicador (H1)",
+       p(SLTP)[0], 20)
+SINAL = dict(SLTP, AtivarStop="false", AtivarTake="false")
+checar("sem ATR (11_SIGNAL_ONLY): vale o TF do indicador (H1=35)", p(SINAL)[0], 35)
+checar("grade ligada conta como ATR declarado",
+       p(dict(SINAL, GridMode="1"))[0], 20)
+checar("filtro de volatilidade ATR conta como declarado",
+       p(dict(SINAL, EntradaATR="true"))[0], 20)
+checar("M1 continua exigente (200)", p(dict(SLTP, ATR_TimeFrame="0"))[0], 200)
+checar("D1 = 12, W1 = 8", (p(dict(SLTP, ATR_TimeFrame="6"))[0],
+                          p(dict(SLTP, ATR_TimeFrame="7"))[0]), (12, 8))
+CANDLES = {"AtivarStop": "false", "AtivarTake": "false", "CandleTF1": "1",
+           "CandleTF2": "4", "CandleTF3": "2"}
+checar("Candles sem ATR: maior slot (H1=35)", p(CANDLES)[0], 35)
+checar("sem TF nenhum: 30 (default do Levain)", p({})[0], 30)
+checar("estagio 1 (1/3, chao 8): M1 -> 66, H4 -> 8",
+       (p(dict(SLTP, ATR_TimeFrame="0"), 3)[0], p(SLTP, 3)[0]), (66, 8))
+
+# escolher_com_piso_tf: o piso e da LINHA (cada passe tem o seu TF)
+CAB = ["Pass", "Profit", "Profit Factor", "Trades", "Equity DD %",
+       "ATR_TimeFrame"]
+LINHAS = [["1", "500", "1.5", "40", "10", "0"],   # M1 com 40 trades: fora
+          ["2", "400", "1.5", "40", "10", "5"],   # H4 com 40 trades: dentro
+          ["3", "300", "1.5", "210", "10", "0"]]  # M1 com 210: dentro
+ok = ots.escolher_com_piso_tf(CAB, LINHAS, SLTP, 1.2)
+checar("piso por linha: M1 com 40 fora, H4 com 40 e M1 com 210 dentro",
+       sorted(l[0] for l in ok), ["2", "3"])
+checar("piso fixo explicito mantem o comportamento antigo",
+       sorted(l[0] for l in ots.escolher_com_piso_tf(CAB, LINHAS, SLTP, 1.2,
+                                                     piso_fixo=100)), ["3"])
+
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")
     for f in FALHAS:
