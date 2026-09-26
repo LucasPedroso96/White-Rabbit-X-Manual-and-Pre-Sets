@@ -116,11 +116,23 @@ try:
     checar("estouro mudo + sucesso: relanca uma vez", chamadas["lancar"], 2)
     checar("estouro mudo + sucesso: trades da tentativa boa", r["trades"], 12)
 
-    # --- poll estoura mudo sempre: para no limite, sem inventar resultado
-    r = rodar([LOG_MUDO] * (ots.TENTATIVAS_AGENTE + 2))
+    # --- poll estoura mudo sempre, SEM teste nenhum iniciado: e falha de
+    # infraestrutura (2026-09-26, LiveUpdate do build 6230) -- levanta em vez
+    # de devolver trades=None, que o circuito lia como reprovacao
+    try:
+        rodar([LOG_MUDO] * (ots.TENTATIVAS_AGENTE + 2))
+        FALHAS.append("sempre mudo sem teste: deveria levantar "
+                      "TerminalNaoExecutou")
+    except ots.TerminalNaoExecutou:
+        pass
     checar("sempre mudo: para em TENTATIVAS_AGENTE", chamadas["lancar"],
            ots.TENTATIVAS_AGENTE)
-    checar("sempre mudo: trades vazio", r["trades"], None)
+
+    # --- teste INICIOU mas nunca terminou: resultado vazio, sem excecao
+    LOG_INICIOU = LOG_MUDO + ("Core 01\tEURUSD,M1: testing of Experts\\X.ex5 "
+                              "from 2026.01.01 00:00 to 2026.02.01 00:00\n")
+    r = rodar([LOG_INICIOU] * (ots.TENTATIVAS_AGENTE + 2))
+    checar("iniciou e nao terminou: trades vazio", r["trades"], None)
 finally:
     (ots.lancar_terminal, base.marcar_logs, base.texto_novo,
      base.escrever_ini, ots.time.sleep, ots.time.monotonic) = originais

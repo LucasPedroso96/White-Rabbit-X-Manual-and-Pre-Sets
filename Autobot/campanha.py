@@ -91,6 +91,11 @@ def anos_atras(anos: int) -> str:
 # existindo, so que como booster OPCIONAL de qualquer sistema abaixo (ver
 # --recuperacao em optimize_two_stage.py, acionado por fora desta fila, nao
 # como mais um "sistema" que entraria nesta lista).
+# Disjuntor de infraestrutura (ver o fim de main()): N combos SEGUIDOS em
+# erro = terminal quebrado; a campanha sai com CODIGO_INFRA e as filas .ps1
+# param junto em vez de seguir pra proxima etapa.
+MAX_ERROS_INFRA_SEGUIDOS = 3
+CODIGO_INFRA = 3
 SISTEMAS = ["01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
             "05_BE_TRAIL", "06_REVERSAL_EXIT",
             "07_GRID_SEPARATE", "12_GRID_INVERSO", "11_SIGNAL_ONLY"]
@@ -431,7 +436,7 @@ def _taxa_anual_por_sonda(simbolo: str, sistema: str, variante: str,
 def resolver_janela(simbolo: str, sistema: str, variante: str,
                     inicio_explicito: str | None, fim: str,
                     dinamica: bool, trades_alvo: float = JANELA_TRADES_ALVO,
-                    janela_maxima_anos: int = 3) -> str:
+                    janela_maxima_anos: int = 2) -> str:
     """Janela efetiva (--from) pra ESTE combo -- mesmo padrao de
     `resolver_deposito()`: override explicito SEMPRE vence, nunca e
     sobreposto por logica automatica nenhuma.
@@ -479,7 +484,7 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args,
     inicio = resolver_janela(simbolo, sistema, variante, args.inicio,
                              args.fim, getattr(args, "janela_dinamica", False),
                              janela_maxima_anos=getattr(
-                                 args, "janela_maxima_anos", 3))
+                                 args, "janela_maxima_anos", 2))
     cmd = [sys.executable, str(AQUI / "optimize_two_stage.py"),
            "--symbol", simbolo, "--sistema", sistema, "--variante", variante,
            "--period", "M1",
@@ -616,9 +621,11 @@ def main() -> int:
                          "frequencia (grid-like) tendem a pedir bem menos "
                          "que 3 anos; --from explicito sempre vence, mesmo "
                          "com esta flag ligada")
-    ap.add_argument("--janela-maxima-anos", type=int, default=3,
+    ap.add_argument("--janela-maxima-anos", type=int, default=2,
                     help="teto de --janela-dinamica -- nunca pede mais "
-                         "periodo que isto, mesmo se a taxa medida for baixa")
+                         "periodo que isto, mesmo se a taxa medida for baixa "
+                         "(2 desde 2026-09-26: optimize_two_stage.py limita "
+                         "o treino a JANELA_TREINO_MAX_DIAS de qualquer jeito)")
     # Fase 2 da mudanca de direcao (2026-09-13): repassa pro
     # optimize_two_stage.py de cada combo -- so existia la, faltava o
     # encanamento ate aqui (achado ao vivo tentando ligar as duas juntas).
@@ -753,6 +760,7 @@ def main() -> int:
     ranking_cache: dict[tuple[str, str], Path] = {}
 
     feitos_agora = 0
+    erros_seguidos = 0
     for simbolo, sistema, variante in pendentes:
         if args.limite and feitos_agora >= args.limite:
             print(f"limite de {args.limite} atingido; parando.", flush=True)
@@ -807,9 +815,21 @@ def main() -> int:
             print(f"AVISO: espelho de prontos nao sincronizou: {exc}",
                   flush=True)
         feitos_agora += 1
-        marca = "APROVADO" if reg.get("aprovado") else "reprovado"
+        marca = ("ERRO" if reg.get("erro") else
+                 "APROVADO" if reg.get("aprovado") else "reprovado")
         print(f"-> {marca} | retencao={reg.get('retencao_oos')} "
               f"| {reg.get('minutos')} min", flush=True)
+        # Disjuntor (2026-09-26): o LiveUpdate do MT5 fez o terminal abrir e
+        # fechar sem testar, e a fila "rodou" 18 combos em 8 min. Erro de
+        # infraestrutura em sequencia = o terminal esta quebrado, nao os
+        # combos: para aqui (codigo 3) em vez de queimar a fila inteira.
+        erros_seguidos = erros_seguidos + 1 if reg.get("erro") else 0
+        if erros_seguidos >= MAX_ERROS_INFRA_SEGUIDOS:
+            print(f"\nINFRA: {erros_seguidos} combos seguidos terminaram em "
+                  "erro de infraestrutura (MT5 nao executou) -- campanha "
+                  "INTERROMPIDA. Conferir o terminal (atualizacao pendente? "
+                  "aberto por outro processo?) e relancar.", flush=True)
+            return CODIGO_INFRA
 
     print(f"\ncampanha: {feitos_agora} combos nesta rodada. "
           f"Ledger: {LEDGER.name}", flush=True)

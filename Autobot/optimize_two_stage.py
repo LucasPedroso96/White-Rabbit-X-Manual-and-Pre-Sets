@@ -215,7 +215,7 @@ def _linhas_ja_salvas(pasta: Path) -> int:
 
 def salvar_checkpoint_estagio1(symbol: str, sistema: str, variante: str,
                                cab: list[str], linhas: list[list[str]],
-                               rodada: int) -> None:
+                               rodada: int, periodo: str = "") -> None:
     """Persiste o progresso do Estagio 1 apos cada rodada, combo a combo.
 
     Achado do dono, 2026-08-06: reiniciar a campanha (pra aplicar um fix)
@@ -241,12 +241,13 @@ def salvar_checkpoint_estagio1(symbol: str, sistema: str, variante: str,
             pasta / f"rodada_{rodada}.parquet", index=False)
     _checkpoint_meta(symbol, sistema, variante).write_text(
         json.dumps({"symbol": symbol, "sistema": sistema, "variante": variante,
-                    "cab": cab, "rodada_concluida": rodada}, ensure_ascii=False),
+                    "cab": cab, "rodada_concluida": rodada,
+                    "periodo": periodo}, ensure_ascii=False),
         encoding="utf-8")
 
 
 def carregar_checkpoint_estagio1(symbol: str, sistema: str,
-                                 variante: str) -> dict | None:
+                                 variante: str, periodo: str = "") -> dict | None:
     """Devolve o checkpoint SO se bater com este combo exato. `None` em
     qualquer outra situacao (ausente, corrompido, de outro combo) -- upgrade
     opcional, nunca uma dependencia dura: sem checkpoint valido, o Estagio 1
@@ -280,6 +281,12 @@ def carregar_checkpoint_estagio1(symbol: str, sistema: str,
             or dado.get("variante") != variante
             or not isinstance(dado.get("cab"), list)
             or not isinstance(dado.get("rodada_concluida"), int)):
+        return None
+    # Periodo (2026-09-26): checkpoint de OUTRA janela de datas (holdout
+    # lacrado, janela dinamica diferente, corrida antiga) era reaproveitado
+    # em silencio -- rodadas de periodos diferentes misturadas no Estagio 1.
+    if periodo and dado.get("periodo") != periodo:
+        print(f"    checkpoint do estagio 1 ignorado: periodo {dado.get('periodo') or 'desconhecido'} != {periodo}", flush=True)
         return None
     partes = sorted(pasta.glob("rodada_*.parquet"))
     if not partes:
@@ -372,6 +379,30 @@ TESTE_CONCLUIDO = re.compile(r"automatic(al)? testing finished")
 # roda. Transitorio; passe_unico() repete ate TENTATIVAS_AGENTE vezes.
 AGENTE_RECUSOU = re.compile(r"authorization failed")
 TENTATIVAS_AGENTE = 3
+# Qualquer sinal de que o tester DE FATO comecou a testar.
+_TESTE_INICIOU = re.compile(r"testing of Experts|optimization started|"
+                            r"automatic(al)? testing finished")
+
+
+class TerminalNaoExecutou(RuntimeError):
+    """O MT5 abriu e fechou sem rodar teste nenhum -- falha de
+    INFRAESTRUTURA, nunca veredito. Achado ao vivo 2026-09-26: a RoboForex
+    publicou o build 6230, cada lancamento do terminal tentou se atualizar
+    (LiveUpdate: "failed to create copy ... [32]", "terminal process already
+    started", "cannot load config otim.ini") e a otimizacao nunca comecou.
+    O circuito tratava relatorio vazio como "nenhum passe sobreviveu aos
+    filtros": 18 reprovacoes FALSAS em 8 min. Agora o combo morre com erro
+    (campanha grava "erro", feitos() nao conta, volta pra fila)."""
+
+
+def conferir_execucao(log: str, contexto: str) -> None:
+    """Levanta TerminalNaoExecutou se o log do tester deste lancamento nao
+    tem NENHUM teste iniciado."""
+    if not _TESTE_INICIOU.search(log or ""):
+        raise TerminalNaoExecutou(
+            f"o MT5 nao executou {contexto}: nenhum teste iniciou no log do "
+            "tester (LiveUpdate do terminal? config nao carregada? terminal "
+            "ja aberto?) -- falha de infraestrutura, nao veredito")
 
 # Enum do EA (ENUM_ENTRY_INDICATOR). Ichimoku (11) vive em set proprio porque o
 # OnInit exige Tenkan<Kijun<SenkouB; os MULTI disputam 0..10 num eixo so.
@@ -1680,8 +1711,16 @@ def sonda_divergencia_estagio1(origem: Path, trabalho: Path,
 
 
 def veredito(div: float | None, retencao: float | None,
-             min_retencao: float) -> tuple[bool, list[str]]:
+             min_retencao: float, entradas_oos: int | None = None,
+             motivo_retencao: str | None = None) -> tuple[bool, list[str]]:
     """Aprova o candidato so quando as DUAS conferencias passam.
+
+    Retencao com menos de MIN_ENTRADAS_OOS_RETENCAO entradas nas janelas OOS
+    (2026-09-26) e INCONCLUSIVA: nao reprova nem aprova -- TF alto/estrategia
+    lenta nao pode ser punida por amostra pequena (dono), e amostra pequena
+    tambem nao prova nada; o holdout lacrado e os gates longos decidem.
+    Excecao: In-Sample quase sem lucro continua reprovando (a estrategia nem
+    lucrou onde foi otimizada).
 
     Elas respondem perguntas diferentes e uma nao substitui a outra:
 
@@ -1714,6 +1753,15 @@ def veredito(div: float | None, retencao: float | None,
         motivos.append("grid. Trate o numero do OHLC como invalido, nao aproximado.")
     else:
         motivos.append(f"OK divergencia ({div:.1f}%): o lucro do OHLC e real.")
+
+    if (entradas_oos is not None and entradas_oos < MIN_ENTRADAS_OOS_RETENCAO
+            and "quase sem lucro" not in (motivo_retencao or "")):
+        motivos.append(f"RETENCAO INCONCLUSIVA: so {entradas_oos} entrada(s) nas "
+                       f"janelas OOS (< {MIN_ENTRADAS_OOS_RETENCAO}) -- amostra")
+        motivos.append("pequena demais pra decidir; nao reprova nem aprova, o "
+                       "holdout lacrado e os gates longos decidem.")
+        motivos.insert(0, "")
+        return aprovado, motivos
 
     if retencao is None:
         aprovado = False
@@ -1905,7 +1953,7 @@ def _medir_desempenho(origem: Path, params: dict, simbolo: str, periodo: str,
     # Buy&hold do mesmo passe (log LOCAL, nunca do arquivo comum) -- ver
     # comparar_buy_and_hold().
     bh = {k: r.get(k) for k in ("bh_retorno_pct", "bh_dd_compra_pct",
-                                "bh_dd_venda_pct")}
+                                "bh_dd_venda_pct", "tick_real_pct")}
     if stats is None:
         if r.get("saldo") is None:
             return {}
@@ -2046,9 +2094,33 @@ PERIODO_PADRAO_HISTORICO_COMPLETO_ANOS = 3
 # (holdout_longo_*); o veredito de "lucro nos 3 anos" agora vem da camada 1, no
 # passe continuo. Os limites abaixo sao PROVISORIOS -- ajustar com dado real.
 LIMITE_CATASTROFE_PCT = 0.0
-LIMITE_PERDA_ANTERIOR_PCT = 20.0
+# 20 -> 5 (2026-09-26, dono: "segue com sugerido"): o periodo anterior e o
+# UNICO teste dos parametros entregues em dado que eles nunca viram, e -20%
+# deixou passar .US500Cash/04 SELL (-10%, todo o lucro de 3 anos veio do ano
+# de treino -- assinatura classica de overfit).
+LIMITE_PERDA_ANTERIOR_PCT = 5.0
 MIN_TRADES_PERIODO_ANTERIOR = 10
 MIN_DIAS_PERIODO_ANTERIOR = 120
+# Cobertura de tick real (2026-09-26): o servidor so tem tick de verdade a
+# partir de uma data por ativo (.DE40Cash 02/2025, .JP225Cash 11/2024,
+# .US30Cash 04/2024, XAGUSD 06/2025, XAUEUR 08/2025); antes o MT5 gera ticks
+# das barras M1, com o otimismo intrabar do OHLC. Periodo anterior abaixo
+# disso e evidencia FRACA: reprovar continua valendo (perdeu mesmo com dado
+# otimista), aprovar fica marcado no ledger.
+COBERTURA_TICK_MIN_PCT = 70.0
+# Holdout LACRADO (2026-09-26): os ultimos N dias ficam fora de TODA selecao
+# (estagios 1-4, torneios, gate relativo) -- o unico teste pra FRENTE dos
+# parametros que vao ao ar. Menos de MIN_TRADES_LACRADO trades = inconclusivo
+# (TF alto/estrategia lenta nao e punida por amostra pequena -- dono).
+HOLDOUT_LACRADO_DIAS_PADRAO = 90
+MIN_TRADES_LACRADO = 5
+# Teto da janela de treino (2026-09-26): com treino de 3 anos (NVDA, 1095 d)
+# o teste de 3 anos era 100% dentro da amostra e nao sobrava periodo anterior.
+JANELA_TREINO_MAX_DIAS = 730
+# Retencao com menos entradas que isso no OOS intercalado = INCONCLUSIVA: nao
+# reprova nem aprova, os gates longos decidem (dono: "cuidado com min de
+# trade em TF altos").
+MIN_ENTRADAS_OOS_RETENCAO = 15
 # Validade do set (cadencia de reotimizacao): PROVISORIA, o dono ainda nao
 # definiu -- 90 dias = 6x a janela OOS de 15 dias do WFO. Vai no JSON final
 # (validade_ate) pro dashboard/auto-manager poderem agir.
@@ -2122,6 +2194,30 @@ def avaliar_periodo_anterior(profit: float | None, trades: int | None,
                        f"deposito ({limite:.2f}).")
     return True, (f"periodo anterior ao treino: lucro {profit:.2f} (piso "
                   f"{limite:.2f}) -- OK.")
+
+
+def avaliar_holdout_lacrado(profit: float | None, trades: int | None,
+                            deposito: float) -> dict:
+    """Veredito do holdout lacrado: {"veredito", "profit", "trades", "msg"}.
+
+    "reprovado" so com amostra suficiente E prejuizo. Sem medida ou com menos
+    de MIN_TRADES_LACRADO trades e "inconclusivo" -- um D1/H4 pode passar 90
+    dias com 2 trades e isso nao e evidencia contra ele."""
+    base = {"profit": profit, "trades": trades}
+    if profit is None:
+        return dict(base, veredito="sem_medida",
+                    msg="sem medida -- nao avaliado.")
+    if trades is None or trades < MIN_TRADES_LACRADO:
+        return dict(base, veredito="inconclusivo",
+                    msg=(f"{trades or 0} trade(s) < {MIN_TRADES_LACRADO}, "
+                         f"inconclusivo (lucro {profit:.2f}) -- quem decide "
+                         "sao os gates longos."))
+    if profit < 0:
+        return dict(base, veredito="reprovado",
+                    msg=(f"prejuizo {profit:.2f} em {trades} trades "
+                         f"({100 * profit / deposito:.1f}% do deposito)."))
+    return dict(base, veredito="aprovado",
+                msg=f"lucro {profit:.2f} em {trades} trades -- OK.")
 
 
 def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
@@ -2206,6 +2302,33 @@ def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
                                     inicio, fim, deposito)
 
     return avaliar_gate_relativo(campeao, desafiante)
+
+
+def cobertura_tick_real(log: str) -> float | None:
+    """% do periodo do passe coberto por TICK REAL de verdade. O tester loga
+    "SIMBOLO: ticks data begins from AAAA.MM.DD" e "testing of ... from A to
+    B"; antes do inicio dos ticks o MT5 gera ticks das barras M1 (o mesmo
+    otimismo intrabar do OHLC). None se o log nao trouxer as duas linhas."""
+    ticks = re.findall(r"ticks data begins from (\d{4}\.\d{2}\.\d{2})", log)
+    teste = re.findall(r"testing of .*? from (\d{4}\.\d{2}\.\d{2}) \d{2}:\d{2} "
+                       r"to (\d{4}\.\d{2}\.\d{2})", log)
+    if not ticks or not teste:
+        return None
+    ini, fim = (datetime.strptime(d, "%Y.%m.%d") for d in teste[-1])
+    inicio_tick = datetime.strptime(ticks[-1], "%Y.%m.%d")
+    total = (fim - ini).days
+    if total <= 0:
+        return None
+    real = (fim - max(ini, inicio_tick)).days
+    return round(100.0 * max(0, min(real, total)) / total, 1)
+
+
+def entradas_oos_do_passe(log: str) -> int | None:
+    """Entradas abertas nas janelas OOS do ultimo passe IS+OOS do trecho
+    (mesma contagem de sonda_oos.py). None fora do modo IS+OOS."""
+    import sonda_oos
+    passes = sonda_oos.analisar(log.replace("\r", "").split("\n"))
+    return passes[-1]["entradas_oos"] if passes else None
 
 
 def ler_metricas(log: str) -> dict:
@@ -2301,6 +2424,12 @@ def ler_metricas(log: str) -> dict:
     trades = r_met[0] if r_met else total_trades
     return {
         "retencao_metodo_antigo": float(ret_antigo) if ret_antigo else None,
+        # 2026-09-26: quanto do passe foi TICK REAL (o servidor so tem tick a
+        # partir de uma data por ativo -- .DE40Cash 02/2025, XAGUSD 06/2025;
+        # antes disso o MT5 gera ticks das barras M1, com o otimismo do OHLC)
+        # e quantas entradas cairam nas janelas OOS (amostra da retencao).
+        "tick_real_pct": cobertura_tick_real(log),
+        "entradas_oos": entradas_oos_do_passe(log),
         "saldo": float(saldo) if saldo else None,
         "trades": int(trades) if trades is not None else None,
         "total_r": float(r_met[1]) if r_met else None,
@@ -2761,7 +2890,10 @@ def passe_unico(caminho_set: Path, symbol: str, periodo: str, inicio: str,
               f"({tentativa + 1}/{TENTATIVAS_AGENTE})", flush=True)
         time.sleep(5)
 
-    return ler_metricas(log)
+    medida = ler_metricas(log)
+    if medida["saldo"] is None:
+        conferir_execucao(log, "o passe unico")
+    return medida
 
 
 def avaliar_sobrevivencia(log: str, deposito: int) -> dict:
@@ -2930,6 +3062,7 @@ def rodar(caminho_set: Path, symbol: str, periodo: str, inicio: str, fim: str,
     candidatos = sorted(base.DADOS.glob(f"{nome_rel}*"),
                         key=lambda p: (p.suffix.lower() != ".xml", p.name))
     if not candidatos:
+        conferir_execucao(log, "a otimizacao")
         return [], []
     return base.ler_relatorio(candidatos[0])
 
@@ -3135,6 +3268,10 @@ def main() -> int:
     # tick real de todos os eixos numericos -- sem teto proprio herdaria o
     # --timeout do combo (12 h). So roda em quem ja passou na retencao.
     ap.add_argument("--timeout-resgate-min", type=float, default=120.0)
+    # Holdout lacrado (2026-09-26): os ultimos N dias ficam fora de TODA
+    # selecao; 0 desliga (volta ao treino terminando em --to).
+    ap.add_argument("--holdout-lacrado-dias", type=int,
+                    default=HOLDOUT_LACRADO_DIAS_PADRAO)
     ap.add_argument("--fechar-terminal", action="store_true")
     ap.add_argument("--calibracao", action="store_true",
                     help="corrida de pesquisa (sweep de formula): grava "
@@ -3146,6 +3283,30 @@ def main() -> int:
     ID_CORRIDA = datetime.now().strftime("%Y%m%dT%H%M%S")
     proveniencia_corrida = proveniencia(args.variante)
     div_sonda_estagio1 = None   # ver sonda_divergencia_estagio1()
+    # Holdout lacrado + teto da janela de treino (2026-09-26, dono: "segue
+    # com sugerido"). A janela pedida (--from/--to, ja dimensionada pela
+    # janela dinamica) anda N dias pra tras inteira; os N dias finais so
+    # voltam no gate do holdout lacrado. Todo o circuito abaixo (estagios,
+    # torneios, gate relativo, periodo anterior) usa args.inicio/args.fim
+    # ja deslocados.
+    fim_lacrado = args.fim
+    inicio_lacrado = None
+    if args.holdout_lacrado_dias > 0:
+        desloc = timedelta(days=args.holdout_lacrado_dias)
+        args.fim = (datetime.strptime(args.fim, "%Y.%m.%d") - desloc).strftime("%Y.%m.%d")
+        args.inicio = (datetime.strptime(args.inicio, "%Y.%m.%d") - desloc).strftime("%Y.%m.%d")
+        inicio_lacrado = args.fim
+        print(f"holdout lacrado: treino {args.inicio}..{args.fim}; "
+              f"{args.fim}..{fim_lacrado} ({args.holdout_lacrado_dias} dias) "
+              "fica FORA de toda selecao", flush=True)
+    _dias_treino = (datetime.strptime(args.fim, "%Y.%m.%d")
+                    - datetime.strptime(args.inicio, "%Y.%m.%d")).days
+    if _dias_treino > JANELA_TREINO_MAX_DIAS:
+        args.inicio = (datetime.strptime(args.fim, "%Y.%m.%d")
+                       - timedelta(days=JANELA_TREINO_MAX_DIAS)).strftime("%Y.%m.%d")
+        print(f"janela de treino de {_dias_treino} dias limitada a "
+              f"{JANELA_TREINO_MAX_DIAS} ({args.inicio}..{args.fim}) -- sobra "
+              "periodo anterior pra testar em dado nunca visto", flush=True)
     if args.recuperacao in ("martingale", "dalembert"):
         if args.sistema not in SISTEMAS_RECUPERACAO_ELEGIVEIS:
             raise SystemExit(
@@ -3308,7 +3469,8 @@ def main() -> int:
     melhor_ant, aptos_ant = float("-inf"), -1
     rodada_inicial = 1
     checkpoint = carregar_checkpoint_estagio1(args.symbol, args.sistema,
-                                              args.variante)
+                                              args.variante,
+                                              f"{args.inicio}..{args.fim}")
     if checkpoint:
         cab, linhas = checkpoint["cab"], checkpoint["linhas"]
         rodada_inicial = checkpoint["rodada_concluida"] + 1
@@ -3379,7 +3541,8 @@ def main() -> int:
         melhor_ant = max(melhor_ant, melhor)
         aptos_ant = max(aptos_ant, aptos)
         salvar_checkpoint_estagio1(args.symbol, args.sistema, args.variante,
-                                   cab, linhas, rodada)
+                                   cab, linhas, rodada,
+                                   f"{args.inicio}..{args.fim}")
         salvar_progresso(args.symbol, args.sistema, args.variante,
                          estagio="1/5 (regioes)", rodada=f"{rodada}/3",
                          melhor_lucro=melhor, indicadores_aptos=aptos)
@@ -4077,7 +4240,10 @@ def main() -> int:
                   f"{volume * (custo['comissao_por_lote'] + custo['swap_por_lote']):+.2f} "
                   f"em {volume:.2f} lotes)", flush=True)
 
-    aprovado, motivos = veredito(div, oos["retencao"], args.min_retencao)
+    aprovado, motivos = veredito(div, oos["retencao"], args.min_retencao,
+                                 entradas_oos=oos.get("entradas_oos"),
+                                 motivo_retencao=oos.get("retencao_motivo"))
+    retencao_inconclusiva = any("RETENCAO INCONCLUSIVA" in m for m in motivos)
     # PRIMEIRO gate que reprovou (vai pro ledger/painel) -- antes so dava pra
     # saber lendo o log (o vigia_auditoria fazia isso por regex).
     reprovado_em = (None if aprovado else
@@ -4220,7 +4386,15 @@ def main() -> int:
                 print(f"    ATENCAO: trades mudaram no modo % "
                       f"({oos['trades']} -> {pct['trades']}); sizing nao muda "
                       "entrada -- verifique margem/abortos.", flush=True)
-            if retencao_pct is None or retencao_pct < args.min_retencao:
+            pct_inconclusiva = (pct.get("entradas_oos") is not None
+                                and pct["entradas_oos"] < MIN_ENTRADAS_OOS_RETENCAO
+                                and "quase sem lucro" not in (pct.get("retencao_motivo") or ""))
+            if pct_inconclusiva:
+                print(f"    prova em % INCONCLUSIVA: so {pct['entradas_oos']} "
+                      f"entrada(s) no OOS (< {MIN_ENTRADAS_OOS_RETENCAO}) -- "
+                      "nao reprova; o holdout lacrado e os gates longos "
+                      "decidem.", flush=True)
+            elif retencao_pct is None or retencao_pct < args.min_retencao:
                 aprovado = False
                 reprovado_em = reprovado_em or "prova_percentual"
                 if retencao_pct is None:
@@ -4280,7 +4454,14 @@ def main() -> int:
                     print(f"    ATENCAO: trades mudaram no modo Monetario "
                           f"({oos['trades']} -> {mon['trades']}); sizing nao "
                           "muda entrada -- verifique margem/abortos.", flush=True)
-                if retencao_pct is None or retencao_pct < args.min_retencao:
+                mon_inconclusiva = (mon.get("entradas_oos") is not None
+                                    and mon["entradas_oos"] < MIN_ENTRADAS_OOS_RETENCAO
+                                    and "quase sem lucro" not in (mon.get("retencao_motivo") or ""))
+                if mon_inconclusiva:
+                    print(f"    prova em Monetario INCONCLUSIVA: so "
+                          f"{mon['entradas_oos']} entrada(s) no OOS -- nao "
+                          "reprova; os gates longos decidem.", flush=True)
+                elif retencao_pct is None or retencao_pct < args.min_retencao:
                     aprovado = False
                     reprovado_em = reprovado_em or "prova_monetario"
                     print("    REPROVADO na prova em Monetario: o resultado do "
@@ -4374,9 +4555,32 @@ def main() -> int:
     # -- wfa_real importa este proprio modulo (`import optimize_two_stage as
     # ots`), entao o import no topo do arquivo criaria ciclo; aqui dentro de
     # main() o modulo ja esta totalmente carregado quando isto executa.
+    # Holdout LACRADO: os ultimos dias que nenhum estagio viu. Passe continuo
+    # (WFO desligado, como o set vai ao ar) com os parametros FINAIS. Poucos
+    # trades = inconclusivo, nunca reprova por amostra (TF alto).
+    holdout_lacrado = None
+    if aprovado and inicio_lacrado:
+        med_l = _medir_desempenho(
+            origem, dict(travados, AtivarWFO="false", MetodoDeEntradawfo="1"),
+            args.symbol, args.period, inicio_lacrado, fim_lacrado,
+            args.deposit)
+        holdout_lacrado = avaliar_holdout_lacrado(
+            med_l.get("profit"), med_l.get("trades"), args.deposit)
+        holdout_lacrado.update(inicio=inicio_lacrado, fim=fim_lacrado,
+                               tick_real_pct=med_l.get("tick_real_pct"))
+        print(f"\n    holdout lacrado ({inicio_lacrado}..{fim_lacrado}): "
+              f"{holdout_lacrado['msg']}", flush=True)
+        if holdout_lacrado["veredito"] == "reprovado":
+            aprovado = False
+            reprovado_em = reprovado_em or "holdout_lacrado"
+            print("    REPROVADO no holdout lacrado: perdeu dinheiro nos "
+                  "ultimos dias, que nenhuma etapa da selecao viu.",
+                  flush=True)
+
     holdout_longo = None
     wfa_reotimizacao = None
     periodo_anterior = None  # lido no JSON final mesmo se o gate nao rodar
+    periodo_anterior_fraco = False
     if aprovado:
         import wfa_real
         fim_holdout = datetime.now().strftime("%Y.%m.%d")
@@ -4413,6 +4617,14 @@ def main() -> int:
                 periodo_anterior["profit"],
                 periodo_anterior["metricas"].get("trades"), args.deposit)
             print(f"    {msg_anterior}", flush=True)
+            cobertura = periodo_anterior["metricas"].get("tick_real_pct")
+            if ok_anterior and cobertura is not None \
+                    and cobertura < COBERTURA_TICK_MIN_PCT:
+                periodo_anterior_fraco = True
+                print(f"    aviso: so {cobertura:.0f}% do periodo anterior tem "
+                      f"tick real (< {COBERTURA_TICK_MIN_PCT:.0f}%) -- o resto "
+                      "o MT5 gerou das barras M1; aprovacao aqui e evidencia "
+                      "FRACA.", flush=True)
         else:
             print(f"    periodo anterior ao treino: so {dias_anteriores} dias "
                   f"(< {MIN_DIAS_PERIODO_ANTERIOR}) -- nao avaliado.",
@@ -4639,10 +4851,27 @@ def main() -> int:
                       "periodo_anterior_trades": (
                           periodo_anterior["metricas"].get("trades")
                           if periodo_anterior else None),
+                      # 2026-09-26 (metodologia): fracao do periodo anterior
+                      # com tick real de verdade; < COBERTURA_TICK_MIN_PCT =
+                      # aprovacao com evidencia fraca.
+                      "periodo_anterior_tick_real_pct": (
+                          periodo_anterior["metricas"].get("tick_real_pct")
+                          if periodo_anterior else None),
+                      "periodo_anterior_fraco": periodo_anterior_fraco,
+                      # Holdout lacrado (ultimos N dias fora de toda selecao):
+                      # {veredito, profit, trades, msg, inicio, fim,
+                      # tick_real_pct}. None = nao rodou.
+                      "holdout_lacrado": holdout_lacrado,
+                      "janela_treino": f"{args.inicio}..{args.fim}",
+                      # Retencao com poucas entradas no OOS (TF alto): nem
+                      # aprovou nem reprovou, os gates longos decidiram.
+                      "retencao_inconclusiva": retencao_inconclusiva,
+                      "entradas_oos": oos.get("entradas_oos"),
                       # Validade PROVISORIA do set (cadencia de reotimizacao),
-                      # ver VALIDADE_DIAS_PADRAO.
+                      # ver VALIDADE_DIAS_PADRAO -- conta do fim do dado usado
+                      # (inclui o holdout lacrado), nao do fim do treino.
                       "validade_ate": (
-                          datetime.strptime(args.fim, "%Y.%m.%d")
+                          datetime.strptime(fim_lacrado, "%Y.%m.%d")
                           + timedelta(days=VALIDADE_DIAS_PADRAO)
                           ).strftime("%Y.%m.%d"),
                       "wfa_reotimizacao_medida": wfa_reotimizacao is not None,

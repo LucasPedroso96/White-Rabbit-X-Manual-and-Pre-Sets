@@ -268,6 +268,9 @@
                         <span>rejected at: <b style="color:{{ pal.text }};">{{ rr.gateLine }}</b></span>
                         <span>stage-1 divergence probe: <b style="color:{{ pal.text }};">{{ rr.sondaLine }}</b></span>
                         <span>vs buy&amp;hold (3y): <b style="color:{{ pal.text }};">{{ rr.benchLine }}</b></span>
+                        <span>sealed holdout: <b style="color:{{ pal.text }};">{{ rr.lacradoLine }}</b></span>
+                        <span>prior period: <b style="color:{{ pal.text }};">{{ rr.anteriorLine }}</b></span>
+                        <span>training window: <b style="color:{{ pal.text }};">{{ rr.treinoLine }}</b></span>
                         <span>EA: <b style="color:{{ pal.text }};">{{ rr.eaLine }}</b></span>
                       </div>
                     </td>
@@ -1299,7 +1302,7 @@ class Component extends DCLogic {
     const heatmapGrid = hm ? buildGrid(hm.classes, hm.sistemas || []) : [];
     const heatmapEmpty = !!hm && heatmapGrid.length === 0;
 
-    const GATE_ROTULO = { divergencia: 'divergence', divergencia_sem_medida: 'no divergence', retencao: 'retention', retencao_sem_medida: 'no OOS measure', monte_carlo: 'Monte Carlo', expectancy_r: 'expectancy', gate_relativo: 'vs champion', historico_completo: '3y history', prova_percentual: '% proof', prova_monetario: 'monetary proof', sobrevivencia: 'survival', periodo_anterior: 'prior period', wfa: 'WFA' };
+    const GATE_ROTULO = { divergencia: 'divergence', divergencia_sem_medida: 'no divergence', retencao: 'retention', retencao_sem_medida: 'no OOS measure', monte_carlo: 'Monte Carlo', expectancy_r: 'expectancy', gate_relativo: 'vs champion', historico_completo: '3y history', prova_percentual: '% proof', prova_monetario: 'monetary proof', sobrevivencia: 'survival', periodo_anterior: 'prior period', holdout_lacrado: 'sealed holdout', wfa: 'WFA' };
     const AUD_TOM = { AVALIAR: [pal.bg3, pal.text], SAUDE: [pal.noBg, pal.no], REVALIDACAO: [pal.okBg, pal.ok] };
     const auditoriaRows = (s.auditoria?.eventos || []).map((e) => ({
       tipo: e.tipo, texto: e.texto, detalhes: (e.detalhes || []).join('\n'),
@@ -1318,6 +1321,9 @@ class Component extends DCLogic {
         gateLine: r.aprovado ? '-' : (r.reprovado_em || r.motivo_reprovacao_precoce || (r.rebaixado ? r.motivo_rebaixamento : null) || 'n/d (linha anterior a 26/09)'),
         sondaLine: r.divergencia_sonda_estagio1 != null ? r.divergencia_sonda_estagio1.toFixed(1) + '%' : 'n/d',
         benchLine: r.benchmark_historico_completo ? `strategy ${r.benchmark_historico_completo.estrategia_retorno_pct}% (DD ${fmtN(r.benchmark_historico_completo.estrategia_max_dd_pct)}%) vs asset ${r.benchmark_historico_completo.lado} ${r.benchmark_historico_completo.ativo_retorno_pct}% (DD ${fmtN(r.benchmark_historico_completo.ativo_max_dd_pct)}%)` : 'n/d',
+        lacradoLine: r.holdout_lacrado ? `${r.holdout_lacrado.veredito} · ${r.holdout_lacrado.inicio}..${r.holdout_lacrado.fim} · lucro ${fmtN(r.holdout_lacrado.profit)} · ${r.holdout_lacrado.trades ?? '-'} trades` : 'n/d (não rodou ou linha anterior à metodologia de 26/09)',
+        anteriorLine: r.periodo_anterior_lucro != null ? `lucro ${fmtN(r.periodo_anterior_lucro)} · ${r.periodo_anterior_trades ?? '-'} trades · tick real ${r.periodo_anterior_tick_real_pct != null ? r.periodo_anterior_tick_real_pct + '%' : 'n/d'}${r.periodo_anterior_fraco ? ' ⚠ evidência fraca' : ''}` : 'n/d',
+        treinoLine: (r.janela_treino || 'n/d') + (r.retencao_inconclusiva ? ` · retenção inconclusiva (${r.entradas_oos} entradas OOS)` : ''),
         eaLine: r.proveniencia ? `${r.proveniencia.ea_md5 || '?'} (${r.proveniencia.ea_compilado_em || '?'}) · autobot ${r.proveniencia.autobot_commit || '?'}` : 'n/d (linha anterior a 26/09)',
         retencao: r.retencao_oos != null ? (r.aviso_bug_oos ? '⚠ ' + r.retencao_oos : r.retencao_oos) : '-',
         retencaoTitle: r.aviso_bug_oos ? 'medida com o bug da EA no OOS (13/09–26/09 02:05): era vazamento de borda, não desempenho. Combo na fila de refação.' : '',

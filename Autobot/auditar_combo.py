@@ -34,7 +34,8 @@ PF_FRACO = 1.15              # aprovado com Profit Factor abaixo disso
 DD_ALTO = 35.0               # drawdown (%) alto
 PISO_RETENCAO = 30.0         # min_retencao padrao do circuito
 FOLGA_BORDA = 10.0           # "por pouco": a ate 10 pontos do piso
-SINAIS_INFORMATIVOS = ("GEOMETRIA_CORTADA", "SEM_PERIODO_ANTERIOR")
+SINAIS_INFORMATIVOS = ("GEOMETRIA_CORTADA", "SEM_PERIODO_ANTERIOR",
+                       "LACRADO_INCONCLUSIVO")
 
 _CAB_CAMPANHA = re.compile(r"^\[(\d+)/(\d+)\] (\S+) (\S+) (\S+)\s*$", re.M)
 _CAB_SWEEP = re.compile(r"^=== (\S+) (\S+) (\S+) \|", re.M)
@@ -52,6 +53,8 @@ _MOTIVOS = [
     ("sobrevivencia (periodo completo; EA pode ter acionado o stop de emergencia)",
      r"REPROVADO (?:na|no gate de) sobrevivencia[^\n]*"),
     ("prova em monetario", r"REPROVADO na prova em MONETARIO[^\n]*"),
+    ("holdout lacrado (ultimos dias, fora de toda selecao)",
+     r"REPROVADO no holdout lacrado[^\n]*"),
     ("periodo anterior ao treino", r"REPROVADO no periodo anterior[^\n]*"),
     ("holdout longo (criterio antigo)", r"REPROVADO no holdout longo[^\n]*"),
     ("WFA de reotimizacao (WFE<=0)", r"REPROVADO na WFA[^\n]*"),
@@ -199,6 +202,21 @@ def auditar(texto: str, rotulo: str = "") -> dict:
     if "estagio 3.5 cortado" in texto:
         sinais.append("GEOMETRIA_CORTADA: Estagio 3.5 cortado pelo teto -> "
                       "geometria de OHLC mantida")
+    # Metodologia de 2026-09-26: amostra pequena vira "inconclusivo" em vez de
+    # reprovar (TF alto) -- aprovado assim merece um olhar; cobertura de tick
+    # real baixa no periodo anterior = evidencia fraca.
+    if veredito == "APROVADO" and js.get("retencao_inconclusiva"):
+        sinais.append(f"RETENCAO_INCONCLUSIVA: so {js.get('entradas_oos')} "
+                      "entrada(s) no OOS -- aprovado pelos gates longos, sem "
+                      "prova de retencao")
+    if veredito == "APROVADO" and js.get("periodo_anterior_fraco"):
+        sinais.append("PERIODO_ANTERIOR_FRACO: "
+                      f"{js.get('periodo_anterior_tick_real_pct')}% de tick "
+                      "real -- o resto e tick gerado das barras M1")
+    lacrado = js.get("holdout_lacrado") or {}
+    if lacrado.get("veredito") == "inconclusivo":
+        sinais.append(f"LACRADO_INCONCLUSIVO: {lacrado.get('trades')} trade(s) "
+                      "no holdout lacrado")
 
     # Sinais INFORMATIVOS (contexto conhecido, nao mudam o veredito nem pedem
     # revisao sozinhos): geometria cortada no XAUUSD e regra antiga sem camada 2.
