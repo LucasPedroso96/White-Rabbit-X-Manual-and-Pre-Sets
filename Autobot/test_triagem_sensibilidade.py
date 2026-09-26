@@ -82,6 +82,56 @@ try:
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 
+# --- triagem com o terminal VIZINHO escrevendo no arquivo comum (2026-09-26)
+# Antes a triagem pulava inteira com outra instalacao ativa (= sempre, com os
+# 2 terminais em paralelo) e, quando rodava, lia formulas[-1] -- a linha do
+# vizinho. Agora: nota da linha DESTE passe e sem limpar o arquivo comum.
+import optimize_two_stage as ots
+
+EFEITO = {"A": 100.0, "B": 50.0, "C": 10.0, "D": 1.0}
+estado = {"travar": {}, "limpezas": 0, "arquivo": []}
+salvos = {n: getattr(ots, n) for n in (
+    "_outra_instancia_mt5_ativa", "parametros_do_set", "campo_da_formula_ativa",
+    "reescrever", "passe_unico", "carregar_todas_formulas",
+    "limpar_todas_formulas")}
+tmp2 = Path(tempfile.mkdtemp())
+salvo_dados = ots.base.DADOS
+
+
+def _passe(*_a, **_k):
+    nota = sum(EFEITO[e] for e, v in estado["travar"].items() if v == "alto")
+    saldo, trades = 1000.0 + nota + 0.37, 40 + len(estado["arquivo"])
+    estado["arquivo"].append({"trades": trades, "profit": saldo - 1000.0,
+                              "ProfitFormula": nota})
+    # o vizinho escreve DEPOIS do nosso passe terminar
+    estado["arquivo"].append({"trades": 999, "profit": 12345.0,
+                              "ProfitFormula": 1e9})
+    return {"saldo": saldo, "trades": trades}
+
+
+try:
+    ots.base.DADOS = tmp2
+    ots._outra_instancia_mt5_ativa = lambda: True
+    ots.parametros_do_set = lambda _o: {e: ["x", "baixo", "1", "alto", "Y"]
+                                        for e in EFEITO}
+    ots.campo_da_formula_ativa = lambda *_a: "ProfitFormula"
+    ots.reescrever = lambda _o, _t, _e, travar: estado.update(travar=dict(travar))
+    ots.passe_unico = _passe
+    ots.carregar_todas_formulas = lambda: list(estado["arquivo"])
+    ots.limpar_todas_formulas = lambda: estado.update(
+        limpezas=estado["limpezas"] + 1)
+    sobra = ots.triagem_sensibilidade(Path("origem.set"), list(EFEITO), {},
+                                      "04_SLTP_TRAIL", "XAUUSD", "M1",
+                                      "2025.01.01", "2025.12.31", 1000)
+    checar("vizinho ativo: corta so o eixo de menor efeito proprio (D)",
+           sobra, ["A", "B", "C"])
+    checar("vizinho ativo: nunca limpa o arquivo comum", estado["limpezas"], 0)
+finally:
+    for nome, f in salvos.items():
+        setattr(ots, nome, f)
+    ots.base.DADOS = salvo_dados
+    shutil.rmtree(tmp2, ignore_errors=True)
+
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")
     for f in FALHAS:

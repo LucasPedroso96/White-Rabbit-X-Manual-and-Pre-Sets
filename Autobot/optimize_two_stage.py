@@ -829,11 +829,13 @@ def triagem_sensibilidade(origem: Path, eixos: list[str],
     """
     if len(eixos) < 2:
         return eixos
-    if _outra_instancia_mt5_ativa():
-        print("    triagem de sensibilidade: outra instalacao MT5 esta "
-              "ativa (arquivo de formulas e compartilhado pela maquina "
-              "inteira) -- pulando pra nao arriscar colisao.", flush=True)
-        return eixos
+    # Antes (ate 2026-09-26) pulava a triagem inteira com outra instalacao
+    # ativa -- ou seja, sempre, com os 2 terminais em paralelo. Agora cada
+    # nota vem da linha DESTE passe (escolher_linha_propria: trades + saldo
+    # do log local, o fix da contaminacao de 20/09), e o arquivo comum so e
+    # limpo quando ninguem mais escreve nele (limpar apagaria a linha que o
+    # passe do vizinho ainda vai ler).
+    vizinho_ativo = _outra_instancia_mt5_ativa()
     parametros = parametros_do_set(origem)
     campo = campo_da_formula_ativa(sistema, origem)
     # Precisa morar DENTRO de MQL5/Profiles/Tester (mesmo padrao de
@@ -849,12 +851,15 @@ def triagem_sensibilidade(origem: Path, eixos: list[str],
         # dentro de OnTester() nao aparece em log nenhum de forma confiavel --
         # ver comentario de ARQUIVO_TODAS_FORMULAS). limpar+rodar+ler, mesmo
         # padrao ja usado no resto do circuito (ex.: antes do Estagio 1).
-        limpar_todas_formulas()
+        if not vizinho_ativo:
+            limpar_todas_formulas()
         reescrever(origem, trabalho, [], {**travados, **travar})
-        passe_unico(trabalho, symbol, periodo, inicio, fim, deposito, 1,
-                   timeout=timeout, variante=origem.stem)
-        formulas = carregar_todas_formulas()
-        return formulas[-1].get(campo) if formulas else None
+        r = passe_unico(trabalho, symbol, periodo, inicio, fim, deposito, 1,
+                        timeout=timeout, variante=origem.stem)
+        linha = escolher_linha_propria(carregar_todas_formulas(),
+                                       r.get("saldo"), r.get("trades"),
+                                       deposito)
+        return linha.get(campo) if linha else None
 
     baixo = {e: parametros[e][1] for e in eixos if e in parametros}
     base_nota = nota_do_passe(baixo)
@@ -1559,6 +1564,43 @@ def medir_divergencia(lucro_real: float | None, lucro_ohlc: float | None,
                             f"{piso:.2f} (1% do deposito) -- percentual de "
                             "base minuscula nao mede nada.")
     return abs(lucro_real - base) / abs(base) * 100.0, base, ""
+
+
+def sonda_divergencia_estagio1(origem: Path, trabalho: Path,
+                               travados: dict[str, str], args) -> float | None:
+    """Divergencia OHLC x tick real do vencedor do Estagio 1 (entrada ja
+    travada, numeros ainda no default) -- SO MEDICAO, nunca gate.
+
+    Por que existe (avaliacao de 2026-09-25): a divergencia foi o 2o gate
+    que mais reprovou, sempre no FIM do circuito (~2 h por combo). Mas os
+    sistemas que mais reprovaram nela (05_BE_TRAIL, 04_SLTP_TRAIL em acoes)
+    tem a SAIDA reajustada depois -- Estagio 2 e geometria em tick real no
+    3.5 --, entao a divergencia do vencedor do Estagio 1 pode prever mal a
+    final, e cortar por ela mataria combos que o 3.5 salvaria. Vai pro
+    ledger (`divergencia_sonda_estagio1`) ao lado da final: com o dado da
+    refacao pos-correcao da EA da pra medir se ela preve e so entao decidir
+    se vira corte cedo. Dois passes IS (modelo 1 e 4), mesmo modo da
+    conferencia de divergencia do Estagio 4. Qualquer falha -> None."""
+    try:
+        reescrever(origem, trabalho, [], dict(travados, MetodoDeEntradawfo="0"))
+        lucros = []
+        for modelo in (1, 4):
+            r = passe_unico(trabalho, args.symbol, args.period, args.inicio,
+                            args.fim, args.deposit, modelo, timeout=900,
+                            variante=args.variante)
+            if r["saldo"] is None:
+                return None
+            lucros.append(r["saldo"] - args.deposit)
+        div, _, motivo = medir_divergencia(lucros[1], lucros[0], None, False,
+                                           args.deposit)
+        print(f"    sonda de divergencia (vencedor do estagio 1, so medicao): "
+              f"OHLC {lucros[0]:.2f} x tick real {lucros[1]:.2f} -> "
+              + (f"{div:.1f}%" if div is not None else f"n/d ({motivo})"),
+              flush=True)
+        return div
+    except Exception as exc:  # noqa: BLE001 -- medicao nunca derruba o combo
+        print(f"    sonda de divergencia: nao mediu ({exc})", flush=True)
+        return None
 
 
 def veredito(div: float | None, retencao: float | None,
@@ -2937,6 +2979,7 @@ def main() -> int:
     args = ap.parse_args()
     global MODO_CALIBRACAO
     MODO_CALIBRACAO = args.calibracao
+    div_sonda_estagio1 = None   # ver sonda_divergencia_estagio1()
     if args.recuperacao in ("martingale", "dalembert"):
         if args.sistema not in SISTEMAS_RECUPERACAO_ELEGIVEIS:
             raise SystemExit(
@@ -3332,6 +3375,8 @@ def main() -> int:
 
     # ---- Estagio 2: NUMEROS, ainda em OHLC ----------------------------------
     travados.update(escrita_vencedora)
+    div_sonda_estagio1 = sonda_divergencia_estagio1(origem, trabalho,
+                                                    travados, args)
     # Abre so os periodos que ESTE indicador usa: com o vencedor conhecido, os
     # eixos condicionais deixam de ser aposta e viram (ou nao) parte do ajuste.
     # Fora do Estagio 2 pelo mesmo motivo do Estagio 1: RecoveryMode ainda
@@ -4400,6 +4445,8 @@ def main() -> int:
                       # ou de regime. Sao ~4 janelas, custo de ledger baixo.
                       "wfa_detalhe": (wfa_reotimizacao["detalhe"]
                                       if wfa_reotimizacao else None),
+                      # So medicao (2026-09-26): preve a divergencia final?
+                      "divergencia_sonda_estagio1": div_sonda_estagio1,
                       "relatorio_dir": relatorio_dir,
                       # True = aprovado (ou nao) com base num candidato
                       # buscado DIRETO em tick real (ver [4.5/5] acima), nao
