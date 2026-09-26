@@ -20,8 +20,9 @@ if ($EsperarPid -gt 0) {
 $env:WRX_MT5_DATA_DIR = "C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal\4A85BF7BB91E709E95066E8432253C88"
 $env:WRX_MT5_INSTALL_DIR = "C:\Users\Lucas Pedroso\Documents\White Rabbit X\MT5_Optimizer2"
 Set-Location $aqui
-"=== $(Get-Date -Format 'dd/MM HH:mm') REFACAO DOS CAMPEOES com a EA corrigida (OOS abre trade em IS+OOS): XAUUSD/NVDA/.DE40Cash BUY + .US500Cash SELL, 04_SLTP_TRAIL; teto 3.5 = 15 min ===" | Out-File -FilePath $log -Encoding utf8 -Append
-& $py -u campanha.py --janela-dinamica `
-    --combos "XAUUSD:04_SLTP_TRAIL:BUY_MULTI,NVDA:04_SLTP_TRAIL:BUY_MULTI,.US500Cash:04_SLTP_TRAIL:SELL_MULTI,.DE40Cash:04_SLTP_TRAIL:BUY_MULTI" `
-    --refazer-antes-de 2026-09-26T02:06 --timeout-geometria-min 15 *>> $log
-"=== $(Get-Date -Format 'dd/MM HH:mm') FILA DE REFACAO TERMINOU ===" | Out-File -FilePath $log -Encoding utf8 -Append
+"=== $(Get-Date -Format 'dd/MM HH:mm') REFACAO DOS CAMPEOES com a EA corrigida (OOS abre trade em IS+OOS): XAUUSD/NVDA/.DE40Cash BUY + .US500Cash SELL, 04_SLTP_TRAIL; teto 3.5 = 15 min ===" | Add-Content -Path $log -Encoding ASCII
+# cmd >> (nao o *>> do PowerShell 5.1, que grava UTF-16 e o vigia le lixo)
+$env:PYTHONIOENCODING = "utf-8"
+$combos = "XAUUSD:04_SLTP_TRAIL:BUY_MULTI,NVDA:04_SLTP_TRAIL:BUY_MULTI,.US500Cash:04_SLTP_TRAIL:SELL_MULTI,.DE40Cash:04_SLTP_TRAIL:BUY_MULTI"
+cmd /c "`"$py`" -u campanha.py --janela-dinamica --combos `"$combos`" --refazer-antes-de 2026-09-26T02:06 --timeout-geometria-min 15 >> `"$log`" 2>&1"
+"=== $(Get-Date -Format 'dd/MM HH:mm') FILA DE REFACAO TERMINOU ===" | Add-Content -Path $log -Encoding ASCII
