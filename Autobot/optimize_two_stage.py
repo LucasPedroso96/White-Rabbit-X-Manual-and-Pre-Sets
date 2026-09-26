@@ -1826,6 +1826,10 @@ def _medir_desempenho(origem: Path, params: dict, simbolo: str, periodo: str,
     stats_list = carregar_todas_formulas()
     stats = escolher_linha_propria(stats_list, r.get("saldo"), r.get("trades"),
                                    deposito)
+    # Buy&hold do mesmo passe (log LOCAL, nunca do arquivo comum) -- ver
+    # comparar_buy_and_hold().
+    bh = {k: r.get(k) for k in ("bh_retorno_pct", "bh_dd_compra_pct",
+                                "bh_dd_venda_pct")}
     if stats is None:
         if r.get("saldo") is None:
             return {}
@@ -1835,7 +1839,8 @@ def _medir_desempenho(origem: Path, params: dict, simbolo: str, periodo: str,
         return {"profit_factor": None, "max_dd_pct": None, "sharpe": None,
                 "composite_score": None, "trades": r.get("trades"),
                 "expectancy_r": r["expectancy"],
-                "profit": r["saldo"] - deposito, "retencao": r["retencao"]}
+                "profit": r["saldo"] - deposito, "retencao": r["retencao"],
+                **bh}
 
     gp, gl = stats.get("gross_profit"), stats.get("gross_loss")
     pf = gp / abs(gl) if gp is not None and gl not in (None, 0) else None
@@ -1853,7 +1858,42 @@ def _medir_desempenho(origem: Path, params: dict, simbolo: str, periodo: str,
            # acima), so nunca saiam no dict. Aditivo -- nao muda nada pra
            # quem ja le so as chaves de cima (remedir_campeao_na_janela,
            # confirmar_historico_completo).
-           "profit": profit, "retencao": r["retencao"]}
+           "profit": profit, "retencao": r["retencao"], **bh}
+
+
+# Ultimo "estrategia x buy&hold" medido por confirmar_historico_completo() --
+# que devolve (bool, motivos) e e chamada de um ponto so do main(); o main()
+# le daqui pro JSON final em vez de mudar a assinatura do gate.
+ULTIMO_BENCHMARK: dict | None = None
+
+
+def comparar_buy_and_hold(med: dict, deposito: float,
+                          variante: str) -> dict | None:
+    """Estrategia x o PROPRIO ativo no mesmo passe continuo (2026-09-26,
+    pendente desde 21/09: "XAUUSD +128% em 3 anos: falta comparar com
+    buy-and-hold"). SO MEDICAO. Compara retorno e retorno/DD (MAR): retorno
+    cru favorece o ativo em alta (100% exposto o tempo todo), MAR mede se a
+    estrategia paga o risco melhor que ficar posicionado. SELL compara com
+    ficar VENDIDO; BUY/BOTH com ficar comprado."""
+    if med.get("bh_retorno_pct") is None or med.get("profit") is None:
+        return None
+    vendido = variante.upper().startswith("SELL")
+    ativo_ret = -med["bh_retorno_pct"] if vendido else med["bh_retorno_pct"]
+    ativo_dd = med.get("bh_dd_venda_pct" if vendido else "bh_dd_compra_pct")
+    est_ret = med["profit"] / deposito * 100.0
+    est_dd = med.get("max_dd_pct")
+    mar_ativo = ativo_ret / ativo_dd if ativo_dd else None
+    mar_est = est_ret / est_dd if est_dd else None
+    return {"lado": "vendido" if vendido else "comprado",
+            "ativo_retorno_pct": round(ativo_ret, 2),
+            "ativo_max_dd_pct": ativo_dd,
+            "estrategia_retorno_pct": round(est_ret, 2),
+            "estrategia_max_dd_pct": est_dd,
+            "mar_ativo": round(mar_ativo, 3) if mar_ativo is not None else None,
+            "mar_estrategia": round(mar_est, 3) if mar_est is not None else None,
+            "bate_ativo_no_risco": (mar_est > mar_ativo
+                                    if None not in (mar_est, mar_ativo)
+                                    else None)}
 
 
 def remedir_campeao_na_janela(sistema: str, simbolo: str, variante: str,
@@ -2062,6 +2102,17 @@ def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
           f"{_n(desafiante.get('expectancy_r'), '{:+.3f}')}R | DD "
           f"{_n(desafiante.get('max_dd_pct'), '{:.1f}')}% | PF "
           f"{_n(desafiante.get('profit_factor'), '{:.2f}')}", flush=True)
+    global ULTIMO_BENCHMARK
+    ULTIMO_BENCHMARK = comparar_buy_and_hold(desafiante, deposito, variante)
+    if ULTIMO_BENCHMARK:
+        b = ULTIMO_BENCHMARK
+        print(f"    benchmark (so medicao): estrategia "
+              f"{b['estrategia_retorno_pct']:+.1f}% (DD "
+              f"{_n(b['estrategia_max_dd_pct'], '{:.1f}')}%) x ativo "
+              f"{b['lado']} {b['ativo_retorno_pct']:+.1f}% (DD "
+              f"{_n(b['ativo_max_dd_pct'], '{:.1f}')}%) | retorno/DD "
+              f"{_n(b['mar_estrategia'], '{:.2f}')} x "
+              f"{_n(b['mar_ativo'], '{:.2f}')}", flush=True)
 
     # Camada 1 (catastrofe): vale COM ou SEM campeao -- antes, sem campeao o
     # gate so olhava "trades >= 30" e aprovou um candidato que perdeu 99%.
@@ -2146,6 +2197,11 @@ def ler_metricas(log: str) -> dict:
                   "exato) -- nada a medir; se o IS opera normal, desconfie "
                   "de bloqueio de entrada no OOS (rode sonda_oos.py)")
     win = ultimo(r"Win rate: ([\d.]+)%")
+    # Benchmark buy&hold que a EA imprime no OnDeinit (2026-09-26): o proprio
+    # ativo no periodo do teste. Ausente em .ex5 antigo -> None.
+    bh = ultimo(r"BENCHMARK buy&hold: inicial [\d.]+ \| final [\d.]+ \| "
+                r"retorno (-?[\d.]+)% \| maxDD comprado ([\d.]+)% \| "
+                r"maxDD vendido ([\d.]+)%")
     trades = r_met[0] if r_met else total_trades
     return {
         "saldo": float(saldo) if saldo else None,
@@ -2158,6 +2214,9 @@ def ler_metricas(log: str) -> dict:
         # fez a retencao parecer um resultado quando era so o modo In-Sample.
         "retencao": float(ret) if ret else None,
         "retencao_motivo": ret_na,
+        "bh_retorno_pct": float(bh[0]) if bh else None,
+        "bh_dd_compra_pct": float(bh[1]) if bh else None,
+        "bh_dd_venda_pct": float(bh[2]) if bh else None,
         "abortos": len(re.findall(r"aborted", log)),
     }
 
@@ -4447,6 +4506,9 @@ def main() -> int:
                                       if wfa_reotimizacao else None),
                       # So medicao (2026-09-26): preve a divergencia final?
                       "divergencia_sonda_estagio1": div_sonda_estagio1,
+                      # So medicao (2026-09-26): estrategia x buy&hold do
+                      # proprio ativo no passe continuo de N anos.
+                      "benchmark_historico_completo": ULTIMO_BENCHMARK,
                       "relatorio_dir": relatorio_dir,
                       # True = aprovado (ou nao) com base num candidato
                       # buscado DIRETO em tick real (ver [4.5/5] acima), nao

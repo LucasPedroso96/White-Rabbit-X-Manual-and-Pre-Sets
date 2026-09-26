@@ -89,6 +89,33 @@ checar("OOS sem trade: motivo explicado",
 COM_OOS = ZERO + "\n2026.09.23 23:14:59   Final accumulated Out-Sample profit: -3.20"
 checar("OOS operou e deu ~0%: continua numero", ler_metricas(COM_OOS)["retencao"], 0.0)
 
+# --- benchmark buy&hold impresso pela EA (2026-09-26) -----------------------
+from optimize_two_stage import comparar_buy_and_hold
+
+BH = COMPLETO + ("\n2026.09.23 23:14:59   BENCHMARK buy&hold: inicial 1900.12345 "
+                 "| final 4332.00000 | retorno 127.98% | maxDD comprado 14.20% "
+                 "| maxDD vendido 128.50%")
+m_bh = ler_metricas(BH)
+checar("buy&hold: retorno", m_bh["bh_retorno_pct"], 127.98)
+checar("buy&hold: DD comprado/vendido",
+       (m_bh["bh_dd_compra_pct"], m_bh["bh_dd_venda_pct"]), (14.2, 128.5))
+checar("buy&hold ausente (.ex5 antigo) -> None",
+       ler_metricas(COMPLETO)["bh_retorno_pct"], None)
+cmp_buy = comparar_buy_and_hold({"profit": 12588.0, "max_dd_pct": 12.3,
+                                 "bh_retorno_pct": 127.98,
+                                 "bh_dd_compra_pct": 14.2,
+                                 "bh_dd_venda_pct": 128.5}, 10000, "BUY_MULTI")
+checar("comparacao BUY: contra ficar comprado", cmp_buy["lado"], "comprado")
+checar("comparacao BUY: retorno/DD estrategia x ativo",
+       (cmp_buy["mar_estrategia"], cmp_buy["mar_ativo"]), (10.234, 9.013))
+cmp_sell = comparar_buy_and_hold({"profit": 500.0, "max_dd_pct": 10.0,
+                                  "bh_retorno_pct": 20.0, "bh_dd_compra_pct": 5.0,
+                                  "bh_dd_venda_pct": 25.0}, 2500, "SELL_MULTI")
+checar("comparacao SELL: ativo vendido perdeu o que o ativo subiu",
+       cmp_sell["ativo_retorno_pct"], -20.0)
+checar("sem benchmark no passe -> None",
+       comparar_buy_and_hold({"profit": 1.0}, 1000, "BUY_MULTI"), None)
+
 # --- FixedLot/Monetario: sem bloco R METRICS, so "Total Trades" incondicional
 # (dono, 2026-09-14: 07_GRID_SEPARATE com sizing default sempre lia
 # trades=None mesmo operando de verdade, porque o bloco R METRICS so
