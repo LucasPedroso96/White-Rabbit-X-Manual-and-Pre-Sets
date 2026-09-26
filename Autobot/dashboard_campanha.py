@@ -342,8 +342,15 @@ def status(familia: str = "MULTI") -> JSONResponse:
     um campeao, refazer um combo interrompido ou revalidar acrescenta
     linha, nunca apaga a antiga. Contar linhas cruas (achado 2026-09-25)
     mantinha os 2 campeoes GBPUSD rebaixados em 21/09 no contador de
-    aprovados e contava cada combo refeito duas vezes."""
+    aprovados e contava cada combo refeito duas vezes.
+
+    "Aprovado" = tem campeao VIGENTE: a ultima aprovacao do combo sem
+    rebaixamento depois. Um DESAFIANTE reprovado (linha comum de
+    reprovacao, outros parametros) nao derruba o campeao -- achado na
+    refacao de 26/09: os desafiantes do XAUUSD e do NVDA perderam e o
+    contador caiu de 4 pra 2 com os dois campeoes ainda validos."""
     ultimo_por_combo: dict[tuple[str, str, str], dict] = {}
+    vigente: dict[tuple[str, str, str], dict | None] = {}
     for r in ler_ledger():
         if ready_library.familia_da_variante(r.get("variante", "")) != familia:
             continue
@@ -351,14 +358,18 @@ def status(familia: str = "MULTI") -> JSONResponse:
                  r.get("sistema", ""), r.get("variante", ""))
         ultimo_por_combo.pop(chave, None)   # reinsere no fim: ordem = recencia
         ultimo_por_combo[chave] = r
+        if r.get("aprovado"):
+            vigente[chave] = r
+        elif r.get("rebaixado"):
+            vigente[chave] = None
     resultados = list(ultimo_por_combo.values())
-    aprovados = [r for r in resultados if r.get("aprovado")]
+    aprovados = [c for c, r in vigente.items() if r is not None]
     por_sistema: dict[str, dict[str, int]] = {}
-    for r in resultados:
+    for chave, r in ultimo_por_combo.items():
         s = r.get("sistema", "?")
         d = por_sistema.setdefault(s, {"total": 0, "aprovados": 0})
         d["total"] += 1
-        if r.get("aprovado"):
+        if vigente.get(chave) is not None:
             d["aprovados"] += 1
     return JSONResponse(
         {

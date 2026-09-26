@@ -142,6 +142,9 @@ try:
     depois = {l["chave"]: l for l, _ in painel._sets_com_origem()}
     checar("desafiante reprovado (outros params) nao derruba o campeao",
            depois["XAUUSD__04_SLTP_TRAIL__BUY_MULTI"]["certificado"], True)
+    st = json.loads(painel.status("MULTI").body)
+    checar("contador: campeao vigente continua aprovado apos desafiante "
+           "reprovado", st["aprovados"], 1)
 finally:
     (painel.LEDGER, painel.RELATORIOS_DIR, painel.SETS_IMPLANTADOS,
      painel.ready_library.LEDGER, wrx_paths.pastas_de_dados_do_projeto) = salvos
