@@ -4675,7 +4675,7 @@ def main() -> int:
     # main() o modulo ja esta totalmente carregado quando isto executa.
     # Holdout LACRADO: os ultimos dias que nenhum estagio viu. Passe continuo
     # com o set ENTREGUE (`entrega`: WFO fora, sizing/formula da entrega --
-    # ate 26/09 20:40 rodava com `travados`, o sizing de trabalho), como vai
+    # ate 26/09 ~20:15 rodava com `travados`, o sizing de trabalho), como vai
     # ao ar. Poucos trades = inconclusivo, nunca reprova por amostra (TF alto).
     holdout_lacrado = None
     if aprovado and inicio_lacrado:
