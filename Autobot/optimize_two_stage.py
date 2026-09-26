@@ -146,6 +146,16 @@ def proveniencia(variante: str) -> dict:
     return saida
 
 
+def travados_sem(travados: dict[str, str], eixos: list[str]) -> dict[str, str]:
+    """`travados` sem os `eixos` que vao ser REABERTOS. reescrever() trava
+    (N) tudo que esta em `travar` ANTES de olhar `otimizar`: reabrir um eixo
+    que ja foi travado por um estagio anterior exige tira-lo do dict.
+    O Estagio 3.5 ja fazia isso; o resgate por divergencia [4.5/5] nao --
+    achado 2026-09-26 no log do MT5 ("no optimized parameter selected"): o
+    resgate NUNCA rodou, devolvia "0 min | aptos: 0 de 0" em silencio."""
+    return {k: v for k, v in travados.items() if k not in eixos}
+
+
 def gate_do_veredito(div: float | None, retencao: float | None,
                      min_retencao: float) -> str:
     """Nome curto do gate que reprovou dentro de veredito() -- mesma ordem de
@@ -3076,6 +3086,10 @@ def main() -> int:
     # sentido pra varredura de formula (resultado igual, muito mais rapido);
     # campanha de producao nao passa isto.
     ap.add_argument("--timeout-geometria", type=int, default=0)
+    # Teto do resgate por divergencia [4.5/5] (2026-09-26): busca genetica em
+    # tick real de todos os eixos numericos -- sem teto proprio herdaria o
+    # --timeout do combo (12 h). So roda em quem ja passou na retencao.
+    ap.add_argument("--timeout-resgate-min", type=float, default=120.0)
     ap.add_argument("--fechar-terminal", action="store_true")
     ap.add_argument("--calibracao", action="store_true",
                     help="corrida de pesquisa (sweep de formula): grava "
@@ -3893,15 +3907,29 @@ def main() -> int:
         t0_r = time.time()
         if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
             limpar_todas_formulas()
-        reescrever(origem, trabalho, numeros, travados)
-        cab_r, linhas_r = rodar(trabalho, args.symbol, args.period,
-                                args.inicio, args.fim, args.deposit, 4,
-                                args.timeout, variante=args.variante)
+        n_resgate = reescrever(origem, trabalho, numeros,
+                               travados_sem(travados, numeros))
+        teto_resgate = (min(args.timeout, int(args.timeout_resgate_min * 60))
+                        if args.timeout_resgate_min > 0 else args.timeout)
+        if n_resgate == 0:
+            print("    ATENCAO: o set do resgate saiu sem NENHUM parametro "
+                  "em Y -- o MT5 recusaria a otimizacao. Resgate pulado.",
+                  flush=True)
+            cab_r, linhas_r = [], []
+        else:
+            print(f"    {n_resgate} parametros em Y | teto "
+                  f"{teto_resgate/60:.0f} min", flush=True)
+            cab_r, linhas_r = rodar(trabalho, args.symbol, args.period,
+                                    args.inicio, args.fim, args.deposit, 4,
+                                    teto_resgate, variante=args.variante)
         resgate_ok = (base.escolher_candidatos(cab_r, linhas_r,
                                                args.min_trades, args.min_pf)
                      if linhas_r else [])
         print(f"    {(time.time()-t0_r)/60:.0f} min | aptos: "
               f"{len(resgate_ok)} de {len(linhas_r)}", flush=True)
+        if n_resgate and not linhas_r and time.time() - t0_r >= teto_resgate * 0.95:
+            print(f"    resgate cortado pelo teto de {teto_resgate/60:.0f} min "
+                  "sem terminar (--timeout-resgate-min).", flush=True)
         if not resgate_ok:
             print("    nenhum candidato do resgate passou o piso; mantido "
                   "o veredito original.", flush=True)
