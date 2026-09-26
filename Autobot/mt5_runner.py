@@ -11,6 +11,7 @@ Por isso a checagem vive aqui e nao no comentario de cada script.
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import time
@@ -141,6 +142,37 @@ def garantir_terminal_livre(fechar: bool = False, terminal: Path | None = None) 
         "do terminal -- na ordem inversa ele simplesmente abre outro.")
 
 
+PULAR_UPDATE = Path(__file__).resolve().parent / "mt5_pular_update.json"
+
+
+def hash_pular_update(terminal: Path) -> str | None:
+    """Hash do "/skipupdate:" desta instalacao (2026-09-26).
+
+    Com um build novo pendente (6230) o terminal so dispara o LiveUpdate e
+    sai com 0, sem testar. O updater espera ~2 min, troca o terminal64.exe,
+    REVERTE (o componente do tester nao atualiza) e relanca o terminal com
+    "/skipupdate:<hash>" -- hash fixo POR INSTALACAO (mesmo valor em duas
+    tentativas no clone; outro no original). Repassar esse hash mantem o
+    build atual; um build ainda mais novo muda o hash, o update volta a
+    disparar e o circuito ve TerminalNaoExecutou (nunca reprovacao falsa).
+
+    WRX_MT5_SKIPUPDATE vence; senao `mt5_pular_update.json`
+    ({caminho do terminal64.exe: hash}), comparado sem caixa."""
+    env = os.environ.get("WRX_MT5_SKIPUPDATE", "").strip()
+    if env:
+        return env
+    try:
+        import json
+        mapa = json.loads(PULAR_UPDATE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    alvo = str(terminal).lower().replace("/", "\\")
+    for caminho, h in mapa.items():
+        if caminho.lower().replace("/", "\\") == alvo:
+            return str(h).strip() or None
+    return None
+
+
 def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
                     *args_extra: str) -> None:
     """Roda `/config:` minimizado e SEM ativar -- nao rouba o foco de quem
@@ -191,6 +223,9 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
     info = subprocess.STARTUPINFO()
     info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     info.wShowWindow = 7  # SW_SHOWMINNOACTIVE
+    pular = hash_pular_update(terminal)
+    if pular:
+        args_extra = (f"/skipupdate:{pular}", *args_extra)
     try:
         subprocess.run([str(terminal), f"/config:{ini}", *args_extra],  # noqa: S603
                        timeout=timeout, stdout=subprocess.DEVNULL,
