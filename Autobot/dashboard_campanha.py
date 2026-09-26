@@ -63,6 +63,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 import optimize_sets as base
+import campanha
 import campeoes_arquivo
 import ready_library
 import relatorio_resumo
@@ -193,7 +194,17 @@ def limpar_ledger_incompleto() -> int:
     escrita se o corte pareceria remover mais de 20% das linhas de uma vez
     (isso nunca deveria acontecer so por combos incompletos -- normalmente
     0 ou 1 por Stop; um corte grande e sinal de leitura ruim, nao de ledger
-    sujo de verdade)."""
+    sujo de verdade).
+
+    2026-09-26: leitura+reescrita agora sob a MESMA trava de
+    campanha.registrar(). Com campanhas CLI gravando no ledger ao mesmo
+    tempo, uma linha acrescentada entre a leitura e a escrita sumia, e uma
+    linha pela METADE (sendo escrita) era removida como JSON corrompido."""
+    with campanha._lock_ledger():
+        return _limpar_ledger_incompleto_sob_trava()
+
+
+def _limpar_ledger_incompleto_sob_trava() -> int:
     if not LEDGER.exists():
         return 0
     todas = LEDGER.read_text(encoding="utf-8").splitlines()
@@ -357,10 +368,26 @@ def status(familia: str = "MULTI") -> JSONResponse:
             "reprovados": len(resultados) - len(aprovados),
             "por_sistema": por_sistema,
             "atual": combo_atual(),
-            "recentes": list(reversed(resultados))[:30],
+            "recentes": [_com_aviso_bug_oos(r)
+                         for r in list(reversed(resultados))[:30]],
             "qualidade": resumo_qualidade(resultados),
         }
     )
+
+
+# EA com a entrada bloqueada nas janelas OOS em 'In Sample + Out Sample'
+# (regressao de 13/09, corrigida 26/09 02:05 -- ver sonda_oos.py): toda
+# retencao medida nesse intervalo e vazamento de borda, e o combo esta na
+# fila de refacao. O painel marca em vez de esconder.
+JANELA_BUG_OOS = ("2026-09-13", "2026-09-26T02:06")
+
+
+def _com_aviso_bug_oos(r: dict) -> dict:
+    quando = str(r.get("quando", ""))
+    if (JANELA_BUG_OOS[0] <= quando < JANELA_BUG_OOS[1]
+            and r.get("retencao_oos") is not None):
+        return {**r, "aviso_bug_oos": True}
+    return r
 
 
 # ---------------------------------------------------------------- /api/config
@@ -546,10 +573,13 @@ def estado_campanha() -> dict:
            # PROGRESSO e global (last-writer-wins): com campanha CLI rodando
            # ele mostra a que gravou por ultimo -- melhor que nada.
            "progresso": progresso if (vivo or cli) else None,
-           "pausando": vivo and base.PAUSA.exists(),
+           "pausando": (vivo or bool(cli)) and base.PAUSA.exists(),
            "pausado": pausado,
            **info,
-           "campanhas_cli": cli}
+           "campanhas_cli": cli,
+           # Sinal de pausa gravado (vale pra TODAS as campanhas, inclusive
+           # as filas CLI, que param antes da proxima etapa).
+           "pausa_pendente": base.PAUSA.exists()}
 
 
 @app.get("/api/campanha/estado")
@@ -769,14 +799,50 @@ def campanha_pausar() -> JSONResponse:
     # PRESENCA do arquivo) -- quem realmente para e' o proprio processo da
     # campanha, no proximo ponto seguro (fim de rodada do Estagio 1 ou
     # antes do proximo combo). Idempotente: pedir pausa duas vezes nao e'
-    # erro.
-    if not estado_campanha()["rodando"]:
+    # erro. Vale tambem pras campanhas CLI (2026-09-26): elas checam o mesmo
+    # sinal, e as filas de refacao param antes da proxima etapa.
+    estado = estado_campanha()
+    if not (estado["rodando"] or estado["campanhas_cli"]):
         return JSONResponse(
             {"ok": False, "erro": "nenhuma corrida rodando pra pausar"},
             status_code=409,
         )
     base.PAUSA.touch()
     return JSONResponse({"ok": True, "pausando": True})
+
+
+@app.post("/api/campanha/cancelar_pausa")
+def campanha_cancelar_pausa() -> JSONResponse:
+    """Apaga o sinal de pausa SEM relancar nada. Pra campanha CLI e o unico
+    "retomar" seguro: o /retomar relanca a corrida guardada no LOCK do
+    PAINEL (que pode ser de outra campanha, dias atras). Pausa ja honrada
+    (processo saiu) nao volta sozinha -- relancar a fila CLI."""
+    base.PAUSA.unlink(missing_ok=True)
+    return JSONResponse({"ok": True, "pausa_pendente": False})
+
+
+@app.get("/api/auditoria")
+def auditoria(n: int = 25) -> JSONResponse:
+    """Ultimos `n` eventos do vigia (auditoria_eventos.log): avaliacao de
+    cada combo que termina (AVALIAR), saude dos terminais (SAUDE),
+    revalidacoes. Antes so chegavam a quem tivesse uma sessao armada lendo
+    o arquivo; o painel nao mostrava. Le so o fim do arquivo."""
+    arq = AQUI / "auditoria_eventos.log"
+    if not arq.exists():
+        return JSONResponse({"eventos": []})
+    with arq.open("rb") as fh:
+        fh.seek(max(0, arq.stat().st_size - 200_000))
+        texto = fh.read().decode("utf-8", errors="replace")
+    eventos: list[dict] = []
+    for linha in texto.splitlines()[1:]:
+        if not linha.strip():
+            continue
+        if linha.startswith((" ", "\t")) and eventos:
+            eventos[-1]["detalhes"].append(linha.strip())
+            continue
+        tipo = linha.split(" ", 1)[0]
+        eventos.append({"tipo": tipo, "texto": linha.strip(), "detalhes": []})
+    return JSONResponse({"eventos": list(reversed(eventos))[:max(1, min(n, 200))]})
 
 
 @app.post("/api/campanha/retomar")

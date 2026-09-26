@@ -54,6 +54,9 @@
         <sc-if value="{{ btnPausarShow }}" hint-placeholder-val="{{ false }}">
           <button onClick="{{ onClickPausar }}" disabled="{{ btnPausarDisabled }}" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px solid {{ pal.line }};border-radius:7px;padding:6px 13px;font-weight:600;cursor:pointer;font-size:11.5px;">{{ L.campaign.pauseRun }}</button>
         </sc-if>
+        <sc-if value="{{ btnCancelarPausaShow }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ onClickCancelarPausa }}" title="apaga o sinal de pausa sem relançar nada (campanha CLI já parada tem que ser relançada)" style="background:{{ pal.bg3 }};color:{{ pal.text }};border:1px dashed {{ pal.line }};border-radius:7px;padding:6px 13px;font-weight:600;cursor:pointer;font-size:11.5px;">cancel pause</button>
+        </sc-if>
         <sc-if value="{{ btnRetomarShow }}" hint-placeholder-val="{{ false }}">
           <button onClick="{{ onClickRetomar }}" style="background:{{ pal.btnGradient }};color:{{ pal.btnText }};border:none;border-radius:7px;padding:6px 13px;font-weight:600;cursor:pointer;font-size:11.5px;">{{ L.campaign.resumeRun }}</button>
         </sc-if>
@@ -248,7 +251,7 @@
                   <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.sistema }}</td>
                   <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.variante }}</td>
                   <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};"><span style="background:{{ rr.pillBg }};color:{{ rr.pillColor }};padding:2px 9px;border-radius:999px;font-size:11.5px;">{{ rr.pillLabel }}</span></td>
-                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.retencao }}</td>
+                  <td title="{{ rr.retencaoTitle }}" style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};color:{{ rr.retencaoColor }};">{{ rr.retencao }}</td>
                   <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ rr.expectancy }}</td>
                   <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.trades }}</td>
                   <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.minutos }}</td>
@@ -262,6 +265,10 @@
                         <span>lucro tick real: <b style="color:{{ pal.text }};">{{ rr.lucroTickReal }}</b></span>
                         <span>retenção %: <b style="color:{{ pal.text }};">{{ rr.retencaoPct }}</b></span>
                         <span>{{ rr.mcLine }}</span>
+                        <span>rejected at: <b style="color:{{ pal.text }};">{{ rr.gateLine }}</b></span>
+                        <span>stage-1 divergence probe: <b style="color:{{ pal.text }};">{{ rr.sondaLine }}</b></span>
+                        <span>vs buy&amp;hold (3y): <b style="color:{{ pal.text }};">{{ rr.benchLine }}</b></span>
+                        <span>EA: <b style="color:{{ pal.text }};">{{ rr.eaLine }}</b></span>
                       </div>
                     </td>
                   </tr>
@@ -269,6 +276,19 @@
               </tbody>
             </sc-for>
           </table>
+          </div>
+        </div>
+
+        <div>
+          <h2 style="font-size:13px;color:{{ pal.muted }};margin:0 0 10px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;">Audit feed (vigia)</h2>
+          <div style="border-radius:12px;border:1px solid {{ pal.line }};background:{{ pal.cardTop }};max-height:420px;overflow-y:auto;">
+            <sc-for list="{{ auditoriaRows }}" as="ar" hint-placeholder-count="4">
+              <div style="padding:8px 14px;border-bottom:1px solid {{ pal.line }};font-size:12px;">
+                <span style="background:{{ ar.bg }};color:{{ ar.color }};padding:1px 8px;border-radius:999px;font-size:10.5px;margin-right:8px;">{{ ar.tipo }}</span>
+                <span style="color:{{ pal.text }};">{{ ar.texto }}</span>
+                <div style="color:{{ pal.muted }};font-size:11.5px;margin-top:3px;white-space:pre-wrap;">{{ ar.detalhes }}</div>
+              </div>
+            </sc-for>
           </div>
         </div>
       </section>
@@ -766,10 +786,10 @@ class Component extends DCLogic {
       this.MOCK = mock; this.I18N = i18n; this.forceUpdate();
       this.state.sistemasSel = {};
       this.carregarConfig().then(() => this.carregarPerfil());
-      this.carregarStatus(); this.carregarEstado(); this.carregarHeatmap();
+      this.carregarStatus(); this.carregarEstado(); this.carregarHeatmap(); this.carregarAuditoria();
     });
     const ms = this.props.intervaloAtualizacaoMs || 8000;
-    this._interval = setInterval(() => { this.carregarStatus(); this.carregarEstado(); this.carregarHeatmap(); }, ms);
+    this._interval = setInterval(() => { this.carregarStatus(); this.carregarEstado(); this.carregarHeatmap(); this.carregarAuditoria(); }, ms);
     this._bip = (e) => { e.preventDefault(); this.setState({ installEvt: e, showInstall: true }); };
     window.addEventListener('beforeinstallprompt', this._bip);
   }
@@ -851,6 +871,12 @@ class Component extends DCLogic {
     }
   }
   carregarHeatmap() { return this.load('/api/heatmap', () => this.MOCK.mockHeatmap(), 'heatmap'); }
+  carregarAuditoria() { return this.load('/api/auditoria?n=25', () => ({ eventos: [] }), 'auditoria'); }
+  async clickCancelarPausa() {
+    try { await this.postReal('/api/campanha/cancelar_pausa'); this.setState({ msgStop: 'pause signal removed.', msgStopOk: true }); }
+    catch (e) { this.setState({ offline: true, msgStop: 'backend não respondeu — o sinal de pausa continua.', msgStopOk: false }); }
+    this.carregarEstado();
+  }
   toggleRecenteExpand(chave) { this.setState((s) => ({ expandedRecentes: { ...s.expandedRecentes, [chave]: !s.expandedRecentes[chave] } })); }
   async clickStop() {
     this.setState({ msgStop: 'stopping...', msgStopOk: null });
@@ -1273,6 +1299,12 @@ class Component extends DCLogic {
     const heatmapGrid = hm ? buildGrid(hm.classes, hm.sistemas || []) : [];
     const heatmapEmpty = !!hm && heatmapGrid.length === 0;
 
+    const GATE_ROTULO = { divergencia: 'divergence', divergencia_sem_medida: 'no divergence', retencao: 'retention', retencao_sem_medida: 'no OOS measure', monte_carlo: 'Monte Carlo', expectancy_r: 'expectancy', gate_relativo: 'vs champion', historico_completo: '3y history', prova_percentual: '% proof', prova_monetario: 'monetary proof', sobrevivencia: 'survival', periodo_anterior: 'prior period', wfa: 'WFA' };
+    const AUD_TOM = { AVALIAR: [pal.bg3, pal.text], SAUDE: [pal.noBg, pal.no], REVALIDACAO: [pal.okBg, pal.ok] };
+    const auditoriaRows = (s.auditoria?.eventos || []).map((e) => ({
+      tipo: e.tipo, texto: e.texto, detalhes: (e.detalhes || []).join('\n'),
+      bg: (AUD_TOM[e.tipo] || [pal.bg3, pal.muted])[0], color: (AUD_TOM[e.tipo] || [pal.bg3, pal.muted])[1],
+    }));
     const recentesRows = (status?.recentes || []).map((r) => {
       const chave = `${r.simbolo}|${r.sistema}|${r.variante}|${r.quando}`;
       const expanded = !!s.expandedRecentes[chave];
@@ -1281,8 +1313,16 @@ class Component extends DCLogic {
         : 'MC: não medido (fora de Fixed-R ou poucos trades)';
       return {
         chave, simbolo: r.simbolo, sistema: r.sistema, variante: r.variante,
-        pillBg: r.aprovado ? pal.okBg : pal.noBg, pillColor: r.aprovado ? pal.ok : pal.no, pillLabel: r.aprovado ? 'approved' : 'rejected',
-        retencao: r.retencao_oos ?? '-', expectancy: r.expectancy_r != null ? r.expectancy_r.toFixed(3) + 'R' : '-',
+        pillBg: r.aprovado ? pal.okBg : pal.noBg, pillColor: r.aprovado ? pal.ok : pal.no,
+        pillLabel: r.aprovado ? 'approved' : (r.rebaixado ? 'demoted' : 'rejected' + (GATE_ROTULO[r.reprovado_em] ? ' · ' + GATE_ROTULO[r.reprovado_em] : (r.motivo_reprovacao_precoce ? ' · stage 1/2' : ''))),
+        gateLine: r.aprovado ? '-' : (r.reprovado_em || r.motivo_reprovacao_precoce || (r.rebaixado ? r.motivo_rebaixamento : null) || 'n/d (linha anterior a 26/09)'),
+        sondaLine: r.divergencia_sonda_estagio1 != null ? r.divergencia_sonda_estagio1.toFixed(1) + '%' : 'n/d',
+        benchLine: r.benchmark_historico_completo ? `strategy ${r.benchmark_historico_completo.estrategia_retorno_pct}% (DD ${fmtN(r.benchmark_historico_completo.estrategia_max_dd_pct)}%) vs asset ${r.benchmark_historico_completo.lado} ${r.benchmark_historico_completo.ativo_retorno_pct}% (DD ${fmtN(r.benchmark_historico_completo.ativo_max_dd_pct)}%)` : 'n/d',
+        eaLine: r.proveniencia ? `${r.proveniencia.ea_md5 || '?'} (${r.proveniencia.ea_compilado_em || '?'}) · autobot ${r.proveniencia.autobot_commit || '?'}` : 'n/d (linha anterior a 26/09)',
+        retencao: r.retencao_oos != null ? (r.aviso_bug_oos ? '⚠ ' + r.retencao_oos : r.retencao_oos) : '-',
+        retencaoTitle: r.aviso_bug_oos ? 'medida com o bug da EA no OOS (13/09–26/09 02:05): era vazamento de borda, não desempenho. Combo na fila de refação.' : '',
+        retencaoColor: r.aviso_bug_oos ? pal.muted : pal.text,
+        expectancy: r.expectancy_r != null ? r.expectancy_r.toFixed(3) + 'R' : '-',
         trades: r.trades_oos ?? (r.trades_is != null ? '~' + r.trades_is + ' (IS)' : '-'), minutos: r.minutos ?? '-',
         expanded, onToggle: () => this.toggleRecenteExpand(chave),
         lucroOhlc: fmtN(r.lucro_ohlc), lucroTickReal: fmtN(r.lucro_tick_real), retencaoPct: r.retencao_pct != null ? r.retencao_pct + '%' : '-', mcLine,
@@ -1405,10 +1445,11 @@ class Component extends DCLogic {
       showInstall: s.showInstall, onClickInstall: () => this.clickInstall(),
       badgeMt5Text, badgeMt5Bg, badgeCampanhaText, badgeCampanhaBg, badgeProgresso,
       cardsItems, atualNode, qualityMetrics, qualitySummaryText, sistemaBars, sistemaBarsEmpty: !!status && sistemaBars.length === 0,
-      heatmapGrid, heatmapEmpty, diagnosticRows, recentesRows,
+      heatmapGrid, heatmapEmpty, diagnosticRows, recentesRows, auditoriaRows,
       msgStop: s.msgStop, msgStopColor, msgStopShow: !!s.msgStop,
       btnStopDisabled: !estado.rodando, btnStopOpacity: !estado.rodando ? .5 : 1,
-      btnPausarShow: !!estado.rodando, btnPausarDisabled: !!estado.pausando, btnRetomarShow: !!estado.pausado,
+      btnPausarShow: !!estado.rodando || (estado.campanhas_cli || []).length > 0, btnPausarDisabled: !!estado.pausando || !!estado.pausa_pendente, btnRetomarShow: !!estado.pausado,
+      btnCancelarPausaShow: !!estado.pausa_pendente, onClickCancelarPausa: () => this.clickCancelarPausa(),
       onClickStop: () => this.clickStop(), onClickPausar: () => this.clickPausar(), onClickRetomar: () => this.clickRetomar(),
 
       modoItems, recuperacaoItems, modoManual, sistemasCheckItems, onSelectAllSistemas: () => this.selectAllSistemas(), onClearSistemas: () => this.clearSistemas(),
