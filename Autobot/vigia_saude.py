@@ -30,6 +30,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import sonda_oos
+
 AQUI = Path(__file__).resolve().parent
 EVENTOS = AQUI / "auditoria_eventos.log"
 MEIO = Path(r"C:\Users\Lucas Pedroso\AppData\Roaming\MetaQuotes\Terminal")
@@ -166,6 +168,21 @@ class Vigia:
                                "velho?) e o genetico evolui as cegas. Conferir "
                                "qual etapa esta rodando (formula 1 num sistema "
                                "sem grid zera legitimamente)")
+            # OOS_BLOQUEADO (2026-09-26): a EA passou 12 dias sem abrir trade
+            # nas janelas OOS em 'In Sample + Out Sample' e nada acusou -- a
+            # retencao so parecia estranha. Maioria dos passes IS+OOS recentes
+            # abrindo < 1/4 do ritmo do IS = regressao, nao mercado (um SELL
+            # com filtro pode zerar o OOS sozinho, por isso "maioria").
+            passes = sonda_oos.analisar_cauda(cfg["dados"])[-12:]
+            ruins = sonda_oos.suspeitos(passes)
+            if (len(passes) >= 4 and len(ruins) * 2 > len(passes)
+                    and self._pode(nome, "OOS_BLOQUEADO")):
+                eventos.append(f"SAUDE {nome} OOS_BLOQUEADO? [{hora}] "
+                               f"{len(ruins)} de {len(passes)} passes IS+OOS "
+                               "recentes com o OOS abrindo menos de 1/4 do "
+                               "ritmo do IS -- a retencao mede vazamento de "
+                               "borda, nao desempenho. Rodar sonda_oos.py e "
+                               "conferir o bloqueio de entrada da EA")
         return eventos
 
 

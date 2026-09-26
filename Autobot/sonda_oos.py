@@ -102,6 +102,22 @@ def ler_log(caminho: Path) -> list[str]:
     return texto.replace("\r", "").split("\n")
 
 
+def analisar_cauda(dados: Path, max_bytes: int = 15_000_000) -> list[dict]:
+    """Passes IS+OOS do FIM do log de hoje (o mais recente) -- pro vigia_saude
+    checar a cada 5 min sem ler centenas de MB. Alinhado em 2 bytes (UTF-16)
+    e sem a primeira linha, que pode ter vindo cortada."""
+    logs = sorted((dados / "Tester" / "logs").glob("*.log"))
+    if not logs:
+        return []
+    f = logs[-1]
+    ini = max(0, f.stat().st_size - max_bytes) & ~1
+    with f.open("rb") as fh:
+        fh.seek(ini)
+        texto = fh.read().decode("utf-16-le", errors="replace")
+    linhas = texto.replace("\r", "").split("\n")
+    return analisar(linhas[1:] if ini else linhas)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
