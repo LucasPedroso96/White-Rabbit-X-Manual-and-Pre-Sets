@@ -146,6 +146,23 @@ def proveniencia(variante: str) -> dict:
     return saida
 
 
+# Custo medido de 1 passe em tick real na janela do combo (a sonda de
+# divergencia preenche) e o minimo de passes que um genetico do Estagio 3.5
+# costuma precisar: nos 272 que TERMINARAM (logs ate 26/09), mediana 174 e
+# 10% com ate 151 passes. Com teto (--timeout-geometria), 32 de 33 cortados
+# desde 20/09 -- ~10 h de MT5 sem resultado nenhum.
+TEMPO_PASSE_TICK_S: float | None = None
+MIN_PASSES_GEOMETRIA = 150
+
+
+def passes_que_cabem(teto_s: float, agentes: int) -> float | None:
+    """Quantos passes em tick real cabem no teto com `agentes` em paralelo,
+    pelo custo medido de 1 passe. None = sem medida (nunca pula por isso)."""
+    if not TEMPO_PASSE_TICK_S or agentes <= 0:
+        return None
+    return teto_s * agentes / TEMPO_PASSE_TICK_S
+
+
 def travados_sem(travados: dict[str, str], eixos: list[str]) -> dict[str, str]:
     """`travados` sem os `eixos` que vao ser REABERTOS. reescrever() trava
     (N) tudo que esta em `travar` ANTES de olhar `otimizar`: reabrir um eixo
@@ -1633,13 +1650,20 @@ def sonda_divergencia_estagio1(origem: Path, trabalho: Path,
     refacao pos-correcao da EA da pra medir se ela preve e so entao decidir
     se vira corte cedo. Dois passes IS (modelo 1 e 4), mesmo modo da
     conferencia de divergencia do Estagio 4. Qualquer falha -> None."""
+    global TEMPO_PASSE_TICK_S
     try:
         reescrever(origem, trabalho, [], dict(travados, MetodoDeEntradawfo="0"))
         lucros = []
         for modelo in (1, 4):
+            t0 = time.time()
             r = passe_unico(trabalho, args.symbol, args.period, args.inicio,
                             args.fim, args.deposit, modelo, timeout=900,
                             variante=args.variante)
+            if modelo == 4:
+                # custo de 1 passe em tick real nesta janela -- ver
+                # passes_que_cabem() (o 3.5 usa pra saber se cabe no teto).
+                # -10 s: abertura do terminal, que o genetico nao paga por passe.
+                TEMPO_PASSE_TICK_S = max(1.0, time.time() - t0 - 10.0)
             if r["saldo"] is None:
                 return None
             lucros.append(r["saldo"] - args.deposit)
@@ -3685,7 +3709,28 @@ def main() -> int:
     # medi-la depois de pronta.
     lucro_ohlc_pre_geometria = ordenados[0][1] if ordenados else None
     geometria_refeita_tick_real = False
-    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL:
+    # Com teto (--timeout-geometria), o 3.5 quase nunca terminava (32 de 33
+    # cortados desde 20/09) e o genetico cortado nao devolve NADA -- 10-20
+    # min por combo jogados fora. Pelo custo medido de 1 passe em tick real
+    # (sonda de divergencia): se no teto nao cabem nem MIN_PASSES_GEOMETRIA
+    # passes, pula com o motivo. Sem teto nada muda. A estimativa sai no log
+    # sempre, pra calibrar o limiar com dado real.
+    pular_35 = False
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL and args.timeout_geometria > 0:
+        teto_35 = min(args.timeout, args.timeout_geometria)
+        agentes_35 = contar_agentes(base.texto_novo(antes_combo)) or 1
+        cabem = passes_que_cabem(teto_35, agentes_35)
+        if cabem is not None:
+            print(f"\n    estimativa do 3.5: ~{cabem:.0f} passes cabem no teto de "
+                  f"{teto_35/60:.0f} min ({TEMPO_PASSE_TICK_S:.0f} s/passe em "
+                  f"tick real x {agentes_35} agentes; o genetico costuma "
+                  f"precisar de >= {MIN_PASSES_GEOMETRIA})", flush=True)
+            if cabem < MIN_PASSES_GEOMETRIA:
+                pular_35 = True
+                print("  [3.5/5] PULADO: nao terminaria no teto (o genetico "
+                      "cortado nao devolve resultado) -- geometria de OHLC "
+                      "mantida, como seria no corte.", flush=True)
+    if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL and not pular_35:
         eixos_geometria = EIXOS_GEOMETRIA_TICK_REAL[args.sistema]
         # reescrever() trava (nome in travar) ANTES de checar `otimizar` --
         # esses eixos ja estao em `travados` desde a fase 2 (NUMEROS), entao

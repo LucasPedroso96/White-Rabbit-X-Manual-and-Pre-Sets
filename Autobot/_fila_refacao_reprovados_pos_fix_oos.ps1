@@ -28,7 +28,9 @@ if ($Lado -eq "clone") {
     $etapas = @(
         @{rotulo = "metais"; extra = @("--timeout-geometria-min", "15");
           combos = "XAUUSD:05_BE_TRAIL:BUY_MULTI,XAUUSD:05_BE_TRAIL:SELL_MULTI,XAUUSD:04_SLTP_TRAIL:SELL_MULTI,XAUUSD:11_SIGNAL_ONLY:BUY_MULTI,XAGUSD:04_SLTP_TRAIL:BUY_MULTI,XAGUSD:04_SLTP_TRAIL:SELL_MULTI,XAUEUR:04_SLTP_TRAIL:BUY_MULTI,XAUEUR:04_SLTP_TRAIL:SELL_MULTI"},
-        @{rotulo = "acoes e indices"; extra = @();
+        # teto 3.5 = 20 min: o MESMO das campanhas originais de acoes/indices
+        # (campanha_foco_trail*.log). Sem ele o 3.5 herdaria 12 h por combo.
+        @{rotulo = "acoes e indices"; extra = @("--timeout-geometria-min", "20");
           combos = ".US500Cash:04_SLTP_TRAIL:BUY_MULTI,.USTECHCash:04_SLTP_TRAIL:SELL_MULTI,.USTECHCash:04_SLTP_TRAIL:BUY_MULTI,.DE40Cash:04_SLTP_TRAIL:SELL_MULTI,NVDA:04_SLTP_TRAIL:SELL_MULTI,.US30Cash:04_SLTP_TRAIL:BUY_MULTI,.US30Cash:04_SLTP_TRAIL:SELL_MULTI,.JP225Cash:04_SLTP_TRAIL:BUY_MULTI,.JP225Cash:04_SLTP_TRAIL:SELL_MULTI,GOOGL:04_SLTP_TRAIL:SELL_MULTI,GOOGL:04_SLTP_TRAIL:BUY_MULTI,META:04_SLTP_TRAIL:BUY_MULTI,META:04_SLTP_TRAIL:SELL_MULTI,AMZN:04_SLTP_TRAIL:BUY_MULTI,AMZN:04_SLTP_TRAIL:SELL_MULTI,AAPL:04_SLTP_TRAIL:BUY_MULTI"}
     )
 } else {
