@@ -106,6 +106,14 @@ from mt5_runner import contar_agentes, garantir_terminal_livre, lancar_terminal
 AQUI = Path(__file__).resolve().parent
 RELATORIOS_DIR = AQUI / "campanha_relatorios"
 RELATORIO_SUFIXOS = (".htm", ".png", "-hst.png", "-mfemae.png", "-holding.png")
+# --calibracao (sweep_formulas.py): corrida de PESQUISA, nao de entrega.
+# Achado 2026-09-25: sweeps gravavam VALIDADO_ (arquivando/sobrescrevendo o
+# campeao real da instalacao) e o relatorio em campanha_relatorios/<combo>
+# (a evidencia que o dashboard mostra do campeao oficial) -- o painel exibia
+# "campeoes de teste" com as metricas de outra corrida. Neste modo a entrega
+# vira CALIBRACAO_/CALIBRACAO_REPROVADO_ e o relatorio ganha prefixo proprio.
+MODO_CALIBRACAO = False
+PREFIXO_RELATORIO_CALIBRACAO = "CALIBRACAO__"
 CHECKPOINTS_DIR = AQUI / "campanha_checkpoints"
 
 
@@ -2737,6 +2745,8 @@ def arquivar_relatorio(symbol: str, sistema: str, variante: str,
     """
     nome_destino = nome_destino or nome_origem
     pasta_rel = f"{symbol.replace('.', '_')}__{sistema}__{variante}"
+    if MODO_CALIBRACAO:
+        pasta_rel = PREFIXO_RELATORIO_CALIBRACAO + pasta_rel
     destino = RELATORIOS_DIR / pasta_rel
     try:
         destino.mkdir(parents=True, exist_ok=True)
@@ -2907,7 +2917,13 @@ def main() -> int:
     # campanha de producao nao passa isto.
     ap.add_argument("--timeout-geometria", type=int, default=0)
     ap.add_argument("--fechar-terminal", action="store_true")
+    ap.add_argument("--calibracao", action="store_true",
+                    help="corrida de pesquisa (sweep de formula): grava "
+                         "CALIBRACAO_ em vez de VALIDADO_, nunca toca o "
+                         "campeao nem o relatorio dele")
     args = ap.parse_args()
+    global MODO_CALIBRACAO
+    MODO_CALIBRACAO = args.calibracao
     if args.recuperacao in ("martingale", "dalembert"):
         if args.sistema not in SISTEMAS_RECUPERACAO_ELEGIVEIS:
             raise SystemExit(
@@ -4193,6 +4209,10 @@ def main() -> int:
     # retencao era negativa -- o arquivo passa a afirmar o que ele nao provou.
     prefixo = "VALIDADO" if aprovado else "REPROVADO"
     outro_prefixo = "REPROVADO" if aprovado else "VALIDADO"
+    if MODO_CALIBRACAO:
+        # Pesquisa nunca vira entrega nem mexe na entrega de ninguem.
+        prefixo = "CALIBRACAO" if aprovado else "CALIBRACAO_REPROVADO"
+    substitui_campeao = aprovado and not MODO_CALIBRACAO
     destino = (base.DADOS / "MQL5" / "Profiles" / "Tester" /
                f"{prefixo}_{args.symbol.replace('.', '_')}_"
                f"{args.sistema}_{args.variante}.set")
@@ -4240,7 +4260,7 @@ def main() -> int:
         limpar_checkpoint_estagio1(args.symbol, args.sistema, args.variante)
         return 1
 
-    if aprovado:
+    if substitui_campeao:
         outro_destino = (base.DADOS / "MQL5" / "Profiles" / "Tester" /
                          f"{outro_prefixo}_{args.symbol.replace('.', '_')}_"
                          f"{args.sistema}_{args.variante}.set")
@@ -4250,7 +4270,7 @@ def main() -> int:
     # risco de ser perdido). Ver campeoes_arquivo.py: mesmo principio do
     # deploy.py do Zeus, achado direto na pele hoje com o backup manual do
     # piloto de ML.
-    if aprovado:
+    if substitui_campeao:
         campeoes_arquivo.arquivar_campeao_anterior(
             args.sistema, args.symbol, args.variante, destino)
     # Copia do `trabalho` JA VALIDADO, nao reescreve() de novo em cima do

@@ -241,7 +241,12 @@ try:
                 "--min-retencao", str(args.min_retencao),
                 "--min-trades-per-year", str(args.min_trades_por_ano),
                 "--fechar-terminal", "--timeout", str(args.timeout),
-                "--timeout-geometria", str(int(args.timeout_geometria_min * 60))]
+                "--timeout-geometria", str(int(args.timeout_geometria_min * 60)),
+                # Pesquisa, nao entrega: CALIBRACAO_ em vez de VALIDADO_ e
+                # relatorio proprio -- nunca sobrescreve o campeao real nem
+                # a evidencia dele (achado 2026-09-25, "campeao teste" no
+                # dashboard).
+                "--calibracao"]
             if args.indicador_solo:
                 comando.append("--indicador-solo")
 

@@ -132,6 +132,31 @@ finally:
      painel.ready_library.LEDGER, wrx_paths.pastas_de_dados_do_projeto) = salvos
     shutil.rmtree(tmp, ignore_errors=True)
 
+# ===================================== sweep (--calibracao) x relatorio oficial
+# O sweep nao pode sobrescrever campanha_relatorios/<combo> -- e a evidencia
+# que a aba mostra do campeao oficial.
+import optimize_two_stage as ots
+
+tmp2 = Path(tempfile.mkdtemp())
+salvos2 = (ots.RELATORIOS_DIR, ots.base.DADOS, ots.MODO_CALIBRACAO)
+ots.RELATORIOS_DIR = tmp2 / "relatorios"
+ots.base.DADOS = tmp2
+(tmp2 / "conf_wrx.htm").write_text("relatorio", encoding="utf-8")
+try:
+    ots.MODO_CALIBRACAO = False
+    checar("campanha: relatorio na pasta do combo",
+           ots.arquivar_relatorio("XAUUSD", "04_SLTP_TRAIL", "BUY_MULTI"),
+           "XAUUSD__04_SLTP_TRAIL__BUY_MULTI")
+    ots.MODO_CALIBRACAO = True
+    pasta = ots.arquivar_relatorio("XAUUSD", "04_SLTP_TRAIL", "BUY_MULTI")
+    checar("calibracao: relatorio em pasta PROPRIA", pasta,
+           "CALIBRACAO__XAUUSD__04_SLTP_TRAIL__BUY_MULTI")
+    checar("calibracao: pasta sem barra (endpoint de resumo recusa '/')",
+           "/" in (pasta or "") or "\\" in (pasta or ""), False)
+finally:
+    ots.RELATORIOS_DIR, ots.base.DADOS, ots.MODO_CALIBRACAO = salvos2
+    shutil.rmtree(tmp2, ignore_errors=True)
+
 if FALHAS:
     print("implantacao_certificado: FALHOU")
     for f in FALHAS:
