@@ -1,4 +1,5 @@
-# Refacao com a METODOLOGIA NOVA (2026-09-26, commit bad1b47f, dono: "segue
+# Refacao com a METODOLOGIA FINAL de 2026-09-26 (corte = implantacao da EA com
+# entrada pendente + templates regenerados; antes: metodologia bad1b47f, dono: "segue
 # com sugerido"): holdout lacrado de 90 dias, treino max 2 anos, periodo
 # anterior -5%, amostra pequena = inconclusivo. Tudo que rodou antes do corte
 # foi decidido pela metodologia antiga (e 18 linhas de 13:49-13:57 sao
@@ -16,7 +17,7 @@ $ErrorActionPreference = "Continue"
 $aqui = "C:\Users\Lucas Pedroso\Documents\White Rabbit X\Autobot"
 $py = "C:\Users\Lucas Pedroso\AppData\Local\Programs\Python\Python310\python.exe"
 $log = Join-Path $aqui "campanha_refacao_metodologia_$Lado.log"
-$corte = "2026-09-26T14:30"
+$corte = "2026-09-26T23:35"
 
 if ($EsperarPid -gt 0) {
     while (Get-Process -Id $EsperarPid -ErrorAction SilentlyContinue) {

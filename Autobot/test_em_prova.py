@@ -59,9 +59,12 @@ checar("combo_do_magic: magic desconhecido -> None",
 # mais um "sistema" proprio, viraram booster opcional de qualquer um dos
 # outros -- ver SISTEMAS_RECUPERACAO_OPCIONAL/--recuperacao). 9 sistemas
 # em vez de 11, mesma logica BUY+SELL+BOTH aditivo de antes.
+# 5076 (2026-09-26): os 5 indices CFD novos (.US30Cash & cia) entraram em
+# ASSETS -- 94 ativos x 9 sistemas x (BUY+SELL+BOTH) x MULTI/ICHIMOKU; o
+# manifesto regenerado no mesmo dia tem as mesmas 5076 linhas.
 tabela_recomputada = em_prova._tabela_magics_recomputada()
-checar("recomputada: tamanho bate com o manifesto real (4806 combos)",
-       len(tabela_recomputada), 4806)
+checar("recomputada: tamanho bate com o manifesto real (5076 combos)",
+       len(tabela_recomputada), 5076)
 
 
 # --- ler_relatorio_historico (formato real: Trade History Report) -----------

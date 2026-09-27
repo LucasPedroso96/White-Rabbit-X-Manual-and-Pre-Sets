@@ -271,6 +271,7 @@
                         <span>sealed holdout: <b style="color:{{ pal.text }};">{{ rr.lacradoLine }}</b></span>
                         <span>prior period: <b style="color:{{ pal.text }};">{{ rr.anteriorLine }}</b></span>
                         <span>training window: <b style="color:{{ pal.text }};">{{ rr.treinoLine }}</b></span>
+                        <span>entry order: <b style="color:{{ pal.text }};">{{ rr.pendLine }}</b></span>
                         <span>EA: <b style="color:{{ pal.text }};">{{ rr.eaLine }}</b></span>
                       </div>
                     </td>
@@ -1324,6 +1325,7 @@ class Component extends DCLogic {
         lacradoLine: r.holdout_lacrado ? `${r.holdout_lacrado.veredito} · ${r.holdout_lacrado.inicio}..${r.holdout_lacrado.fim} · lucro ${fmtN(r.holdout_lacrado.profit)} · ${r.holdout_lacrado.trades ?? '-'} trades` : 'n/d (não rodou ou linha anterior à metodologia de 26/09)',
         anteriorLine: r.periodo_anterior_lucro != null ? `lucro ${fmtN(r.periodo_anterior_lucro)} · ${r.periodo_anterior_trades ?? '-'} trades · tick real ${r.periodo_anterior_tick_real_pct != null ? r.periodo_anterior_tick_real_pct + '%' : 'n/d'}${r.periodo_anterior_fraco ? ' ⚠ evidência fraca' : ''}` : 'n/d',
         treinoLine: (r.janela_treino || 'n/d') + (r.retencao_inconclusiva ? ` · retenção inconclusiva (${r.entradas_oos} entradas OOS)` : ''),
+        pendLine: r.entrada_pendente ? `${String(r.entrada_pendente.EntryOrderType) === '1' ? 'Stop' : 'Limit'} · ${String(r.entrada_pendente.PendingReferencia) === '1' ? 'extremo do candle' : 'fechamento'} ± ${r.entrada_pendente.PendingDistanciaATR}×ATR · expira ${r.entrada_pendente.PendingExpiracaoBarras} barras` : (r.piso_trades != null ? 'mercado' : 'n/d'),
         eaLine: r.proveniencia ? `${r.proveniencia.ea_md5 || '?'} (${r.proveniencia.ea_compilado_em || '?'}) · autobot ${r.proveniencia.autobot_commit || '?'}` : 'n/d (linha anterior a 26/09)',
         retencao: r.retencao_oos != null ? (r.aviso_bug_oos ? '⚠ ' + r.retencao_oos : r.retencao_oos) : '-',
         retencaoTitle: r.aviso_bug_oos ? 'medida com o bug da EA no OOS (13/09–26/09 02:05): era vazamento de borda, não desempenho. Combo na fila de refação.' : '',
