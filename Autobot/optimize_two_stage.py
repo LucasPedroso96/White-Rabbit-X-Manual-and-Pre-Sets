@@ -1378,20 +1378,27 @@ def _nome_tf(valor) -> str | None:
 def tf_referencia(params: dict) -> tuple[str | None, str]:
     """(TF, de onde veio) que define o piso de trades deste conjunto.
 
-    ATR declarado (FLAGS_ATR ou grade ligada) -> ATR_TimeFrame. Senao o TF do
-    indicador de entrada (TimeFrame; na Candles, o MAIOR dos 3 slots -- a
-    confluencia so dispara no ritmo do slot mais lento)."""
+    TF da entrada: TimeFrame; na Candles, o MAIOR dos 3 slots (a confluencia
+    so dispara no ritmo do slot mais lento). ATR declarado (FLAGS_ATR ou
+    grade ligada) -> o MAIS LENTO entre ATR_TimeFrame e o TF da entrada
+    (dono, 2026-09-26, apos o USDCAD 06 SELL: entrada M15 com ATR M5 pedia
+    150 trades, mas a entrada so dispara 1x por candle de M15 -- o ATR mais
+    rapido so mede o stop). Sem ATR: o TF da entrada."""
+    entrada, origem = _nome_tf(params.get("TimeFrame")), "indicador"
+    if not entrada:
+        slots = [_nome_tf(params.get(f"CandleTF{i}")) for i in (1, 2, 3)]
+        slots = [s for s in slots if s]
+        if slots:
+            entrada, origem = max(slots, key=TFS_EA.index), "candles"
     atr = (any(str(params.get(f, "")).strip().lower() == "true"
                for f in FLAGS_ATR)
            or str(params.get("GridMode", "0")).strip() not in ("", "0"))
-    if atr and _nome_tf(params.get("ATR_TimeFrame")):
-        return _nome_tf(params.get("ATR_TimeFrame")), "ATR"
-    if _nome_tf(params.get("TimeFrame")):
-        return _nome_tf(params.get("TimeFrame")), "indicador"
-    slots = [_nome_tf(params.get(f"CandleTF{i}")) for i in (1, 2, 3)]
-    slots = [s for s in slots if s]
-    if slots:
-        return max(slots, key=TFS_EA.index), "candles"
+    tf_atr = _nome_tf(params.get("ATR_TimeFrame")) if atr else None
+    if tf_atr and (not entrada
+                   or TFS_EA.index(tf_atr) > TFS_EA.index(entrada)):
+        return tf_atr, "ATR"
+    if entrada:
+        return entrada, origem
     return None, "sem TF"
 
 
