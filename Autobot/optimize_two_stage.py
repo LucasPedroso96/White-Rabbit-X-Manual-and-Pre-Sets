@@ -421,6 +421,12 @@ ESCRITA = {"EntryIndicator", "EntryMethod", "TimeFrame", "InpAppliedPrice",
            "ReversalExitUseEntryFilters",
            "AtivarFiltroMA", "AtivarFiltroADX", "AtivarFiltroMTF",
            "EntradaATR", "Hedging",
+           # Resgatados 2026-09-26: eram eixos Y do Estagio 1 fora de ESCRITA
+           # e de NUMEROS -- o genetico escolhia e o Estagio 2 voltava tudo
+           # pro default do template (nenhum set final usava o vencedor).
+           "TrailSoLucro", "PyramidTrailSoLucro", "PyramidLevelOnlyInProfit",
+           # Saida por ordem oposta, eixo {1,2} so no 06 BOTH (2026-09-26).
+           "ReversalExitMode",
            # Variante BOLLINGER (2026-09-06): saidas alternativas por banda,
            # mesma natureza booleana de AtivarBreakeven/TakeOrganico acima --
            # decididas na fase 1, travadas na fase 2. Ausentes do set MULTI/
@@ -505,6 +511,9 @@ NUMEROS = ["Fast_EMA", "Slow_EMA", "MACD_SMA", "StochasticSlowing",
            "ADX_TimeFrame", "ADX_Period", "ADX_Limiar",
            "MA_Method", "MetodoMA", "SentidoMA", "MA_AppliedPrice",
            "MetodoADX", "MTF_RequererAmbos", "VolatilityFilter",
+           # Resgatados 2026-09-26 (ver ESCRITA): baseline e margem do
+           # filtro de volatilidade, agora aberto em todos os sistemas.
+           "PeriodoBaselineATR", "MultiplicadorATR",
            # Variante BOLLINGER (2026-09-06): eixos numericos da entrada,
            # equivalentes a Fast_EMA/Slow_EMA/MACD_SMA no MULTI. Ausentes do
            # set MULTI/ICHIMOKU, entao inertes la.
@@ -706,6 +715,12 @@ EIXOS_RECUPERACAO_TODOS = sorted({eixo for eixos in
                                   EIXOS_RECUPERACAO_POR_TIPO.values()
                                   for eixo in eixos})
 RECOVERY_MODE_POR_TIPO = {"martingale": "1", "dalembert": "2"}
+# Entrada pendente (booster, 2026-09-26): a entrada-semente vira ordem Stop
+# ou Limit a k x ATR do fechamento/extremo do candle do sinal (EA:
+# EntryOrderType). Mesmo esquema da recuperacao: faixa no .set, fora dos
+# Estagios 1/2 sempre, aberta so no Estagio 2.7.
+EIXOS_PENDENTE = ["EntryOrderType", "PendingReferencia",
+                  "PendingDistanciaATR", "PendingExpiracaoBarras"]
 RECUPERACAO_DA_IDENTIDADE = {"09_MARTINGALE": "martingale",
                              "10_DALEMBERT": "dalembert"}
 # Quem pode pedir --recuperacao explicito: os 7 boosteveis + os 2 que ja SAO a
@@ -763,7 +778,9 @@ INDICADOR_USA = {
 # Fica aqui, nao em GATES, porque nao e condicionado a uma flag -- e o
 # proprio SISTEMA que torna os dois inertes.
 EIXOS_INERTES_POR_SISTEMA: dict[str, set[str]] = {
-    "11_SIGNAL_ONLY": {"ATR_TimeFrame", "PeriodoATR"},
+    # Multiplicador (2026-09-26): so tem efeito com o martingale do
+    # Estagio 2.5 (lote fixo x Multiplicador), que o reabre la.
+    "11_SIGNAL_ONLY": {"ATR_TimeFrame", "PeriodoATR", "Multiplicador"},
 }
 
 
@@ -847,7 +864,9 @@ def eixos_reotimizaveis(sistema: str, indicador: str | None) -> list[str]:
     entrada/saida ja esta travada.
     """
     numeros = eixos_do_indicador(NUMEROS, indicador)
-    return [e for e in numeros if e not in EIXOS_RECUPERACAO_TODOS]
+    inertes = EIXOS_INERTES_POR_SISTEMA.get(sistema or "", set())
+    return [e for e in numeros if e not in EIXOS_RECUPERACAO_TODOS
+            and e not in EIXOS_PENDENTE and e not in inertes]
 
 
 def _cortar_por_efeito(efeitos: dict[str, float], corte_pct: float) -> set[str]:
@@ -1154,6 +1173,9 @@ GATES = {
     "BreakevenDistancia": "AtivarBreakeven",
     "MTF_RequererAmbos": "AtivarFiltroMTF",
     "VolatilityFilter": "EntradaATR",
+    "PeriodoBaselineATR": "EntradaATR",
+    "MultiplicadorATR": "EntradaATR",
+    "TrailSoLucro": "AtivarTrailATR",
     "NewsMinutosAntes": "AtivarFiltroNoticias",
     "NewsMinutosDepois": "AtivarFiltroNoticias",
 }
@@ -3266,6 +3288,8 @@ def main() -> int:
     # Um numero explicito volta ao piso fixo antigo (era 100).
     ap.add_argument("--min-trades", type=int, default=None)
     ap.add_argument("--min-pf", type=float, default=1.2)
+    # Estagio 2.7 (entrada pendente) roda por padrao desde 2026-09-26.
+    ap.add_argument("--sem-entrada-pendente", action="store_true")
     # Opt-in (dono, 2026-08-27): ver piso_trades_da_janela(). Quando passado,
     # SUBSTITUI --min-trades por um piso derivado de --from/--to; --min-pf
     # fica intocado de proposito -- PF e razao, nao contagem, e afrouxar PF
@@ -3514,6 +3538,11 @@ def main() -> int:
     duas_etapas = tipo_recuperacao is not None
     eixos_recuperacao = (EIXOS_RECUPERACAO_POR_TIPO.get(tipo_recuperacao, [])
                          if duas_etapas else [])
+    if args.sistema == "11_SIGNAL_ONLY" and tipo_recuperacao == "martingale":
+        # Lote fixo: o martingale faz lote = ultimo lote x Multiplicador, e
+        # com Multiplicador=1 (o do template) o lote nunca crescia --
+        # booster inerte ate 2026-09-26. Reabre a faixa (1.5..3) aqui.
+        eixos_recuperacao = eixos_recuperacao + ["Multiplicador"]
     if duas_etapas:
         # RecoveryMode=0 (Recovery_None) pelos Estagios 1-2: o vencedor de
         # entrada/saida precisa nascer medido em lote fixo puro, sem a
@@ -3543,7 +3572,8 @@ def main() -> int:
               "compete.", flush=True)
 
     eixos_fase1 = eixos_da_fase1(origem, args.sistema)
-    eixos_fase1 = [e for e in eixos_fase1 if e not in EIXOS_RECUPERACAO_TODOS]
+    eixos_fase1 = [e for e in eixos_fase1
+                   if e not in EIXOS_RECUPERACAO_TODOS and e not in EIXOS_PENDENTE]
     if entrada_travada:
         eixos_fase1 = [e for e in eixos_fase1
                       if e not in entrada_travada["escrita"]]
@@ -3970,6 +4000,52 @@ def main() -> int:
                     travados.update(ordenados_rec[0][2])
                     otimizados.update(ordenados_rec[0][2])
 
+    # ---- Estagio 2.7: ENTRADA PENDENTE (booster, 2026-09-26) ----------------
+    # A entrada-semente pode virar ordem Stop (confirmacao alem da referencia)
+    # ou Limit (recuo) a k x ATR do fechamento/extremo do candle do sinal, com
+    # expiracao em barras (EA: EntryOrderType). Escrita, numeros e recuperacao
+    # ja travados; busca SO os 4 eixos da pendente em OHLC (modo In Sample,
+    # como os Estagios 1/2) e so adota se MELHORAR a retencao da entrada a
+    # mercado -- mesmo padrao do Estagio 3. Qualquer falha mantem a entrada a
+    # mercado (nunca derruba o combo). A divergencia OHLC x tick real do
+    # Estagio 4 mede o caminho intrabar da execucao da pendente.
+    entrada_pendente = None
+    if not args.sem_entrada_pendente:
+        n = reescrever(origem, trabalho, EIXOS_PENDENTE, travados)
+        print(f"\n  [2.7/5] entrada pendente em OHLC ({n} parametros: tipo "
+              "Stop/Limit, referencia, distancia em ATR, expiracao)", flush=True)
+        if n:
+            t0 = time.time()
+            cab_p, linhas_p = rodar(trabalho, args.symbol, args.period,
+                                    args.inicio, args.fim, args.deposit, 1,
+                                    args.timeout, variante=args.variante)
+            pend_ok = (base.escolher_candidatos(cab_p, linhas_p, args.min_trades,
+                                                args.min_pf) if linhas_p else [])
+            print(f"    {(time.time()-t0)/60:.0f} min | aptos: {len(pend_ok)} de "
+                  f"{len(linhas_p)}", flush=True)
+            if pend_ok:
+                ord_p = torneio_retencao(pend_ok[:args.finalistas], cab_p,
+                                         metricas, origem, trabalho, travados,
+                                         args, 1, "entrada pendente (OHLC, ~2s cada)")
+                if ord_p and (ord_p[0][0] or -9e9) > (ordenados[0][0] or -9e9):
+                    entrada_pendente = {k: ord_p[0][2][k] for k in EIXOS_PENDENTE
+                                        if k in ord_p[0][2]}
+                    print(f"    entrada pendente melhorou a retencao: "
+                          f"{ordenados[0][0]} -> {ord_p[0][0]} "
+                          f"({entrada_pendente})", flush=True)
+                    travados.update(ord_p[0][2])
+                    otimizados.update(ord_p[0][2])
+                    ordenados = ord_p
+                else:
+                    print("    entrada pendente nao melhorou a retencao; mantida "
+                          "a entrada a mercado.", flush=True)
+            else:
+                print("    nenhum candidato com entrada pendente passou os pisos; "
+                      "mantida a entrada a mercado.", flush=True)
+        else:
+            print("    set sem os eixos da pendente (template antigo); mantida a "
+                  "entrada a mercado.", flush=True)
+
     # ---- Estagio 3: FILTROS DE EXECUCAO (hora, dia, spread) -----------------
     # Ultimos a rodar, por ordem do dono. OTIMIZAM em IS+OOS
     # (MetodoDeEntradawfo=1) -- decisao explicita dele ("pode rodar no
@@ -4040,7 +4116,10 @@ def main() -> int:
                       "cortado nao devolve resultado) -- geometria de OHLC "
                       "mantida, como seria no corte.", flush=True)
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL and not pular_35:
-        eixos_geometria = EIXOS_GEOMETRIA_TICK_REAL[args.sistema]
+        eixos_geometria = list(EIXOS_GEOMETRIA_TICK_REAL[args.sistema])
+        if entrada_pendente:
+            # a distancia da pendente tambem e geometria intrabar
+            eixos_geometria.append("PendingDistanciaATR")
         # reescrever() trava (nome in travar) ANTES de checar `otimizar` --
         # esses eixos ja estao em `travados` desde a fase 2 (NUMEROS), entao
         # precisam sair do dict passado aqui pra virarem Y de verdade. Achado
@@ -4992,6 +5071,9 @@ def main() -> int:
                       # Piso de trades dos Estagios 2+ (mapa do Levain por
                       # TF, ver MIN_TRADES_POR_TF) e de onde ele veio.
                       "piso_trades": args.min_trades,
+                      # Entrada pendente adotada no Estagio 2.7 ({eixo:
+                      # valor}) ou None = entrada a mercado.
+                      "entrada_pendente": entrada_pendente,
                       "piso_trades_origem": piso_trades_origem,
                       # Retencao com poucas entradas no OOS (TF alto): nem
                       # aprovou nem reprovou, os gates longos decidiram.

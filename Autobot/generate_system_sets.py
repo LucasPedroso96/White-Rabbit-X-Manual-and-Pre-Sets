@@ -316,6 +316,8 @@ GATES_DEPENDENCIAS = {
     "ADX_Limiar": "AtivarFiltroADX",
     "MetodoADX": "AtivarFiltroADX",
     "VolatilityFilter": "EntradaATR",
+    "PeriodoBaselineATR": "EntradaATR",
+    "MultiplicadorATR": "EntradaATR",
     "NewsMinutosAntes": "AtivarFiltroNoticias",
     "NewsMinutosDepois": "AtivarFiltroNoticias",
 }
@@ -558,22 +560,14 @@ def apply_core(p: Profile, ac: AssetClass, ichimoku: bool,
     # nos sistemas de grid, onde a cadencia das entradas governa a cesta; nos
     # demais fica cravado em false. O ATR como referencia de DISTANCIA da
     # cesta e outro parametro (UsarsomenteATRGRID), tambem exclusivo do grid.
-    if grid:
-        p.opt_bool("EntradaATR")
-        p.opt("VolatilityFilter", 1, 0, 1, 1)   # baixa / alta
-        # PeriodoBaselineATR/MultiplicadorATR (dono, 2026-09-12): a EA trocou
-        # o filtro de volatilidade de "media das proprias ultimas PeriodoATR
-        # leituras, maior/menor sem margem" pra "baseline longo (janela
-        # propria, desacoplada do calculo do ATR) + margem multiplicativa" --
-        # mesmos eixos do EntradaATR/VolatilityFilter acima, mesma regra de
-        # onde entram (so grid). Faixas espelham o default da EA (100/1.5).
-        p.opt("PeriodoBaselineATR", 100, 50, 25, 200)
-        p.opt("MultiplicadorATR", 1.5, 1.2, 0.1, 2.5)
-    else:
-        p.fix("EntradaATR", "false")
-        p.fix("VolatilityFilter", 1)
-        p.fix("PeriodoBaselineATR", 100)
-        p.fix("MultiplicadorATR", 1.5)
+    # Filtro de volatilidade por ATR: era "somente para Grid" (dono,
+    # 2026-07-31); aberto em TODOS os sistemas desde 2026-09-26 (dono
+    # aprovou cobrir tudo que a EA faz como extra opcional) -- flag
+    # opcional desde a fase 1, como MA/ADX/MTF. Faixas = default da EA.
+    p.opt_bool("EntradaATR")
+    p.opt("VolatilityFilter", 1, 0, 1, 1)   # baixa / alta
+    p.opt("PeriodoBaselineATR", 100, 50, 25, 200)
+    p.opt("MultiplicadorATR", 1.5, 1.2, 0.1, 2.5)
 
     # Noticias exigem CSV em Common\Files: fica desligado por padrao. Sub-flag
     # bate com o default da propria EA (false) -- com o filtro mestre desligado
@@ -705,6 +699,18 @@ def apply_defaults(p: Profile, ac: AssetClass, side: str, magic: int,
     p.fix("wfo_stepSize", -1)                # Custom
     p.fix("wfo_customStepSizePercent", -61)  # Out-of-Sample: 61 dias
     p.fix("selectedFormula", 13)  # Levain Composite Score
+    # Carencia de fim de IS do grid (EA 2026-09-26): mesmo default da EA.
+    # Sem isto load_schema() rejeita a geracao inteira ("sem valor").
+    p.fix("WFO_CarenciaPercentil", 75)
+    # Entrada pendente (booster, 2026-09-26): nasce a mercado (0); a faixa
+    # fica gravada e o optimize_two_stage.py so abre estes eixos no Estagio
+    # 2.7 (fora dos Estagios 1/2 -- mesmo esquema do booster de
+    # recuperacao). Distancia em ATR como todo o motor; expiracao em
+    # barras do TF de entrada. Sem gate em GATES_DEPENDENCIAS de proposito.
+    p.opt("EntryOrderType", 0, 1, 1, 2)          # 1 Stop / 2 Limit
+    p.opt("PendingReferencia", 0, 0, 1, 1)       # fechamento / extremo
+    p.opt("PendingDistanciaATR", 0.5, 0.0, 0.25, 2.0)
+    p.opt("PendingExpiracaoBarras", 3, 1, 1, 8)
 
     set_exposure(p, side, 1, hedging=False)
 
@@ -1046,6 +1052,11 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.fix("Take", sl_mid)
         p.opt("VelaTake", 0, 0, 1, 3)
         p.fix("ReversalExitMode", 2)
+        if side == "BOTH":
+            # Saida por ORDEM OPOSTA (modo 1) exige hedge + os dois
+            # lados, que so o BOTH tem (Hedging e eixo la). Recurso da
+            # EA que nenhum set testava ate 2026-09-26.
+            p.opt("ReversalExitMode", 2, 1, 1, 2)
         p.opt_bool("ReversalExitUseEntryFilters")
         p.opt("VelaStop", 0, 0, 1, 3)
         p.opt("Stop", sl_mid, ac.sl_lo, 0.5, ac.sl_hi)
@@ -1155,6 +1166,10 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.fix("Trail", sl_mid)
         p.fix("ReversalExitMode", 2)
         p.opt_bool("ReversalExitUseEntryFilters")
+        # Martingale em lote fixo = ultimo lote x Multiplicador: com 1 o
+        # booster nunca crescia o lote. Faixa gravada em N -- so o
+        # Estagio 2.5 (--recuperacao martingale) abre (2026-09-26).
+        p.opt("Multiplicador", 1, 1.5, 0.5, 3.0, ativo=False)
 
     elif system == "12_GRID_INVERSO":
         # Grid Pyramid ("grid inverso", achado do dono, 2026-08-16): abre

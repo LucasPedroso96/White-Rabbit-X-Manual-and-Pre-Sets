@@ -138,16 +138,14 @@ def apply_core_candles(p: Profile, ac: AssetClass, grid: bool = False) -> None:
     p.opt("MetodoADX", 0, 0, 1, 1)
     p.fix("MaxRiscoRelativoAoLoteMinimo", 1.5)
 
-    if grid:
-        p.opt_bool("EntradaATR")
-        p.opt("VolatilityFilter", 1, 0, 1, 1)
-        p.opt("PeriodoBaselineATR", 100, 50, 25, 200)
-        p.opt("MultiplicadorATR", 1.5, 1.2, 0.1, 2.5)
-    else:
-        p.fix("EntradaATR", "false")
-        p.fix("VolatilityFilter", 1)
-        p.fix("PeriodoBaselineATR", 100)
-        p.fix("MultiplicadorATR", 1.5)
+    # Filtro de volatilidade por ATR: era "somente para Grid" (dono,
+    # 2026-07-31); aberto em TODOS os sistemas desde 2026-09-26 (dono
+    # aprovou cobrir tudo que a EA faz como extra opcional) -- flag
+    # opcional desde a fase 1, como MA/ADX/MTF. Faixas = default da EA.
+    p.opt_bool("EntradaATR")
+    p.opt("VolatilityFilter", 1, 0, 1, 1)   # baixa / alta
+    p.opt("PeriodoBaselineATR", 100, 50, 25, 200)
+    p.opt("MultiplicadorATR", 1.5, 1.2, 0.1, 2.5)
 
     p.fix("AtivarFiltroNoticias", "false")
     p.fix("NewsSomenteAltoImpacto", "false")

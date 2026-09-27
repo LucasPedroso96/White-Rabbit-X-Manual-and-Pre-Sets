@@ -126,6 +126,26 @@ checar("piso fixo explicito mantem o comportamento antigo",
        sorted(x[0] for x in ots.escolher_com_piso_tf(CAB, LINHAS, M1, 1.2,
                                                      piso_fixo=100)), ["3"])
 
+# --- cobertura (2026-09-26): eixos resgatados, pendente, inertes do 11 --------
+for eixo in ("TrailSoLucro", "PyramidTrailSoLucro", "PyramidLevelOnlyInProfit",
+             "ReversalExitMode"):
+    checar(f"{eixo} travado pelo vencedor do Estagio 1 (ESCRITA)",
+           eixo in ots.ESCRITA, True)
+for eixo in ("PeriodoBaselineATR", "MultiplicadorATR"):
+    checar(f"{eixo} refinado no Estagio 2 (NUMEROS)", eixo in ots.NUMEROS, True)
+checar("TrailSoLucro fecha atras de trailing cravado off",
+       ots.GATES.get("TrailSoLucro"), "AtivarTrailATR")
+reot = ots.eixos_reotimizaveis("04_SLTP_TRAIL", None)
+checar("pendente nunca reabre no Estagio 2",
+       [e for e in ots.EIXOS_PENDENTE if e in reot], [])
+checar("baseline do filtro ATR reabre no Estagio 2", "MultiplicadorATR" in reot,
+       True)
+reot11 = ots.eixos_reotimizaveis("11_SIGNAL_ONLY", None)
+checar("11: Multiplicador e PeriodoATR inertes no Estagio 2",
+       ("Multiplicador" in reot11, "PeriodoATR" in reot11), (False, False))
+checar("04: Multiplicador continua reotimizavel",
+       "Multiplicador" in reot, True)
+
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")
     for f in FALHAS:

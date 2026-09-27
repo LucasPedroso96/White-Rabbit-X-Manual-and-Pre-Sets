@@ -33,12 +33,17 @@ from pathlib import Path
 import wrx_paths
 import generate_system_sets as base
 from generate_system_sets import (
-    ASSETS, CLASSES, SYSTEMS, BILATERAL,
+    ASSETS, CLASSES, SYSTEMS, BILATERAL, SISTEMAS_RECUPERACAO_OPCIONAL,
     Profile, AssetClass,
     apply_defaults, apply_system, apply_sizing_and_formula,
 )
 
 TERMINAL = wrx_paths.data_dir() / "MQL5"
+# Saidas de banda por identidade (2026-09-26): no SIGNAL_ONLY (saida so
+# por sinal) e nas grades (cesta decide a saida) Stop/Take/Breakeven
+# por banda fechavam posicao por fora da logica do sistema.
+SAIDAS_BANDA_DESLIGADAS = ("11_SIGNAL_ONLY", "07_GRID_SEPARATE",
+                           "12_GRID_INVERSO")
 EA_SOURCE = TERMINAL / "Experts" / "White Rabbit X (Global -  Bolinger Bands).mq5"
 OUTPUT = TERMINAL / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
 
@@ -165,20 +170,14 @@ def apply_core_bollinger(p: Profile, ac: AssetClass, grid: bool = False) -> None
     p.opt_bool("TakeBolinger")
     p.opt_bool("StopBolinger")
 
-    if grid:
-        p.opt_bool("EntradaATR")
-        p.opt("VolatilityFilter", 1, 0, 1, 1)
-        # PeriodoBaselineATR/MultiplicadorATR (dono, 2026-09-12): mesmos
-        # eixos novos do generate_system_sets.py, mesma regra de onde
-        # entram (so grid) -- ver comentario la pro porque da troca de
-        # filtro de volatilidade.
-        p.opt("PeriodoBaselineATR", 100, 50, 25, 200)
-        p.opt("MultiplicadorATR", 1.5, 1.2, 0.1, 2.5)
-    else:
-        p.fix("EntradaATR", "false")
-        p.fix("VolatilityFilter", 1)
-        p.fix("PeriodoBaselineATR", 100)
-        p.fix("MultiplicadorATR", 1.5)
+    # Filtro de volatilidade por ATR: era "somente para Grid" (dono,
+    # 2026-07-31); aberto em TODOS os sistemas desde 2026-09-26 (dono
+    # aprovou cobrir tudo que a EA faz como extra opcional) -- flag
+    # opcional desde a fase 1, como MA/ADX/MTF. Faixas = default da EA.
+    p.opt_bool("EntradaATR")
+    p.opt("VolatilityFilter", 1, 0, 1, 1)   # baixa / alta
+    p.opt("PeriodoBaselineATR", 100, 50, 25, 200)
+    p.opt("MultiplicadorATR", 1.5, 1.2, 0.1, 2.5)
 
     p.fix("AtivarFiltroNoticias", "false")
     p.fix("NewsSomenteAltoImpacto", "false")
@@ -242,6 +241,15 @@ def main() -> None:
                         grid=system.code in ("07_GRID_SEPARATE",
                                              "12_GRID_INVERSO"))
                     apply_system(p, system.code, ac, side)
+                    if system.code in SISTEMAS_RECUPERACAO_OPCIONAL:
+                        # Faltava so no Bollinger (MULTI e CANDLES ja
+                        # tinham) -- mesmo range, ver generate_system_sets.
+                        p.opt("MaxMartingaleSteps", 3, 2, 2, 8)
+                        p.opt("DAlembertStep", 0.02, 0.01, 0.02, 0.09)
+                    if system.code in SAIDAS_BANDA_DESLIGADAS:
+                        for chave in ("StopBolinger", "TakeBolinger",
+                                      "BreakevenBolinger"):
+                            p.fix(chave, "false")
                     apply_sizing_and_formula(p, system.code, ac)
                     p.desativar_inertes()
 

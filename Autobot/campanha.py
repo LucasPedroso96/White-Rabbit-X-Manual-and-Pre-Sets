@@ -529,6 +529,8 @@ def rodar_combo(simbolo: str, sistema: str, variante: str, args,
         cmd += ["--sem-filtros-secundarios"]
     if getattr(args, "triagem_sensibilidade", False):
         cmd += ["--triagem-sensibilidade"]
+    if getattr(args, "sem_entrada_pendente", False):
+        cmd += ["--sem-entrada-pendente"]
     t0 = time.time()
     # CREATE_NO_WINDOW: so suprime a janela de console que este python.exe
     # filho abriria sozinho (achado do dono, 2026-08-06 -- cada combo novo
@@ -629,6 +631,9 @@ def main() -> int:
     # Fase 2 da mudanca de direcao (2026-09-13): repassa pro
     # optimize_two_stage.py de cada combo -- so existia la, faltava o
     # encanamento ate aqui (achado ao vivo tentando ligar as duas juntas).
+    ap.add_argument("--sem-entrada-pendente", action="store_true",
+                    help="desliga o Estagio 2.7 (booster de entrada pendente "
+                         "Stop/Limit) em cada combo")
     ap.add_argument("--triagem-sensibilidade", action="store_true",
                     help="repassa --triagem-sensibilidade pra cada combo "
                          "(ver optimize_two_stage.py) -- triagem de "
