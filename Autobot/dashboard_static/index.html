@@ -1303,7 +1303,7 @@ class Component extends DCLogic {
     const heatmapGrid = hm ? buildGrid(hm.classes, hm.sistemas || []) : [];
     const heatmapEmpty = !!hm && heatmapGrid.length === 0;
 
-    const GATE_ROTULO = { divergencia: 'divergence', divergencia_sem_medida: 'no divergence', retencao: 'retention', retencao_sem_medida: 'no OOS measure', monte_carlo: 'Monte Carlo', expectancy_r: 'expectancy', gate_relativo: 'vs champion', historico_completo: '3y history', prova_percentual: '% proof', prova_monetario: 'monetary proof', sobrevivencia: 'survival', periodo_anterior: 'prior period', holdout_lacrado: 'sealed holdout', wfa: 'WFA' };
+    const GATE_ROTULO = { divergencia: 'divergence', divergencia_sem_medida: 'no divergence', retencao: 'retention', retencao_sem_medida: 'no OOS measure', monte_carlo: 'Monte Carlo', expectancy_r: 'expectancy', gate_relativo: 'vs champion', historico_completo: '3y history', prova_percentual: '% proof', prova_monetario: 'monetary proof', sobrevivencia: 'survival', periodo_anterior: 'prior period', holdout_lacrado: 'sealed holdout', wfa: 'WFA', drawdown: 'drawdown', nunca_visto: 'unseen data' };
     const AUD_TOM = { AVALIAR: [pal.bg3, pal.text], SAUDE: [pal.noBg, pal.no], REVALIDACAO: [pal.okBg, pal.ok] };
     const auditoriaRows = (s.auditoria?.eventos || []).map((e) => ({
       tipo: e.tipo, texto: e.texto, detalhes: (e.detalhes || []).join('\n'),

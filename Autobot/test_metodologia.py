@@ -146,6 +146,37 @@ checar("11: Multiplicador e PeriodoATR inertes no Estagio 2",
 checar("04: Multiplicador continua reotimizavel",
        "Multiplicador" in reot, True)
 
+# --- regra de trader solo (2026-09-27): 4 criterios, o resto informa --------
+d = ots.decidir_trader
+# grid USDCAD 07 BUY de 27/09: so a WFA reprovava -- agora aprova
+g = d(7.0, True, None, 1274.65, 596, 144.90, 94, None, 1000)
+checar("grid USDCAD 07: realista, sobrevive, lucra no nunca visto -> aprova",
+       (g["aprovado"], g["nunca_visto"]["veredito"]), (True, "aprovado"))
+# XAUUSD 05 BE_TRAIL: DD 57.8% nos 3 anos
+x5 = d(2.5, None, 57.8, -622.90, 272, 186.68, 40, None, 10000)
+checar("DD 57.8% > 40%: reprova no drawdown", x5["reprovado_em"], "drawdown")
+checar("... e o nunca visto somado (-436) tambem falha",
+       "nunca_visto" in x5["falhas"], True)
+# lacrado pequeno negativo compensado pelo anterior: aprova
+checar("anterior +500 e 90 dias -210 somados: aprova",
+       d(16.6, None, 18.5, 500.0, 200, -210.97, 24, None, 10000)["aprovado"], True)
+checar("divergencia acima de 30% reprova",
+       d(31.0, None, 10.0, 100.0, 50, 10.0, 10, None, 1000)["reprovado_em"],
+       "divergencia")
+checar("divergencia nao medida reprova",
+       d(None, None, None, None, None, None, None, None, 1000)["reprovado_em"],
+       "divergencia")
+checar("nunca visto com poucos trades: inconclusivo, nao reprova",
+       d(5.0, None, 10.0, -50.0, 3, -20.0, 2, None, 1000)["aprovado"], True)
+checar("sem nenhuma medida do nunca visto: nao reprova",
+       d(5.0, None, 10.0, None, None, None, None, None, 1000)["aprovado"], True)
+checar("sobrevivencia falhou: reprova",
+       d(5.0, False, None, 100.0, 50, 10.0, 10, None, 1000)["reprovado_em"],
+       "sobrevivencia")
+checar("pior que o campeao: reprova",
+       d(5.0, None, 10.0, 100.0, 50, 10.0, 10, False, 1000)["reprovado_em"],
+       "gate_relativo")
+
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")
     for f in FALHAS:

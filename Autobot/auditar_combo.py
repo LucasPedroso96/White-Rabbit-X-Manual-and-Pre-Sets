@@ -55,6 +55,10 @@ _MOTIVOS = [
     ("prova em monetario", r"REPROVADO na prova em MONETARIO[^\n]*"),
     ("holdout lacrado (ultimos dias, fora de toda selecao)",
      r"REPROVADO no holdout lacrado[^\n]*"),
+    # Regra de trader solo (2026-09-27)
+    ("queda maxima nos 3 anos acima do limite", r"REPROVADO no drawdown[^\n]*"),
+    ("prejuizo no dado nunca visto (anterior + 90 dias finais)",
+     r"REPROVADO no dado nunca visto[^\n]*"),
     ("periodo anterior ao treino", r"REPROVADO no periodo anterior[^\n]*"),
     ("holdout longo (criterio antigo)", r"REPROVADO no holdout longo[^\n]*"),
     ("WFA de reotimizacao (WFE<=0)", r"REPROVADO na WFA[^\n]*"),

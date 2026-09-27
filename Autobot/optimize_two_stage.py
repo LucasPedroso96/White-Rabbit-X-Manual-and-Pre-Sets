@@ -2113,6 +2113,9 @@ def _medir_desempenho(origem: Path, params: dict, simbolo: str, periodo: str,
 # que devolve (bool, motivos) e e chamada de um ponto so do main(); o main()
 # le daqui pro JSON final em vez de mudar a assinatura do gate.
 ULTIMO_BENCHMARK: dict | None = None
+# Medida inteira do passe continuo de N anos (lucro, DD, trades...) -- a
+# regra de trader (decidir_trader) le a queda maxima daqui.
+ULTIMO_HISTORICO: dict | None = None
 
 
 def comparar_buy_and_hold(med: dict, deposito: float,
@@ -2344,6 +2347,93 @@ def avaliar_holdout_lacrado(profit: float | None, trades: int | None,
                 msg=f"lucro {profit:.2f} em {trades} trades -- OK.")
 
 
+# Regra de trader solo (dono, 2026-09-27: "sou trader solo, nao
+# institucional ... cuidado para nao apertar demais"). Antes 12 gates em
+# serie, cada um reprovando e impedindo os seguintes de medir -- varios
+# medindo a mesma coisa. Agora TUDO e medido sempre e so 4 coisas reprovam:
+#   1. realista: divergencia OHLC x tick real <= LIMITE_DIVERGENCIA_PCT;
+#   2. nao quebra: gate de sobrevivencia (grade/sem stop) e queda maxima nos
+#      3 anos continuos <= DD_MAX_TRADER_PCT (escolha do dono: 40%);
+#   3. ganha no que nunca viu: periodo anterior ao treino + holdout lacrado
+#      SOMADOS com lucro >= 0 (menos de MIN_TRADES_NUNCA_VISTO trades =
+#      inconclusivo, nao reprova);
+#   4. nao e pior que o campeao implantado (gate relativo).
+# Retencao, Monte Carlo, expectancy, catastrofe dos 3 anos, prova em
+# %/monetario e WFA viram INFORMACAO no log/ledger (a WFA passa a dizer se da
+# pra reotimizar a cada 90 dias).
+LIMITE_DIVERGENCIA_PCT = 30.0
+DD_MAX_TRADER_PCT = 40.0
+MIN_TRADES_NUNCA_VISTO = 10
+_ROTULO_FALHA = {"divergencia": "na divergencia",
+                 "sobrevivencia": "no gate de sobrevivencia",
+                 "drawdown": "no drawdown",
+                 "nunca_visto": "no dado nunca visto",
+                 "gate_relativo": "no gate relativo"}
+
+
+def decidir_trader(div: float | None, sobreviveu: bool | None,
+                   dd_pct: float | None, lucro_anterior: float | None,
+                   trades_anterior: int | None, lucro_lacrado: float | None,
+                   trades_lacrado: int | None, gate_relativo_ok: bool | None,
+                   deposito: float) -> dict:
+    """Veredito final pela regra de trader solo -- ver comentario acima.
+    None em qualquer medida = nao medido = nao reprova por aquele criterio
+    (exceto a divergencia: sem ela o numero do OHLC nao tem prova)."""
+    falhas: list[tuple[str, str]] = []
+    linhas: list[str] = []
+    if div is None:
+        falhas.append(("divergencia", "divergencia OHLC x tick real nao medida "
+                       "(lucro de treino minusculo ou passe sem resultado)"))
+    elif div > LIMITE_DIVERGENCIA_PCT:
+        falhas.append(("divergencia", f"{div:.1f}% > {LIMITE_DIVERGENCIA_PCT:.0f}% "
+                       "-- o numero do OHLC nao e real"))
+    else:
+        linhas.append(f"OK realista: divergencia {div:.1f}%")
+    if sobreviveu is False:
+        falhas.append(("sobrevivencia", "nao sobreviveu ao periodo completo "
+                       "(margem ou parada de emergencia)"))
+    if dd_pct is not None and dd_pct > DD_MAX_TRADER_PCT:
+        falhas.append(("drawdown", f"queda maxima de {dd_pct:.1f}% nos 3 anos "
+                       f"> {DD_MAX_TRADER_PCT:.0f}%"))
+    elif dd_pct is not None or sobreviveu:
+        partes = ([f"queda maxima {dd_pct:.1f}% nos 3 anos"] if dd_pct is not None
+                  else []) + (["sobreviveu ao periodo completo"] if sobreviveu
+                              else [])
+        linhas.append("OK nao quebra: " + ", ".join(partes))
+    medidas = [(lucro, trades or 0) for lucro, trades in
+               ((lucro_anterior, trades_anterior), (lucro_lacrado, trades_lacrado))
+               if lucro is not None]
+    nunca: dict = {"lucro": None, "trades": None, "veredito": "sem_medida"}
+    if medidas:
+        lucro = round(sum(m[0] for m in medidas), 2)
+        trades = sum(m[1] for m in medidas)
+        nunca.update(lucro=lucro, trades=trades)
+        pct = 100 * lucro / deposito if deposito else 0.0
+        if trades < MIN_TRADES_NUNCA_VISTO:
+            nunca["veredito"] = "inconclusivo"
+            linhas.append(f"nunca visto INCONCLUSIVO: {trades} trade(s) < "
+                          f"{MIN_TRADES_NUNCA_VISTO} (lucro {lucro:.2f}) -- nao reprova")
+        elif lucro < 0:
+            nunca["veredito"] = "reprovado"
+            falhas.append(("nunca_visto", f"prejuizo {lucro:.2f} ({pct:+.1f}% do "
+                           f"deposito) em {trades} trades (anterior ao treino + "
+                           "90 dias finais)"))
+        else:
+            nunca["veredito"] = "aprovado"
+            linhas.append(f"OK ganha no que nunca viu: lucro {lucro:.2f} "
+                          f"({pct:+.1f}%) em {trades} trades")
+    else:
+        linhas.append("nunca visto: sem medida -- nao reprova")
+    if gate_relativo_ok is False:
+        falhas.append(("gate_relativo", "pior que o campeao implantado"))
+    for gate, msg in falhas:
+        linhas.append(f"REPROVADO {_ROTULO_FALHA[gate]}: {msg}")
+    return {"aprovado": not falhas,
+            "reprovado_em": falhas[0][0] if falhas else None,
+            "falhas": [g for g, _ in falhas], "linhas": linhas,
+            "nunca_visto": nunca, "dd_3anos_pct": dd_pct}
+
+
 def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
                                  origem: Path, params_desafiante: dict,
                                  fim: str, deposito: int,
@@ -2398,7 +2488,8 @@ def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
           f"{_n(desafiante.get('expectancy_r'), '{:+.3f}')}R | DD "
           f"{_n(desafiante.get('max_dd_pct'), '{:.1f}')}% | PF "
           f"{_n(desafiante.get('profit_factor'), '{:.2f}')}", flush=True)
-    global ULTIMO_BENCHMARK
+    global ULTIMO_BENCHMARK, ULTIMO_HISTORICO
+    ULTIMO_HISTORICO = desafiante
     ULTIMO_BENCHMARK = comparar_buy_and_hold(desafiante, deposito, variante)
     if ULTIMO_BENCHMARK:
         b = ULTIMO_BENCHMARK
@@ -4444,22 +4535,25 @@ def main() -> int:
                   f"{volume * (custo['comissao_por_lote'] + custo['swap_por_lote']):+.2f} "
                   f"em {volume:.2f} lotes)", flush=True)
 
-    aprovado, motivos = veredito(div, oos["retencao"], args.min_retencao,
+    # Regra de trader (27/09): o veredito de divergencia+retencao so
+    # INFORMA aqui; `aprovado` fica True pra todas as medicoes rodarem e
+    # quem decide e decidir_trader() no fim.
+    retencao_ok, motivos = veredito(div, oos["retencao"], args.min_retencao,
                                  entradas_oos=oos.get("entradas_oos"),
                                  motivo_retencao=oos.get("retencao_motivo"))
     retencao_inconclusiva = any("RETENCAO INCONCLUSIVA" in m for m in motivos)
     # PRIMEIRO gate que reprovou (vai pro ledger/painel) -- antes so dava pra
     # saber lendo o log (o vigia_auditoria fazia isso por regex).
-    reprovado_em = (None if aprovado else
-                    gate_do_veredito(div, oos["retencao"], args.min_retencao))
+    aprovado = True
+    reprovado_em = None
     for m in motivos:
-        print(f"    {m}")
+        print("    " + m.replace("REPROVADO na retencao",
+                               "INFO (nao reprova) retencao abaixo do piso")
+              .replace("SEM RETENCAO:", "INFO (nao reprova) sem retencao:"))
     if oos["retencao"] is None and oos.get("retencao_motivo"):
         print(f"    (motivo da EA: {oos['retencao_motivo']})")
-    if aprovado and not mc_aprovado:
-        aprovado = False
-        reprovado_em = reprovado_em or "monte_carlo"
-        print("    REPROVADO no Monte Carlo: a sequencia de trades depende "
+    if not mc_aprovado:
+        print("    INFO (nao reprova) Monte Carlo: a sequencia de trades depende "
               "demais da ordem em que aconteceu (ver DD p95 acima).")
 
     # Sistemas com SL (Fixed-R) ja imprimem R METRICS a cada passe -- so
@@ -4469,10 +4563,8 @@ def main() -> int:
     # dinheiro). Pedido do dono (2026-08-02): "algoritmos em Multiple R nas
     # ultimas etapas... a formula indicada foi somar R... para sistemas com SL".
     r_capavel = modo_de_sizing(origem) == "3"
-    if aprovado and r_capavel and oos["expectancy"] is not None and oos["expectancy"] <= 0:
-        aprovado = False
-        reprovado_em = reprovado_em or "expectancy_r"
-        print(f"    REPROVADO em R: expectancy fora da amostra "
+    if r_capavel and oos["expectancy"] is not None and oos["expectancy"] <= 0:
+        print(f"    INFO (nao reprova) em R: expectancy fora da amostra "
               f"{oos['expectancy']:+.3f}R nao e positiva.")
 
     # Stats do passe combinado (ALL_FORMULAS, capturado antes do Estagio 4
@@ -4505,6 +4597,7 @@ def main() -> int:
     # na_janela), nao lido do ledger estatico -- achado 2026-08-30: sem
     # isso o gate comparava metricas de janelas DIFERENTES, mesmo erro que
     # o Zeus documenta ja ter cometido (ver docstring da funcao).
+    gate_relativo_ok = None
     if aprovado and r_capavel:
         if stats_confirmacao is None:
             print("    gate relativo ao campeao: sem ALL_FORMULAS deste "
@@ -4522,9 +4615,7 @@ def main() -> int:
             else:
                 for m in motivos_gate:
                     print(f"    gate relativo: {m}", flush=True)
-                if not gate_aprovado:
-                    aprovado = False
-                    reprovado_em = reprovado_em or "gate_relativo"
+                gate_relativo_ok = bool(gate_aprovado)
 
     # Segunda trava: confirmacao no HISTORICO COMPLETO disponivel, num
     # unico passe CONTINUO (inspirada no "long-window confirmation gate"
@@ -4546,9 +4637,7 @@ def main() -> int:
             for m in motivos_completo:
                 print(f"    historico completo: {m}", flush=True)
             if not aprovado_completo:
-                aprovado = False
-                reprovado_em = reprovado_em or "historico_completo"
-                print("    REPROVADO na confirmacao no historico completo: "
+                print("    INFO (nao reprova) historico completo: "
                       "passou na janela do run atual mas nao segura num "
                       "unico passe cobrindo tudo que a gente tem.",
                       flush=True)
@@ -4599,17 +4688,15 @@ def main() -> int:
                       "nao reprova; o holdout lacrado e os gates longos "
                       "decidem.", flush=True)
             elif retencao_pct is None or retencao_pct < args.min_retencao:
-                aprovado = False
-                reprovado_em = reprovado_em or "prova_percentual"
                 if retencao_pct is None:
                     print("    retencao em % nao calculada -- a EA reporta: "
                           + (pct.get("retencao_motivo")
                              or "sem linha de retencao no log (passe abortado?)"),
                           flush=True)
-                    print("    REPROVADO na prova em %: sem retencao medida "
+                    print("    INFO (nao reprova) prova em %: sem retencao medida "
                           "nao ha o que aprovar.", flush=True)
                 else:
-                    print("    REPROVADO na prova em %: o resultado do "
+                    print("    INFO (nao reprova) prova em %: o resultado do "
                           "Fixed-R nao", flush=True)
                     print("    sobreviveu aos juros compostos do % do saldo.",
                           flush=True)
@@ -4666,9 +4753,7 @@ def main() -> int:
                           f"{mon['entradas_oos']} entrada(s) no OOS -- nao "
                           "reprova; os gates longos decidem.", flush=True)
                 elif retencao_pct is None or retencao_pct < args.min_retencao:
-                    aprovado = False
-                    reprovado_em = reprovado_em or "prova_monetario"
-                    print("    REPROVADO na prova em Monetario: o resultado do "
+                    print("    INFO (nao reprova) prova em Monetario: o resultado do "
                           "Fixed Lot nao sobreviveu ao lote escalado pelo "
                           "capital de referencia.", flush=True)
                 else:
@@ -4743,8 +4828,6 @@ def main() -> int:
         print(f"    {(time.time()-t0)/60:.1f} min | saldo final "
               f"{sobrevivencia['saldo_final']}", flush=True)
         if not sobrevivencia["sobreviveu"]:
-            aprovado = False
-            reprovado_em = reprovado_em or "sobrevivencia"
             print(f"    REPROVADO no gate de sobrevivencia: "
                   f"{sobrevivencia['motivo']}.", flush=True)
         else:
@@ -4776,16 +4859,15 @@ def main() -> int:
         print(f"\n    holdout lacrado ({inicio_lacrado}..{fim_lacrado}): "
               f"{holdout_lacrado['msg']}", flush=True)
         if holdout_lacrado["veredito"] == "reprovado":
-            aprovado = False
-            reprovado_em = reprovado_em or "holdout_lacrado"
-            print("    REPROVADO no holdout lacrado: perdeu dinheiro nos "
-                  "ultimos dias, que nenhuma etapa da selecao viu.",
-                  flush=True)
+            print("    INFO (nao reprova sozinho) holdout lacrado com "
+                  "prejuizo -- entra somado ao periodo anterior no "
+                  "criterio 'ganha no que nunca viu'.", flush=True)
 
     holdout_longo = None
     wfa_reotimizacao = None
     periodo_anterior = None  # lido no JSON final mesmo se o gate nao rodar
     periodo_anterior_fraco = False
+    reotimizar_90d_ok = None
     if aprovado:
         import wfa_real
         fim_holdout = datetime.now().strftime("%Y.%m.%d")
@@ -4870,26 +4952,36 @@ def main() -> int:
                   f"{json.dumps(wfa_reotimizacao['detalhe'], ensure_ascii=False)}",
                   flush=True)
         if not ok_anterior:
-            aprovado = False
-            reprovado_em = reprovado_em or "periodo_anterior"
-            print("    REPROVADO no periodo anterior ao treino: o set "
-                  "ajustado ao regime recente e DESTRUTIVO em dado que nunca "
-                  "viu.", flush=True)
-        elif not avaliar_wfa(wfa_reotimizacao["wfe_global_pct"],
-                             wfa_reotimizacao["ciclos_positivos"],
-                             args.sistema)[0]:
-            aprovado = False
-            reprovado_em = reprovado_em or "wfa"
-            print("    REPROVADO na WFA de reotimizacao: "
-                  + avaliar_wfa(wfa_reotimizacao["wfe_global_pct"],
-                                wfa_reotimizacao["ciclos_positivos"],
-                                args.sistema)[1]
-                  + " -- o resultado nao se sustenta quando reotimizado "
-                  "janela a janela (sinal de overfitting na janela curta).",
-                  flush=True)
+            print("    INFO (nao reprova sozinho) periodo anterior abaixo do "
+                  "piso antigo -- entra somado ao holdout lacrado no criterio "
+                  "'ganha no que nunca viu'.", flush=True)
+        wfa_ok, wfa_msg = avaliar_wfa(wfa_reotimizacao["wfe_global_pct"],
+                                      wfa_reotimizacao["ciclos_positivos"],
+                                      args.sistema)
+        reotimizar_90d_ok = wfa_ok
+        if wfa_ok:
+            print(f"    INFO WFA: {wfa_msg} -- reotimizar a cada 90 dias e "
+                  "seguro.", flush=True)
         else:
-            print("    OK: sobreviveu ao holdout longo E a WFA de "
-                  "reotimizacao.", flush=True)
+            print(f"    INFO (nao reprova) WFA: {wfa_msg} -- reotimizar janela "
+                  "a janela nao se sustenta: use este set e NAO reotimize a "
+                  "cada 90 dias.", flush=True)
+
+    # ---- DECISAO: regra de trader solo (dono, 2026-09-27) -------------------
+    dd_3anos = (ULTIMO_HISTORICO or {}).get("max_dd_pct") if r_capavel else None
+    decisao = decidir_trader(
+        div, sobrevivencia["sobreviveu"] if sobrevivencia else None, dd_3anos,
+        periodo_anterior["profit"] if periodo_anterior else None,
+        periodo_anterior["metricas"].get("trades") if periodo_anterior else None,
+        holdout_lacrado["profit"] if holdout_lacrado else None,
+        holdout_lacrado["trades"] if holdout_lacrado else None,
+        gate_relativo_ok, args.deposit)
+    print("\n    decisao (regra de trader solo: realista, nao quebra, ganha no "
+          "que nunca viu, nao pior que o campeao):", flush=True)
+    for linha in decisao["linhas"]:
+        print(f"    {linha}", flush=True)
+    aprovado = decisao["aprovado"]
+    reprovado_em = decisao["reprovado_em"]
 
     print("\n    " + ("APROVADO: candidato pronto para a entrega."
                       if aprovado else
@@ -5074,6 +5166,11 @@ def main() -> int:
                       # Entrada pendente adotada no Estagio 2.7 ({eixo:
                       # valor}) ou None = entrada a mercado.
                       "entrada_pendente": entrada_pendente,
+                      # Regra de trader solo (27/09): criterios, medida
+                      # somada do dado nunca visto e queda maxima.
+                      "decisao_trader": decisao,
+                      "reotimizar_90d_ok": reotimizar_90d_ok,
+                      "retencao_ok": retencao_ok,
                       "piso_trades_origem": piso_trades_origem,
                       # Retencao com poucas entradas no OOS (TF alto): nem
                       # aprovou nem reprovou, os gates longos decidiram.
