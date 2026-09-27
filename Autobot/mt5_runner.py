@@ -151,10 +151,10 @@ def hash_pular_update(terminal: Path) -> str | None:
     Com um build novo pendente (6230) o terminal so dispara o LiveUpdate e
     sai com 0, sem testar. O updater espera ~2 min, troca o terminal64.exe,
     REVERTE (o componente do tester nao atualiza) e relanca o terminal com
-    "/skipupdate:<hash>" -- hash fixo POR INSTALACAO (mesmo valor em duas
-    tentativas no clone; outro no original). Repassar esse hash mantem o
-    build atual; um build ainda mais novo muda o hash, o update volta a
-    disparar e o circuito ve TerminalNaoExecutou (nunca reprovacao falsa).
+    "/skipupdate:<hash>". Repassar esse hash mantem o build atual. O hash
+    NAO e fixo: o do original mudou entre 14:41 e 21:13 (2EC8... -> 79A1...,
+    conectado por outro ponto de acesso) -- quando isso acontece,
+    lancar_terminal() captura o novo sozinho (_capturar_hash_do_updater).
 
     WRX_MT5_SKIPUPDATE vence; senao `mt5_pular_update.json`
     ({caminho do terminal64.exe: hash}), comparado sem caixa."""
@@ -223,16 +223,105 @@ def lancar_terminal(terminal: Path, ini: Path, timeout: int | None,
     info = subprocess.STARTUPINFO()
     info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     info.wShowWindow = 7  # SW_SHOWMINNOACTIVE
-    pular = hash_pular_update(terminal)
-    if pular:
-        args_extra = (f"/skipupdate:{pular}", *args_extra)
+
+    def _rodar() -> None:
+        pular = hash_pular_update(terminal)
+        extra = ((f"/skipupdate:{pular}",) if pular else ()) + tuple(args_extra)
+        try:
+            subprocess.run([str(terminal), f"/config:{ini}", *extra],  # noqa: S603
+                           timeout=timeout, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, check=False,
+                           startupinfo=info)
+        except subprocess.TimeoutExpired:
+            pass
+
+    t0 = time.monotonic()
+    _rodar()
+    # Saida rapida pode ser o LiveUpdate (hash de pular velho/ausente): o
+    # terminal so dispara o updater e fecha. Se houver updater desta
+    # instalacao rodando, espera ele relancar com o hash novo, salva e roda
+    # de novo UMA vez. Sem updater (o caso normal) custa uma listagem.
+    if time.monotonic() - t0 < 60:
+        novo = _capturar_hash_do_updater(terminal)
+        if novo:
+            _salvar_hash_pular(terminal, novo)
+            print(f"    LiveUpdate disparou no terminal; o updater relancou com "
+                  f"/skipupdate:{novo} -- hash salvo, repetindo o lancamento.",
+                  flush=True)
+            _rodar()
+
+
+def _processos_terminal() -> list[tuple]:
+    """[(pid, exe, cmdline)] dos terminal64.exe da maquina. psutil se houver
+    (Python 3.10 das filas); senao PowerShell/CIM."""
     try:
-        subprocess.run([str(terminal), f"/config:{ini}", *args_extra],  # noqa: S603
-                       timeout=timeout, stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL, check=False,
-                       startupinfo=info)
-    except subprocess.TimeoutExpired:
-        pass
+        import psutil
+    except ImportError:
+        psutil = None
+    if psutil is not None:
+        saida = []
+        for p in psutil.process_iter(["pid", "name", "exe", "cmdline"]):
+            try:
+                if (p.info["name"] or "").lower() != "terminal64.exe":
+                    continue
+                saida.append((p.info["pid"], p.info["exe"] or "",
+                              " ".join(p.info["cmdline"] or [])))
+            except (psutil.Error, TypeError):
+                continue
+        return saida
+    import json
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name='terminal64.exe'\" "
+             "| Select-Object ProcessId,ExecutablePath,CommandLine "
+             "| ConvertTo-Json -Compress"],
+            capture_output=True, text=True, timeout=30, check=False)
+        dados = json.loads(r.stdout or "[]")
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return []
+    if isinstance(dados, dict):
+        dados = [dados]
+    return [(d.get("ProcessId"), d.get("ExecutablePath") or "",
+             d.get("CommandLine") or "") for d in dados]
+
+
+def _capturar_hash_do_updater(terminal: Path,
+                              espera_s: int = 240) -> str | None:
+    """Se o LiveUpdate DESTA instalacao esta rodando, espera o terminal que
+    ele relanca com "/skipupdate:<hash>", fecha esse terminal (a config que
+    ele recebeu ja foi apagada) e devolve o hash. None se nao ha updater."""
+    pasta = str(terminal.parent).lower()
+    procs = _processos_terminal()
+    if not any("/update" in c.lower() and pasta in c.lower()
+               for _, _, c in procs):
+        return None
+    limite = time.monotonic() + espera_s
+    while time.monotonic() < limite:
+        for pid, exe, cmd in _processos_terminal():
+            m = re.search(r"/skipupdate:([0-9A-Fa-f]{16,})", cmd)
+            if m and exe.lower() == str(terminal).lower():
+                subprocess.run(["taskkill", "/PID", str(pid), "/F"],
+                               capture_output=True, check=False)
+                time.sleep(3)
+                return m.group(1).upper()
+        time.sleep(3)
+    return None
+
+
+def _salvar_hash_pular(terminal: Path, novo: str) -> None:
+    import json
+    try:
+        mapa = json.loads(PULAR_UPDATE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        mapa = {}
+    mapa = {k: v for k, v in mapa.items()
+            if k.lower() != str(terminal).lower()}
+    mapa[str(terminal)] = novo
+    tmp = PULAR_UPDATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(mapa, indent=2, ensure_ascii=False) + "\n",
+                   encoding="utf-8")
+    os.replace(tmp, PULAR_UPDATE)
 
 
 def contar_agentes(log: str) -> int:
