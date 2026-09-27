@@ -5169,6 +5169,7 @@ def main() -> int:
                       # Regra de trader solo (27/09): criterios, medida
                       # somada do dado nunca visto e queda maxima.
                       "decisao_trader": decisao,
+                      "divergencia_pct": div,
                       "reotimizar_90d_ok": reotimizar_90d_ok,
                       "retencao_ok": retencao_ok,
                       "piso_trades_origem": piso_trades_origem,
