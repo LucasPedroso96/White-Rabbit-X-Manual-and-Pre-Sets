@@ -194,6 +194,27 @@ checar("13: so o arquivo BOTH, com ou sem modo economico",
         campanha.variantes("04_SLTP_TRAIL")),
        (["BOTH_MULTI"], ["BUY_MULTI", "SELL_MULTI"]))
 
+# --- alertas de trader (2026-09-28): robustez e consistencia, nao reprovam --
+checar("vizinhos de inteiro: +-1 no minimo", ots.vizinhos_parametro("14"),
+       ["13", "15"])
+checar("vizinhos de decimal: +-10%", ots.vizinhos_parametro("3.5"),
+       ["3.15", "3.85"])
+checar("zero/None/texto nao tem vizinho",
+       (ots.vizinhos_parametro("0"), ots.vizinhos_parametro(None),
+        ots.vizinhos_parametro("abc")), ([], [], []))
+checar("robustez: 1 de 4 vizinhos lucrando = pico isolado",
+       ots.resumir_robustez([{"lucro": 5}, {"lucro": -1}, {"lucro": -2},
+                             {"lucro": -3}])["alerta"], True)
+checar("robustez: 3 de 4 lucrando = plato",
+       ots.resumir_robustez([{"lucro": 5}, {"lucro": 1}, {"lucro": -2},
+                             {"lucro": 3}])["alerta"], False)
+checar("consistencia: lucro espalhado = ok",
+       ots.resumir_consistencia([{"lucro": 100}, {"lucro": -20},
+                                 {"lucro": 50}, {"lucro": 60}])["alerta"], False)
+checar("consistencia: um trimestre com 99% do lucro = concentrado",
+       ots.resumir_consistencia([{"lucro": 1000}, {"lucro": -20},
+                                 {"lucro": -5}, {"lucro": 10}])["alerta"], True)
+
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")
     for f in FALHAS:

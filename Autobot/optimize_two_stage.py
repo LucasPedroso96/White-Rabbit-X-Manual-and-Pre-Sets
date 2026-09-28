@@ -2453,6 +2453,126 @@ def decidir_trader(div: float | None, sobreviveu: bool | None,
             "nunca_visto": nunca, "dd_3anos_pct": dd_pct}
 
 
+
+# Alertas de trader (dono, 2026-09-28: "segue com tudo e testa... vou subir na
+# live se tiver realmente tudo ok"). NAO reprovam -- so avisam antes do live:
+#   robustez: vizinhos +-ROBUSTEZ_PASSO_REL dos parametros principais, medidos
+#     no dado nunca visto; menos de ROBUSTEZ_MIN_FRACAO lucrando = o set esta
+#     num PICO isolado (sorte), nao num plato;
+#   consistencia: o dado nunca visto em trimestres; menos de
+#     CONSISTENCIA_MIN_FRACAO no lucro, ou um trimestre com mais de
+#     CONSISTENCIA_MAX_CONCENTRACAO do lucro, = resultado concentrado.
+ROBUSTEZ_PASSO_REL = 0.10
+ROBUSTEZ_MIN_FRACAO = 0.5
+ROBUSTEZ_MAX_EIXOS = 8
+EIXOS_ROBUSTEZ = ["Stop", "Take", "Trail", "BreakevenDistancia",
+                  "DistanciaMinima", "Multiplicador", "PendingDistanciaATR",
+                  "PendingFaixaBarras", "PeriodoATR", "Fast_EMA", "Slow_EMA",
+                  "MACD_SMA", "BandsPeriod", "BandsDeviation", "MA_Period",
+                  "ADX_Limiar", "PeriodoBaselineATR", "MultiplicadorATR"]
+CONSISTENCIA_DIAS = 91
+CONSISTENCIA_MIN_FRACAO = 0.5
+CONSISTENCIA_MAX_CONCENTRACAO = 0.8
+
+
+def vizinhos_parametro(valor: str) -> list[str]:
+    """Valores +-ROBUSTEZ_PASSO_REL (inteiro: ao menos +-1). So positivos."""
+    try:
+        v = float(valor)
+    except (TypeError, ValueError):
+        return []
+    if v <= 0:
+        return []
+    if "." not in str(valor).strip():
+        d = max(1, round(v * ROBUSTEZ_PASSO_REL))
+        return [str(int(x)) for x in (v - d, v + d) if x > 0]
+    d = v * ROBUSTEZ_PASSO_REL
+    return [f"{x:.4g}" for x in (v - d, v + d) if x > 0]
+
+
+def resumir_robustez(variacoes: list[dict]) -> dict:
+    medidas = [r for r in variacoes if r.get("lucro") is not None]
+    if not medidas:
+        return {"fracao_lucrativa": None, "alerta": False,
+                "msg": "robustez: sem medida", "variacoes": variacoes}
+    fr = sum(1 for r in medidas if r["lucro"] >= 0) / len(medidas)
+    alerta = fr < ROBUSTEZ_MIN_FRACAO
+    msg = (f"robustez: {round(100 * fr)}% de {len(medidas)} vizinhos (+-"
+           f"{round(100 * ROBUSTEZ_PASSO_REL)}%) lucram no dado nunca visto -- "
+           + ("PICO ISOLADO, desconfie" if alerta else "plato, ok"))
+    return {"fracao_lucrativa": round(fr, 3), "alerta": alerta, "msg": msg,
+            "variacoes": variacoes}
+
+
+def resumir_consistencia(trimestres: list[dict]) -> dict:
+    medidos = [q for q in trimestres if q.get("lucro") is not None]
+    if not medidos:
+        return {"fracao_lucrativa": None, "concentracao": None, "alerta": False,
+                "msg": "consistencia: sem medida", "trimestres": trimestres}
+    fr = sum(1 for q in medidos if q["lucro"] > 0) / len(medidos)
+    positivos = [q["lucro"] for q in medidos if q["lucro"] > 0]
+    # fatia do melhor trimestre no lucro dos trimestres POSITIVOS (<= 100%)
+    conc = (max(positivos) / sum(positivos)) if positivos else None
+    alerta = (fr < CONSISTENCIA_MIN_FRACAO
+              or (conc is not None and conc > CONSISTENCIA_MAX_CONCENTRACAO))
+    msg = (f"consistencia: {sum(1 for q in medidos if q['lucro'] > 0)} de "
+           f"{len(medidos)} trimestres no lucro"
+           + (f", o melhor trimestre = {round(100 * conc)}% do lucro" if conc else "")
+           + (" -- CONCENTRADO, desconfie" if alerta else " -- ok"))
+    return {"fracao_lucrativa": round(fr, 3),
+            "concentracao": round(conc, 3) if conc is not None else None,
+            "alerta": alerta, "msg": msg, "trimestres": trimestres}
+
+
+def lucro_nunca_visto(origem: Path, params: dict, simbolo: str, periodo: str,
+                      janelas: list[tuple[str, str]], deposito: int
+                      ) -> tuple[float | None, int]:
+    """Lucro somado das janelas nunca vistas, passe continuo (WFO fora, como
+    vai ao ar)."""
+    total, trades, medido = 0.0, 0, False
+    for ini, fim in janelas:
+        m = _medir_desempenho(origem, dict(params, AtivarWFO="false",
+                                           MetodoDeEntradawfo="1"),
+                              simbolo, periodo, ini, fim, deposito)
+        if m.get("profit") is not None:
+            total += m["profit"]
+            trades += m.get("trades") or 0
+            medido = True
+    return (round(total, 2) if medido else None), trades
+
+
+def medir_robustez(origem: Path, params: dict, simbolo: str, periodo: str,
+                   janelas: list[tuple[str, str]], deposito: int) -> dict:
+    eixos = [e for e in EIXOS_ROBUSTEZ if vizinhos_parametro(params.get(e))]
+    variacoes = []
+    for eixo in eixos[:ROBUSTEZ_MAX_EIXOS]:
+        for valor in vizinhos_parametro(params[eixo]):
+            lucro, trades = lucro_nunca_visto(origem, dict(params, **{eixo: valor}),
+                                              simbolo, periodo, janelas, deposito)
+            variacoes.append({"eixo": eixo, "valor": valor, "lucro": lucro,
+                              "trades": trades})
+    return resumir_robustez(variacoes)
+
+
+def medir_consistencia(origem: Path, params: dict, simbolo: str, periodo: str,
+                       janelas: list[tuple[str, str]], deposito: int) -> dict:
+    trimestres = []
+    for ini, fim in janelas:
+        d0 = datetime.strptime(ini, "%Y.%m.%d")
+        d1 = datetime.strptime(fim, "%Y.%m.%d")
+        while d0 < d1:
+            d = min(d0 + timedelta(days=CONSISTENCIA_DIAS), d1)
+            if (d - d0).days >= 30:
+                a, b = d0.strftime("%Y.%m.%d"), d.strftime("%Y.%m.%d")
+                m = _medir_desempenho(origem, dict(params, AtivarWFO="false",
+                                                   MetodoDeEntradawfo="1"),
+                                      simbolo, periodo, a, b, deposito)
+                trimestres.append({"inicio": a, "fim": b, "lucro": m.get("profit"),
+                                   "trades": m.get("trades")})
+            d0 = d
+    return resumir_consistencia(trimestres)
+
+
 def confirmar_historico_completo(sistema: str, simbolo: str, variante: str,
                                  origem: Path, params_desafiante: dict,
                                  fim: str, deposito: int,
@@ -5040,6 +5160,24 @@ def main() -> int:
     aprovado = decisao["aprovado"]
     reprovado_em = decisao["reprovado_em"]
 
+    # Alertas de trader (so no aprovado; nao mudam o veredito).
+    alertas_trader = None
+    if aprovado and not MODO_CALIBRACAO:
+        inicio_pa = (datetime.now() - timedelta(days=round(ANOS_HOLDOUT_LONGO * 365))
+                     ).strftime("%Y.%m.%d")
+        janelas_nv = [(inicio_pa, args.inicio)]
+        if inicio_lacrado:
+            janelas_nv.append((inicio_lacrado, fim_lacrado))
+        print("\n    alertas de trader (nao reprovam): robustez dos parametros "
+              "e consistencia no dado nunca visto...", flush=True)
+        robustez = medir_robustez(origem, entrega, args.symbol, args.period,
+                                  janelas_nv, args.deposit)
+        consistencia = medir_consistencia(origem, entrega, args.symbol,
+                                          args.period, janelas_nv, args.deposit)
+        alertas_trader = {"robustez": robustez, "consistencia": consistencia}
+        for a in (robustez, consistencia):
+            print(("    ALERTA " if a["alerta"] else "    ") + a["msg"], flush=True)
+
     print("\n    " + ("APROVADO: candidato pronto para a entrega."
                       if aprovado else
                       "REPROVADO: nao promova este candidato."), flush=True)
@@ -5226,6 +5364,7 @@ def main() -> int:
                       # Regra de trader solo (27/09): criterios, medida
                       # somada do dado nunca visto e queda maxima.
                       "decisao_trader": decisao,
+                      "alertas_trader": alertas_trader,
                       "divergencia_pct": div,
                       "reotimizar_90d_ok": reotimizar_90d_ok,
                       "retencao_ok": retencao_ok,
