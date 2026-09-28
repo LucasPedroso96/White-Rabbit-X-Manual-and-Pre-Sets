@@ -2364,6 +2364,11 @@ def avaliar_holdout_lacrado(profit: float | None, trades: int | None,
 LIMITE_DIVERGENCIA_PCT = 30.0
 DD_MAX_TRADER_PCT = 40.0
 MIN_TRADES_NUNCA_VISTO = 10
+# Ganho minimo de retencao (pontos percentuais) pra ADOTAR a entrada
+# pendente (2.7) ou os filtros de execucao (3) -- 2026-09-28: o XAUUSD 04
+# BUY trocou a entrada por +1.2 pp (ruido: Limit no fechamento, 0 ATR).
+# Nao reprova ninguem; so evita trocar a entrada/filtros por ruido.
+MELHORA_MINIMA_RETENCAO_PP = 5.0
 _ROTULO_FALHA = {"divergencia": "na divergencia",
                  "sobrevivencia": "no gate de sobrevivencia",
                  "drawdown": "no drawdown",
@@ -4118,7 +4123,8 @@ def main() -> int:
                 ord_p = torneio_retencao(pend_ok[:args.finalistas], cab_p,
                                          metricas, origem, trabalho, travados,
                                          args, 1, "entrada pendente (OHLC, ~2s cada)")
-                if ord_p and (ord_p[0][0] or -9e9) > (ordenados[0][0] or -9e9):
+                if ord_p and (ord_p[0][0] or -9e9) > ((ordenados[0][0] or -9e9)
+                                                     + MELHORA_MINIMA_RETENCAO_PP):
                     entrada_pendente = {k: ord_p[0][2][k] for k in EIXOS_PENDENTE
                                         if k in ord_p[0][2]}
                     print(f"    entrada pendente melhorou a retencao: "
@@ -4165,7 +4171,8 @@ def main() -> int:
             ord_e = torneio_retencao(exec_ok[:args.finalistas], cab_e,
                                      metricas, origem, trabalho, travados,
                                      args, 1, "execucao (OHLC, ~2s cada)")
-            if ord_e and (ord_e[0][0] or -9e9) > (ordenados[0][0] or -9e9):
+            if ord_e and (ord_e[0][0] or -9e9) > ((ordenados[0][0] or -9e9)
+                                                 + MELHORA_MINIMA_RETENCAO_PP):
                 print(f"    filtros de execucao melhoraram a retencao: "
                       f"{ordenados[0][0]} -> {ord_e[0][0]}", flush=True)
                 travados.update(ord_e[0][2])
@@ -4827,6 +4834,37 @@ def main() -> int:
             nome_origem="conf_sobrevivencia", nome_destino="sobrevivencia")
         print(f"    {(time.time()-t0)/60:.1f} min | saldo final "
               f"{sobrevivencia['saldo_final']}", flush=True)
+        if not sobrevivencia["sobreviveu"] and sizing_entrega in ("percentage",
+                                                                  "monetary"):
+            # 2026-09-28 (XAUUSD 11 BUY): a prova em Monetario passou, a
+            # entrega subiu o lote (sem stop) e a propria EA acionou a parada
+            # de emergencia. Antes de reprovar, tenta o sizing de ORIGEM (o da
+            # busca, mais conservador); sobrevivendo, entrega nele.
+            print(f"    nao sobreviveu no sizing da entrega ({sizing_entrega}) -- "
+                  "tentando no sizing de origem (o da busca)...", flush=True)
+            entrega_origem = dict(entrega)
+            for chave in ("PositionSizeMode", "PositionSizeValue"):
+                if chave in travados:
+                    entrega_origem[chave] = travados[chave]
+                else:
+                    entrega_origem.pop(chave, None)
+            reescrever(origem, trabalho, [], entrega_origem)
+            sobrevivencia_origem = verificar_sobrevivencia_completa(
+                trabalho, args.symbol, args.period, args.inicio, args.fim,
+                args.deposit, max(args.timeout, 1800), variante=args.variante)
+            print(f"    sizing de origem: saldo final "
+                  f"{sobrevivencia_origem['saldo_final']} | "
+                  + ("sobreviveu" if sobrevivencia_origem["sobreviveu"]
+                     else sobrevivencia_origem["motivo"]), flush=True)
+            if sobrevivencia_origem["sobreviveu"]:
+                sobrevivencia = sobrevivencia_origem
+                entrega = entrega_origem
+                sizing_entrega = "origem"
+                sobrevivencia_relatorio_dir = arquivar_relatorio(
+                    args.symbol, args.sistema, args.variante,
+                    nome_origem="conf_sobrevivencia", nome_destino="sobrevivencia")
+                print("    OK no sizing de origem: a entrega sai nele (o lote "
+                      "escalado quebrava).", flush=True)
         if not sobrevivencia["sobreviveu"]:
             print(f"    REPROVADO no gate de sobrevivencia: "
                   f"{sobrevivencia['motivo']}.", flush=True)
@@ -4897,8 +4935,12 @@ def main() -> int:
         if dias_anteriores >= MIN_DIAS_PERIODO_ANTERIOR:
             print(f"    periodo anterior ao treino ({inicio_holdout}.."
                   f"{args.inicio}, {dias_anteriores} dias)...", flush=True)
+            # Set ENTREGUE (2026-09-28), a mesma escala do holdout lacrado --
+            # os dois sao somados no criterio 'ganha no que nunca viu'; com
+            # travados (sizing de trabalho) a soma misturava lote fixo com
+            # Monetario/Percentual.
             periodo_anterior = wfa_real.medir_holdout(
-                origem, travados, args.symbol, args.period, inicio_holdout,
+                origem, entrega, args.symbol, args.period, inicio_holdout,
                 args.inicio, args.deposit)
             ok_anterior, msg_anterior = avaliar_periodo_anterior(
                 periodo_anterior["profit"],
