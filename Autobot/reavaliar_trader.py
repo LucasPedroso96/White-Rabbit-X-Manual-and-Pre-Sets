@@ -165,6 +165,13 @@ def reavaliar(combo: str, desde: str, dry: bool) -> None:
               "so o ledger foi atualizado.", flush=True)
     elif aprovado and arq.name.startswith("REPROVADO_"):
         destino = arq.with_name("VALIDADO_" + arq.name[len("REPROVADO_"):])
+        if destino.exists():
+            # Ja ha campeao vigente com este nome (pode estar ao vivo): arquiva
+            # antes, porque os.replace o sobrescreveria em silencio.
+            versao = campeoes_arquivo.arquivar_campeao_anterior(
+                sistema, simbolo, variante, destino)
+            print(f"   campeao vigente arquivado v{versao} antes de ser "
+                  "substituido", flush=True)
         os.replace(arq, destino)
         print(f"   {arq.name} -> {destino.name}", flush=True)
     elif not aprovado and arq.name.startswith("VALIDADO_"):

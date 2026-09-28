@@ -74,7 +74,70 @@ PASTA_PORTFOLIOS = "_PORTFOLIOS"
 # medida, e "essa metrica nao existe pra esse sizing" (achado do dono,
 # 2026-08-04: portfolio mostrava 0/n/d sem dizer qual dos dois era).
 SISTEMAS_R_CAPAZES = {"01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY",
-                      "04_SLTP_TRAIL", "05_BE_TRAIL", "06_REVERSAL_EXIT"}
+                      "04_SLTP_TRAIL", "05_BE_TRAIL", "06_REVERSAL_EXIT",
+                      # 12_GRID_INVERSO ja era Fixed-R e faltava aqui (achado
+                      # 2026-09-28); 13_OCO_ROMPIMENTO nasce Fixed-R tambem
+                      # (mesma formula/sizing do 04, ver generate_system_sets.
+                      # apply_sizing_and_formula r_capable).
+                      "12_GRID_INVERSO", "13_OCO_ROMPIMENTO"}
+
+_TIPO_ENTRADA = {"0": "Market", "1": "Stop", "2": "Limit", "3": "OCO"}
+# Build da EA que carrega os inputs de entrada pendente (Metatrader5EAS): um
+# set com pendente rodado numa EA mais antiga IGNORA os inputs e entra a
+# mercado -- comportamento diferente do que foi testado.
+EA_MIN_BUILD_PENDENTE = "fc411664"
+EA_MIN_BUILD_OCO = "e51a0f65"
+
+
+def _num(v, tipo, padrao):
+    try:
+        return tipo(float(str(v).strip()))
+    except (TypeError, ValueError):
+        return padrao
+
+
+def descrever_entrada(valores: dict) -> dict:
+    """Como o set ENTRA no mercado, lido do proprio arquivo (fonte de verdade
+    -- nao do ledger, que pode ser de outra corrida). `valores` = {nome:
+    primeiro valor} do .set (optimize_two_stage.valores_do_set).
+
+    Devolve {"tipo", "pendente", "rotulo", "detalhe", "ea_minima"}; `rotulo` e
+    o texto curto da tabela, `detalhe` o tooltip, `ea_minima` o commit da EA
+    sem o qual o set NAO se comporta como testado (None = qualquer build)."""
+    codigo = str(valores.get("EntryOrderType", "0")).strip().split(".")[0]
+    tipo = _TIPO_ENTRADA.get(codigo, f"? ({codigo})")
+    if codigo in ("", "0"):
+        return {"tipo": "Market", "pendente": False, "rotulo": "Market",
+                "detalhe": "Entrada a mercado.", "ea_minima": None}
+    ref = ("maxima/minima do candle do sinal"
+           if str(valores.get("PendingReferencia", "0")).strip() == "1"
+           else "fechamento do candle do sinal")
+    dist = _num(valores.get("PendingDistanciaATR"), float, 0.0)
+    exp = _num(valores.get("PendingExpiracaoBarras"), int, 0)
+    if codigo == "3":
+        hora = _num(valores.get("PendingHoraSessao"), int, 0)
+        faixa = _num(valores.get("PendingFaixaBarras"), int, 0)
+        sessao = (str(valores.get("PendingGatilho", "0")).strip() == "1")
+        gatilho = (f"todo dia as {hora:02d}h (hora do servidor), faixa das "
+                   f"ultimas {faixa} barras" if sessao else "pelo sinal do indicador")
+        return {"tipo": tipo, "pendente": True,
+                "rotulo": (f"OCO · {hora:02d}h · faixa {faixa} · ±{dist:g}×ATR"
+                           if sessao else f"OCO · sinal · ±{dist:g}×ATR"),
+                "detalhe": (f"OCO: compra stop + venda stop, {gatilho}, a "
+                            f"{dist:g}×ATR da referencia ({ref}); executou uma, "
+                            f"a EA cancela a outra. Expira em {exp} barra(s). "
+                            f"Exige conta hedge e EA com OCO (build >= "
+                            f"{EA_MIN_BUILD_OCO})."),
+                "ea_minima": EA_MIN_BUILD_OCO}
+    return {"tipo": tipo, "pendente": True,
+            "rotulo": f"{tipo} · {'extremo' if ref.startswith('maxima') else 'close'} ±{dist:g}×ATR · {exp} barra(s)",
+            "detalhe": (f"Ordem {tipo} a {dist:g}×ATR do {ref}; cancelada se "
+                        f"nao executar em {exp} barra(s) ou no sinal oposto. "
+                        f"Exige EA com entrada pendente (build >= "
+                        f"{EA_MIN_BUILD_PENDENTE}) -- em EA antiga o set entra "
+                        "a mercado."),
+            "ea_minima": EA_MIN_BUILD_PENDENTE}
+
 
 # O sistema comeca com dois digitos e a variante e um conjunto fechado; e isso
 # que torna o parse do nome nao-ambiguo mesmo com underscores no simbolo

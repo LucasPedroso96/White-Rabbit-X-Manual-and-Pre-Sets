@@ -100,6 +100,14 @@ try:
     checar("XAUUSD/04: export/delete apontam pro arquivo do clone",
            o04.parent, tester_c)
 
+    # Entrada do set (2026-09-28): a tabela de Implantacao mostra se o set
+    # entra a mercado ou por ordem pendente, lido do PROPRIO arquivo.
+    checar("XAUUSD/04 sem EntryOrderType no arquivo: Market (EA antiga)",
+           (l04["entrada"]["tipo"], l04["entrada"]["pendente"]),
+           ("Market", False))
+    checar("XAUUSD/04: alertas de trader ainda nao medidos",
+           l04["alertas_trader"], None)
+
     l11, _ = por_chave["XAUUSD__11_SIGNAL_ONLY__BUY_MULTI"]
     checar("XAUUSD/11: reprovado no ledger NAO e certificado",
            l11["certificado"], False)
@@ -145,6 +153,30 @@ try:
     st = json.loads(painel.status("MULTI").body)
     checar("contador: campeao vigente continua aprovado apos desafiante "
            "reprovado", st["aprovados"], 1)
+
+    # Set com ordem pendente: o painel diz QUAL e qual EA ele exige.
+    pend = tester_c / "VALIDADO_TESTE_LIMIT.set"
+    gravar_set(tester_c, pend.name,
+               {"EntryOrderType": "2", "PendingReferencia": "0",
+                "PendingDistanciaATR": "0", "PendingExpiracaoBarras": "1"})
+    ent = painel._entrada_do_set(pend)
+    checar("entrada Limit lida do arquivo",
+           (ent["tipo"], ent["pendente"], ent["ea_minima"]),
+           ("Limit", True, painel.ready_library.EA_MIN_BUILD_PENDENTE))
+    checar("entrada Limit: rotulo curto da tabela", ent["rotulo"],
+           "Limit · close ±0×ATR · 1 barra(s)")
+    oco = tester_c / "VALIDADO_TESTE_OCO.set"
+    gravar_set(tester_c, oco.name,
+               {"EntryOrderType": "3", "PendingGatilho": "1",
+                "PendingHoraSessao": "8", "PendingFaixaBarras": "4",
+                "PendingDistanciaATR": "0.25", "PendingExpiracaoBarras": "12"})
+    checar("entrada OCO por sessao: rotulo",
+           painel._entrada_do_set(oco)["rotulo"],
+           "OCO · 08h · faixa 4 · ±0.25×ATR")
+    checar("arquivo ilegivel: n/d (nunca Market)",
+           painel._entrada_do_set(tester_c / "nao_existe.set")["rotulo"], "n/d")
+    checar("sem arquivo de origem: n/d", painel._entrada_do_set(None)["rotulo"],
+           "n/d")
 finally:
     (painel.LEDGER, painel.RELATORIOS_DIR, painel.SETS_IMPLANTADOS,
      painel.ready_library.LEDGER, wrx_paths.pastas_de_dados_do_projeto) = salvos

@@ -237,6 +237,7 @@
               <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.symbol }}</th>
               <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.system }}</th>
               <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.variant }}</th>
+              <th title="Entry order adopted by the run (Market / Stop / Limit / OCO). A dash means the run predates pending entries." style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">Entry</th>
               <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.verdict }}</th>
               <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.retention }}</th>
               <th style="text-align:left;padding:9px 12px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">Expectancy</th>
@@ -250,6 +251,7 @@
                   <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ rr.simbolo }}</td>
                   <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.sistema }}</td>
                   <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};">{{ rr.variante }}</td>
+                  <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};font-size:11.5px;white-space:nowrap;">{{ rr.entradaBadge }}</td>
                   <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};"><span style="background:{{ rr.pillBg }};color:{{ rr.pillColor }};padding:2px 9px;border-radius:999px;font-size:11.5px;">{{ rr.pillLabel }}</span></td>
                   <td title="{{ rr.retencaoTitle }}" style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};color:{{ rr.retencaoColor }};">{{ rr.retencao }}</td>
                   <td style="padding:8px 12px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ rr.expectancy }}</td>
@@ -624,6 +626,7 @@
               <th style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.symbol }}</th>
               <th style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.system }}</th>
               <th style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.variant }}</th>
+              <th title="How the set enters the market (read from the .set file). Stop/Limit/OCO = pending orders: they need the EA build with pending entries." style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">Entry order</th>
               <th style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.table.retention }}</th>
               <th title="{{ L.deploy.colProfitFullTip }}" style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.deploy.colProfitFull }}</th>
               <th title="{{ L.deploy.colProfitOosTip }}" style="text-align:left;padding:9px 10px;color:{{ pal.muted }};border-bottom:1px solid {{ pal.line }};">{{ L.deploy.colProfitOos }}</th>
@@ -640,6 +643,7 @@
                   <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ ir.simbolo }}</td>
                   <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};">{{ ir.sistema }}</td>
                   <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};">{{ ir.variante }}</td>
+                  <td title="{{ ir.entradaTitle }}" style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};"><span style="background:{{ ir.entradaBg }};color:{{ ir.entradaColor }};padding:2px 9px;border-radius:999px;font-size:11px;white-space:nowrap;">{{ ir.entradaLabel }}</span></td>
                   <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};">{{ ir.retencao }}</td>
                   <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ ir.lucroCompleto }}</td>
                   <td style="padding:7px 10px;border-bottom:1px solid {{ pal.line }};font-family:'IBM Plex Mono',monospace;">{{ ir.lucroOos }}</td>
@@ -660,8 +664,14 @@
                 </tr>
                 <sc-if value="{{ ir.expanded }}" hint-placeholder-val="{{ false }}">
                   <tr>
-                    <td colspan="12" style="padding:14px;border-bottom:1px solid {{ pal.line }};background:{{ pal.bg3 }};border-left:3px solid {{ pal.accent2 }};">
+                    <td colspan="13" style="padding:14px;border-bottom:1px solid {{ pal.line }};background:{{ pal.bg3 }};border-left:3px solid {{ pal.accent2 }};">
                       <div style="font-size:12px;color:{{ pal.muted }};margin-bottom:8px;">{{ ir.legendaGrafico }}</div>
+                      <div style="margin-bottom:10px;">
+                        <sc-for list="{{ ir.alertaLinhas }}" as="al_item" hint-placeholder-count="2">
+                          <div style="font-size:12.5px;color:{{ al_item.cor }};">{{ al_item.txt }}</div>
+                        </sc-for>
+                        <div style="font-size:12.5px;color:{{ pal.muted }};">{{ ir.eaMinima }}</div>
+                      </div>
                       <sc-if value="{{ ir.resumoLoading }}" hint-placeholder-val="{{ false }}">
                         <span style="font-size:12px;color:{{ pal.muted }};">loading summary…</span>
                       </sc-if>
@@ -679,7 +689,7 @@
               </tbody>
             </sc-for>
             <sc-if value="{{ implantacaoEmpty }}" hint-placeholder-val="{{ false }}">
-              <tbody><tr><td colspan="12" style="padding:14px;color:{{ pal.muted }};font-size:12.5px;">no validated set yet.</td></tr></tbody>
+              <tbody><tr><td colspan="13" style="padding:14px;color:{{ pal.muted }};font-size:12.5px;">no validated set yet.</td></tr></tbody>
             </sc-if>
           </table>
           </div>
@@ -1309,6 +1319,30 @@ class Component extends DCLogic {
       tipo: e.tipo, texto: e.texto, detalhes: (e.detalhes || []).join('\n'),
       bg: (AUD_TOM[e.tipo] || [pal.bg3, pal.muted])[0], color: (AUD_TOM[e.tipo] || [pal.bg3, pal.muted])[1],
     }));
+    // Entrada (Market/Stop/Limit/OCO) da linha do ledger. Fica ANTES de
+    // recentesRows de proposito: const nao e hoisted (TDZ).
+    const TIPO_ENTRADA = { '1': 'Stop', '2': 'Limit', '3': 'OCO' };
+    const horaSessao = (ep) => String(ep.PendingHoraSessao ?? '?').padStart(2, '0');
+    const rotuloEntradaLedger = (r) => {
+      const ep = r.entrada_pendente;
+      if (!ep) return r.piso_trades != null ? 'Market' : '-';
+      const tipo = TIPO_ENTRADA[String(ep.EntryOrderType)] || '?';
+      if (tipo === 'OCO') return `OCO · ${horaSessao(ep)}h`;
+      return `${tipo} · ${String(ep.PendingReferencia) === '1' ? 'extremo' : 'close'} ±${ep.PendingDistanciaATR}×ATR`;
+    };
+    const detalheEntradaLedger = (r) => {
+      const ep = r.entrada_pendente;
+      if (!ep) return r.piso_trades != null ? 'mercado' : 'n/d';
+      const tipo = TIPO_ENTRADA[String(ep.EntryOrderType)] || '?';
+      const expira = `expira em ${ep.PendingExpiracaoBarras} barra(s)`;
+      if (tipo === 'OCO') {
+        const gatilho = String(ep.PendingGatilho) === '1'
+          ? `todo dia às ${horaSessao(ep)}h (servidor), faixa das últimas ${ep.PendingFaixaBarras} barras`
+          : 'armado pelo sinal do indicador';
+        return `OCO (compra stop + venda stop) ${gatilho} · ±${ep.PendingDistanciaATR}×ATR · ${expira}`;
+      }
+      return `${tipo} · ${String(ep.PendingReferencia) === '1' ? 'extremo do candle' : 'fechamento'} ± ${ep.PendingDistanciaATR}×ATR · ${expira}`;
+    };
     const recentesRows = (status?.recentes || []).map((r) => {
       const chave = `${r.simbolo}|${r.sistema}|${r.variante}|${r.quando}`;
       const expanded = !!s.expandedRecentes[chave];
@@ -1320,12 +1354,13 @@ class Component extends DCLogic {
         pillBg: r.aprovado ? pal.okBg : pal.noBg, pillColor: r.aprovado ? pal.ok : pal.no,
         pillLabel: r.aprovado ? 'approved' : (r.rebaixado ? 'demoted' : 'rejected' + (GATE_ROTULO[r.reprovado_em] ? ' · ' + GATE_ROTULO[r.reprovado_em] : (r.motivo_reprovacao_precoce ? ' · stage 1/2' : ''))),
         gateLine: r.aprovado ? '-' : (r.reprovado_em || r.motivo_reprovacao_precoce || (r.rebaixado ? r.motivo_rebaixamento : null) || 'n/d (linha anterior a 26/09)'),
+        entradaBadge: rotuloEntradaLedger(r),
         sondaLine: r.divergencia_sonda_estagio1 != null ? r.divergencia_sonda_estagio1.toFixed(1) + '%' : 'n/d',
         benchLine: r.benchmark_historico_completo ? `strategy ${r.benchmark_historico_completo.estrategia_retorno_pct}% (DD ${fmtN(r.benchmark_historico_completo.estrategia_max_dd_pct)}%) vs asset ${r.benchmark_historico_completo.lado} ${r.benchmark_historico_completo.ativo_retorno_pct}% (DD ${fmtN(r.benchmark_historico_completo.ativo_max_dd_pct)}%)` : 'n/d',
         lacradoLine: r.holdout_lacrado ? `${r.holdout_lacrado.veredito} · ${r.holdout_lacrado.inicio}..${r.holdout_lacrado.fim} · lucro ${fmtN(r.holdout_lacrado.profit)} · ${r.holdout_lacrado.trades ?? '-'} trades` : 'n/d (não rodou ou linha anterior à metodologia de 26/09)',
         anteriorLine: r.periodo_anterior_lucro != null ? `lucro ${fmtN(r.periodo_anterior_lucro)} · ${r.periodo_anterior_trades ?? '-'} trades · tick real ${r.periodo_anterior_tick_real_pct != null ? r.periodo_anterior_tick_real_pct + '%' : 'n/d'}${r.periodo_anterior_fraco ? ' ⚠ evidência fraca' : ''}` : 'n/d',
         treinoLine: (r.janela_treino || 'n/d') + (r.retencao_inconclusiva ? ` · retenção inconclusiva (${r.entradas_oos} entradas OOS)` : ''),
-        pendLine: r.entrada_pendente ? `${String(r.entrada_pendente.EntryOrderType) === '1' ? 'Stop' : 'Limit'} · ${String(r.entrada_pendente.PendingReferencia) === '1' ? 'extremo do candle' : 'fechamento'} ± ${r.entrada_pendente.PendingDistanciaATR}×ATR · expira ${r.entrada_pendente.PendingExpiracaoBarras} barras` : (r.piso_trades != null ? 'mercado' : 'n/d'),
+        pendLine: detalheEntradaLedger(r),
         eaLine: r.proveniencia ? `${r.proveniencia.ea_md5 || '?'} (${r.proveniencia.ea_compilado_em || '?'}) · autobot ${r.proveniencia.autobot_commit || '?'}` : 'n/d (linha anterior a 26/09)',
         retencao: r.retencao_oos != null ? (r.aviso_bug_oos ? '⚠ ' + r.retencao_oos : r.retencao_oos) : '-',
         retencaoTitle: r.aviso_bug_oos ? 'medida com o bug da EA no OOS (13/09–26/09 02:05): era vazamento de borda, não desempenho. Combo na fila de refação.' : '',
@@ -1395,12 +1430,22 @@ class Component extends DCLogic {
     const CERT_ROTULO = { sem_ledger: 'not in ledger', reprovado: 'rejected in ledger', rebaixado: 'demoted', sem_relatorio: 'no report archived', arquivo_diverge: 'file ≠ approved run', relatorio_sobrescrito: 'report overwritten' };
     const EM_PROVA_ROTULO = { SEM_BASELINE: 'no R baseline', EM_PROVA: 'on trial', DENTRO_DA_FAIXA: 'within band', REBAIXAR: 'demote', PROMOVER: 'promote' };
     const implantacaoRows = (s.implantacao?.sets || []).map((it) => {
+      const ent = it.entrada || { tipo: 'Market', pendente: false, rotulo: 'Market', detalhe: '', ea_minima: null };
+      const entCor = { bg: pal.bg3, color: ent.pendente ? pal.accent2 : pal.muted };
+      const al = it.alertas_trader;
+      const vl = it.validacao_live;
       const lucroCompleto = it.sobrevivencia_medida && it.sobrevivencia_saldo_final != null ? it.sobrevivencia_saldo_final.toFixed(2) : (it.sobrevivencia_medida ? 'n/d' : 'not measured (non-grid)');
       const ep = s.emProva[it.chave];
       const emProvaLabel = it.implantado ? (ep ? (EM_PROVA_ROTULO[ep.status] || ep.status) : '…') : '-';
       const emProvaTone = ep && (ep.status === 'PROMOVER' || ep.status === 'DENTRO_DA_FAIXA') ? 'ok' : ep && ep.status === 'REBAIXAR' ? 'no' : 'neutral';
       return {
         chave: it.chave, simbolo: it.simbolo, sistema: it.sistema, variante: it.variante, retencao: it.retencao != null ? it.retencao + '%' : '-',
+        entradaLabel: ent.rotulo, entradaTitle: ent.detalhe || 'Market entry.', entradaBg: entCor.bg, entradaColor: entCor.color,
+        eaMinima: ent.ea_minima ? `Needs the EA build with pending/OCO entry orders (Metatrader5EAS commit ${ent.ea_minima} or newer). On an older EA the pending inputs are ignored and the set enters at market, not as tested.` : '',
+        alertaLinhas: [
+          ...(al ? [al.robustez, al.consistencia].filter(Boolean).map((a) => ({ txt: a.msg, alerta: !!a.alerta })) : [{ txt: 'Robustness / consistency alerts: not measured yet (run validar_live.py).', alerta: false }]),
+          ...(vl && vl.mercado && vl.base ? [{ txt: `Same strategy with market entry on unseen data: profit ${fmtN(vl.mercado.lucro)} (${vl.mercado.trades} trades) vs as delivered ${fmtN(vl.base.lucro)} (${vl.base.trades} trades).`, alerta: false }] : []),
+        ].map((x) => ({ ...x, cor: x.alerta ? pal.no : pal.muted })),
         lucroCompleto, lucroOos: it.lucro_oos != null ? it.lucro_oos.toFixed(2) : '-',
         certBg: it.certificado ? pal.okBg : pal.noBg, certColor: it.certificado ? pal.ok : pal.no, certLabel: it.certificado ? 'certified' : (CERT_ROTULO[it.motivo_sem_certificado?.codigo] || 'not certified'), certTitle: it.certificado ? `${it.instalacao || ''} install` : `${it.motivo_sem_certificado?.detalhe || ''} [${it.instalacao || ''} install]`,
         deployBg: it.implantado ? pal.okBg : pal.noBg, deployColor: it.implantado ? pal.ok : pal.no, deployLabel: it.implantado ? 'deployed' : 'not deployed',

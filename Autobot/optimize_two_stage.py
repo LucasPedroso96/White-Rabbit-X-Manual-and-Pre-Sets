@@ -2016,23 +2016,41 @@ def avaliar_gate_relativo(campeao: dict, desafiante: dict) -> tuple[bool, list[s
 
     sharpe_campeao = campeao.get("sharpe")
     sharpe_desafiante = desafiante.get("sharpe")
+    sharpe_check = None
     if sharpe_campeao is not None and sharpe_desafiante is not None:
         min_sharpe = sharpe_campeao * GATE_SHARPE_RELATIVE
-        checks.append((
+        sharpe_check = (
             sharpe_desafiante > 0 and sharpe_desafiante >= min_sharpe,
             f"sharpe {sharpe_desafiante:.4f} > 0 e >= "
-            f"{GATE_SHARPE_RELATIVE}*campeao={min_sharpe:.4f}"))
+            f"{GATE_SHARPE_RELATIVE}*campeao={min_sharpe:.4f}")
 
+    score_check = None
     score_campeao = campeao.get("composite_score")
     score_desafiante = desafiante.get("composite_score")
     if score_campeao is not None and score_desafiante is not None:
-        checks.append((
+        score_check = (
             score_desafiante > score_campeao,
             f"composite_score {score_desafiante:.4f} > campeao "
-            f"{score_campeao:.4f}"))
+            f"{score_campeao:.4f}")
+
+    # Sharpe de janela curta e ruido: 52 trades bastaram pra um desafiante com
+    # PF 7.3 x 2.8, DD 1.4% x 3.9% e score 173 x 122 cair por 14% de Sharpe
+    # (XAUUSD 04 BUY, 2026-09-28; dono: "cuidado para nao apertar demais").
+    # Com o composite_score (retorno x PF / DD) comparavel e passando, o Sharpe
+    # abaixo do piso vira INFO; sem composite, ou com Sharpe <= 0, decide.
+    sharpe_so_info = (sharpe_check is not None and not sharpe_check[0]
+                      and sharpe_desafiante > 0
+                      and score_check is not None and score_check[0])
+    if sharpe_check is not None and not sharpe_so_info:
+        checks.append(sharpe_check)
+    if score_check is not None:
+        checks.append(score_check)
 
     aprovado = all(ok for ok, _ in checks)
     motivos = [f"{'OK' if ok else 'REPROVADO'}: {msg}" for ok, msg in checks]
+    if sharpe_so_info:
+        motivos.append("INFO (nao reprova, composite_score passou): "
+                       + sharpe_check[1])
     return aprovado, motivos
 
 
@@ -4350,8 +4368,9 @@ def main() -> int:
                       "mantida, como seria no corte.", flush=True)
     if args.sistema in SISTEMAS_GEOMETRIA_TICK_REAL and not pular_35:
         eixos_geometria = list(EIXOS_GEOMETRIA_TICK_REAL[args.sistema])
-        if entrada_pendente:
-            # a distancia da pendente tambem e geometria intrabar
+        if entrada_pendente and "PendingDistanciaATR" not in eixos_geometria:
+            # a distancia da pendente tambem e geometria intrabar (o 13 ja a
+            # traz na propria lista)
             eixos_geometria.append("PendingDistanciaATR")
         # reescrever() trava (nome in travar) ANTES de checar `otimizar` --
         # esses eixos ja estao em `travados` desde a fase 2 (NUMEROS), entao
@@ -5265,6 +5284,16 @@ def main() -> int:
     agentes_usados = contar_agentes(base.texto_novo(antes_combo))
     print(f"    agentes locais usados neste combo: {agentes_usados}",
           flush=True)
+    if args.sistema == SISTEMA_OCO:
+        # No 13 a pendente E o sistema (nao passa pelo 2.7): registra o
+        # bracket ENTREGUE, lido do proprio arquivo, pra o painel mostrar
+        # "OCO . 08h" em vez de "Market".
+        entregue = valores_do_set(trabalho)
+        entrada_pendente = {
+            k: entregue[k] for k in EIXOS_PENDENTE + ["PendingGatilho",
+                                                      "PendingHoraSessao",
+                                                      "PendingFaixaBarras"]
+            if k in entregue}
     print(json.dumps({"simbolo": args.symbol, "sistema": args.sistema,
                       "variante": args.variante, "lucro_ohlc": lucro_ohlc,
                       "agentes_locais_usados": agentes_usados,

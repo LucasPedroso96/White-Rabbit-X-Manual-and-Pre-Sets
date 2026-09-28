@@ -1306,7 +1306,7 @@ def _sets_com_origem() -> list[tuple[dict, Path]]:
             chave = f"{info['simbolo']}__{info['sistema']}__{info['variante']}"
             motivo = _motivo_sem_certificado(origem, reg)
             linha = _linha_implantacao(chave, info, reg, motivo, rotulo,
-                                       chave in implantados)
+                                       chave in implantados, origem)
             atual = por_chave.get(chave)
             if atual is None or (linha["certificado"]
                                  and not atual[0]["certificado"]):
@@ -1327,11 +1327,34 @@ def _sets_certificados() -> list[dict]:
     return [linha for linha, _ in _sets_com_origem()]
 
 
+def _entrada_do_set(origem: Path | None) -> dict:
+    """Como o set entra no mercado (Market/Stop/Limit/OCO), lido do proprio
+    arquivo -- a tabela de Implantacao mostra isto pra quem vai subir o set."""
+    # Arquivo ilegivel = "n/d", nunca "Market": mostrar mercado num set que
+    # pode ser pendente induz o dono a subir com a EA errada.
+    ilegivel = {"tipo": "?", "pendente": False, "rotulo": "n/d",
+                "detalhe": "Nao foi possivel ler o .set desta linha.",
+                "ea_minima": None}
+    if origem is None:
+        return ilegivel
+    try:
+        from optimize_two_stage import valores_do_set
+        return ready_library.descrever_entrada(valores_do_set(origem))
+    except (OSError, UnicodeError):
+        return ilegivel
+
+
 def _linha_implantacao(chave: str, info: dict, reg: dict, motivo: dict | None,
-                       instalacao: str, implantado: bool) -> dict:
+                       instalacao: str, implantado: bool,
+                       origem: Path | None = None) -> dict:
     relatorio_dir = reg.get("relatorio_dir")
     return {
         "chave": chave,
+        # Entrada (Market/Stop/Limit/OCO) do ARQUIVO + alertas de trader
+        # (robustez/consistencia, validar_live.py) da linha aprovada.
+        "entrada": _entrada_do_set(origem),
+        "alertas_trader": reg.get("alertas_trader"),
+        "validacao_live": reg.get("validacao_live"),
         "simbolo": info["simbolo_exibicao"],
         "sistema": info["sistema"],
         "variante": info["variante"],

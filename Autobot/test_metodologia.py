@@ -215,6 +215,34 @@ checar("consistencia: um trimestre com 99% do lucro = concentrado",
        ots.resumir_consistencia([{"lucro": 1000}, {"lucro": -20},
                                  {"lucro": -5}, {"lucro": 10}])["alerta"], True)
 
+# --- gate relativo (2026-09-28): Sharpe de janela curta nao derruba sozinho --
+# Numeros reais do XAUUSD 04 BUY (17:40): desafiante com PF 7.3 x 2.96, DD
+# 1.4% x 3.4%, score 173 x 122 e Sharpe 12.8 x 16.5 (14% abaixo do piso 0.9).
+camp = {"profit_factor": 2.96, "max_dd_pct": 3.3656, "sharpe": 16.54,
+        "composite_score": 122.29}
+desaf = {"trades": 52, "profit_factor": 7.2785, "max_dd_pct": 1.435,
+         "sharpe": 12.8262, "composite_score": 173.19}
+ok_g, msgs_g = ots.avaliar_gate_relativo(camp, desaf)
+checar("gate relativo: score/PF/DD melhores + Sharpe 14% abaixo = aprova",
+       ok_g, True)
+checar("gate relativo: o Sharpe fica registrado como INFO",
+       [m for m in msgs_g if m.startswith("INFO")] != [], True)
+checar("gate relativo: nenhuma linha REPROVADO",
+       [m for m in msgs_g if m.startswith("REPROVADO")], [])
+checar("gate relativo: score pior + Sharpe abaixo = reprova",
+       ots.avaliar_gate_relativo(camp, dict(desaf, composite_score=100.0))[0],
+       False)
+checar("gate relativo: DD estoura o teto relativo = reprova mesmo com score",
+       ots.avaliar_gate_relativo(camp, dict(desaf, max_dd_pct=9.0))[0], False)
+checar("gate relativo: campeao sem composite_score, Sharpe abaixo = reprova",
+       ots.avaliar_gate_relativo(dict(camp, composite_score=None), desaf)[0],
+       False)
+checar("gate relativo: Sharpe <= 0 nunca vira INFO",
+       ots.avaliar_gate_relativo(camp, dict(desaf, sharpe=-0.5))[0], False)
+checar("gate relativo: Sharpe dentro do piso segue aprovando sem INFO",
+       [m for m in ots.avaliar_gate_relativo(camp, dict(desaf, sharpe=15.5))[1]
+        if m.startswith("INFO")], [])
+
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")
     for f in FALHAS:

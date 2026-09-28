@@ -43,3 +43,11 @@ _arquivo_operacional/backups/
 # maquina, mesma regra de campanha_relatorios/ e campanha_resultados*.jsonl.
 _arquivo_operacional/reprovados_*/
 bateria_logica/
+
+# Saidas com os PARAMETROS dos sets da conta (repo publico: nunca commitar).
+# revalidacao_resultados.jsonl e validacao_live_*.json listam valores de
+# parametros de sets em uso; auditoria_* e so o estado dos vigias.
+revalidacao_resultados.jsonl
+validacao_live_*.json
+auditoria_estado.json
+auditoria_eventos.offset

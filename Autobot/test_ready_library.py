@@ -193,6 +193,42 @@ with tempfile.TemporaryDirectory() as tmp:
     checar("rebaixado: fora do portfolio", "XAUUSD" in port, False)
 
 
+# --- descrever_entrada (2026-09-28): como o set entra, lido do proprio .set ---
+de = rl.descrever_entrada
+checar("entrada: sem o input (set antigo) = Market, qualquer EA",
+       (de({})["tipo"], de({})["pendente"], de({})["ea_minima"]),
+       ("Market", False, None))
+checar("entrada: EntryOrderType=0 = Market",
+       de({"EntryOrderType": "0"})["rotulo"], "Market")
+checar("entrada: '2.0' (formato do .set) e Limit",
+       de({"EntryOrderType": "2.0"})["tipo"], "Limit")
+lim = de({"EntryOrderType": "2", "PendingReferencia": "0",
+          "PendingDistanciaATR": "0", "PendingExpiracaoBarras": "1"})
+checar("entrada: Limit no fechamento", lim["rotulo"],
+       "Limit · close ±0×ATR · 1 barra(s)")
+checar("entrada: pendente exige a EA com pendente",
+       (lim["pendente"], lim["ea_minima"]), (True, rl.EA_MIN_BUILD_PENDENTE))
+stp = de({"EntryOrderType": "1", "PendingReferencia": "1",
+          "PendingDistanciaATR": "0.25", "PendingExpiracaoBarras": "3"})
+checar("entrada: Stop no extremo", stp["rotulo"],
+       "Stop · extremo ±0.25×ATR · 3 barra(s)")
+oco_s = de({"EntryOrderType": "3", "PendingGatilho": "1",
+            "PendingHoraSessao": "8", "PendingFaixaBarras": "4",
+            "PendingDistanciaATR": "0.25", "PendingExpiracaoBarras": "12"})
+checar("entrada: OCO armado por sessao", oco_s["rotulo"],
+       "OCO · 08h · faixa 4 · ±0.25×ATR")
+checar("entrada: OCO exige a EA com OCO (mais nova que a da pendente)",
+       oco_s["ea_minima"], rl.EA_MIN_BUILD_OCO)
+checar("entrada: OCO pelo sinal do indicador",
+       de({"EntryOrderType": "3"})["rotulo"], "OCO · sinal · ±0×ATR")
+checar("entrada: codigo desconhecido nunca vira Market",
+       de({"EntryOrderType": "9"})["tipo"], "? (9)")
+checar("entrada: valor sujo no numero cai no padrao, nao quebra",
+       de({"EntryOrderType": "1", "PendingDistanciaATR": "abc"})["rotulo"],
+       "Stop · close ±0×ATR · 0 barra(s)")
+checar("R: 12_GRID_INVERSO e 13_OCO_ROMPIMENTO valem em Fixed-R",
+       {"12_GRID_INVERSO", "13_OCO_ROMPIMENTO"} <= rl.SISTEMAS_R_CAPAZES, True)
+
 if FALHAS:
     print(f"{len(FALHAS)} falha(s):")
     for f in FALHAS:
