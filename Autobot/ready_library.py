@@ -130,7 +130,7 @@ def descrever_entrada(valores: dict) -> dict:
                             f"{EA_MIN_BUILD_OCO})."),
                 "ea_minima": EA_MIN_BUILD_OCO}
     return {"tipo": tipo, "pendente": True,
-            "rotulo": f"{tipo} · {'extremo' if ref.startswith('maxima') else 'close'} ±{dist:g}×ATR · {exp} barra(s)",
+            "rotulo": f"{tipo} · {'extreme' if ref.startswith('maxima') else 'close'} ±{dist:g}×ATR · {exp} bar(s)",
             "detalhe": (f"Ordem {tipo} a {dist:g}×ATR do {ref}; cancelada se "
                         f"nao executar em {exp} barra(s) ou no sinal oposto. "
                         f"Exige EA com entrada pendente (build >= "

@@ -205,13 +205,13 @@ checar("entrada: '2.0' (formato do .set) e Limit",
 lim = de({"EntryOrderType": "2", "PendingReferencia": "0",
           "PendingDistanciaATR": "0", "PendingExpiracaoBarras": "1"})
 checar("entrada: Limit no fechamento", lim["rotulo"],
-       "Limit · close ±0×ATR · 1 barra(s)")
+       "Limit · close ±0×ATR · 1 bar(s)")
 checar("entrada: pendente exige a EA com pendente",
        (lim["pendente"], lim["ea_minima"]), (True, rl.EA_MIN_BUILD_PENDENTE))
 stp = de({"EntryOrderType": "1", "PendingReferencia": "1",
           "PendingDistanciaATR": "0.25", "PendingExpiracaoBarras": "3"})
 checar("entrada: Stop no extremo", stp["rotulo"],
-       "Stop · extremo ±0.25×ATR · 3 barra(s)")
+       "Stop · extreme ±0.25×ATR · 3 bar(s)")
 oco_s = de({"EntryOrderType": "3", "PendingGatilho": "1",
             "PendingHoraSessao": "8", "PendingFaixaBarras": "4",
             "PendingDistanciaATR": "0.25", "PendingExpiracaoBarras": "12"})
@@ -225,7 +225,7 @@ checar("entrada: codigo desconhecido nunca vira Market",
        de({"EntryOrderType": "9"})["tipo"], "? (9)")
 checar("entrada: valor sujo no numero cai no padrao, nao quebra",
        de({"EntryOrderType": "1", "PendingDistanciaATR": "abc"})["rotulo"],
-       "Stop · close ±0×ATR · 0 barra(s)")
+       "Stop · close ±0×ATR · 0 bar(s)")
 checar("R: 12_GRID_INVERSO e 13_OCO_ROMPIMENTO valem em Fixed-R",
        {"12_GRID_INVERSO", "13_OCO_ROMPIMENTO"} <= rl.SISTEMAS_R_CAPAZES, True)
 

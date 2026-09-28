@@ -2542,6 +2542,32 @@ def resumir_consistencia(trimestres: list[dict]) -> dict:
             "alerta": alerta, "msg": msg, "trimestres": trimestres}
 
 
+def resumir_queda(dd_pct: float | None, dd_valor: float | None,
+                  deposito: float, onde: str) -> dict:
+    """Queda maxima do patrimonio (relativa ao pico) de um passe continuo.
+    Alerta -- nao reprova -- acima de DD_MAX_TRADER_PCT. O gate de drawdown so
+    alcanca os sets em R; num lote fixo (grade) o DD em % depende do tamanho da
+    conta, entao o alerta diz que capital o lote pede pra ficar no limite.
+    `dd_valor` = queda em moeda da conta (relatorio do tester); sem ele o
+    capital sai estimado a partir do % sobre o deposito do teste.
+    Achado 2026-09-28: USDCAD 07 GRID aprovado com 71.1% de queda em 3 anos."""
+    if dd_pct is None:
+        return {"dd_pct": None, "alerta": False, "msg": "queda maxima: sem medida"}
+    alerta = dd_pct > DD_MAX_TRADER_PCT
+    capital = None
+    if alerta:
+        queda = dd_valor if dd_valor else deposito * dd_pct / 100.0
+        capital = round(queda / (DD_MAX_TRADER_PCT / 100.0), -1)
+    detalhe = f" ({dd_valor:g} no deposito de {deposito:g})" if dd_valor else ""
+    msg = (f"queda maxima: {dd_pct:.1f}%{detalhe} {onde}"
+           + (f" -- ACIMA de {DD_MAX_TRADER_PCT:.0f}%: com este lote so cabe em "
+              f"conta >= ~{capital:g}" if alerta
+              else f" -- ok (limite {DD_MAX_TRADER_PCT:.0f}%)"))
+    return {"dd_pct": round(dd_pct, 2), "dd_valor": dd_valor,
+            "deposito": deposito, "limite_pct": DD_MAX_TRADER_PCT,
+            "capital_minimo": capital, "alerta": alerta, "msg": msg}
+
+
 def lucro_nunca_visto(origem: Path, params: dict, simbolo: str, periodo: str,
                       janelas: list[tuple[str, str]], deposito: int
                       ) -> tuple[float | None, int]:
@@ -5193,8 +5219,18 @@ def main() -> int:
                                   janelas_nv, args.deposit)
         consistencia = medir_consistencia(origem, entrega, args.symbol,
                                           args.period, janelas_nv, args.deposit)
-        alertas_trader = {"robustez": robustez, "consistencia": consistencia}
-        for a in (robustez, consistencia):
+        # Queda maxima: em R ja e gate (3 anos continuos); no lote fixo o gate
+        # nao alcanca, entao usa o periodo anterior ao treino (medido de graca).
+        dd_ref = (dd_3anos if dd_3anos is not None else
+                  (periodo_anterior["metricas"].get("max_dd_pct")
+                   if periodo_anterior else None))
+        queda = resumir_queda(
+            dd_ref, None, args.deposit,
+            "no passe continuo de 3 anos" if dd_3anos is not None
+            else "no periodo anterior ao treino")
+        alertas_trader = {"robustez": robustez, "consistencia": consistencia,
+                          "queda_maxima": queda}
+        for a in (robustez, consistencia, queda):
             print(("    ALERTA " if a["alerta"] else "    ") + a["msg"], flush=True)
 
     print("\n    " + ("APROVADO: candidato pronto para a entrega."
@@ -5377,6 +5413,9 @@ def main() -> int:
                       # aprovacao com evidencia fraca.
                       "periodo_anterior_tick_real_pct": (
                           periodo_anterior["metricas"].get("tick_real_pct")
+                          if periodo_anterior else None),
+                      "periodo_anterior_dd_pct": (
+                          periodo_anterior["metricas"].get("max_dd_pct")
                           if periodo_anterior else None),
                       "periodo_anterior_fraco": periodo_anterior_fraco,
                       # Holdout lacrado (ultimos N dias fora de toda selecao):

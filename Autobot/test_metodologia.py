@@ -215,6 +215,26 @@ checar("consistencia: um trimestre com 99% do lucro = concentrado",
        ots.resumir_consistencia([{"lucro": 1000}, {"lucro": -20},
                                  {"lucro": -5}, {"lucro": 10}])["alerta"], True)
 
+# --- queda maxima (2026-09-28): alerta, nao reprova; diz o capital do lote ---
+# USDCAD 07 GRID (lote fixo 0.01, deposito 1000): 71.1% em 3 anos continuos,
+# 770.49 em moeda -> 770.49 / 0.40 = 1926 -> arredonda a 1930.
+q = ots.resumir_queda(71.1, 770.49, 1000, "no passe continuo de 3 anos")
+checar("queda 71.1% > 40%: alerta", q["alerta"], True)
+checar("queda: capital minimo pelo valor em moeda", q["capital_minimo"], 1930.0)
+checar("queda: mensagem cita o limite e o capital",
+       ("ACIMA de 40%" in q["msg"] and "1930" in q["msg"]), True)
+q2 = ots.resumir_queda(60.0, None, 1000, "no periodo anterior ao treino")
+checar("queda sem valor em moeda: capital estimado pelo % do deposito",
+       q2["capital_minimo"], 1500.0)
+q3 = ots.resumir_queda(18.5, 440.0, 10000, "no passe continuo de 3 anos")
+checar("queda 18.5%: sem alerta e sem capital minimo",
+       (q3["alerta"], q3["capital_minimo"]), (False, None))
+checar("queda exatamente no limite nao alerta",
+       ots.resumir_queda(40.0, 400.0, 1000, "x")["alerta"], False)
+checar("queda sem medida: nao alerta",
+       ots.resumir_queda(None, None, 1000, "x"),
+       {"dd_pct": None, "alerta": False, "msg": "queda maxima: sem medida"})
+
 # --- gate relativo (2026-09-28): Sharpe de janela curta nao derruba sozinho --
 # Numeros reais do XAUUSD 04 BUY (17:40): desafiante com PF 7.3 x 2.96, DD
 # 1.4% x 3.4%, score 173 x 122 e Sharpe 12.8 x 16.5 (14% abaixo do piso 0.9).

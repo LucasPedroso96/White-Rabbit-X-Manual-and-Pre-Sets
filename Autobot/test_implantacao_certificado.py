@@ -164,7 +164,7 @@ try:
            (ent["tipo"], ent["pendente"], ent["ea_minima"]),
            ("Limit", True, painel.ready_library.EA_MIN_BUILD_PENDENTE))
     checar("entrada Limit: rotulo curto da tabela", ent["rotulo"],
-           "Limit · close ±0×ATR · 1 barra(s)")
+           "Limit · close ±0×ATR · 1 bar(s)")
     oco = tester_c / "VALIDADO_TESTE_OCO.set"
     gravar_set(tester_c, oco.name,
                {"EntryOrderType": "3", "PendingGatilho": "1",

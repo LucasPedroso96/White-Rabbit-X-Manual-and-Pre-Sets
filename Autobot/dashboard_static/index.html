@@ -672,6 +672,17 @@
                         </sc-for>
                         <div style="font-size:12.5px;color:{{ pal.muted }};">{{ ir.eaMinima }}</div>
                       </div>
+                      <sc-if value="{{ ir.temGrafico }}" hint-placeholder-val="{{ false }}">
+                        <div style="margin-bottom:12px;">
+                          <img src="{{ ir.graficoUrl }}" alt="Balance curve" onerror="this.style.display='none'" style="width:100%;max-width:1200px;border:1px solid {{ pal.line }};border-radius:6px;display:block;" />
+                          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:8px;margin-top:8px;max-width:1200px;">
+                            <img src="{{ ir.graficoHstUrl }}" alt="Equity/balance history" onerror="this.style.display='none'" style="width:100%;border:1px solid {{ pal.line }};border-radius:6px;" />
+                            <img src="{{ ir.graficoMfeUrl }}" alt="MFE/MAE scatter" onerror="this.style.display='none'" style="width:100%;border:1px solid {{ pal.line }};border-radius:6px;" />
+                            <img src="{{ ir.graficoHoldUrl }}" alt="Position holding time" onerror="this.style.display='none'" style="width:100%;border:1px solid {{ pal.line }};border-radius:6px;" />
+                          </div>
+                          <a href="{{ ir.relatorioUrl }}" target="_blank" style="display:inline-block;margin-top:8px;font-size:12.5px;color:{{ pal.accent2 }};">full report ↗</a>
+                        </div>
+                      </sc-if>
                       <sc-if value="{{ ir.resumoLoading }}" hint-placeholder-val="{{ false }}">
                         <span style="font-size:12px;color:{{ pal.muted }};">loading summary…</span>
                       </sc-if>
@@ -1328,7 +1339,7 @@ class Component extends DCLogic {
       if (!ep) return r.piso_trades != null ? 'Market' : '-';
       const tipo = TIPO_ENTRADA[String(ep.EntryOrderType)] || '?';
       if (tipo === 'OCO') return `OCO · ${horaSessao(ep)}h`;
-      return `${tipo} · ${String(ep.PendingReferencia) === '1' ? 'extremo' : 'close'} ±${ep.PendingDistanciaATR}×ATR`;
+      return `${tipo} · ${String(ep.PendingReferencia) === '1' ? 'extreme' : 'close'} ±${ep.PendingDistanciaATR}×ATR`;
     };
     const detalheEntradaLedger = (r) => {
       const ep = r.entrada_pendente;
@@ -1433,6 +1444,9 @@ class Component extends DCLogic {
       const ent = it.entrada || { tipo: 'Market', pendente: false, rotulo: 'Market', detalhe: '', ea_minima: null };
       const entCor = { bg: pal.bg3, color: ent.pendente ? pal.accent2 : pal.muted };
       const al = it.alertas_trader;
+      // Relatorio arquivado do combo (curva de saldo etc.): mesma escolha do
+      // resumo -- o passe de sobrevivencia quando existe, senao a confirmacao.
+      const graficoBase = it.relatorio_dir ? `/relatorios/${encodeURIComponent(it.relatorio_dir)}/${it.sobrevivencia_grafico ? 'sobrevivencia' : 'conf_wrx'}` : '';
       const vl = it.validacao_live;
       const lucroCompleto = it.sobrevivencia_medida && it.sobrevivencia_saldo_final != null ? it.sobrevivencia_saldo_final.toFixed(2) : (it.sobrevivencia_medida ? 'n/d' : 'not measured (non-grid)');
       const ep = s.emProva[it.chave];
@@ -1441,9 +1455,13 @@ class Component extends DCLogic {
       return {
         chave: it.chave, simbolo: it.simbolo, sistema: it.sistema, variante: it.variante, retencao: it.retencao != null ? it.retencao + '%' : '-',
         entradaLabel: ent.rotulo, entradaTitle: ent.detalhe || 'Market entry.', entradaBg: entCor.bg, entradaColor: entCor.color,
+        temGrafico: !!it.relatorio_dir,
+        graficoUrl: graficoBase + '.png', graficoHstUrl: graficoBase + '-hst.png',
+        graficoMfeUrl: graficoBase + '-mfemae.png', graficoHoldUrl: graficoBase + '-holding.png',
+        relatorioUrl: graficoBase + '.htm',
         eaMinima: ent.ea_minima ? `Needs the EA build with pending/OCO entry orders (Metatrader5EAS commit ${ent.ea_minima} or newer). On an older EA the pending inputs are ignored and the set enters at market, not as tested.` : '',
         alertaLinhas: [
-          ...(al ? [al.robustez, al.consistencia].filter(Boolean).map((a) => ({ txt: a.msg, alerta: !!a.alerta })) : [{ txt: 'Robustness / consistency alerts: not measured yet (run validar_live.py).', alerta: false }]),
+          ...(al ? [al.queda_maxima, al.robustez, al.consistencia].filter(Boolean).map((a) => ({ txt: a.msg, alerta: !!a.alerta })) : [{ txt: 'Max drawdown / robustness / consistency alerts: not measured yet (run validar_live.py).', alerta: false }]),
           ...(vl && vl.mercado && vl.base ? [{ txt: `Same strategy with market entry on unseen data: profit ${fmtN(vl.mercado.lucro)} (${vl.mercado.trades} trades) vs as delivered ${fmtN(vl.base.lucro)} (${vl.base.trades} trades).`, alerta: false }] : []),
         ].map((x) => ({ ...x, cor: x.alerta ? pal.no : pal.muted })),
         lucroCompleto, lucroOos: it.lucro_oos != null ? it.lucro_oos.toFixed(2) : '-',
