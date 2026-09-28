@@ -163,6 +163,11 @@ DESC = {
     "12_GRID_INVERSO": ("Grid pyramid: opens levels WITH the price, exits by "
                         "ATR trailing on the basket",
                         "Stop, Trail, Multiplier, MinimumDistance, number of legs"),
+    "13_OCO_ROMPIMENTO": ("OCO bracket armed once a day at a fixed session "
+                         "hour: buy stop above + sell stop below the recent "
+                         "range, one leg cancels the other on fill",
+                         "session hour, range length, bracket distance, "
+                         "expiration, SL/TP/Trail/BE (04's exit)"),
 }
 
 for code in sorted(by_system):
