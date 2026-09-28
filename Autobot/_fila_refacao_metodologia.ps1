@@ -17,7 +17,7 @@ $ErrorActionPreference = "Continue"
 $aqui = "C:\Users\Lucas Pedroso\Documents\White Rabbit X\Autobot"
 $py = "C:\Users\Lucas Pedroso\AppData\Local\Programs\Python\Python310\python.exe"
 $log = Join-Path $aqui "campanha_refacao_metodologia_$Lado.log"
-$corte = "2026-09-26T23:35"
+$corte = "2026-09-28T11:15"
 
 if ($EsperarPid -gt 0) {
     while (Get-Process -Id $EsperarPid -ErrorAction SilentlyContinue) {
