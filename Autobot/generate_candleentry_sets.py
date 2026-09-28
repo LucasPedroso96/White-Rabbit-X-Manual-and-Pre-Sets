@@ -180,6 +180,8 @@ def main() -> None:
         ac = CLASSES[class_code]
         for asset in assets:
             for system in SYSTEMS:
+                if system.code in base.SO_BOTH_MULTI:
+                    continue   # OCO por sessao: so BOTH da familia MULTI
                 # ADITIVO, nao substitutivo -- mesma semantica de BILATERAL
                 # que MULTI/BOLLINGER ja seguem (ver generate_system_sets.py).
                 for side in (("BUY", "SELL", "BOTH") if system.code in BILATERAL

@@ -212,6 +212,8 @@ def main() -> None:
         ac = CLASSES[class_code]
         for asset in assets:
             for system in SYSTEMS:
+                if system.code in base.SO_BOTH_MULTI:
+                    continue   # OCO por sessao: so BOTH da familia MULTI
                 # ADITIVO, nao substitutivo -- espelha generate_system_sets.py
                 # (mesma mudanca, "Modo Economico", 2026-09-07): todo sistema
                 # em BILATERAL ganha "BOTH" JUNTO com BUY/SELL separados,

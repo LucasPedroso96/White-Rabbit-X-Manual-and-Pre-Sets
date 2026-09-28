@@ -96,6 +96,10 @@ def _tabela_magics_do_manifesto(caminho: Path) -> dict[int, str]:
     return tabela
 
 
+# Espelha generate_system_sets.SO_BOTH_MULTI (2026-09-28).
+_SO_BOTH_MULTI = {"13_OCO_ROMPIMENTO"}
+
+
 def _tabela_magics_recomputada() -> dict[int, str]:
     """Mesmo loop de generate_system_sets.py:main() (classe -> ativo ->
     sistema -> lado -> ichimoku), so pra achar o magic de cada combo -- nao
@@ -110,8 +114,12 @@ def _tabela_magics_recomputada() -> dict[int, str]:
                 # BILATERAL ganha "BOTH" JUNTO com BUY/SELL, nunca no lugar.
                 lados = ("BUY", "SELL", "BOTH") if sistema.code in _BILATERAL \
                     else ("BUY", "SELL")
+                if sistema.code in _SO_BOTH_MULTI:
+                    lados = ("BOTH",)
                 for lado in lados:
                     for ichimoku in (False, True):
+                        if ichimoku and sistema.code in _SO_BOTH_MULTI:
+                            continue
                         tipo_variante = "ICHIMOKU" if ichimoku else "MULTI"
                         variante = f"{lado}_{tipo_variante}"
                         chave_magic = f"{classe}/{ativo}/{sistema.code}/{variante}"

@@ -218,6 +218,7 @@ FORMULA_POR_SISTEMA = {
     # com dado valido (XAUUSD +6946, 1289 tr, +0.054R, WFA 2/3 WFE 69%); a 14
     # nao tinha evidencia nenhuma. 11_SIGNAL_ONLY 11 -> 9 (mais abaixo).
     "03_TRAIL_ONLY": 12, "04_SLTP_TRAIL": 11, "05_BE_TRAIL": 3,
+    "13_OCO_ROMPIMENTO": 11,   # mesma saida do 04, mesma formula
     "06_REVERSAL_EXIT": 9,  # 5 reprovou no holdout longo, ver nota no topo
     # 2026-08-04: testado Profit puro (2) guiando a busca do grid, com
     # GridSurvivalScore (1) so como filtro externo pos-busca -- comparado
@@ -707,7 +708,11 @@ def apply_defaults(p: Profile, ac: AssetClass, side: str, magic: int,
     # 2.7 (fora dos Estagios 1/2 -- mesmo esquema do booster de
     # recuperacao). Distancia em ATR como todo o motor; expiracao em
     # barras do TF de entrada. Sem gate em GATES_DEPENDENCIAS de proposito.
-    p.opt("EntryOrderType", 0, 1, 1, 2)          # 1 Stop / 2 Limit
+    # 3 = OCO (compra stop + venda stop) so no BOTH: precisa dos dois lados.
+    p.opt("EntryOrderType", 0, 1, 1, 3 if side == "BOTH" else 2)
+    p.fix("PendingGatilho", 0)                   # sinal do indicador
+    p.fix("PendingHoraSessao", 8)
+    p.fix("PendingFaixaBarras", 4)
     p.opt("PendingReferencia", 0, 0, 1, 1)       # fechamento / extremo
     p.opt("PendingDistanciaATR", 0.5, 0.0, 0.25, 2.0)
     p.opt("PendingExpiracaoBarras", 3, 1, 1, 8)
@@ -792,7 +797,20 @@ SYSTEMS: list[System] = [
     System("12_GRID_INVERSO", "Grid inverso (piramide + trailing ATR)",
            "HEDGE_ACCOUNT_REQUIRED",
            "Abre niveis a favor do preco; sai por trailing ATR na cesta."),
+    # OCO de rompimento por sessao (2026-09-28, dono aprovou "OCO de
+    # rompimento com opcao de faixa por sessao"): 1x por dia na
+    # PendingHoraSessao arma compra stop acima e venda stop abaixo da
+    # faixa das ultimas PendingFaixaBarras barras (+/- k x ATR); executou
+    # uma, a EA cancela a outra. Saida do 04. O indicador nao arma nada,
+    # entao so existe no arquivo BOTH da familia MULTI (SO_BOTH_MULTI).
+    System("13_OCO_ROMPIMENTO", "OCO de rompimento por sessao",
+           "RESEARCH",
+           "Compra stop + venda stop na faixa da sessao; uma cancela a outra."),
 ]
+
+# Sistemas que so fazem sentido com os DOIS lados e sem indicador: so o
+# arquivo BOTH, so na familia MULTI (Ichimoku/Bollinger/Candles pulam).
+SO_BOTH_MULTI = {"13_OCO_ROMPIMENTO"}
 
 # Sistemas cuja gestao atravessa compra e venda, entao o set liga os dois lados
 # num arquivo unico ("BOTH") em vez de um por lado. Ficou vazio desde a
@@ -851,7 +869,7 @@ def apply_sizing_and_formula(p: Profile, system: str, ac: AssetClass) -> None:
     # r_capable escolheu aqui.
     r_capable = system in ("01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY",
                            "04_SLTP_TRAIL", "05_BE_TRAIL", "06_REVERSAL_EXIT",
-                           "12_GRID_INVERSO")
+                           "12_GRID_INVERSO", "13_OCO_ROMPIMENTO")
     if r_capable:
         p.fix("PositionSizeMode", 3)     # Fixed-R
         p.fix("PositionSizeValue", 1.0)  # 1R = 1% do capital base
@@ -997,7 +1015,7 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
         p.fix("AtivarBreakeven", "false")
         p.opt("BreakevenDistancia", 1.0, 0.5, 0.5, 3.0)
 
-    elif system == "04_SLTP_TRAIL":
+    elif system in ("04_SLTP_TRAIL", "13_OCO_ROMPIMENTO"):
         p.fix("AtivarStop", "true")
         p.fix("AtivarTake", "true")
         p.fix("TakeOrganico", "false")
@@ -1242,6 +1260,23 @@ def apply_system(p: Profile, system: str, ac: AssetClass, side: str) -> None:
 
 # ------------------------------------------------------------------- escrita
 
+def aplicar_oco_sessao(p: Profile) -> None:
+    """Entrada do 13_OCO_ROMPIMENTO: OCO armado pela sessao; os eixos do
+    indicador ficam cravados (o gatilho por sessao ignora o sinal)."""
+    p.fix("EntryOrderType", 3)
+    p.fix("PendingGatilho", 1)
+    p.fix("PendingReferencia", 1)
+    p.opt("PendingHoraSessao", 8, 0, 1, 23)
+    p.opt("PendingFaixaBarras", 4, 1, 1, 12)
+    p.opt("PendingDistanciaATR", 0.25, 0.0, 0.25, 1.5)
+    p.opt("PendingExpiracaoBarras", 4, 1, 1, 12)
+    for nome in ("EntryIndicator", "EntryMethod", "Fast_EMA", "Slow_EMA",
+                 "MACD_SMA", "StochasticSlowing", "StochasticMethod",
+                 "StochasticPriceField", "InpAppliedPrice"):
+        if nome in p.values:
+            p.fix(nome, p.values[nome].split("||")[0])
+
+
 def load_schema() -> tuple[list[str], list[str]]:
     """Le a ordem dos inputs e as secoes direto do fonte da EA.
 
@@ -1307,8 +1342,12 @@ def main() -> None:
                 # existindo e funcionando exatamente como antes.
                 lados = ("BUY", "SELL", "BOTH") if system.code in BILATERAL \
                     else ("BUY", "SELL")
+                if system.code in SO_BOTH_MULTI:
+                    lados = ("BOTH",)
                 for side in lados:
                     for ichimoku in (False, True):
+                        if ichimoku and system.code in SO_BOTH_MULTI:
+                            continue
                         variant = "ICHIMOKU" if ichimoku else "MULTI"
                         name = f"WRX {system.code} {asset} {side} {variant}"
                         magic = magic_estavel(
@@ -1320,6 +1359,8 @@ def main() -> None:
                                    grid=system.code in ("07_GRID_SEPARATE",
                                                         "12_GRID_INVERSO"))
                         apply_system(p, system.code, ac, side)
+                        if system.code == "13_OCO_ROMPIMENTO":
+                            aplicar_oco_sessao(p)
                         if system.code in SISTEMAS_RECUPERACAO_OPCIONAL:
                             # Mesmo range que 09_MARTINGALE/10_DALEMBERT ja
                             # usam (ver apply_system) -- RecoveryMode continua

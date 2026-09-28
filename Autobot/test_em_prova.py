@@ -63,8 +63,9 @@ checar("combo_do_magic: magic desconhecido -> None",
 # ASSETS -- 94 ativos x 9 sistemas x (BUY+SELL+BOTH) x MULTI/ICHIMOKU; o
 # manifesto regenerado no mesmo dia tem as mesmas 5076 linhas.
 tabela_recomputada = em_prova._tabela_magics_recomputada()
-checar("recomputada: tamanho bate com o manifesto real (5076 combos)",
-       len(tabela_recomputada), 5076)
+# 5170 (2026-09-28): + 13_OCO_ROMPIMENTO, so BOTH_MULTI (94 ativos).
+checar("recomputada: tamanho bate com o manifesto real (5170 combos)",
+       len(tabela_recomputada), 5170)
 
 
 # --- ler_relatorio_historico (formato real: Trade History Report) -----------

@@ -427,6 +427,8 @@ ESCRITA = {"EntryIndicator", "EntryMethod", "TimeFrame", "InpAppliedPrice",
            "TrailSoLucro", "PyramidTrailSoLucro", "PyramidLevelOnlyInProfit",
            # Saida por ordem oposta, eixo {1,2} so no 06 BOTH (2026-09-26).
            "ReversalExitMode",
+           # Hora da sessao do 13_OCO_ROMPIMENTO (2026-09-28).
+           "PendingHoraSessao",
            # Variante BOLLINGER (2026-09-06): saidas alternativas por banda,
            # mesma natureza booleana de AtivarBreakeven/TakeOrganico acima --
            # decididas na fase 1, travadas na fase 2. Ausentes do set MULTI/
@@ -590,7 +592,7 @@ SISTEMAS_GEOMETRIA_TICK_REAL = {"07_GRID_SEPARATE", "12_GRID_INVERSO",
                                 # real, SL/TP ficavam escolhidos por um
                                 # caminho intrabar que nao existe.
                                 "01_SLTP", "02_SLTP_ORGANIC",
-                                "06_REVERSAL_EXIT"}
+                                "06_REVERSAL_EXIT", "13_OCO_ROMPIMENTO"}
 EIXOS_GEOMETRIA_TICK_REAL = {
     "07_GRID_SEPARATE": ["Take", "DistanciaMinima", "VelaTake",
                          "UsarsomenteATRGRID"],
@@ -613,6 +615,10 @@ EIXOS_GEOMETRIA_TICK_REAL = {
     "04_SLTP_TRAIL": ["Stop", "VelaStop", "Take", "VelaTake",
                       "Trail", "TrailVela", "MetodoDeCalculo",
                       "BreakevenDistancia"],
+    # Saida do 04 + a distancia do bracket (execucao da pendente e intrabar).
+    "13_OCO_ROMPIMENTO": ["Stop", "VelaStop", "Take", "VelaTake",
+                          "Trail", "TrailVela", "MetodoDeCalculo",
+                          "BreakevenDistancia", "PendingDistanciaATR"],
     # Os tres abaixo entraram em 2026-09-14. Eixos conferidos UM A UM contra
     # o .set real (parametros_do_set + reescrever, contando quantos viram Y
     # de verdade): so entra o que tem FAIXA e sobrevive a GATES ali.
@@ -721,6 +727,12 @@ RECOVERY_MODE_POR_TIPO = {"martingale": "1", "dalembert": "2"}
 # Estagios 1/2 sempre, aberta so no Estagio 2.7.
 EIXOS_PENDENTE = ["EntryOrderType", "PendingReferencia",
                   "PendingDistanciaATR", "PendingExpiracaoBarras"]
+# 13_OCO_ROMPIMENTO (2026-09-28): a pendente E o sistema -- os eixos dela
+# entram no Estagio 1 (hora da sessao em ESCRITA) e os numericos no 2;
+# nao passa pelo 2.7.
+SISTEMA_OCO = "13_OCO_ROMPIMENTO"
+NUMEROS_OCO = ["PendingDistanciaATR", "PendingExpiracaoBarras",
+               "PendingFaixaBarras"]
 RECUPERACAO_DA_IDENTIDADE = {"09_MARTINGALE": "martingale",
                              "10_DALEMBERT": "dalembert"}
 # Quem pode pedir --recuperacao explicito: os 7 boosteveis + os 2 que ja SAO a
@@ -863,10 +875,12 @@ def eixos_reotimizaveis(sistema: str, indicador: str | None) -> list[str]:
     e que decidem qual dos dois eixos reabrir DE VERDADE, depois que a
     entrada/saida ja esta travada.
     """
-    numeros = eixos_do_indicador(NUMEROS, indicador)
+    oco = sistema == SISTEMA_OCO
+    numeros = eixos_do_indicador(NUMEROS + (NUMEROS_OCO if oco else []),
+                                 indicador)
     inertes = EIXOS_INERTES_POR_SISTEMA.get(sistema or "", set())
     return [e for e in numeros if e not in EIXOS_RECUPERACAO_TODOS
-            and e not in EIXOS_PENDENTE and e not in inertes]
+            and (oco or e not in EIXOS_PENDENTE) and e not in inertes]
 
 
 def _cortar_por_efeito(efeitos: dict[str, float], corte_pct: float) -> set[str]:
@@ -3669,7 +3683,8 @@ def main() -> int:
 
     eixos_fase1 = eixos_da_fase1(origem, args.sistema)
     eixos_fase1 = [e for e in eixos_fase1
-                   if e not in EIXOS_RECUPERACAO_TODOS and e not in EIXOS_PENDENTE]
+                   if e not in EIXOS_RECUPERACAO_TODOS
+                   and (args.sistema == SISTEMA_OCO or e not in EIXOS_PENDENTE)]
     if entrada_travada:
         eixos_fase1 = [e for e in eixos_fase1
                       if e not in entrada_travada["escrita"]]
@@ -4106,7 +4121,7 @@ def main() -> int:
     # mercado (nunca derruba o combo). A divergencia OHLC x tick real do
     # Estagio 4 mede o caminho intrabar da execucao da pendente.
     entrada_pendente = None
-    if not args.sem_entrada_pendente:
+    if not args.sem_entrada_pendente and args.sistema != SISTEMA_OCO:
         n = reescrever(origem, trabalho, EIXOS_PENDENTE, travados)
         print(f"\n  [2.7/5] entrada pendente em OHLC ({n} parametros: tipo "
               "Stop/Limit, referencia, distancia em ATR, expiracao)", flush=True)

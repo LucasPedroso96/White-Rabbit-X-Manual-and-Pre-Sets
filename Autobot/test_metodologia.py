@@ -177,6 +177,23 @@ checar("pior que o campeao: reprova",
        d(5.0, None, 10.0, 100.0, 50, 10.0, 10, False, 1000)["reprovado_em"],
        "gate_relativo")
 
+# --- 13_OCO_ROMPIMENTO (2026-09-28): a pendente e o proprio sistema --------
+r13 = ots.eixos_reotimizaveis("13_OCO_ROMPIMENTO", None)
+checar("13: distancia, expiracao e faixa refinadas no Estagio 2",
+       [e for e in ("PendingDistanciaATR", "PendingExpiracaoBarras",
+                    "PendingFaixaBarras") if e in r13],
+       ["PendingDistanciaATR", "PendingExpiracaoBarras", "PendingFaixaBarras"])
+checar("demais sistemas continuam sem a pendente no Estagio 2",
+       "PendingFaixaBarras" in ots.eixos_reotimizaveis("04_SLTP_TRAIL", None),
+       False)
+checar("13: hora da sessao decidida no Estagio 1 (ESCRITA)",
+       "PendingHoraSessao" in ots.ESCRITA, True)
+import campanha  # noqa: E402
+checar("13: so o arquivo BOTH, com ou sem modo economico",
+       (campanha.variantes("13_OCO_ROMPIMENTO"),
+        campanha.variantes("04_SLTP_TRAIL")),
+       (["BOTH_MULTI"], ["BUY_MULTI", "SELL_MULTI"]))
+
 if FALHAS:
     print(f"\n{len(FALHAS)} FALHA(S):")
     for f in FALHAS:

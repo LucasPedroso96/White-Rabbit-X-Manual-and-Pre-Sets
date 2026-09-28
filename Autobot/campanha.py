@@ -98,7 +98,12 @@ MAX_ERROS_INFRA_SEGUIDOS = 3
 CODIGO_INFRA = 3
 SISTEMAS = ["01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
             "05_BE_TRAIL", "06_REVERSAL_EXIT",
-            "07_GRID_SEPARATE", "12_GRID_INVERSO", "11_SIGNAL_ONLY"]
+            "07_GRID_SEPARATE", "12_GRID_INVERSO", "11_SIGNAL_ONLY",
+            "13_OCO_ROMPIMENTO"]
+
+# So o arquivo BOTH existe (OCO precisa dos dois lados) -- sempre o
+# bilateral, com ou sem --modo-economico (2026-09-28).
+SO_BOTH = {"13_OCO_ROMPIMENTO"}
 
 # Sistemas cuja gestao atravessa compra e venda, entao o set liga os dois
 # lados num arquivo unico ("BOTH") em vez de um por lado.
@@ -172,7 +177,7 @@ def variantes(sistema: str, familia: str = "MULTI",
     corrida -- nunca os dois ao mesmo tempo (isso so dobraria o trabalho, o
     oposto de "economico").
     """
-    duplo = economico and sistema in BILATERAL
+    duplo = (economico and sistema in BILATERAL) or sistema in SO_BOTH
     rodadas = rodadas_da_familia(familia)
     return [b if duplo else a for a, b in rodadas if not (duplo and b is None)]
 
@@ -204,7 +209,7 @@ def fila(simbolos: list[str], sistemas: list[str] | None = None,
     for simbolo in simbolos:
         for unilateral, bilateral in rodadas_da_familia(familia):
             for sistema in sistemas:
-                duplo = economico and sistema in BILATERAL
+                duplo = (economico and sistema in BILATERAL) or sistema in SO_BOTH
                 v = bilateral if duplo else unilateral
                 if v is None:              # bilateral nao tem BUY_* proprio
                     continue
