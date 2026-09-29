@@ -173,6 +173,18 @@ r = rodar(tp.checar_expiracao, [ordem("buy limit", 128.5, 124.5, 134.5,
                                       fim=ini + timedelta(minutes=60), estado="expired")], PARAMS, barras)
 checar("expirada pelo broker reprova (a EA deveria ter cancelado)", len(r.falhas) >= 1, True)
 
+# fim de semana / mercado fechado: a EA conta barras EXISTENTES (iBarShift), entao o
+# prazo de 3 barras cai na 3a barra depois do buraco, nao 45 min de relogio
+lacuna = m15.drop(m15.index[32:36])                       # some 1h de barras (32..35)
+barras_lacuna = tp.Barras({"M15": lacuna, "M1": m1})
+p_ord = tp.Barras({"M15": lacuna}).pos("M15", t_ordem)
+prazo_real = lacuna.index[p_ord + 3].to_pydatetime()      # 3a barra existente depois da ordem
+apos_lacuna = ordem("buy limit", 128.5, 124.5, 134.5, fim=prazo_real + timedelta(seconds=20),
+                    estado="canceled")
+r = rodar(tp.checar_expiracao, [apos_lacuna], PARAMS, barras_lacuna)
+checar("prazo contado em barras existentes (buraco de mercado) passa",
+       (r.falhas, r.metricas["cancel_no_prazo"]), ([], 1))
+
 # --- sobreposicao -------------------------------------------------------------
 a = ordem("buy limit", 128.5, 124.5, 134.5, t=T0, fim=T0 + timedelta(minutes=45), estado="canceled", n=1)
 b = ordem("buy limit", 128.5, 124.5, 134.5, t=T0 + timedelta(minutes=15), fim=T0 + timedelta(minutes=60),

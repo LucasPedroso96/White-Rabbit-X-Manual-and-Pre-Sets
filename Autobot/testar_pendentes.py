@@ -452,8 +452,13 @@ def checar_expiracao(ordens: list[dict], params: dict, barras: Barras,
         p0 = barras.pos(tf, o["abertura"])
         if p0 is None:
             continue
-        ini = barras.dfs[tf].index[p0].to_pydatetime()
-        prazo = ini + timedelta(seconds=n * seg)
+        idx = barras.dfs[tf].index
+        # A EA conta barras EXISTENTES (iBarShift): num fim de semana o prazo
+        # cai na N-esima barra depois, nao N x TF de relogio.
+        if p0 + n < len(idx):
+            prazo = idx[p0 + n].to_pydatetime()
+        else:
+            prazo = idx[p0].to_pydatetime() + timedelta(seconds=n * seg)
         if o["estado"] == "expired":
             expiradas_pelo_broker += 1
         if o["fim"] < prazo - timedelta(seconds=2):
@@ -668,6 +673,8 @@ class Cenario:
     esperado: dict = field(default_factory=dict)
     inicio: str = "2026.07.01"
     fim: str = "2026.09.01"
+    origem_arquivo: str | None = None   # set pronto (ex.: o VALIDADO_ ao vivo) em vez do template
+    execucao: int | None = None         # ExecutionMode do tester: -1 atraso aleatorio, >0 ms fixos
 
 
 def _nome_tipo(t: int) -> str:
@@ -718,10 +725,15 @@ def catalogo() -> list[Cenario]:
     for sis, var in (("01_SLTP", "BUY_MULTI"), ("02_SLTP_ORGANIC", "BUY_MULTI"),
                      ("03_TRAIL_ONLY", "BUY_MULTI"), ("05_BE_TRAIL", "BUY_MULTI"),
                      ("06_REVERSAL_EXIT", "BUY_MULTI"), ("07_GRID_SEPARATE", "BOTH_MULTI"),
-                     ("09_MARTINGALE", "BUY_MULTI"), ("10_DALEMBERT", "BUY_MULTI"),
                      ("11_SIGNAL_ONLY", "BUY_MULTI"), ("12_GRID_INVERSO", "BOTH_MULTI")):
         for tipo in (1, 2):
             cs.append(Cenario(f"g4_{sis[:2]}_{_nome_tipo(tipo)}", sis, var, pend(tipo, 1, 0.5)))
+    # 09_MARTINGALE / 10_DALEMBERT viraram booster (RecoveryMode) dos sistemas normais
+    for rec, modo, extra in (("martingale", "1", {"MaxMartingaleSteps": "3"}),
+                             ("dalembert", "2", {"MaxMartingaleSteps": "3", "DAlembertStep": "1"})):
+        for tipo in (1, 2):
+            cs.append(Cenario(f"g4_rec_{rec}_{_nome_tipo(tipo)}", "04_SLTP_TRAIL", "BUY_MULTI",
+                              {**pend(tipo, 1, 0.5), "RecoveryMode": modo, **extra}))
     # G5: modos de sizing (04 BUY)
     valores = {0: "1", 1: "10000", 2: "0.05", 3: "1"}
     for modo in range(4):
@@ -746,6 +758,17 @@ def catalogo() -> list[Cenario]:
     for tipo in (1, 2):
         cs.append(Cenario(f"g6_gbpusd_{_nome_tipo(tipo)}", "04_SLTP_TRAIL", "BOTH_MULTI",
                           pend(tipo, 0, 0.5), simbolo="GBPUSD"))
+    # G7: o set XAUUSD 04 que vai ao ar (Limit no fechamento, 0 ATR, 1 barra) contra
+    # o mesmo set a mercado, com e sem atraso de execucao, em dado que ele nunca viu.
+    # Pergunta: a vantagem da Limit sobrevive a latencia de verdade?
+    janelas = {"a": ("2024.07.01", "2025.07.01"), "b": ("2026.06.28", "2026.09.28")}
+    for jn, (ji, jf) in janelas.items():
+        for exe, en in ((0, "sem_atraso"), (-1, "atraso_aleatorio"), (800, "atraso_800ms")):
+            for tipo in (2, 0):
+                cs.append(Cenario(f"g7_{jn}_{_nome_tipo(tipo)}_{en}", "04_SLTP_TRAIL", "BUY_MULTI",
+                                  {"EntryOrderType": str(tipo)}, inicio=ji, fim=jf,
+                                  origem_arquivo="VALIDADO_XAUUSD_04_SLTP_TRAIL_BUY_MULTI.set",
+                                  execucao=exe, esperado={"comparacao": True}))
     return cs
 
 
@@ -792,7 +815,13 @@ def exportar_barras(simbolos: list[str], inicio: str, fim: str,
             info = {"digits": s.digits, "point": s.point, "tick": s.trade_tick_size,
                     "contrato": s.trade_contract_size, "vol_min": s.volume_min,
                     "vol_step": s.volume_step, "stops_level": s.trade_stops_level,
-                    "moeda_lucro": s.currency_profit}
+                    "moeda_lucro": s.currency_profit,
+                    # o que o broker aceita pra pendente (relevante pro ao vivo)
+                    "freeze_level": s.trade_freeze_level,
+                    "expiration_mode": s.expiration_mode,   # bits: 1 GTC, 2 DAY, 4 SPECIFIED, 8 SPECIFIED_DAY
+                    "filling_mode": s.filling_mode,         # bits: 1 FOK, 2 IOC
+                    "order_mode": s.order_mode,             # bits: 1 MARKET, 2 LIMIT, 4 STOP, 8 STOP_LIMIT, 16 SL, 32 TP
+                    "trade_mode": s.trade_mode, "spread_pontos": s.spread}
             (BARRAS_DIR / f"{sim}_info.json").write_text(json.dumps(info, indent=1), encoding="utf-8")
             for nome, tf in tfs.items():
                 r = mt5.copy_rates_range(sim, tf, de, ate)
@@ -816,7 +845,12 @@ def rodar_cenario(c: Cenario, refazer: bool = False) -> dict | None:
     destino_json = SAIDA / f"{c.nome}.json"
     if destino_json.exists() and not refazer:
         return None
-    origem = base.achar_set(c.simbolo, c.sistema, c.variante)
+    if c.origem_arquivo:
+        origem = base.DADOS / "MQL5" / "Profiles" / "Tester" / c.origem_arquivo
+        if not origem.exists():
+            raise SystemExit(f"{c.nome}: set {c.origem_arquivo} nao existe nesta instalacao")
+    else:
+        origem = base.achar_set(c.simbolo, c.sistema, c.variante)
     if origem is None:
         raise SystemExit(f"{c.nome}: template {c.simbolo} {c.sistema} {c.variante} nao achado")
     # VerboseErrors NAO e input (e global da EA): falha de envio so aparece no
@@ -828,8 +862,23 @@ def rodar_cenario(c: Cenario, refazer: bool = False) -> dict | None:
     faltando = ots.conferir_set(trabalho, params)
     deposito = campanha.resolver_deposito(c.simbolo, None)
     antes = base.marcar_logs()
-    medida = ots.passe_unico(trabalho, c.simbolo, "M1", c.inicio, c.fim, deposito, 4,
-                             variante=c.variante)
+    escrever_original = base.escrever_ini
+    if c.execucao is not None:
+        def com_atraso(destino, *a, **k):
+            escrever_original(destino, *a, **k)
+            import configparser
+            cp = configparser.ConfigParser()
+            cp.optionxform = str
+            cp.read(destino, encoding="utf-16")
+            cp["Tester"]["ExecutionMode"] = str(c.execucao)
+            with destino.open("w", encoding="utf-16") as fh:
+                cp.write(fh, space_around_delimiters=False)
+        base.escrever_ini = com_atraso
+    try:
+        medida = ots.passe_unico(trabalho, c.simbolo, "M1", c.inicio, c.fim, deposito, 4,
+                                 variante=c.variante)
+    finally:
+        base.escrever_ini = escrever_original
     log = base.texto_novo(antes)
     rel = base.DADOS / "conf_wrx.htm"
     if rel.exists():
@@ -837,6 +886,7 @@ def rodar_cenario(c: Cenario, refazer: bool = False) -> dict | None:
     (SAIDA / f"{c.nome}.log").write_text(log[-200000:], encoding="utf-8", errors="replace")
     registro = {"nome": c.nome, "simbolo": c.simbolo, "sistema": c.sistema,
                 "variante": c.variante, "janela": [c.inicio, c.fim], "deposito": deposito,
+                "execucao": c.execucao,
                 "medida": {k: medida.get(k) for k in ("saldo", "trades")},
                 "params": efetivos, "params_faltando": faltando,
                 "quando": datetime.now().isoformat(timespec="seconds")}
@@ -919,6 +969,16 @@ def _relatorio_final(resultados: dict, total: int) -> int:
             linhas.append(f"        {f}")
         for a in r["avisos"]:
             linhas.append(f"        (aviso) {a}")
+    comp = []
+    for n in sorted(resultados):
+        j = SAIDA / f"{n}.json"
+        if n.startswith("g7_") and j.exists():
+            reg = json.loads(j.read_text(encoding="utf-8"))
+            saldo = (reg.get("medida") or {}).get("saldo")
+            lucro = None if saldo is None else round(saldo - reg["deposito"], 2)
+            comp.append(f"  {n:40} lucro {lucro} | {(reg.get('medida') or {}).get('trades')} trades")
+    if comp:
+        linhas += ["", "G7 -- o set ao vivo do XAUUSD, Limit x mercado, com e sem atraso de execucao:"] + comp
     texto = "\n".join(linhas)
     (SAIDA / "RESULTADO.md").write_text(texto, encoding="utf-8")
     print(texto)
@@ -943,7 +1003,9 @@ def main() -> int:
             print(c.nome, c.sistema, c.variante, c.sobrepor)
         return 0
     if args.exportar_barras:
-        exportar_barras(["XAUUSD", "GBPUSD"], "2026.06.15", "2026.09.05", args.terminal)
+        # 2024.06.15 em diante: alem da janela dos cenarios, cobre o G7 (2024-25) e o
+        # ano do relatorio real do XAUUSD 04 (Limit) pra conferir o PRECO dele tambem.
+        exportar_barras(["XAUUSD", "GBPUSD"], "2024.06.15", "2026.09.05", args.terminal)
         return 0
     if args.rodar:
         i, n = (int(x) for x in args.shard.split("/"))

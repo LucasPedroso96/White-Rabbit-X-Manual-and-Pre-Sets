@@ -126,8 +126,9 @@ def descrever_entrada(valores: dict) -> dict:
                 "detalhe": (f"OCO: compra stop + venda stop, {gatilho}, a "
                             f"{dist:g}×ATR da referencia ({ref}); executou uma, "
                             f"a EA cancela a outra. Expira em {exp} barra(s). "
-                            f"Exige conta hedge e EA com OCO (build >= "
-                            f"{EA_MIN_BUILD_OCO})."),
+                            f"Exige a EA com OCO (build >= {EA_MIN_BUILD_OCO}); "
+                            "conta hedge e a indicada: em netting, se as duas "
+                            "pernas dispararem juntas, elas se anulam."),
                 "ea_minima": EA_MIN_BUILD_OCO}
     return {"tipo": tipo, "pendente": True,
             "rotulo": f"{tipo} · {'extreme' if ref.startswith('maxima') else 'close'} ±{dist:g}×ATR · {exp} bar(s)",
