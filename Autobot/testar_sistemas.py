@@ -1143,6 +1143,9 @@ def main() -> int:
     ap.add_argument("--so", default="", help="so cenarios cujo nome contem este texto")
     ap.add_argument("--shard", default="1/1", help="i/n: roda so os cenarios de indice i (base 1) mod n")
     ap.add_argument("--refazer", action="store_true")
+    ap.add_argument("--reverso", action="store_true",
+                    help="percorre a lista de tras pra frente: dois terminais (um normal, um --reverso) "
+                         "dividem o trabalho sem shard fixo e se encontram no meio")
     ap.add_argument("--ablacao", action="store_true",
                     help="tabela dos boosters (S5) sobre os sets ja otimizados")
     args = ap.parse_args()
@@ -1157,7 +1160,10 @@ def main() -> int:
         _preparar()
         i, n = (int(x) for x in args.shard.split("/"))
         todos = [c for c in catalogo() if not args.so or args.so in c.nome]
-        for idx, c in enumerate(todos):
+        ordem = list(enumerate(todos))
+        if args.reverso:
+            ordem.reverse()
+        for idx, c in ordem:
             if idx % n != i - 1:
                 continue
             print(f"[{idx + 1}/{len(todos)}] {c.nome}", flush=True)
