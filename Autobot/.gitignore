@@ -51,3 +51,6 @@ revalidacao_resultados.jsonl
 validacao_live_*.json
 auditoria_estado.json
 auditoria_eventos.offset
+
+# Saida da matriz de testes das ordens pendentes (relatorios do tester, barras) -- dado local
+_pendentes_teste/
