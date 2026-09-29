@@ -80,8 +80,12 @@ mensagem: *exit requires bilateral trading on a real hedging account with Grid d
 3. **Campanha normal:** deixe os boosters automáticos (2.7 e 3) ligados; eles só entram se provarem ganho.
 4. **Recuperação:** só depois de existir um campeão sem ela, e como decisão sua. Compare o campeão com e sem,
    olhe o alerta de queda e o holdout lacrado; em conta pequena, evite.
-5. **Ler o resultado:** reprovação só por divergência > 30%, sobrevivência/DD, dado não visto negativo com ≥ 10
-   trades ou pior que o incumbente. Robustez, consistência e queda máxima são **alertas**, não reprovações.
+5. **Ler o resultado:** depois dos pisos de cada estágio (retenção, trades), o veredito final
+   (`decidir_trader`) reprova só por: divergência OHLC × tick real > 30%; não sobreviver ao período completo;
+   queda máxima > 40% em 3 anos (medida só em sets em R — grade em lote fixo escapa); prejuízo no dado nunca
+   visto (período anterior ao treino + holdout lacrado) com ≥ 10 trades; ou ser pior que o campeão
+   implantado. Robustez (vizinhos ±10%), consistência (trimestres) e queda máxima em $ são **alertas**, não
+   reprovações.
 6. **Ao vivo:** `validar_live.py` antes de implantar; a Limit do XAUUSD 04 mostrou vantagem pequena e sensível
    a atraso de execução — não confie nela sem forward-teste em demo.
 

@@ -611,6 +611,88 @@ def checar_travas(params: dict, ordens: list[dict], deals: list[dict], log: str,
 
 
 # ---------------------------------------------------------------------------
+# S4: filtros de execucao (hora, dia da semana, spread)
+# ---------------------------------------------------------------------------
+
+DIAS_MT5 = (("TradeSunday", 0), ("TradeMonday", 1), ("TradeTuesday", 2), ("TradeWednesday", 3),
+            ("TradeThursday", 4), ("TradeFriday", 5), ("TradeSaturday", 6))
+
+
+def dentro_da_janela(minuto: int, de: int, ate: int) -> bool:
+    """inTimeInterval do .mq5: [de, ate) em minutos do dia; de == ate = 24 h; de > ate =
+    sessao que atravessa a meia-noite."""
+    if de == ate:
+        return True
+    if de < ate:
+        return de <= minuto < ate
+    return minuto >= de or minuto < ate
+
+
+def ordens_de_entrada(ordens: list[dict], deals: list[dict]) -> list[dict]:
+    """Ordens que ABREM posicao (a mercado ou pendente, executada ou nao): as de saida
+    (SL/TP/reversao) tambem aparecem na tabela e nao passam por filtro nenhum."""
+    entradas = {d["ordem"] for d in deals if d["direcao"] == "in"}
+    return [o for o in ordens if o["tipo"] in tp.TIPOS_PEND or o["ordem"] in entradas]
+
+
+def checar_filtros_execucao(params: dict, ordens: list[dict], deals: list[dict], barras,
+                            res: Resultado) -> None:
+    ent = ordens_de_entrada(ordens, deals)
+    res.metricas["ordens_de_entrada"] = len(ent)
+    if len(ent) < 5:
+        res.aviso("amostra", f"so {len(ent)} ordens de entrada: evidencia fraca")
+        return
+    # -- janela de horario ------------------------------------------------------------
+    de = _int(params, "TOD_From_Hour") * 60 + _int(params, "TOD_From_Min")
+    ate = _int(params, "TOD_To_Hour") * 60 + _int(params, "TOD_To_Min")
+    if de != ate:
+        fora = [o for o in ent if not dentro_da_janela(o["abertura"].hour * 60
+                                                       + o["abertura"].minute, de, ate)]
+        res.metricas["fora_da_janela"] = len(fora)
+        if fora:
+            res.falha("janela", f"{len(fora)}/{len(ent)} ordens colocadas fora de "
+                      f"{de // 60:02d}:{de % 60:02d}-{ate // 60:02d}:{ate % 60:02d} "
+                      f"(ex.: {fora[0]['abertura']:%m.%d %H:%M:%S})")
+    # -- dias da semana ------------------------------------------------------------------
+    proibidos = {dow for nome, dow in DIAS_MT5 if not _bool(params, nome)}
+    if proibidos:
+        em_dia_proibido = [o for o in ent if (o["abertura"].weekday() + 1) % 7 in proibidos]
+        res.metricas["em_dia_proibido"] = len(em_dia_proibido)
+        if em_dia_proibido:
+            res.falha("dia", f"{len(em_dia_proibido)}/{len(ent)} ordens em dia da semana desligado "
+                      f"(ex.: {em_dia_proibido[0]['abertura']:%a %m.%d %H:%M:%S})")
+    # -- spread maximo -------------------------------------------------------------------
+    limite = _flt(params, "MaxSpread")
+    if limite > 0:
+        m1 = barras.dfs.get("M1") if barras is not None else None
+        if m1 is None or "spread" not in m1.columns:
+            res.aviso("spread", "sem barras M1 com spread: o filtro de spread nao pode ser conferido")
+            return
+        import pandas as pd
+        acima = medidas = 0
+        exemplo = None
+        for o in ent:
+            minuto = pd.Timestamp(o["abertura"]).floor("min")
+            if minuto not in m1.index:
+                continue
+            medidas += 1
+            # a EA olha o spread do tick da decisao; a barra M1 anterior cobre o caso de a
+            # ordem sair no primeiro segundo de uma barra de spread diferente
+            anterior = m1["spread"].get(minuto - pd.Timedelta(minutes=1))
+            atual = float(m1["spread"].loc[minuto])
+            if atual > limite and (anterior is None or float(anterior) > limite):
+                acima += 1
+                exemplo = exemplo or f"{o['abertura']:%m.%d %H:%M:%S} spread {atual:g}"
+        res.metricas["spread_medidas"] = medidas
+        res.metricas["acima_do_spread"] = acima
+        if acima:
+            res.falha("spread", f"{acima}/{medidas} ordens com spread da barra acima de {limite:g} "
+                      f"pontos (ex.: {exemplo})")
+        elif medidas < 5:
+            res.aviso("amostra", f"so {medidas} ordens com barra M1 para conferir o spread")
+
+
+# ---------------------------------------------------------------------------
 # Cenarios
 # ---------------------------------------------------------------------------
 
@@ -694,6 +776,26 @@ def catalogo(existe=None) -> list[CenarioS]:
     trava("gp_diaria_candles", {"Trava_Diaria_Percent": "0.5", "Protecao_Fecha_Posicoes": "true"},
           "BUY_CANDLES")
 
+    # S4: filtros de execucao (o booster do Estagio 3). Toda ordem de entrada colocada tem que
+    # respeitar janela, dia e spread; o controle sem filtro e o s1_04_BUY_MULTI.
+    def filtro(nome: str, extra: dict) -> None:
+        cs.append(CenarioS(f"s4_{nome}", "04_SLTP_TRAIL", "BUY_MULTI", extra, simbolo=SIMBOLO,
+                           inicio=JANELA[0], fim=JANELA[1], grupo="s4"))
+
+    janela = {"TOD_From_Hour": "10", "TOD_From_Min": "0", "TOD_To_Hour": "12", "TOD_To_Min": "0"}
+    filtro("janela_10_12", janela)
+    filtro("janela_noturna_22_06", {"TOD_From_Hour": "22", "TOD_From_Min": "0",
+                                    "TOD_To_Hour": "6", "TOD_To_Min": "0"})
+    filtro("sem_segunda_sexta", {"TradeMonday": "false", "TradeFriday": "false"})
+    filtro("so_quarta", {"TradeMonday": "false", "TradeTuesday": "false", "TradeThursday": "false",
+                         "TradeFriday": "false"})
+    filtro("spread_12", {"MaxSpread": "12"})
+    filtro("spread_8", {"MaxSpread": "8"})
+    filtro("tudo_junto", {**janela, "TradeWednesday": "false", "MaxSpread": "12"})
+    filtro("janela_limit", {**janela, "EntryOrderType": "2", "PendingReferencia": "0",
+                            "PendingDistanciaATR": "0.5", "PendingExpiracaoBarras": "8",
+                            "Fecharordensforadohorario": "true"})
+
     # Segundo simbolo: EURUSD (forex de 5 casas, contrato 100000, tick 0.00001) -- o ouro
     # sozinho nao prova o dimensionamento nem o tamanho do tick em outra classe de ativo
     for sis in SISTEMAS_S1:
@@ -743,6 +845,8 @@ def verificar(so: str | None = None) -> int:
                 checar_assinatura(c.sistema, c.variante, ordens, deals, info, res, params)
             elif c.grupo == "s3":
                 checar_travas(params, ordens, deals, log, res)
+            elif c.grupo == "s4":
+                checar_filtros_execucao(params, ordens, deals, tp.carregar_barras(c.simbolo), res)
             else:
                 checar_recuperacao(c.sistema, params, ordens, deals, info, res)
             tp.checar_log(log, res)
@@ -774,6 +878,10 @@ def _relatorio_final(resultados: dict, total: int) -> int:
                   f"apos_estouro={m.get('entradas_apos_estouro_gp', m.get('entradas_apos_estouro_magic', m.get('entradas_apos_estouro_total', '-')))} "
                   f"fechamentos={m.get('fechamentos_da_protecao', '-')}"
                   if n.startswith("s3") else
+                  f"ordens de entrada={m.get('ordens_de_entrada', '-'):>4} fora da janela="
+                  f"{m.get('fora_da_janela', '-')} em dia proibido={m.get('em_dia_proibido', '-')} "
+                  f"acima do spread={m.get('acima_do_spread', '-')}/{m.get('spread_medidas', '-')}"
+                  if n.startswith("s4") else
                   f"entradas={m.get('entradas', '-'):>4} conferidas={m.get('conferidas', '-')} "
                   f"diverg={m.get('divergentes', '-')} com_divida={m.get('entradas_com_divida', '-')} "
                   f"acima_base={m.get('lote_acima_da_base', '-')}")

@@ -387,6 +387,74 @@ checar("checar_travas: trava total permanente violada reprova",
 r = travas(posicoes[:2], DailyLossLimitPercent="0.5")
 checar("checar_travas: poucas entradas so avisa", (r.falhas, len(r.avisos) >= 1), ([], True))
 
+# --- S4: filtros de execucao (hora, dia, spread) ------------------------------------------------
+import pandas as pd
+
+checar("janela normal: [10:00, 12:00)", [ts.dentro_da_janela(m, 600, 720) for m in (599, 600, 719, 720)],
+       [False, True, True, False])
+checar("janela noturna 22:00-06:00", [ts.dentro_da_janela(m, 1320, 360) for m in (1319, 1320, 1439, 0, 359, 360)],
+       [False, True, True, True, True, False])
+checar("janela com pontas iguais = 24 h", ts.dentro_da_janela(700, 0, 0), True)
+
+# 2026-08-03 e segunda; 08-05 quarta; 08-07 sexta
+seg10 = datetime(2026, 8, 3, 10, 30, 0)
+
+
+def entrada(t_in, sl=3990.0):
+    o = ordem(t_in, "buy", 0.1, sl, 4020.0)
+    return o, [deal(t_in, "buy", "in", 0.1, 4000.0, o["ordem"]),
+               deal(t_in + timedelta(hours=1), "sell", "out", 0.1, 4001.0, _n(), 10.0, "sl 3990.00")]
+
+
+def filtros(horas, params, spreads=None):
+    """horas: lista de datetime das entradas; spreads: {minuto: spread} para as barras M1."""
+    ordens, deals = [], []
+    for h in horas:
+        o, d = entrada(h)
+        ordens.append(o)
+        deals += d
+        # a ordem de SAIDA tambem aparece na tabela e nao pode ser conferida como entrada
+        ordens.append(ordem(h + timedelta(hours=1), "sell", 0.1, 0.0, 0.0, cmt="sl 3990.00"))
+    barras = None
+    if spreads is not None:
+        idx = pd.date_range(horas[0].replace(hour=0, minute=0), horas[-1].replace(hour=23, minute=59),
+                            freq="1min")
+        df = pd.DataFrame({"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "spread": 5.0}, index=idx)
+        for minuto, s in spreads.items():
+            df.loc[pd.Timestamp(minuto), "spread"] = s
+        barras = tp.Barras({"M1": df})
+    r = tp.Resultado()
+    ts.checar_filtros_execucao(params, ordens, deals, barras, r)
+    return r
+
+
+base = {"TOD_From_Hour": "0", "TOD_From_Min": "0", "TOD_To_Hour": "23", "TOD_To_Min": "55",
+        **{n: "true" for n, _ in ts.DIAS_MT5}}
+horas = [seg10 + timedelta(days=i, minutes=7 * i) for i in range(6)]      # seg..sab
+r = filtros(horas[:5], base)
+checar("ordens_de_entrada ignora as ordens de saida", r.metricas["ordens_de_entrada"], 5)
+checar("sem filtro nenhum nao reprova", r.falhas, [])
+r = filtros(horas[:5], {**base, "TOD_From_Hour": "10", "TOD_To_Hour": "12", "TOD_To_Min": "0"})
+checar("janela 10-12 com todas as entradas dentro passa", r.falhas, [])
+fora = [seg10 + timedelta(days=i, hours=(0 if i != 2 else 4)) for i in range(5)]     # uma as 14:30
+r = filtros(fora, {**base, "TOD_From_Hour": "10", "TOD_To_Hour": "12", "TOD_To_Min": "0"})
+checar("uma ordem as 14:30 fora da janela 10-12 reprova", any("[janela]" in f for f in r.falhas), True)
+r = filtros(horas[:5], {**base, "TradeMonday": "false"})
+checar("entrada na segunda com TradeMonday=false reprova", any("[dia]" in f for f in r.falhas), True)
+r = filtros(horas[1:5], {**base, "TradeMonday": "false"})
+checar("sem entradas na segunda passa", r.falhas, [])
+r = filtros(horas[:5], {**base, "TradeSunday": "false", "TradeSaturday": "false"})
+checar("fim de semana desligado nao afeta dias uteis", r.falhas, [])
+r = filtros(horas[:5], {**base, "MaxSpread": "12"}, spreads={horas[2].replace(second=0): 30.0,
+                                                          horas[2].replace(second=0) - timedelta(minutes=1): 30.0})
+checar("ordem em barra de spread 30 com MaxSpread=12 reprova", any("[spread]" in f for f in r.falhas), True)
+r = filtros(horas[:5], {**base, "MaxSpread": "12"}, spreads={horas[2].replace(second=0): 30.0})
+checar("spread alto so na barra da ordem (anterior baixa) e tolerado", r.falhas, [])
+r = filtros(horas[:5], {**base, "MaxSpread": "12"}, spreads={})
+checar("spread sempre baixo passa", r.falhas, [])
+r = filtros(horas[:5], {**base, "MaxSpread": "12"}, spreads=None)
+checar("sem barras so avisa", (r.falhas, any("[spread]" in a for a in r.avisos)), ([], True))
+
 # --- catalogo -------------------------------------------------------------------------------
 cat = ts.catalogo()
 nomes = [c.nome for c in cat]
@@ -418,6 +486,14 @@ checar("catalogo S3: com e sem fechamento das posicoes",
         or "Trava_Total_Percent" in c.sobrepor} >= {"true", "false"}, True)
 checar("catalogo S3: as tres EAs", {c.variante.split("_")[-1] for c in s3c},
        {"MULTI", "BOLLINGER", "CANDLES"})
+s4c = [c for c in cat if c.grupo == "s4"]
+checar("catalogo S4: janela, dias e spread", (
+    any("TOD_From_Hour" in c.sobrepor for c in s4c),
+    any("TradeMonday" in c.sobrepor for c in s4c),
+    any("MaxSpread" in c.sobrepor for c in s4c)), (True, True, True))
+checar("catalogo S4: inclui a janela noturna e a pendente", (
+    any(c.sobrepor.get("TOD_From_Hour") == "22" for c in s4c),
+    any(c.sobrepor.get("EntryOrderType") == "2" for c in s4c)), (True, True))
 checar("catalogo: modelo OHLC (rapido)", {c.modelo for c in cat}, {1})
 checar("catalogo: sistemas do S1 = sistemas do gerador",
        set(ts.ASSINATURA) == set(ts.SISTEMAS_S1), True)
