@@ -1124,8 +1124,9 @@ def rodar_cenario(c: Cenario, refazer: bool = False) -> dict | None:
                 cp.write(fh, space_around_delimiters=False)
         base.escrever_ini = com_atraso
     try:
-        medida = ots.passe_unico(trabalho, c.simbolo, "M1", c.inicio, c.fim, deposito, 4,
-                                 variante=c.variante)
+        # modelo 4 = tick real (padrao); testar_sistemas usa 1 = OHLC de 1 minuto
+        medida = ots.passe_unico(trabalho, c.simbolo, "M1", c.inicio, c.fim, deposito,
+                                 getattr(c, "modelo", 4), variante=c.variante)
     finally:
         base.escrever_ini = escrever_original
     log = base.texto_novo(antes)

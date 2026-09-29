@@ -55,7 +55,30 @@ AQUI = Path(__file__).resolve().parent
 DIR_SAIDA = AQUI / "bateria_logica"
 SISTEMAS = ["01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
             "05_BE_TRAIL", "06_REVERSAL_EXIT", "07_GRID_SEPARATE",
-            "11_SIGNAL_ONLY", "12_GRID_INVERSO"]
+            "11_SIGNAL_ONLY", "12_GRID_INVERSO", "13_OCO_ROMPIMENTO"]
+# Eixos de BOOSTER que so valem com o modo do booster ligado (EntryOrderType,
+# RecoveryMode nao sao flags booleanas, entao nao cabem em ots.GATES). Cada
+# entrada: eixo -> {input que liga o modo: valor}. So se aplica quando o
+# template traz o modo DESLIGADO ("0"): no 13_OCO_ROMPIMENTO a pendente ja e o
+# proprio sistema (EntryOrderType=3 cravado) e nao pode ser trocada por Limit.
+LIGA_MODO = {
+    "PendingReferencia": {"EntryOrderType": "2"},
+    "PendingDistanciaATR": {"EntryOrderType": "2"},
+    "PendingExpiracaoBarras": {"EntryOrderType": "2"},
+    "MaxMartingaleSteps": {"RecoveryMode": "1"},
+    # D'Alembert exige Lote Fixo e passo ABSOLUTO (OnInit); o Estagio 2.5
+    # troca o sizing do mesmo jeito (optimize_two_stage.py, "dalembert").
+    "DAlembertStep": {"RecoveryMode": "2", "PositionSizeMode": "2",
+                      "PositionSizeValue": "0.01"},
+}
+# Booster de recuperacao nao e eixo do template (RecoveryMode vem cravado em 0):
+# vira eixo sintetico nos sistemas que aceitam recuperacao (1 = Martingale, 2 =
+# D'Alembert + Lote Fixo).
+RECUPERACAO_SINTETICA = {
+    "1": {"RecoveryMode": "1"},
+    "2": {"RecoveryMode": "2", "PositionSizeMode": "2",
+          "PositionSizeValue": "0.01"},
+}
 # Chaves do .set que nao sao logica de entrada/saida: o WFO e desligado de
 # proposito (backtest continuo, uma variavel por vez) e o idioma e cosmetico.
 FORA = {"AtivarWFO", "MetodoDeEntradawfo", "input_end_date", "wfo_windowSize",
@@ -105,6 +128,13 @@ def travar_para(nome: str, valor: str, params: dict[str, list[str]]) -> dict:
     gate = ots.GATES.get(nome)
     if gate:
         t[gate] = "true"
+    for chave_modo, val_modo in LIGA_MODO.get(nome, {}).items():
+        atual = params.get(chave_modo)
+        # modo ja ligado no template (13: EntryOrderType=3) fica como esta
+        if chave_modo in ("EntryOrderType", "RecoveryMode") and atual \
+                and atual[0].strip() not in ("0", "0.0"):
+            continue
+        t[chave_modo] = val_modo
     usa = ots.INDICADOR_USA.get(nome)
     ind = params.get("EntryIndicator")
     if usa and ind and ind[1] != ind[3]:
@@ -153,6 +183,17 @@ def plano(familias: list[str], simbolo: str, sistema_base: str,
                     passes.append({"familia": fam, "sistema": sis,
                                    "variante": var, "eixo": nome, "valor": v,
                                    "travar": travar_para(nome, v, todos),
+                                   "origem": str(origem)})
+            # booster de recuperacao: eixo sintetico (RecoveryMode nao varia
+            # no template) so nos sistemas que a EA aceita (grade recusa)
+            if sis in ots.SISTEMAS_RECUPERACAO_ELEGIVEIS:
+                for v, extra in RECUPERACAO_SINTETICA.items():
+                    passes.append({"familia": fam, "sistema": sis,
+                                   "variante": var, "eixo": "RecoveryMode",
+                                   "valor": v,
+                                   "travar": {"AtivarWFO": "false",
+                                              "InterfaceLanguage": "1",
+                                              **extra},
                                    "origem": str(origem)})
     return passes
 
@@ -382,6 +423,10 @@ def main() -> None:
                          "(saida/grid) tambem sao varridos")
     ap.add_argument("--max-valores", type=int, default=6)
     ap.add_argument("--saida", default=str(DIR_SAIDA / "resultados.jsonl"))
+    ap.add_argument("--pasta", default=str(DIR_SAIDA),
+                    help="pasta lida por --analisar (uma rodada por pasta: o "
+                         "retomar le todos os .jsonl da pasta da --saida, "
+                         "entao uma EA nova exige pasta nova)")
     ap.add_argument("--planejar", action="store_true")
     ap.add_argument("--analisar", action="store_true")
     ap.add_argument("--estatico", action="store_true")
@@ -398,9 +443,10 @@ def main() -> None:
         print(txt)
         return
     if a.analisar:
-        arqs = sorted(DIR_SAIDA.glob("*.jsonl"))
+        pasta = Path(a.pasta)
+        arqs = sorted(pasta.glob("*.jsonl"))
         txt = analisar(arqs)
-        (DIR_SAIDA / "relatorio.txt").write_text(txt, encoding="utf-8")
+        (pasta / "relatorio.txt").write_text(txt, encoding="utf-8")
         print(txt)
         return
     fams = [f.strip().upper() for f in a.familias.split(",") if f.strip()]
