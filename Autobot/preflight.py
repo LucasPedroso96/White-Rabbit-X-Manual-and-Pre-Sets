@@ -6,7 +6,8 @@ erro: campanha de dias rodando contra EA/template/regra VELHOS (variante errada,
 build antigo, template sem o input novo, validacao feita com outro .ex5). Aqui cada
 uma dessas coisas vira uma linha OK / ALERTA / FALHA, em segundos, sem MT5:
 
-  EA          .ex5 igual nas 2 instalacoes, mais novo que o .mq5, fonte igual ao repo
+  EA          .ex5 igual nas 2 instalacoes, mais novo que o .mq5, fonte igual ao repo,
+              e o terminal LIVE com o mesmo build que foi testado
   templates   biblioteca de sets com os 10 sistemas e mais nova que os geradores
   processos   nada de fila/campanha/teste rodando; pausa armada ou nao
   validacoes  testar_pendentes / testar_sistemas / bateria_logica: feitas DEPOIS do
@@ -25,6 +26,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -39,8 +41,10 @@ REPO_EA = Path.home() / "Documents" / "Metatrader5EAS" / "White Rabbit" / "EA"
 SISTEMAS_ESPERADOS = {"01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
                       "05_BE_TRAIL", "06_REVERSAL_EXIT", "07_GRID_SEPARATE",
                       "11_SIGNAL_ONLY", "12_GRID_INVERSO", "13_OCO_ROMPIMENTO"}
-GERADORES = ["generate_system_sets.py", "generate_bollinger_sets.py",
-             "generate_candleentry_sets.py"]
+# gerador -> manifesto que ele grava (Bollinger e Candles tem o proprio csv)
+GERADORES = {"generate_system_sets.py": "MANIFESTO_SISTEMAS.csv",
+             "generate_bollinger_sets.py": "MANIFESTO_SISTEMAS_BOLLINGER.csv",
+             "generate_candleentry_sets.py": "MANIFESTO_SISTEMAS_CANDLES.csv"}
 # "campanha.py" sem confundir com dashboard_campanha.py (o painel pode ficar de pe)
 PADROES_PROCESSO = (r"_fila_", r"(?<![_\w])campanha\.py", r"optimize_two_stage", r"bateria_logica",
                     r"testar_pendentes", r"testar_sistemas", r"validar_live")
@@ -88,6 +92,43 @@ def checar_ea(dirs: list[tuple[str, Path]]) -> tuple[list[Linha], float]:
     return linhas, mais_novo
 
 
+def pasta_do_live() -> Path | None:
+    """Pasta de dados do terminal LIVE (instalacao com 'WhiteRabbitEA) - Live' no caminho)."""
+    base = Path(os.environ.get("APPDATA", "")) / "MetaQuotes" / "Terminal"
+    if not base.exists():
+        return None
+    for d in base.iterdir():
+        origem = d / "origin.txt"
+        if origem.exists():
+            try:
+                texto = origem.read_bytes().decode("utf-16", errors="replace").strip()
+            except OSError:
+                continue
+            if "WhiteRabbitEA) - Live" in texto:
+                return d
+    return None
+
+
+def checar_live(dirs: list[tuple[str, Path]]) -> list[Linha]:
+    """O build que roda ao vivo e o mesmo que foi testado? (sets ao vivo dependem dos inputs da
+    EA: uma EA velha ignora os da entrada pendente e entra a MERCADO em silencio)."""
+    live = pasta_do_live()
+    if live is None:
+        return [("alerta", "EA no terminal Live", "terminal Live nao encontrado (origin.txt)")]
+    linhas: list[Linha] = []
+    for ea in EAS:
+        a = live / "MQL5" / "Experts" / f"{ea}.ex5"
+        b = dirs[0][1] / "MQL5" / "Experts" / f"{ea}.ex5"
+        if not a.exists():
+            linhas.append(("alerta", f"Live {ea}", ".ex5 nao existe no Live (ok se essa EA nao roda ao vivo)"))
+        elif b.exists() and _md5(a) != _md5(b):
+            linhas.append(("falha", f"Live {ea}", f"build {_md5(a)} no Live x {_md5(b)} testado: "
+                           "copie o .ex5 testado ou refaca a validacao com o build do Live"))
+    if not linhas:
+        linhas.append(("ok", "EA no terminal Live", "mesmos builds das 3 EAs que foram testadas"))
+    return linhas
+
+
 def checar_templates(dirs: list[tuple[str, Path]]) -> list[Linha]:
     linhas: list[Linha] = []
     for rotulo, d in dirs:
@@ -112,11 +153,11 @@ def checar_templates(dirs: list[tuple[str, Path]]) -> list[Linha]:
                 if chave + "=" not in texto:
                     linhas.append(("falha", f"templates [{rotulo}]",
                                    f"template de amostra sem o input {chave} (EA nova, template velho)"))
-        for g in GERADORES:
-            gp = AQUI / g
-            if gp.exists() and gp.stat().st_mtime > man.stat().st_mtime + 2:
+        for g, nome_manifesto in GERADORES.items():
+            gp, mp = AQUI / g, raiz / nome_manifesto
+            if gp.exists() and mp.exists() and gp.stat().st_mtime > mp.stat().st_mtime + 2:
                 linhas.append(("alerta", f"templates [{rotulo}]",
-                               f"{g} ({_quando(gp)}) mais novo que o manifesto ({_quando(man)}): "
+                               f"{g} ({_quando(gp)}) mais novo que {nome_manifesto} ({_quando(mp)}): "
                                "regenerar os sets?"))
     return linhas
 
@@ -250,6 +291,7 @@ def main() -> int:
     linhas: list[Linha] = []
     l_ea, build = checar_ea(dirs)
     linhas += l_ea
+    linhas += checar_live(dirs)
     linhas += checar_templates(dirs)
     linhas += checar_processos()
     linhas += checar_validacoes(build)

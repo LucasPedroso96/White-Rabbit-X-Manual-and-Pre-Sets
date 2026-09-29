@@ -15,7 +15,7 @@ of unattended machine time.
 
 - MetaTrader 5, with **White Rabbit X** installed under `MQL5\Experts\`
   ([MQL5 Market](https://www.mql5.com/en/market/product/187173)).
-- A **hedging account** for the grid systems (`07`/`08`) — on a netting
+- A **hedging account** for the grid systems (`07`/`12`) — on a netting
   account the two legs cancel each other out.
 - Python 3.11+, and:
   ```
@@ -86,7 +86,7 @@ such action, not just a local flag).
 
 | Script | Role |
 |---|---|
-| `generate_system_sets.py` | Rebuilds the entire `Sets/` library from scratch (3,738 files) — every asset × system × side × entry variant, every axis marked for optimization. |
+| `generate_system_sets.py` | Rebuilds the MULTI/ICHIMOKU part of the `Sets/` library from scratch — every asset × system × side × entry variant, every axis marked for optimization. `generate_bollinger_sets.py` and `generate_candleentry_sets.py` do the same for the Bollinger and Candles entry families. |
 | `auto_set_manager.py` | Rewrites the generic library against **your** broker: real symbol suffix (`EURUSDm`, `XAUUSD.r`...), real minimum lot, real capital. |
 | `descobrir_ativos.py` | Detects which symbols this terminal/account can actually test (see "Which assets does it test?" above). Run standalone to preview the list before a campaign. |
 | `campanha.py` | Batch-runs the full 5-stage circuit (below) over a queue of symbol/system/side combinations, resumable via a ledger file so a multi-day run survives interruption. |
@@ -96,6 +96,10 @@ such action, not just a local flag).
 | `wfo_matrix.py` | Sweeps a grid of In-Sample/Out-of-Sample window ratios and reports which proportions hold up **in the neighborhood**, not just at one arbitrary split. |
 | `validate_system_sets.py` | Static check: expands every reachable axis combination in the library and confirms none trips `INIT_PARAMETERS_INCORRECT` in the EA's `OnInit`. |
 | `smoke_test_sets.py` | Dynamic check: actually loads a sample of sets into the Strategy Tester and confirms they run, not just parse. |
+| `testar_pendentes.py` | Runs a matrix of pending-order scenarios (Stop / Limit / OCO, session brackets, WFO, every sizing mode) in the Strategy Tester and checks each order — type, price, SL/TP, lot, expiration, cancellation — against the terminal's own bars. |
+| `testar_sistemas.py` | Per-system and per-booster checks in the Strategy Tester: each of the 10 systems exits the way its identity says, the Martingale / D'Alembert lot of every entry matches the EA's model, and the account risk locks (daily loss, global daily / total) block entries. |
+| `bateria_logica.py` | One-axis-at-a-time sweep of every input in the templates: flags axes that change nothing, refused values, one-sided results and runtime errors. |
+| `preflight.py` | Traffic light to run before any campaign: same EA build in every install (and in the live terminal), templates newer than the generators, nothing running, validations newer than the current build, offline tests, git state. |
 | `audit_wfo_sets.py` | Audits the Walk-Forward block specifically — the traps here (a silent `OnTester` returning `0.0`, a sign flip in `wfo_customStepSizePercent`) pass every other check and still return a wrong number. |
 | `ready_library.py` | Mirrors validated, approved sets into a separate "ready" folder, grouped by symbol and indicator. |
 | `portfolio_builder.py` / `portfolio_html.py` | Turns a Strategy Tester `.htm` report into structured metrics (drawdown, R-expectancy, retention) and an HTML view. |
@@ -125,9 +129,19 @@ A set only reaches `Sets/` after all five pass. `campanha.py`'s queue starts
 with the grid systems and then works through the rest in a fixed, unweighted
 order — no system gets more search time than another by default.
 
+Around those five stages the circuit also runs the optional **boosters**: a
+recovery layer (Martingale / D'Alembert, stage 2.5, only when you ask for it),
+a pending-entry booster (Stop / Limit / OCO, stage 2.7) and the execution
+filters (stage 3), the last two adopted only when they raise out-of-sample
+retention by 5+ points, plus a tick-real exit-geometry pass (3.5) and a sealed
+holdout at the end. What is a *system* and what is a *booster*, what the EA
+accepts together, and how to test a change before spending days of terminal
+time is in [`GUIA_SISTEMAS_E_BOOSTERS.md`](GUIA_SISTEMAS_E_BOOSTERS.md)
+(Portuguese).
+
 ## Honest limits
 
-- A campaign for one symbol across all 11 systems and both entry-indicator
+- A campaign for one symbol across all 10 systems and both entry-indicator
   modes takes on the order of days of unattended MT5 time, not minutes. A
   broker that offers most of the catalog natively can turn the auto-detected
   queue into thousands of combinations — check `descobrir_ativos.py`'s
