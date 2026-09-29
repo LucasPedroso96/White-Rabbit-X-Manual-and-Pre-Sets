@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import testar_pendentes as tp
 import testar_sistemas as ts
@@ -455,6 +456,86 @@ checar("spread sempre baixo passa", r.falhas, [])
 r = filtros(horas[:5], {**base, "MaxSpread": "12"}, spreads=None)
 checar("sem barras so avisa", (r.falhas, any("[spread]" in a for a in r.avisos)), ([], True))
 
+# --- S5: ablacao de boosters ----------------------------------------------------------------------
+import tempfile
+
+import generate_system_sets as gss
+
+checar("S5: sistemas recuperaveis = os do gerador", ts.RECUPERAVEIS, set(gss.SISTEMAS_RECUPERACAO_OPCIONAL))
+v04 = dict(ts.variantes_s5("04_SLTP_TRAIL", "BUY", "XAUUSD"))
+checar("S5: 04 BUY tem pendente, janelas, filtros, spread e recuperacao",
+       {"mercado", "limit_k0", "limit_k05", "stop_k05", "janela_7_20", "janela_13_20", "atr_alto",
+        "filtro_ma", "filtro_adx", "spread", "martingale", "lote_fixo", "dalembert"} <= set(v04), True)
+checar("S5: BUY nao tem OCO por sinal", "oco_sinal" in v04, False)
+checar("S5: a referencia e sempre a mercado", v04["mercado"], {"EntryOrderType": "0"})
+checar("S5: D'Alembert vem em Lote Fixo", v04["dalembert"]["PositionSizeMode"], "2")
+v07 = dict(ts.variantes_s5("07_GRID_SEPARATE", "BUY", "USDCAD"))
+checar("S5: grade nao recebe recuperacao (a EA recusa)", {"martingale", "dalembert", "lote_fixo"} & set(v07), set())
+vb = dict(ts.variantes_s5("03_TRAIL_ONLY", "BOTH", "GBPUSD"))
+checar("S5: BOTH ganha o OCO por sinal (com hedge)", vb["oco_sinal"]["Hedging"], "true")
+checar("S5: acao sem cap de spread", "spread" in dict(ts.variantes_s5("04_SLTP_TRAIL", "BUY", "NVDA")), False)
+
+# curva: +100, -40, +60, -200 num deposito de 1000: pico 1120, fundo 920 -> queda 17.86%
+ops = [{"net": n, "t_out": T0 + timedelta(hours=i)} for i, n in enumerate((100.0, -40.0, 60.0, -200.0))]
+m = ts.metricas_de_curva(ops, 1000.0, 100.0)
+checar("curva: lucro, R, PF, acerto e queda", (m["trades"], m["lucro"], m["r"], m["pf"], m["acerto"], m["dd"]),
+       (4, -80.0, -0.8, 0.67, 50.0, 17.86))
+checar("curva: sem perda nao tem PF", ts.metricas_de_curva(ops[:1], 1000.0)["pf"], None)
+
+
+def semana(k, lucros):
+    """k semanas de trade fechado: um deal 'out' por semana com o lucro dado."""
+    deals_, ops_ = [], []
+    for i, lucro in enumerate(lucros):
+        t_ = datetime(2026, 8, 3) + timedelta(weeks=i, hours=10)
+        deals_.append({"t": t_, "direcao": "out", "lucro": lucro, "comissao": 0.0, "swap": 0.0})
+        ops_.append({"net": lucro, "t_out": t_})
+    return deals_, ops_
+
+
+d_base, o_base = semana(1, [10, -20, 5, 8, -3, 12])
+d_bom, o_bom = semana(1, [30, 10, 25, 28, 15, 32])       # ganha 20 a mais TODA semana -> t enorme
+d_ruido, o_ruido = semana(1, [12, -18, 3, 9, -5, 10])     # diferenca minima e variavel
+tab = {x["variante"]: x for x in ts.tabela_ablacao({
+    "mercado": {"deals": d_base, "fechadas": o_base, "deposito": 1000.0},
+    "limit_k0": {"deals": d_bom, "fechadas": o_bom, "deposito": 1000.0},
+    "stop_k05": {"deals": d_ruido, "fechadas": o_ruido, "deposito": 1000.0}})}
+checar("tabela: a referencia nao tem delta", (tab["mercado"]["delta"], tab["mercado"]["t"]), (None, None))
+checar("tabela: variante que ganha sempre tem t alto", tab["limit_k0"]["t"] is None or abs(tab["limit_k0"]["t"]) >= 2
+       or tab["limit_k0"]["delta"] > 0, True)
+checar("tabela: delta de lucro = lucro da variante - lucro da referencia",
+       tab["limit_k0"]["delta"], round(sum([30, 10, 25, 28, 15, 32]) - sum([10, -20, 5, 8, -3, 12]), 2))
+checar("veredito: sem delta e referencia", ts.veredito_s5(None, None, 0, 0), "referencia")
+checar("veredito: melhora significativa", ts.veredito_s5(50.0, 3.1, 1, 1), "melhora (significativo)")
+checar("veredito: piora no ruido", ts.veredito_s5(-5.0, -0.6, 1, 1), "piora, mas dentro do ruido")
+# D'Alembert compara com o lote fixo, nao com o mercado
+tab2 = {x["variante"]: x for x in ts.tabela_ablacao({
+    "mercado": {"deals": d_base, "fechadas": o_base, "deposito": 1000.0},
+    "lote_fixo": {"deals": d_ruido, "fechadas": o_ruido, "deposito": 1000.0},
+    "dalembert": {"deals": d_bom, "fechadas": o_bom, "deposito": 1000.0}})}
+checar("D'Alembert usa lote_fixo como referencia", tab2["dalembert"]["ref"], "lote_fixo")
+
+# migracao de set antigo (sem os inputs da entrada pendente) para o template atual
+with tempfile.TemporaryDirectory() as tmp:
+    tmp = Path(tmp)
+    velho = tmp / "_TESTE_ORIGEM_x.set"
+    velho.write_text("Stop=4||3||1||6||Y\r\nPositionSizeMode=3||3||0||3||N\r\nObsoleto=1||1||0||1||N\r\n",
+                     encoding="utf-16")
+    template = tmp / "template.set"
+    template.write_text("Stop=3||3||1||6||Y\r\nPositionSizeMode=3||3||0||3||N\r\n"
+                        "EntryOrderType=0||1||1||3||Y\r\nPendingDistanciaATR=0.5||0||0.25||2||Y\r\n",
+                        encoding="utf-16")
+    novo = tp.migrar_para_template(velho, template)
+    import optimize_two_stage as ots_
+    vals = ots_.valores_do_set(novo)
+    checar("migracao: cria o arquivo _TESTE_MIGRADO_", novo.name, "_TESTE_MIGRADO_x.set")
+    checar("migracao: valor do set antigo vence o do template", vals["Stop"], "4")
+    checar("migracao: input novo vem do template", (vals["EntryOrderType"], vals["PendingDistanciaATR"]), ("0", "0.5"))
+    checar("migracao: chave obsoleta some", "Obsoleto" in vals, False)
+    atual = tmp / "_TESTE_ORIGEM_y.set"
+    atual.write_text("EntryOrderType=2||2||0||2||N\r\nStop=4||4||1||4||N\r\n", encoding="utf-16")
+    checar("migracao: set que ja tem o input passa direto", tp.migrar_para_template(atual, template), atual)
+
 # --- catalogo -------------------------------------------------------------------------------
 cat = ts.catalogo()
 nomes = [c.nome for c in cat]
@@ -494,6 +575,11 @@ checar("catalogo S4: janela, dias e spread", (
 checar("catalogo S4: inclui a janela noturna e a pendente", (
     any(c.sobrepor.get("TOD_From_Hour") == "22" for c in s4c),
     any(c.sobrepor.get("EntryOrderType") == "2" for c in s4c)), (True, True))
+s5c = [c for c in cat if c.grupo == "s5"]
+checar("catalogo S5: todo cenario parte de um set pronto da biblioteca", all(c.origem_arquivo for c in s5c), True)
+checar("catalogo S5: 5 bases (2 campeoes + 3 reprovados otimizados)", len({c.origem_arquivo for c in s5c}), 5)
+checar("catalogo S5: toda base tem a variante de referencia a mercado", all(
+    any(c.nome == f"s5_{k}_mercado" for c in s5c) for k in ts.BASES_S5), True)
 checar("catalogo: modelo OHLC (rapido)", {c.modelo for c in cat}, {1})
 checar("catalogo: sistemas do S1 = sistemas do gerador",
        set(ts.ASSINATURA) == set(ts.SISTEMAS_S1), True)

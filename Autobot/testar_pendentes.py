@@ -1080,11 +1080,25 @@ def _garantir_origem_extra(nome: str) -> Path:
     raise SystemExit(f"set {nome} nao existe em nenhuma instalacao do projeto")
 
 
+def migrar_para_template(origem: Path, template: Path) -> Path:
+    """Set antigo (anterior aos inputs da entrada pendente) nao carrega EntryOrderType/Pending*:
+    o override do cenario seria ignorado em silencio. Reescreve o TEMPLATE atual da mesma combinacao
+    com os valores do set (tudo cravado em N) e devolve o novo arquivo; set atual passa direto."""
+    import optimize_two_stage as ots
+    valores = ots.valores_do_set(origem)
+    if "EntryOrderType" in valores:
+        return origem
+    destino = origem.with_name(origem.name.replace("_TESTE_ORIGEM_", "_TESTE_MIGRADO_"))
+    ots.reescrever(template, destino, [], valores)
+    return destino
+
+
 def limpar_temporarios() -> None:
     """Tira da pasta do tester os sets de trabalho do harness."""
     import optimize_sets as base
     tester = base.DADOS / "MQL5" / "Profiles" / "Tester"
-    for arq in list(tester.glob("_TESTE_ORIGEM_*.set")) + [tester / "_TESTE_PENDENTES.set"]:
+    for arq in (list(tester.glob("_TESTE_ORIGEM_*.set")) + list(tester.glob("_TESTE_MIGRADO_*.set"))
+                + [tester / "_TESTE_PENDENTES.set"]):
         arq.unlink(missing_ok=True)
 
 
@@ -1099,6 +1113,9 @@ def rodar_cenario(c: Cenario, refazer: bool = False) -> dict | None:
         return None
     if c.origem_arquivo:
         origem = _garantir_origem_extra(c.origem_arquivo)
+        template = base.achar_set(c.simbolo, c.sistema, c.variante)
+        if template is not None:
+            origem = migrar_para_template(origem, template)
     else:
         origem = base.achar_set(c.simbolo, c.sistema, c.variante)
     if origem is None:

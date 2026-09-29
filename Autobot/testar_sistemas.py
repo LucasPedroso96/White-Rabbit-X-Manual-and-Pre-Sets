@@ -693,6 +693,146 @@ def checar_filtros_execucao(params: dict, ordens: list[dict], deals: list[dict],
 
 
 # ---------------------------------------------------------------------------
+# S5: ablacao de boosters -- quais combinacoes rendem mais
+# ---------------------------------------------------------------------------
+
+# Sistemas que aceitam a recuperacao (= generate_system_sets.SISTEMAS_RECUPERACAO_OPCIONAL; o teste confere)
+RECUPERAVEIS = {"01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL", "05_BE_TRAIL",
+                "06_REVERSAL_EXIT", "11_SIGNAL_ONLY"}
+JANELA_S5 = ("2026.06.28", "2026.09.26")       # ~90 dias: o holdout lacrado dos sets, nunca usado p/ ajustar
+# chave -> (set pronto da biblioteca, simbolo, sistema, variante). Campeoes e reprovados da campanha:
+# o que interessa aqui e o EFEITO do booster sobre uma config otimizada, nao o edge da base.
+BASES_S5 = {
+    "xau04": ("VALIDADO_XAUUSD_04_SLTP_TRAIL_BUY_MULTI.set", "XAUUSD", "04_SLTP_TRAIL", "BUY_MULTI"),
+    "cad07": ("VALIDADO_USDCAD_07_GRID_SEPARATE_BUY_MULTI.set", "USDCAD", "07_GRID_SEPARATE", "BUY_MULTI"),
+    "nvda04": ("REPROVADO_NVDA_04_SLTP_TRAIL_BUY_MULTI.set", "NVDA", "04_SLTP_TRAIL", "BUY_MULTI"),
+    "gbp03": ("REPROVADO_GBPUSD_03_TRAIL_ONLY_BOTH_MULTI.set", "GBPUSD", "03_TRAIL_ONLY", "BOTH_MULTI"),
+    "gbp02": ("REPROVADO_GBPUSD_02_SLTP_ORGANIC_BOTH_MULTI.set", "GBPUSD", "02_SLTP_ORGANIC", "BOTH_MULTI"),
+}
+SPREAD_S5 = {"XAUUSD": "12", "GBPUSD": "15", "USDCAD": "15"}        # pontos; acoes ficam sem
+PENDENTE_S5 = {"PendingReferencia": "0", "PendingExpiracaoBarras": "3"}
+# variante que serve de referencia pra cada uma (a soma de lotes do D'Alembert e em lote fixo)
+REFERENCIA_S5 = {"dalembert": "lote_fixo"}
+
+
+def variantes_s5(sistema: str, lado: str, simbolo: str) -> list[tuple[str, dict]]:
+    v: list[tuple[str, dict]] = [
+        ("mercado", {"EntryOrderType": "0"}),
+        ("limit_k0", {"EntryOrderType": "2", "PendingReferencia": "0", "PendingDistanciaATR": "0",
+                      "PendingExpiracaoBarras": "1"}),
+        ("limit_k05", {"EntryOrderType": "2", "PendingDistanciaATR": "0.5", **PENDENTE_S5}),
+        ("stop_k05", {"EntryOrderType": "1", "PendingDistanciaATR": "0.5", **PENDENTE_S5}),
+        ("janela_7_20", {"TOD_From_Hour": "7", "TOD_From_Min": "0", "TOD_To_Hour": "20",
+                         "TOD_To_Min": "0"}),
+        ("janela_13_20", {"TOD_From_Hour": "13", "TOD_From_Min": "0", "TOD_To_Hour": "20",
+                          "TOD_To_Min": "0"}),
+        ("atr_alto", {"EntradaATR": "true"}),
+        ("filtro_ma", {"AtivarFiltroMA": "true"}),
+        ("filtro_adx", {"AtivarFiltroADX": "true"}),
+    ]
+    if simbolo in SPREAD_S5:
+        v.append(("spread", {"MaxSpread": SPREAD_S5[simbolo]}))
+    if lado == "BOTH":
+        v.append(("oco_sinal", {"EntryOrderType": "3", "PendingReferencia": "1",
+                                "PendingDistanciaATR": "0.5", "PendingExpiracaoBarras": "4",
+                                "Hedging": "true"}))
+    if sistema in RECUPERAVEIS:
+        lote_fixo = {"EntryOrderType": "0", "PositionSizeMode": "2", "PositionSizeValue": "0.01"}
+        v += [("martingale", {"EntryOrderType": "0", "RecoveryMode": "1", "MaxMartingaleSteps": "3",
+                              "MinFreeMarginPercent": "20"}),
+              ("lote_fixo", lote_fixo),
+              ("dalembert", {**lote_fixo, "RecoveryMode": "2", "DAlembertStep": "0.01",
+                             "MaxMartingaleSteps": "3", "MinFreeMarginPercent": "20"})]
+    return v
+
+
+def metricas_de_curva(fechadas: list[dict], deposito: float, r_valor: float | None = None) -> dict:
+    """Lucro, PF, taxa de acerto e queda maxima da curva de saldo (fechamentos em ordem)."""
+    nets = [p["net"] for p in sorted(fechadas, key=lambda x: x["t_out"])]
+    ganhos = sum(x for x in nets if x > 0)
+    perdas = -sum(x for x in nets if x < 0)
+    saldo = pico = deposito
+    dd = 0.0
+    for x in nets:
+        saldo += x
+        pico = max(pico, saldo)
+        dd = max(dd, (pico - saldo) / pico * 100.0 if pico else 0.0)
+    lucro = sum(nets)
+    return {"trades": len(nets), "lucro": round(lucro, 2),
+            "r": None if not r_valor else round(lucro / r_valor, 2),
+            "pf": None if perdas <= 0 else round(ganhos / perdas, 2),
+            "acerto": None if not nets else round(100.0 * sum(1 for x in nets if x > 0) / len(nets), 1),
+            "dd": round(dd, 2)}
+
+
+def tabela_ablacao(dados: dict[str, dict]) -> list[dict]:
+    """dados: variante -> {"deals": [...], "fechadas": [...], "deposito": x, "r": y}. Devolve uma
+    linha por variante, com a diferenca de lucro e a semanal (t) contra a variante de referencia."""
+    linhas = []
+    for nome, d in dados.items():
+        m = metricas_de_curva(d["fechadas"], d["deposito"], d.get("r"))
+        ref = REFERENCIA_S5.get(nome, "mercado")
+        if nome == ref or ref not in dados:
+            comp = {"delta": None, "t": None, "ref": ref if ref in dados else None}
+        else:
+            c = tp.comparar_semanal(d["deals"], dados[ref]["deals"])
+            comp = {"delta": None if c.get("media") is None else round(c["lucro_a"] - c["lucro_b"], 2),
+                    "t": c.get("t"), "ref": ref}
+        linhas.append({"variante": nome, **m, **comp})
+    return linhas
+
+
+def veredito_s5(delta, t, dd, dd_ref) -> str:
+    if delta is None:
+        return "referencia"
+    if t is not None and abs(t) >= 2:
+        return "melhora (significativo)" if delta > 0 else "piora (significativo)"
+    return "melhora, mas dentro do ruido" if delta > 0 else "piora, mas dentro do ruido" if delta < 0 else "igual"
+
+
+def relatorio_ablacao() -> str:
+    _preparar()
+    saida = ["ABLACAO DE BOOSTERS -- janela " + " a ".join(JANELA_S5) + " (dado que o treino dos sets nunca viu)",
+             "lucro em $; R = lucro / 1R (so sets Fixed-R); t = diferenca semanal contra a referencia "
+             "(|t| < 2 = indistinguivel de ruido; poucas semanas, leia como INDICIO)", ""]
+    for chave, (arq, simbolo, sistema, lado_var) in BASES_S5.items():
+        dados = {}
+        for nome, _ in variantes_s5(sistema, lado_var.split("_")[0], simbolo):
+            j = SAIDA / f"s5_{chave}_{nome}.json"
+            htm = SAIDA / f"s5_{chave}_{nome}.htm"
+            if not (j.exists() and htm.exists()):
+                continue
+            reg = json.loads(j.read_text(encoding="utf-8"))
+            ordens, deals = parse_relatorio(htm)
+            fech, _ab = operacoes(ordens, deals)
+            params = dict(reg["params"])
+            params["_deposito"] = reg.get("deposito", 0)
+            r = valor_r(params) if _int(params, "PositionSizeMode", 2) == 3 else None
+            dados[nome] = {"deals": deals, "fechadas": fech, "deposito": reg.get("deposito", 0), "r": r}
+        if not dados:
+            continue
+        saida.append(f"== {chave}: {sistema} {lado_var} {simbolo}")
+        saida.append(f"  {'variante':14} {'trades':>6} {'lucro$':>9} {'R':>7} {'PF':>5} {'acerto%':>7} "
+                     f"{'queda%':>6} {'d lucro$':>9} {'t':>6}  veredito")
+        linhas = tabela_ablacao(dados)
+        base = next((x for x in linhas if x["variante"] == "mercado"), None)
+        for x in sorted(linhas, key=lambda z: (z["variante"] != "mercado", -(z["lucro"] or 0))):
+            saida.append(
+                f"  {x['variante']:14} {x['trades']:>6} {x['lucro']:>9.2f} "
+                f"{'-' if x['r'] is None else format(x['r'], '.1f'):>7} "
+                f"{'-' if x['pf'] is None else format(x['pf'], '.2f'):>5} "
+                f"{'-' if x['acerto'] is None else format(x['acerto'], '.0f'):>7} {x['dd']:>6.1f} "
+                f"{'-' if x['delta'] is None else format(x['delta'], '+.2f'):>9} "
+                f"{'-' if x['t'] is None else format(x['t'], '+.2f'):>6}  "
+                f"{veredito_s5(x['delta'], x['t'], x['dd'], base['dd'] if base else None)}"
+                + (f" (vs {x['ref']})" if x["ref"] and x["ref"] != "mercado" else ""))
+        saida.append("")
+    texto = "\n".join(saida)
+    (SAIDA / "ABLACAO.md").write_text(texto, encoding="utf-8")
+    return texto
+
+
+# ---------------------------------------------------------------------------
 # Cenarios
 # ---------------------------------------------------------------------------
 
@@ -796,6 +936,12 @@ def catalogo(existe=None) -> list[CenarioS]:
                             "PendingDistanciaATR": "0.5", "PendingExpiracaoBarras": "8",
                             "Fecharordensforadohorario": "true"})
 
+    # S5: ablacao de boosters sobre sets ja otimizados (ver relatorio_ablacao)
+    for chave, (arq, simbolo, sistema, lado_var) in BASES_S5.items():
+        for nome, extra in variantes_s5(sistema, lado_var.split("_")[0], simbolo):
+            cs.append(CenarioS(f"s5_{chave}_{nome}", sistema, lado_var, extra, simbolo=simbolo,
+                               inicio=JANELA_S5[0], fim=JANELA_S5[1], origem_arquivo=arq, grupo="s5"))
+
     # Segundo simbolo: EURUSD (forex de 5 casas, contrato 100000, tick 0.00001) -- o ouro
     # sozinho nao prova o dimensionamento nem o tamanho do tick em outra classe de ativo
     for sis in SISTEMAS_S1:
@@ -847,6 +993,11 @@ def verificar(so: str | None = None) -> int:
                 checar_travas(params, ordens, deals, log, res)
             elif c.grupo == "s4":
                 checar_filtros_execucao(params, ordens, deals, tp.carregar_barras(c.simbolo), res)
+            elif c.grupo == "s5":
+                fech_s5, ab_s5 = operacoes(ordens, deals)
+                res.metricas["entradas"] = len(fech_s5) + len(ab_s5)
+                if not fech_s5 and not ab_s5:
+                    res.aviso("amostra", "0 trades na janela: variante sem evidencia")
             else:
                 checar_recuperacao(c.sistema, params, ordens, deals, info, res)
             tp.checar_log(log, res)
@@ -905,7 +1056,12 @@ def main() -> int:
     ap.add_argument("--so", default="", help="so cenarios cujo nome contem este texto")
     ap.add_argument("--shard", default="1/1", help="i/n: roda so os cenarios de indice i (base 1) mod n")
     ap.add_argument("--refazer", action="store_true")
+    ap.add_argument("--ablacao", action="store_true",
+                    help="tabela dos boosters (S5) sobre os sets ja otimizados")
     args = ap.parse_args()
+    if args.ablacao:
+        print(relatorio_ablacao())
+        return 0
     if args.listar:
         for c in catalogo():
             print(c.nome, c.sistema, c.variante, c.sobrepor)
