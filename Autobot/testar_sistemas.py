@@ -699,7 +699,9 @@ def checar_filtros_execucao(params: dict, ordens: list[dict], deals: list[dict],
 # Sistemas que aceitam a recuperacao (= generate_system_sets.SISTEMAS_RECUPERACAO_OPCIONAL; o teste confere)
 RECUPERAVEIS = {"01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL", "05_BE_TRAIL",
                 "06_REVERSAL_EXIT", "11_SIGNAL_ONLY"}
-JANELA_S5 = ("2026.06.28", "2026.09.26")       # ~90 dias: o holdout lacrado dos sets, nunca usado p/ ajustar
+# a = ~90 dias que o treino dos sets nunca viu (holdout lacrado); b = os ~90 dias ANTERIORES (o
+# treino ja viu a base -- serve pra ver se o efeito do booster se repete, nao como prova)
+JANELAS_S5 = {"a": ("2026.06.28", "2026.09.26"), "b": ("2026.03.28", "2026.06.27")}
 # chave -> (set pronto da biblioteca, simbolo, sistema, variante). Campeoes e reprovados da campanha:
 # o que interessa aqui e o EFEITO do booster sobre uma config otimizada, nao o edge da base.
 BASES_S5 = {
@@ -790,43 +792,82 @@ def veredito_s5(delta, t, dd, dd_ref) -> str:
     return "melhora, mas dentro do ruido" if delta > 0 else "piora, mas dentro do ruido" if delta < 0 else "igual"
 
 
+def prefixo_s5(janela: str) -> str:
+    return "s5" if janela == "a" else f"s5{janela}"
+
+
+def _dados_s5(janela: str, chave: str, sistema: str, lado_var: str, simbolo: str) -> dict:
+    dados = {}
+    for nome, _ in variantes_s5(sistema, lado_var.split("_")[0], simbolo):
+        j = SAIDA / f"{prefixo_s5(janela)}_{chave}_{nome}.json"
+        htm = SAIDA / f"{prefixo_s5(janela)}_{chave}_{nome}.htm"
+        if not (j.exists() and htm.exists()):
+            continue
+        reg = json.loads(j.read_text(encoding="utf-8"))
+        ordens, deals = parse_relatorio(htm)
+        fech, _ab = operacoes(ordens, deals)
+        params = dict(reg["params"])
+        params["_deposito"] = reg.get("deposito", 0)
+        r = valor_r(params) if _int(params, "PositionSizeMode", 2) == 3 else None
+        dados[nome] = {"deals": deals, "fechadas": fech, "deposito": reg.get("deposito", 0), "r": r}
+    return dados
+
+
+def consistencia_s5(a: dict, b: dict) -> str:
+    """Resumo de uma variante nas duas janelas: {'delta','t'} de cada uma."""
+    da, db = a.get("delta"), b.get("delta")
+    if da is None or db is None:
+        return "so numa janela" if (da is not None or db is not None) else "referencia"
+    forte = any(x is not None and abs(x) >= 2 for x in (a.get("t"), b.get("t")))
+    if da > 0 and db > 0:
+        return "CANDIDATO: melhora nas duas" + (" (significativo numa)" if forte else "")
+    if da < 0 and db < 0:
+        return "piora nas duas" + (" (significativo numa)" if forte else "")
+    return "inconsistente (muda de sinal)"
+
+
 def relatorio_ablacao() -> str:
     _preparar()
-    saida = ["ABLACAO DE BOOSTERS -- janela " + " a ".join(JANELA_S5) + " (dado que o treino dos sets nunca viu)",
+    saida = ["ABLACAO DE BOOSTERS sobre sets ja otimizados da biblioteca",
+             "janela a = " + " a ".join(JANELAS_S5["a"]) + " (o treino dos sets nunca viu); "
+             "janela b = " + " a ".join(JANELAS_S5["b"]) + " (o treino viu a BASE; o booster nao foi ajustado)",
              "lucro em $; R = lucro / 1R (so sets Fixed-R); t = diferenca semanal contra a referencia "
-             "(|t| < 2 = indistinguivel de ruido; poucas semanas, leia como INDICIO)", ""]
+             "(|t| < 2 = indistinguivel de ruido; poucas semanas: leia como INDICIO, nao como prova)", ""]
     for chave, (arq, simbolo, sistema, lado_var) in BASES_S5.items():
-        dados = {}
-        for nome, _ in variantes_s5(sistema, lado_var.split("_")[0], simbolo):
-            j = SAIDA / f"s5_{chave}_{nome}.json"
-            htm = SAIDA / f"s5_{chave}_{nome}.htm"
-            if not (j.exists() and htm.exists()):
+        tabelas = {}
+        for jn in JANELAS_S5:
+            dados = _dados_s5(jn, chave, sistema, lado_var, simbolo)
+            if not dados:
                 continue
-            reg = json.loads(j.read_text(encoding="utf-8"))
-            ordens, deals = parse_relatorio(htm)
-            fech, _ab = operacoes(ordens, deals)
-            params = dict(reg["params"])
-            params["_deposito"] = reg.get("deposito", 0)
-            r = valor_r(params) if _int(params, "PositionSizeMode", 2) == 3 else None
-            dados[nome] = {"deals": deals, "fechadas": fech, "deposito": reg.get("deposito", 0), "r": r}
-        if not dados:
-            continue
-        saida.append(f"== {chave}: {sistema} {lado_var} {simbolo}")
-        saida.append(f"  {'variante':14} {'trades':>6} {'lucro$':>9} {'R':>7} {'PF':>5} {'acerto%':>7} "
-                     f"{'queda%':>6} {'d lucro$':>9} {'t':>6}  veredito")
-        linhas = tabela_ablacao(dados)
-        base = next((x for x in linhas if x["variante"] == "mercado"), None)
-        for x in sorted(linhas, key=lambda z: (z["variante"] != "mercado", -(z["lucro"] or 0))):
-            saida.append(
-                f"  {x['variante']:14} {x['trades']:>6} {x['lucro']:>9.2f} "
-                f"{'-' if x['r'] is None else format(x['r'], '.1f'):>7} "
-                f"{'-' if x['pf'] is None else format(x['pf'], '.2f'):>5} "
-                f"{'-' if x['acerto'] is None else format(x['acerto'], '.0f'):>7} {x['dd']:>6.1f} "
-                f"{'-' if x['delta'] is None else format(x['delta'], '+.2f'):>9} "
-                f"{'-' if x['t'] is None else format(x['t'], '+.2f'):>6}  "
-                f"{veredito_s5(x['delta'], x['t'], x['dd'], base['dd'] if base else None)}"
-                + (f" (vs {x['ref']})" if x["ref"] and x["ref"] != "mercado" else ""))
-        saida.append("")
+            linhas = tabela_ablacao(dados)
+            tabelas[jn] = {x["variante"]: x for x in linhas}
+            saida.append(f"== {chave}: {sistema} {lado_var} {simbolo} | janela {jn}")
+            saida.append(f"  {'variante':14} {'trades':>6} {'lucro$':>9} {'R':>7} {'PF':>5} {'acerto%':>7} "
+                         f"{'queda%':>6} {'d lucro$':>9} {'t':>6}  veredito")
+            base = tabelas[jn].get("mercado")
+            for x in sorted(linhas, key=lambda z: (z["variante"] != "mercado", -(z["lucro"] or 0))):
+                saida.append(
+                    f"  {x['variante']:14} {x['trades']:>6} {x['lucro']:>9.2f} "
+                    f"{'-' if x['r'] is None else format(x['r'], '.1f'):>7} "
+                    f"{'-' if x['pf'] is None else format(x['pf'], '.2f'):>5} "
+                    f"{'-' if x['acerto'] is None else format(x['acerto'], '.0f'):>7} {x['dd']:>6.1f} "
+                    f"{'-' if x['delta'] is None else format(x['delta'], '+.2f'):>9} "
+                    f"{'-' if x['t'] is None else format(x['t'], '+.2f'):>6}  "
+                    f"{veredito_s5(x['delta'], x['t'], x['dd'], base['dd'] if base else None)}"
+                    + (f" (vs {x['ref']})" if x["ref"] and x["ref"] != "mercado" else ""))
+            saida.append("")
+        if len(tabelas) == 2:
+            saida.append(f"== {chave}: consistencia entre as duas janelas")
+            saida.append(f"  {'variante':14} {'d lucro a':>10} {'t a':>6} {'d lucro b':>10} {'t b':>6}  leitura")
+            for nome in tabelas["a"]:
+                a, b = tabelas["a"][nome], tabelas["b"].get(nome, {})
+                if a["delta"] is None and b.get("delta") is None:
+                    continue
+                fmt = lambda v, f: "-" if v is None else format(v, f)      # noqa: E731
+                saida.append(f"  {nome:14} {fmt(a['delta'], '+.2f'):>10} {fmt(a['t'], '+.2f'):>6} "
+                             f"{fmt(b.get('delta'), '+.2f'):>10} {fmt(b.get('t'), '+.2f'):>6}  "
+                             f"{consistencia_s5(a, b)}")
+            saida.append("")
     texto = "\n".join(saida)
     (SAIDA / "ABLACAO.md").write_text(texto, encoding="utf-8")
     return texto
@@ -937,10 +978,12 @@ def catalogo(existe=None) -> list[CenarioS]:
                             "Fecharordensforadohorario": "true"})
 
     # S5: ablacao de boosters sobre sets ja otimizados (ver relatorio_ablacao)
-    for chave, (arq, simbolo, sistema, lado_var) in BASES_S5.items():
-        for nome, extra in variantes_s5(sistema, lado_var.split("_")[0], simbolo):
-            cs.append(CenarioS(f"s5_{chave}_{nome}", sistema, lado_var, extra, simbolo=simbolo,
-                               inicio=JANELA_S5[0], fim=JANELA_S5[1], origem_arquivo=arq, grupo="s5"))
+    for jn, (j_ini, j_fim) in JANELAS_S5.items():
+        for chave, (arq, simbolo, sistema, lado_var) in BASES_S5.items():
+            for nome, extra in variantes_s5(sistema, lado_var.split("_")[0], simbolo):
+                cs.append(CenarioS(f"{prefixo_s5(jn)}_{chave}_{nome}", sistema, lado_var, extra,
+                                   simbolo=simbolo, inicio=j_ini, fim=j_fim, origem_arquivo=arq,
+                                   grupo="s5"))
 
     # Segundo simbolo: EURUSD (forex de 5 casas, contrato 100000, tick 0.00001) -- o ouro
     # sozinho nao prova o dimensionamento nem o tamanho do tick em outra classe de ativo
@@ -1033,6 +1076,8 @@ def _relatorio_final(resultados: dict, total: int) -> int:
                   f"{m.get('fora_da_janela', '-')} em dia proibido={m.get('em_dia_proibido', '-')} "
                   f"acima do spread={m.get('acima_do_spread', '-')}/{m.get('spread_medidas', '-')}"
                   if n.startswith("s4") else
+                  f"entradas={m.get('entradas', '-'):>4}"
+                  if n.startswith("s5") else
                   f"entradas={m.get('entradas', '-'):>4} conferidas={m.get('conferidas', '-')} "
                   f"diverg={m.get('divergentes', '-')} com_divida={m.get('entradas_com_divida', '-')} "
                   f"acima_base={m.get('lote_acima_da_base', '-')}")

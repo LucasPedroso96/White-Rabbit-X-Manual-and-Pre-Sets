@@ -515,6 +515,22 @@ tab2 = {x["variante"]: x for x in ts.tabela_ablacao({
     "dalembert": {"deals": d_bom, "fechadas": o_bom, "deposito": 1000.0}})}
 checar("D'Alembert usa lote_fixo como referencia", tab2["dalembert"]["ref"], "lote_fixo")
 
+# consistencia entre as duas janelas
+checar("prefixos das janelas", (ts.prefixo_s5("a"), ts.prefixo_s5("b")), ("s5", "s5b"))
+checar("consistencia: melhora nas duas e candidato",
+       ts.consistencia_s5({"delta": 50.0, "t": 2.4}, {"delta": 10.0, "t": 0.5}),
+       "CANDIDATO: melhora nas duas (significativo numa)")
+checar("consistencia: piora nas duas", ts.consistencia_s5({"delta": -5.0, "t": -0.4}, {"delta": -9.0, "t": -1.0}),
+       "piora nas duas")
+checar("consistencia: sinal muda = inconsistente",
+       ts.consistencia_s5({"delta": 30.0, "t": 1.2}, {"delta": -20.0, "t": -0.9}), "inconsistente (muda de sinal)")
+checar("consistencia: referencia", ts.consistencia_s5({"delta": None, "t": None}, {"delta": None, "t": None}),
+       "referencia")
+checar("catalogo S5: duas janelas, mesmos nomes com prefixo diferente", (
+    len([c for c in ts.catalogo() if c.nome.startswith("s5_")]),
+    len([c for c in ts.catalogo() if c.nome.startswith("s5b_")])), (63, 63))
+checar("catalogo S5: a janela b e anterior a a", ts.JANELAS_S5["b"][1] < ts.JANELAS_S5["a"][0], True)
+
 # migracao de set antigo (sem os inputs da entrada pendente) para o template atual
 with tempfile.TemporaryDirectory() as tmp:
     tmp = Path(tmp)
