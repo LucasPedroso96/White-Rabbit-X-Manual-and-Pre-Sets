@@ -1094,7 +1094,8 @@ def rodar_cenario(c: Cenario, refazer: bool = False) -> dict | None:
     import campanha
     SAIDA.mkdir(parents=True, exist_ok=True)
     destino_json = SAIDA / f"{c.nome}.json"
-    if destino_json.exists() and not refazer:
+    # feito = JSON E relatorio; JSON sozinho e de um teste que nao produziu relatorio
+    if destino_json.exists() and (SAIDA / f"{c.nome}.htm").exists() and not refazer:
         return None
     if c.origem_arquivo:
         origem = _garantir_origem_extra(c.origem_arquivo)
@@ -1110,6 +1111,10 @@ def rodar_cenario(c: Cenario, refazer: bool = False) -> dict | None:
     efetivos = ots.valores_do_set(trabalho)
     faltando = ots.conferir_set(trabalho, params)
     deposito = campanha.resolver_deposito(c.simbolo, None)
+    # relatorio velho NUNCA pode ser lido como o deste cenario: se o teste nao rodar
+    # (EA recusou o set, agente caiu), fica sem .htm e a verificacao reprova
+    (base.DADOS / "conf_wrx.htm").unlink(missing_ok=True)
+    (SAIDA / f"{c.nome}.htm").unlink(missing_ok=True)
     antes = base.marcar_logs()
     escrever_original = base.escrever_ini
     if c.execucao is not None:

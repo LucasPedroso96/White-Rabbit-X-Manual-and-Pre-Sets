@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import sys
 from collections import Counter, deque
 from dataclasses import dataclass
@@ -49,6 +50,9 @@ SISTEMAS_S1 = ("01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
 SO_BOTH_MULTI = {"13_OCO_ROMPIMENTO"}
 # EPS de saldo: abaixo disso a operacao nao e nem perda nem ganho (mesmo da EA)
 EPS = 1e-7
+# OnInit recusou o set (mesma leitura da bateria_logica): sem trade nenhum, mas NAO e "sem sinal"
+RECUSA = re.compile(r"incorrect input parameters", re.I)
+MOTIVO = re.compile(r"(?<!\()(Invalid [^\r\n]{0,150}|[A-Za-z_']+ requires [^\r\n]{0,150})")
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +435,9 @@ def checar_recuperacao(sistema: str, params: dict, ordens: list[dict], deals: li
     if len(todas) < 5:
         res.aviso("amostra", f"so {len(todas)} entradas: evidencia fraca")
         return
+    if not info.get("contrato"):
+        res.aviso("info", "sem info do simbolo (contrato/passo): o modelo de lote nao pode ser conferido")
+        return
     pico = concorrencia_maxima(fechadas, abertas)
     if max(pico.values()) > 1:
         res.aviso("pareamento", f"ate {max(pico.values())} posicoes por lado ao mesmo tempo: o "
@@ -552,6 +559,18 @@ def catalogo(existe=None) -> list[CenarioS]:
         rec(f"mart_04_both_{fam.lower()}", "04_SLTP_TRAIL", f"BOTH_{fam}",
             {"RecoveryMode": "1", "MaxMartingaleSteps": "3"})
         rec(f"dal_04_both_{fam.lower()}", "04_SLTP_TRAIL", f"BOTH_{fam}", dict(dal))
+
+    # Segundo simbolo: EURUSD (forex de 5 casas, contrato 100000, tick 0.00001) -- o ouro
+    # sozinho nao prova o dimensionamento nem o tamanho do tick em outra classe de ativo
+    for sis in SISTEMAS_S1:
+        cs.append(CenarioS(f"s1e_{sis[:2]}_BOTH_MULTI", sis, "BOTH_MULTI", {},
+                           simbolo="EURUSD", inicio=JANELA[0], fim=JANELA[1], grupo="s1"))
+    for nome, extra in (("mart_04_both", {"RecoveryMode": "1", "MaxMartingaleSteps": "3"}),
+                        ("mart_03_both", {"RecoveryMode": "1", "MaxMartingaleSteps": "3"}),
+                        ("dal_04_both", dict(dal))):
+        cs.append(CenarioS(f"s2e_{nome}", "03_TRAIL_ONLY" if "_03_" in nome else "04_SLTP_TRAIL",
+                           "BOTH_MULTI", {"MinFreeMarginPercent": "20", **extra},
+                           simbolo="EURUSD", inicio=JANELA[0], fim=JANELA[1], grupo="s2"))
     return cs
 
 
@@ -591,6 +610,10 @@ def verificar(so: str | None = None) -> int:
             else:
                 checar_recuperacao(c.sistema, params, ordens, deals, info, res)
             tp.checar_log(log, res)
+            if RECUSA.search(log):
+                motivo = MOTIVO.search(log)
+                res.falha("recusa", "a EA recusou o set no OnInit: "
+                          + (motivo.group(1) if motivo else "incorrect input parameters"))
             if reg.get("params_faltando"):
                 res.falha("set", f"set de trabalho incompleto: {reg['params_faltando']}")
         resultados[nome] = {"falhas": res.falhas, "avisos": res.avisos, "metricas": res.metricas}
@@ -609,7 +632,7 @@ def _relatorio_final(resultados: dict, total: int) -> int:
         marca = "FALHA" if r["falhas"] else ("aviso" if r["avisos"] else "ok   ")
         m = r["metricas"]
         resumo = (f"entradas={m.get('entradas', '-'):>4} saidas={m.get('saidas', '')}"
-                  if n.startswith("s1_") else
+                  if n.startswith("s1") else
                   f"entradas={m.get('entradas', '-'):>4} conferidas={m.get('conferidas', '-')} "
                   f"diverg={m.get('divergentes', '-')} com_divida={m.get('entradas_com_divida', '-')} "
                   f"acima_base={m.get('lote_acima_da_base', '-')}")

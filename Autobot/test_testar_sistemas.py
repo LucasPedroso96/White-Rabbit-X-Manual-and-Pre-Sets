@@ -313,8 +313,11 @@ checar("SL do lado errado reprova", any("[lado_sl_tp]" in f for f in r.falhas), 
 cat = ts.catalogo()
 nomes = [c.nome for c in cat]
 checar("catalogo: nomes unicos", len(nomes), len(set(nomes)))
-s1 = [c for c in cat if c.grupo == "s1"]
-checar("catalogo S1: 9 sistemas x 12 arquivos + 13 so BOTH_MULTI", len(s1), 9 * 12 + 1)
+s1_todos = [c for c in cat if c.grupo == "s1"]
+s1 = [c for c in s1_todos if c.simbolo == "XAUUSD"]
+checar("catalogo S1: 9 sistemas x 12 arquivos + 13 so BOTH_MULTI (ouro)", len(s1), 9 * 12 + 1)
+checar("catalogo S1: EURUSD tem os 10 sistemas em BOTH_MULTI",
+       sorted(c.sistema for c in s1_todos if c.simbolo == "EURUSD"), sorted(ts.SISTEMAS_S1))
 checar("catalogo S1: todos os sistemas", {c.sistema for c in s1}, set(ts.SISTEMAS_S1))
 checar("catalogo S1: 13 so no BOTH_MULTI",
        {c.variante for c in s1 if c.sistema == "13_OCO_ROMPIMENTO"}, {"BOTH_MULTI"})

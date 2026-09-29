@@ -65,12 +65,25 @@ LIGA_MODO = {
     "PendingReferencia": {"EntryOrderType": "2"},
     "PendingDistanciaATR": {"EntryOrderType": "2"},
     "PendingExpiracaoBarras": {"EntryOrderType": "2"},
+    # saida por ORDEM OPOSTA (modo 1) so vale bilateral, em conta hedging, sem grade
+    # ("exit requires bilateral trading on a real hedging account with Grid disabled")
+    "ReversalExitMode": {"Hedging": "true"},
+    # a saida por sinal contrario so "usa os filtros de entrada" se houver filtro ligado
+    "ReversalExitUseEntryFilters": {"AtivarFiltroMA": "true"},
+    # so bloqueia o proximo nivel se o breakeven da ultima perna AINDA nao chegou: nivel
+    # proximo (2.5 ATR) e breakeven longe (3.0) garantem que a regra tem o que bloquear
+    "PyramidLevelOnlyInProfit": {"DistanciaMinima": "2.5", "AtivarBreakeven": "true",
+                                 "BreakevenDistancia": "3.0"},
     "MaxMartingaleSteps": {"RecoveryMode": "1"},
     # D'Alembert exige Lote Fixo e passo ABSOLUTO (OnInit); o Estagio 2.5
     # troca o sizing do mesmo jeito (optimize_two_stage.py, "dalembert").
     "DAlembertStep": {"RecoveryMode": "2", "PositionSizeMode": "2",
                       "PositionSizeValue": "0.01"},
 }
+# Eixos que so valem com certos METODOS de entrada (EntryMethod): a nuvem do Ichimoku so
+# entra no cruzamento de referencia (2 referencia, 4 reversao+ref, 5 sinal+ref, 6 qualquer).
+# eixo -> (input, valores em que vale, valor usado se o template estiver fora deles)
+VALE_COM_METODO = {"IchimokuUseKumo": ("EntryMethod", {2, 4, 5, 6}, "6")}
 # Booster de recuperacao nao e eixo do template (RecoveryMode vem cravado em 0):
 # vira eixo sintetico nos sistemas que aceitam recuperacao (1 = Martingale, 2 =
 # D'Alembert + Lote Fixo).
@@ -128,6 +141,15 @@ def travar_para(nome: str, valor: str, params: dict[str, list[str]]) -> dict:
     gate = ots.GATES.get(nome)
     if gate:
         t[gate] = "true"
+    dep = VALE_COM_METODO.get(nome)
+    if dep:
+        cur = params.get(dep[0])
+        try:
+            atual_m = int(float(cur[0])) if cur else None
+        except ValueError:
+            atual_m = None
+        if atual_m not in dep[1]:
+            t[dep[0]] = dep[2]
     for chave_modo, val_modo in LIGA_MODO.get(nome, {}).items():
         atual = params.get(chave_modo)
         # modo ja ligado no template (13: EntryOrderType=3) fica como esta
@@ -145,7 +167,8 @@ def travar_para(nome: str, valor: str, params: dict[str, list[str]]) -> dict:
 
 
 def plano(familias: list[str], simbolo: str, sistema_base: str,
-          saidas_em: set[str], max_valores: int) -> list[dict]:
+          saidas_em: set[str], max_valores: int,
+          so_eixos: set[str] | None = None) -> list[dict]:
     """Lista de passes: o sistema-base com TODOS os eixos, e -- so nas
     familias de `saidas_em` -- cada outro sistema apenas com os eixos que
     diferem do sistema-base (geometria de saida, grid). Os eixos de entrada
@@ -195,6 +218,8 @@ def plano(familias: list[str], simbolo: str, sistema_base: str,
                                               "InterfaceLanguage": "1",
                                               **extra},
                                    "origem": str(origem)})
+    if so_eixos:
+        passes = [p for p in passes if p["eixo"] in so_eixos]
     return passes
 
 
@@ -295,6 +320,20 @@ def rodar(passes: list[dict], simbolo: str, inicio: str, fim: str,
     trab.unlink(missing_ok=True)
 
 
+_FLAGS: dict[tuple, dict] = {}
+
+
+def flag_do_eixo(r: dict, eixo: str) -> str:
+    """'Y' se o template deixa o eixo em otimizacao (orcamento do genetico), 'N' se a
+    faixa esta so guardada, '?' se nao achou o template."""
+    k = (r["simbolo"], r["sistema"], r["variante"])
+    if k not in _FLAGS:
+        origem = base.achar_set(*k)
+        _FLAGS[k] = ots.parametros_do_set(origem) if origem else {}
+    p = _FLAGS[k].get(eixo)
+    return p[4] if p else "?"
+
+
 def analisar(arquivos: list[Path]) -> str:
     regs = []
     for a in arquivos:
@@ -351,10 +390,12 @@ def analisar(arquivos: list[Path]) -> str:
                             f"valores recusados {recusados} {motivo or ''}"))
         if len(ok) >= 2 and len({(r["trades"], r["saldo"]) for r in ok}) == 1:
             achados.append(("5 SEM_EFEITO", tag,
-                            f"{len(ok)} valores, todos trades="
+                            f"[{flag_do_eixo(ok[0], eixo)}] {len(ok)} valores, todos trades="
                             f"{ok[0]['trades']} saldo={ok[0]['saldo']}"))
     linhas = [f"Bateria de logica -- {len(regs)} passes, "
-              f"{len(grupos)} eixos testados, {len(achados)} achados", ""]
+              f"{len(grupos)} eixos testados, {len(achados)} achados", "",
+              "[Y] = eixo em otimizacao no template (desperdicio no genetico); "
+              "[N] = faixa guardada, inerte por desenho", ""]
     cont = Counter(a[0] for a in achados)
     linhas += [f"  {k[2:]:<12} {cont[k]}" for k in sorted(cont)] + [""]
     atual = None
@@ -423,6 +464,8 @@ def main() -> None:
                          "(saida/grid) tambem sao varridos")
     ap.add_argument("--max-valores", type=int, default=6)
     ap.add_argument("--saida", default=str(DIR_SAIDA / "resultados.jsonl"))
+    ap.add_argument("--so-eixos", default="",
+                    help="reforco: so estes eixos (ex.: IchimokuUseKumo,ReversalExitMode)")
     ap.add_argument("--pasta", default=str(DIR_SAIDA),
                     help="pasta lida por --analisar (uma rodada por pasta: o "
                          "retomar le todos os .jsonl da pasta da --saida, "
@@ -452,7 +495,8 @@ def main() -> None:
     fams = [f.strip().upper() for f in a.familias.split(",") if f.strip()]
     passes = plano(fams, a.simbolo, a.sistema_base,
                    {f.strip().upper() for f in a.saidas_em.split(",")},
-                   a.max_valores)
+                   a.max_valores,
+                   {e.strip() for e in a.so_eixos.split(",") if e.strip()} or None)
     if a.planejar:
         por = Counter((p["familia"], p["sistema"]) for p in passes)
         for (fam, sis), n in sorted(por.items()):
