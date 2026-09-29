@@ -712,12 +712,48 @@ BASES_S5 = {
     "gbp02": ("REPROVADO_GBPUSD_02_SLTP_ORGANIC_BOTH_MULTI.set", "GBPUSD", "02_SLTP_ORGANIC", "BOTH_MULTI"),
 }
 SPREAD_S5 = {"XAUUSD": "12", "GBPUSD": "15", "USDCAD": "15"}        # pontos; acoes ficam sem
+JANELA_LIVRE = {"TOD_From_Hour": "0", "TOD_From_Min": "0", "TOD_To_Hour": "23", "TOD_To_Min": "55"}
+# Subtrativos: o que o circuito EMPILHOU em cada set (lido dos sets de 29/09) e que da pra tirar.
+# 'so_sistema' = todos tirados de uma vez (o sistema pelado). Referencia = o campeao como salvo.
+SUBTRATIVAS_S5 = {
+    "xau04": [("sem_ma", {"AtivarFiltroMA": "false"}), ("sem_adx", {"AtivarFiltroADX": "false"}),
+              ("sem_mtf", {"AtivarFiltroMTF": "false"}),
+              ("sem_filtros", {"AtivarFiltroMA": "false", "AtivarFiltroADX": "false",
+                               "AtivarFiltroMTF": "false"}),
+              ("sem_janela", dict(JANELA_LIVRE)), ("sem_spread", {"MaxSpread": "0"}),
+              ("so_sistema", {"EntryOrderType": "0", "AtivarFiltroMA": "false", "AtivarFiltroADX": "false",
+                              "AtivarFiltroMTF": "false", "MaxSpread": "0", **JANELA_LIVRE})],
+    "cad07": [("sem_janela", dict(JANELA_LIVRE))],
+    "nvda04": [("sem_mtf", {"AtivarFiltroMTF": "false"})],
+    "gbp03": [("sem_adx", {"AtivarFiltroADX": "false"}), ("sem_mtf", {"AtivarFiltroMTF": "false"}),
+              ("sem_janela", dict(JANELA_LIVRE)), ("sem_spread", {"MaxSpread": "0"}),
+              ("sem_sexta", {"TradeFriday": "true"}),
+              ("so_sistema", {"AtivarFiltroADX": "false", "AtivarFiltroMTF": "false", "MaxSpread": "0",
+                              "TradeFriday": "true", **JANELA_LIVRE})],
+    "gbp02": [("sem_ma", {"AtivarFiltroMA": "false"}), ("sem_janela", dict(JANELA_LIVRE)),
+              ("sem_spread", {"MaxSpread": "0"}), ("sem_quarta", {"TradeWednesday": "true"}),
+              ("so_sistema", {"AtivarFiltroMA": "false", "MaxSpread": "0", "TradeWednesday": "true",
+                              **JANELA_LIVRE})],
+}
+# variante que E o campeao como salvo (a mercado, exceto o XAUUSD, cujo set ja traz a Limit k=0)
+CAMPEAO_S5 = {"xau04": "limit_k0"}
 PENDENTE_S5 = {"PendingReferencia": "0", "PendingExpiracaoBarras": "3"}
 # variante que serve de referencia pra cada uma (a soma de lotes do D'Alembert e em lote fixo)
 REFERENCIA_S5 = {"dalembert": "lote_fixo"}
 
 
-def variantes_s5(sistema: str, lado: str, simbolo: str) -> list[tuple[str, dict]]:
+def referencia_s5(chave: str | None, nome: str) -> str:
+    """Contra quem cada variante e comparada: os subtrativos contra o campeao como salvo, o
+    D'Alembert contra o lote fixo, o resto contra a mercado."""
+    if nome in REFERENCIA_S5:
+        return REFERENCIA_S5[nome]
+    if chave and any(nome == n for n, _ in SUBTRATIVAS_S5.get(chave, [])):
+        return CAMPEAO_S5.get(chave, "mercado")
+    return "mercado"
+
+
+def variantes_s5(sistema: str, lado: str, simbolo: str, chave: str | None = None
+                 ) -> list[tuple[str, dict]]:
     v: list[tuple[str, dict]] = [
         ("mercado", {"EntryOrderType": "0"}),
         ("limit_k0", {"EntryOrderType": "2", "PendingReferencia": "0", "PendingDistanciaATR": "0",
@@ -745,6 +781,8 @@ def variantes_s5(sistema: str, lado: str, simbolo: str) -> list[tuple[str, dict]
               ("lote_fixo", lote_fixo),
               ("dalembert", {**lote_fixo, "RecoveryMode": "2", "DAlembertStep": "0.01",
                              "MaxMartingaleSteps": "3", "MinFreeMarginPercent": "20"})]
+    if chave:
+        v += SUBTRATIVAS_S5.get(chave, [])
     return v
 
 
@@ -767,13 +805,13 @@ def metricas_de_curva(fechadas: list[dict], deposito: float, r_valor: float | No
             "dd": round(dd, 2)}
 
 
-def tabela_ablacao(dados: dict[str, dict]) -> list[dict]:
+def tabela_ablacao(dados: dict[str, dict], chave: str | None = None) -> list[dict]:
     """dados: variante -> {"deals": [...], "fechadas": [...], "deposito": x, "r": y}. Devolve uma
     linha por variante, com a diferenca de lucro e a semanal (t) contra a variante de referencia."""
     linhas = []
     for nome, d in dados.items():
         m = metricas_de_curva(d["fechadas"], d["deposito"], d.get("r"))
-        ref = REFERENCIA_S5.get(nome, "mercado")
+        ref = referencia_s5(chave, nome)
         if nome == ref or ref not in dados:
             comp = {"delta": None, "t": None, "ref": ref if ref in dados else None}
         else:
@@ -798,7 +836,7 @@ def prefixo_s5(janela: str) -> str:
 
 def _dados_s5(janela: str, chave: str, sistema: str, lado_var: str, simbolo: str) -> dict:
     dados = {}
-    for nome, _ in variantes_s5(sistema, lado_var.split("_")[0], simbolo):
+    for nome, _ in variantes_s5(sistema, lado_var.split("_")[0], simbolo, chave):
         j = SAIDA / f"{prefixo_s5(janela)}_{chave}_{nome}.json"
         htm = SAIDA / f"{prefixo_s5(janela)}_{chave}_{nome}.htm"
         if not (j.exists() and htm.exists()):
@@ -839,15 +877,19 @@ def relatorio_ablacao() -> str:
             dados = _dados_s5(jn, chave, sistema, lado_var, simbolo)
             if not dados:
                 continue
-            linhas = tabela_ablacao(dados)
+            linhas = tabela_ablacao(dados, chave)
             tabelas[jn] = {x["variante"]: x for x in linhas}
-            saida.append(f"== {chave}: {sistema} {lado_var} {simbolo} | janela {jn}")
+            saida.append(f"== {chave}: {sistema} {lado_var} {simbolo} | janela {jn}  "
+                         f"(* = o campeao como salvo no set)")
             saida.append(f"  {'variante':14} {'trades':>6} {'lucro$':>9} {'R':>7} {'PF':>5} {'acerto%':>7} "
                          f"{'queda%':>6} {'d lucro$':>9} {'t':>6}  veredito")
             base = tabelas[jn].get("mercado")
-            for x in sorted(linhas, key=lambda z: (z["variante"] != "mercado", -(z["lucro"] or 0))):
+            campeao = CAMPEAO_S5.get(chave, "mercado")
+            for x in sorted(linhas, key=lambda z: (z["variante"] != "mercado", z["variante"] != campeao,
+                                                   -(z["lucro"] or 0))):
+                marca = "*" if x["variante"] == campeao else " "
                 saida.append(
-                    f"  {x['variante']:14} {x['trades']:>6} {x['lucro']:>9.2f} "
+                    f"{marca} {x['variante']:14} {x['trades']:>6} {x['lucro']:>9.2f} "
                     f"{'-' if x['r'] is None else format(x['r'], '.1f'):>7} "
                     f"{'-' if x['pf'] is None else format(x['pf'], '.2f'):>5} "
                     f"{'-' if x['acerto'] is None else format(x['acerto'], '.0f'):>7} {x['dd']:>6.1f} "
@@ -980,7 +1022,7 @@ def catalogo(existe=None) -> list[CenarioS]:
     # S5: ablacao de boosters sobre sets ja otimizados (ver relatorio_ablacao)
     for jn, (j_ini, j_fim) in JANELAS_S5.items():
         for chave, (arq, simbolo, sistema, lado_var) in BASES_S5.items():
-            for nome, extra in variantes_s5(sistema, lado_var.split("_")[0], simbolo):
+            for nome, extra in variantes_s5(sistema, lado_var.split("_")[0], simbolo, chave):
                 cs.append(CenarioS(f"{prefixo_s5(jn)}_{chave}_{nome}", sistema, lado_var, extra,
                                    simbolo=simbolo, inicio=j_ini, fim=j_fim, origem_arquivo=arq,
                                    grupo="s5"))

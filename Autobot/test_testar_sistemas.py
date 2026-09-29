@@ -526,9 +526,26 @@ checar("consistencia: sinal muda = inconsistente",
        ts.consistencia_s5({"delta": 30.0, "t": 1.2}, {"delta": -20.0, "t": -0.9}), "inconsistente (muda de sinal)")
 checar("consistencia: referencia", ts.consistencia_s5({"delta": None, "t": None}, {"delta": None, "t": None}),
        "referencia")
+esperado_s5 = sum(len(ts.variantes_s5(sis, lv.split("_")[0], sim, ch))
+                  for ch, (_a, sim, sis, lv) in ts.BASES_S5.items())
 checar("catalogo S5: duas janelas, mesmos nomes com prefixo diferente", (
     len([c for c in ts.catalogo() if c.nome.startswith("s5_")]),
-    len([c for c in ts.catalogo() if c.nome.startswith("s5b_")])), (63, 63))
+    len([c for c in ts.catalogo() if c.nome.startswith("s5b_")])), (esperado_s5, esperado_s5))
+checar("S5: subtrativos so existem com a chave da base",
+       "sem_ma" in dict(ts.variantes_s5("04_SLTP_TRAIL", "BUY", "XAUUSD", "xau04")),
+       True)
+checar("S5: sem a chave nao ha subtrativos", "sem_ma" in dict(ts.variantes_s5("04_SLTP_TRAIL", "BUY", "XAUUSD")),
+       False)
+checar("S5: referencia do subtrativo do XAU e o campeao com Limit", ts.referencia_s5("xau04", "sem_ma"), "limit_k0")
+checar("S5: referencia do subtrativo das outras e a mercado", ts.referencia_s5("gbp03", "sem_adx"), "mercado")
+checar("S5: referencia aditiva e a mercado", ts.referencia_s5("xau04", "stop_k05"), "mercado")
+checar("S5: D'Alembert continua contra o lote fixo", ts.referencia_s5("gbp03", "dalembert"), "lote_fixo")
+checar("S5: o campeao do XAU e a variante limit_k0",
+       ts.CAMPEAO_S5["xau04"], "limit_k0")
+checar("S5: o sistema pelado do XAU tambem tira a Limit",
+       dict(ts.SUBTRATIVAS_S5["xau04"])["so_sistema"]["EntryOrderType"], "0")
+checar("S5: janela livre cobre o dia inteiro", ts.dentro_da_janela(23 * 60 + 30, 0, 23 * 60 + 55)
+       and ts.dentro_da_janela(0, 0, 23 * 60 + 55), True)
 checar("catalogo S5: a janela b e anterior a a", ts.JANELAS_S5["b"][1] < ts.JANELAS_S5["a"][0], True)
 
 # migracao de set antigo (sem os inputs da entrada pendente) para o template atual
