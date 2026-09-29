@@ -4272,6 +4272,14 @@ def main() -> int:
                           f"medida de retencao; mantendo o valor padrao de "
                           f"{nomes_rec} no set.", flush=True)
                 else:
+                    # A recuperacao NAO compete com a versao sem ela (o pedido
+                    # explicito de --recuperacao a liga); os portoes finais
+                    # (sobrevivencia, drawdown, holdout lacrado) julgam o
+                    # conjunto. Este efeito fica no log pra o dono ver o que
+                    # ela fez na retencao.
+                    print(f"    efeito da recuperacao ({tipo_recuperacao}) na "
+                          f"retencao: {ordenados[0][0]} (sem) -> "
+                          f"{ordenados_rec[0][0]} (com)", flush=True)
                     travados.update(ordenados_rec[0][2])
                     otimizados.update(ordenados_rec[0][2])
 

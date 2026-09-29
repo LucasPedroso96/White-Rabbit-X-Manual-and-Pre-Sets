@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import testar_pendentes as tp
-from testar_pendentes import Resultado, _flt, _int, parse_relatorio
+from testar_pendentes import Resultado, _bool, _flt, _int, parse_relatorio
 
 AQUI = Path(__file__).resolve().parent
 SAIDA = AQUI / "_sistemas_teste"
@@ -163,6 +163,24 @@ ASSINATURA = {
 }
 AMOSTRA_MINIMA = 8          # fechadas para cobrar "precisa aparecer"
 AMOSTRA_RASTRO = 15         # fechadas por SL para cobrar rastro de trailing/BE
+TOL_BE = 0.03               # |saida - entrada| / distancia do SL inicial: breakeven (spread)
+TOL_SL_INTACTO = 0.05       # saida a menos de 5% do SL inicial = stop nunca mexido
+
+
+def classe_sl(p: dict) -> str | None:
+    """Como uma saida por SL aconteceu, pela posicao da saida em relacao ao SL inicial:
+    "inicial" (stop nunca mexido), "be" (stop levado ao preco de entrada), "trail"
+    (qualquer outro ponto: o stop foi arrastado)."""
+    dist0 = abs(p["preco"] - p["sl"]) if p["sl"] > 0 else 0.0
+    if not dist0:
+        return None
+    sinal = 1 if p["lado"] == "buy" else -1
+    r = sinal * (p["preco_out"] - p["preco"]) / dist0
+    if r <= -1.0 + TOL_SL_INTACTO:
+        return "inicial"
+    if abs(r) <= TOL_BE:
+        return "be"
+    return "trail"
 
 
 def _entradas_de_ordens(ordens: list[dict]) -> list[dict]:
@@ -171,8 +189,16 @@ def _entradas_de_ordens(ordens: list[dict]) -> list[dict]:
 
 
 def checar_assinatura(sistema: str, variante: str, ordens: list[dict], deals: list[dict],
-                      info: dict, res: Resultado) -> None:
+                      info: dict, res: Resultado, params: dict | None = None) -> None:
     ass = ASSINATURA[sistema]
+    if params:
+        # o template TEM que carregar a identidade do sistema (flags cravadas no gerador)
+        if _bool(params, "AtivarStop") != ass.sl:
+            res.falha("template", f"AtivarStop={params.get('AtivarStop')} no set, mas o sistema "
+                      f"{'tem' if ass.sl else 'nao tem'} stop loss")
+        if not ass.grade and _bool(params, "AtivarTake") != ass.tp:
+            res.falha("template", f"AtivarTake={params.get('AtivarTake')} no set, mas o sistema "
+                      f"{'tem' if ass.tp else 'nao tem'} take profit")
     fechadas, abertas = operacoes(ordens, deals)
     todas = fechadas + abertas
     n = len(todas)
@@ -240,27 +266,29 @@ def checar_assinatura(sistema: str, variante: str, ordens: list[dict], deals: li
             res.falha("saidas", f"{len(fechadas)} posicoes fechadas e nenhuma saida do tipo "
                       f"{faltam} (o sistema sai por isso)")
 
-    # -- rastro de trailing / breakeven --------------------------------------
+    # -- stops: inicial x breakeven x arrastado, conferidos contra os flags do set -----
     sl_exits = [p for p in fechadas if p["classe"] == "sl" and p["sl"] > 0]
-    if ass.trail or ass.be:
-        movidas = benef = 0
-        for p in sl_exits:
-            sinal = 1 if p["lado"] == "buy" else -1
-            dist0 = abs(p["preco"] - p["sl"])
-            if not dist0:
-                continue
-            ganho = sinal * (p["preco_out"] - p["preco"])
-            if sinal * (p["preco_out"] - p["sl"]) > 0.05 * dist0:      # saiu ACIMA do SL inicial
-                movidas += 1
-                if ganho > 0.05 * dist0:
-                    benef += 1
-        res.metricas["sl_movido"] = movidas
-        res.metricas["sl_movido_no_lucro"] = benef
-        if len(sl_exits) >= AMOSTRA_RASTRO and not movidas:
-            res.aviso("rastro", f"{len(sl_exits)} saidas por SL e NENHUMA com o stop arrastado "
-                      f"({'trailing' if ass.trail else 'breakeven'} sem efeito?)")
-        if ass.trail and len(sl_exits) >= AMOSTRA_RASTRO and movidas and not benef:
-            res.aviso("rastro", "stops arrastados mas nenhum fechou no lucro (trailing so no breakeven?)")
+    cats = Counter(classe_sl(p) for p in sl_exits)
+    res.metricas["sl_categorias"] = dict(cats)
+    if params and sl_exits:
+        n_sl = len(sl_exits)
+        be_on, trail_on = _bool(params, "AtivarBreakeven"), _bool(params, "AtivarTrailATR")
+        if not be_on and cats["be"] >= 3 and cats["be"] >= 0.15 * n_sl:
+            res.falha("breakeven", f"{cats['be']}/{n_sl} saidas por SL no preco de entrada com "
+                      "AtivarBreakeven=false")
+        if not trail_on and cats["trail"] >= 2:
+            res.falha("trailing", f"{cats['trail']}/{n_sl} saidas por SL com o stop arrastado com "
+                      "AtivarTrailATR=false")
+        if not be_on and not trail_on and cats["be"] + cats["trail"] >= 2:
+            res.falha("stop", "stop mexido sem breakeven nem trailing ligados "
+                      f"({dict(cats)})")
+        if n_sl >= AMOSTRA_RASTRO:
+            if trail_on and not cats["trail"]:
+                res.aviso("trailing", f"{n_sl} saidas por SL e nenhuma arrastada com "
+                          "AtivarTrailATR=true (trailing sem efeito nesta janela?)")
+            if be_on and not cats["be"] and not ass.grade:
+                res.aviso("breakeven", f"{n_sl} saidas por SL e nenhuma no breakeven com "
+                          "AtivarBreakeven=true (BE sem efeito nesta janela?)")
 
     # -- grade: mais de uma perna ao mesmo tempo -------------------------------
     pico = concorrencia_maxima(fechadas, abertas)
@@ -559,7 +587,7 @@ def verificar(so: str | None = None) -> int:
             log = (SAIDA / f"{nome}.log").read_text(encoding="utf-8", errors="replace") \
                 if (SAIDA / f"{nome}.log").exists() else ""
             if c.grupo == "s1":
-                checar_assinatura(c.sistema, c.variante, ordens, deals, info, res)
+                checar_assinatura(c.sistema, c.variante, ordens, deals, info, res, params)
             else:
                 checar_recuperacao(c.sistema, params, ordens, deals, info, res)
             tp.checar_log(log, res)

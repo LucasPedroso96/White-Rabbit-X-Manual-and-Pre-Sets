@@ -120,14 +120,16 @@ lines = [
     "01_Forex/USDJPY/01_SLTP/BUY_MULTI.set",
     "01_Forex/USDJPY/01_SLTP/BUY_ICHIMOKU.set",
     "01_Forex/USDJPY/07_GRID_SEPARATE/BUY_MULTI.set",
+    "01_Forex/USDJPY/13_OCO_ROMPIMENTO/BOTH_MULTI.set",
     "```",
     "",
-    "- **SIDE**: `BUY` or `SELL` in every system -- no exceptions. "
-    "`08_GRID_UNIFIED`",
-    "  used to ship a `BOTH` file instead (a unified basket had one target",
-    "  covering both directions), but it was retired 2026-08-16: once the",
-    "  take-profit and the next-lot sizing both went per-side, it stopped",
-    "  being mathematically different from `07_GRID_SEPARATE`.",
+    "- **SIDE**: `BUY`, `SELL` or `BOTH`. `BOTH` is one file that trades the two",
+    "  directions (with `Hedging=true` it needs a hedging account). "
+    "`13_OCO_ROMPIMENTO`",
+    "  ships ONLY `BOTH_MULTI`: it arms a buy stop and a sell stop, so it needs",
+    "  both directions and no indicator. (`08_GRID_UNIFIED` was retired",
+    "  2026-08-16: once take-profit and next-lot sizing went per-side it stopped",
+    "  being different from `07_GRID_SEPARATE`.)",
     "- **MULTI**: `EntryIndicator` is an axis across 11 engines (MACD, EMA,",
     "  Momentum, Stochastic, TRIX, RSI, CCI, Williams %R, DeMarker, MFI, OsMA).",
     "- **ICHIMOKU**: indicator fixed to Ichimoku (value 11), because it requires",
@@ -177,10 +179,62 @@ for code in sorted(by_system):
 
 lines += [
     "",
-    "Systems **01 to 06 use Fixed-R**: the lot is derived from the risk budget,",
-    "so the same file adapts itself to any account size. Systems **07 to 12 use",
-    "a fixed lot** — their risk is whatever the minimum lot costs on that",
-    "instrument, independent of your balance. Start with the Fixed-R ones.",
+    "Systems **01 to 06, 12 and 13 use Fixed-R**: the lot is derived from the risk",
+    "budget, so the same file adapts itself to any account size. Systems **07 and",
+    "11 use a fixed lot** — their risk is whatever the minimum lot costs on that",
+    "instrument, independent of your balance (07 has no stop by design: the",
+    "basket is the management; 11 has neither SL nor TP). Start with the Fixed-R",
+    "ones.",
+    "",
+    "## Systems and boosters",
+    "",
+    "A **system** is how a position is managed after the entry: stop, target,",
+    "trailing, grid, session bracket. It is validated on its own. A **booster** is",
+    "an OPTIONAL layer that sits on top of a system that already has an edge, and it",
+    "never creates an edge by itself. In the Autobot circuit the pending entry and",
+    "the execution filters are adopted only when they raise the out-of-sample",
+    "retention by at least 5 points; the recovery layer is applied when you ask for",
+    "it and the final gates (survival, drawdown, sealed holdout) judge the whole",
+    "result. The entry engine (MULTI, Ichimoku, Bollinger, Candles) is a third,",
+    "independent choice.",
+    "",
+    "| Booster | Inputs | Works on | What it does |",
+    "|---|---|---|---|",
+    "| Recovery | `RecoveryMode` 1 Martingale / 2 D'Alembert, `MaxMartingaleSteps`, "
+    "`DAlembertStep`, `Multiplicador` | 01-06 and 11 (the EA refuses it with a "
+    "grid) | Martingale sizes the next lot to win back the accumulated loss "
+    "(Fixed-R: capped at `MaxRiscoTradeR` = 3R of risk; fixed lot: last lot x "
+    "`Multiplicador`). D'Alembert adds a fixed lot step per loss and REQUIRES "
+    "Fixed Lot. `MaxMartingaleSteps` consecutive losses reset to the base lot. |",
+    "| Pending entry | `EntryOrderType` 1 Stop / 2 Limit / 3 OCO, "
+    "`PendingReferencia` (close or extreme of the signal candle), "
+    "`PendingDistanciaATR`, `PendingExpiracaoBarras` | every system (only the "
+    "SEED entry of a grid/pyramid) | Instead of entering at market, places a "
+    "pending order k x ATR from the reference; SL/TP are relative to the ORDER "
+    "price; it expires after N bars or when the opposite signal arrives. OCO "
+    "places a buy stop and a sell stop and one fill cancels the other. |",
+    "| Execution filters | `TOD_From_Hour`, `TOD_To_Hour`, `Trade<Weekday>`, "
+    "`MaxSpread` | every system | Hours, weekdays and spread ceiling. |",
+    "| Volatility filter | `EntradaATR`, `VolatilityFilter` (high / low), "
+    "`PeriodoBaselineATR`, `MultiplicadorATR` | every system | Trades only when the "
+    "current ATR is above (high) or below (low) its own baseline by the "
+    "multiplier. |",
+    "| Secondary filters | `AtivarFiltroMA`, `AtivarFiltroADX`, `AtivarFiltroMTF` "
+    "| every system | Trend/strength/multi-timeframe confirmation. |",
+    "",
+    "`09_MARTINGALE` and `10_DALEMBERT` were systems once; since 2026-09-08 they are",
+    "the Recovery booster. What the EA accepts together:",
+    "",
+    "| Combination | Accepted? |",
+    "|---|---|",
+    "| Fixed-R + Martingale | yes (loss recovery capped at 3R) |",
+    "| Fixed-R + D'Alembert | NO — an absolute lot step breaks the balance-independence of R |",
+    "| D'Alembert | needs Fixed Lot, no grid, `DAlembertStep` > 0 |",
+    "| Grid (07) or pyramid (12) + recovery | NO |",
+    "| Fixed-R + classic grid (07) | NO (no stop to measure R against) |",
+    "| Percentage sizing | needs a stop loss |",
+    "| Grid / `Hedging=true` | needs a hedging account |",
+    "| OCO / Pending entry | works on netting too (two legs firing together net out) |",
     "",
     "## Shared core (present in every system)",
     "",
@@ -357,9 +411,9 @@ lines += [
     "",
     "- **HEDGE_ACCOUNT_REQUIRED** (grid): requires a real MT5 hedging account.",
     "  Netting cannot represent independent legs and the legs cancel out.",
-    "- **HIGH_RISK** (martingale, d'alembert): the risk curve changes nature.",
-    "  Optimizing without a lot cap is valid only as research; set a cap your",
-    "  broker accepts before any forward-demo.",
+    "- **Recovery booster** (Martingale, D'Alembert): the risk curve changes",
+    "  nature — the lot grows with the losing streak. Keep `MaxMartingaleSteps`",
+    "  and a lot cap your broker accepts before any forward-demo.",
     "- **HIGH_RISK_RESEARCH** (signal only): no stop loss. It exists to measure",
     "  the raw signal, never to trade.",
     "",

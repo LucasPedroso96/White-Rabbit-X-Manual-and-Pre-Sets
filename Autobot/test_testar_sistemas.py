@@ -223,7 +223,7 @@ def assina(sistema, variante, spec, n=20, lado="buy"):
 
 r = assina("04_SLTP_TRAIL", "BUY_MULTI", {"sl": True, "tp": True, "classes": ["sl", "tp"]})
 checar("04 correto: sem falha", r.falhas, [])
-checar("04 correto: sl arrastado detectado", r.metricas["sl_movido"] > 0, True)
+checar("04 correto: sl arrastado detectado", r.metricas["sl_categorias"].get("trail", 0) > 0, True)
 r = assina("03_TRAIL_ONLY", "BUY_MULTI", {"sl": True, "tp": True, "classes": ["sl"]})
 checar("03 com TP nas ordens reprova", any("[tp]" in f for f in r.falhas), True)
 r = assina("03_TRAIL_ONLY", "BUY_MULTI", {"sl": True, "tp": False, "classes": ["sl", "tp"]})
@@ -249,6 +249,58 @@ checar("07: grade que nunca abre 2 pernas so avisa",
        (r.falhas, any("[grade]" in a for a in r.avisos)), ([], True))
 r = assina("04_SLTP_TRAIL", "BUY_MULTI", {"sl": True, "tp": True, "classes": ["tp"]}, n=0)
 checar("zero trades: so aviso", (r.falhas, len(r.avisos)), ([], 1))
+# --- stops x flags do set (inicial / breakeven / arrastado) ---------------------------------
+def com_saidas_sl(ratios: list[float], sl_dist=10.0):
+    """Posicoes compradas que fecharam por SL em `ratio` x distancia do SL inicial."""
+    ordens, deals = [], []
+    for i, rt in enumerate(ratios):
+        t = T0 + timedelta(hours=3 * i)
+        out = 4000.0 + rt * sl_dist
+        o, d = posicao(t, "buy", 0.1, 4000.0, 4000.0 - sl_dist, 4015.0, t + timedelta(hours=1), out,
+                       (out - 4000.0) * 10, "sl %.2f" % out)
+        ordens.append(o)
+        deals += d
+    return ordens, deals
+
+
+def stops(sistema, ratios, **flags):
+    o, d = com_saidas_sl(ratios)
+    r = tp.Resultado()
+    params = {"AtivarStop": "true", "AtivarTake": "true", **flags}
+    ts.checar_assinatura(sistema, "BUY_MULTI", o, d, INFO, r, params)
+    return r
+
+
+checar("classe_sl: inicial / be / trail", [
+    ts.classe_sl({"preco": 100.0, "sl": 90.0, "preco_out": po, "lado": "buy"})
+    for po in (90.0, 89.8, 100.0, 99.8, 95.0, 104.0)],
+    ["inicial", "inicial", "be", "be", "trail", "trail"])
+checar("classe_sl: venda espelha",
+       ts.classe_sl({"preco": 100.0, "sl": 110.0, "preco_out": 96.0, "lado": "sell"}), "trail")
+mistura = [-1.0] * 6 + [0.0] * 5 + [0.5] * 6 + [1.5]
+r = stops("04_SLTP_TRAIL", mistura, AtivarBreakeven="true", AtivarTrailATR="true")
+checar("04 com BE e trailing ligados e ambos aparecendo: limpo", (r.falhas, r.avisos), ([], []))
+r = stops("03_TRAIL_ONLY", mistura, AtivarBreakeven="false", AtivarTrailATR="true",
+          AtivarTake="false")
+checar("BE desligado mas 5 saidas no preco de entrada reprova",
+       any("[breakeven]" in f for f in r.falhas), True)
+r = stops("01_SLTP", mistura, AtivarBreakeven="true", AtivarTrailATR="false")
+checar("trailing desligado mas stops arrastados reprova", any("[trailing]" in f for f in r.falhas), True)
+r = stops("01_SLTP", [-1.0] * 6 + [0.0] * 2, AtivarBreakeven="false", AtivarTrailATR="false")
+checar("nem BE nem trailing e o stop mexeu reprova", any("[stop]" in f for f in r.falhas), True)
+r = stops("01_SLTP", [-1.0] * 20, AtivarBreakeven="true", AtivarTrailATR="false")
+checar("BE ligado e 20 saidas sem nenhum BE so avisa",
+       (r.falhas, any("[breakeven]" in a for a in r.avisos)), ([], True))
+r = stops("04_SLTP_TRAIL", [-1.0] * 10 + [0.0] * 10, AtivarBreakeven="true", AtivarTrailATR="true")
+checar("trailing ligado e nenhuma saida arrastada so avisa",
+       (r.falhas, any("[trailing]" in a for a in r.avisos)), ([], True))
+r = stops("04_SLTP_TRAIL", mistura, AtivarStop="false", AtivarBreakeven="true", AtivarTrailATR="true")
+checar("template com AtivarStop=false num sistema com SL reprova",
+       any("[template]" in f for f in r.falhas), True)
+r = stops("03_TRAIL_ONLY", mistura, AtivarTake="true", AtivarBreakeven="true", AtivarTrailATR="true")
+checar("template com AtivarTake=true no 03 (sem TP) reprova",
+       any("[template]" in f for f in r.falhas), True)
+
 # SL com stop invertido (ordem torta) reprova
 o, d = montar({"sl": True, "tp": True, "classes": ["sl", "tp"]}, 10)
 for x in o:
