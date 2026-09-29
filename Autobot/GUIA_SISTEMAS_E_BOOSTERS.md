@@ -85,11 +85,25 @@ mensagem: *exit requires bilateral trading on a real hedging account with Grid d
 6. **Ao vivo:** `validar_live.py` antes de implantar; a Limit do XAUUSD 04 mostrou vantagem pequena e sensível
    a atraso de execução — não confie nela sem forward-teste em demo.
 
+### Painel × fila × linha de comando (o que cada um liga)
+
+| Opção | Painel (Start) | Fila `_fila_*.ps1` | `campanha.py` / `optimize_two_stage.py` |
+|---|:-:|:-:|---|
+| Camada de recuperação | sim (*Camada de Recuperação*) | não | `--recuperacao martingale\|dalembert` |
+| Modo econômico (BOTH) e família | sim | sim | `--modo-economico`, `--familia` |
+| Janela dinâmica (por taxa de trades, teto 2 anos) | **não** (janela fixa de 3 anos, cortada em 2) | **sim** | `--janela-dinamica` |
+| Teto do Estágio 3.5 (tick real) | **não** | **sim** (15–20 min) | `--timeout-geometria-min` |
+| Desligar a entrada pendente / triagem de sensibilidade | não | não | `--sem-entrada-pendente`, `--triagem-sensibilidade` |
+| Combos exatos e refazer o que é anterior a um corte | não | **sim** | `--combos`, `--refazer-antes-de` |
+
+Ou seja: o circuito completo da metodologia atual (janela por trades, holdout lacrado, 3.5 com teto) sai pela
+**fila**; o botão Start do painel é o caminho curto e usa os padrões, sem a janela dinâmica.
+
 ## 6. Como testar mudanças (EA, gerador, pipeline) antes de gastar dias de terminal
 
 | Camada | Comando | O que prova |
 |---|---|---|
-| Offline | `test_*.py` (38 arquivos) | regras, parsers, modelos, sem MT5 |
+| Offline | `test_*.py` (39 arquivos) | regras, parsers, modelos, sem MT5 |
 | Pendentes | `testar_pendentes.py --rodar` / `--verificar` | preço, SL/TP, lote, expiração, OCO, WFO de cada ordem pendente contra as barras do terminal |
 | Sistemas e recuperação | `testar_sistemas.py --rodar` / `--verificar` | cada sistema sai como o nome diz; o lote de cada entrada bate com o modelo do `.mq5` |
 | Lógica dos inputs | `bateria_logica.py --parte i/n --saida bateria_logica/AAAA-MM-DD/x.jsonl` | cada eixo do template muda o resultado e nada é recusado sem motivo (pasta nova sempre que a EA muda) |
@@ -100,9 +114,28 @@ mensagem: *exit requires bilateral trading on a real hedging account with Grid d
 
 * **Reabertura do mercado:** ordens no 1º segundo (ex.: ouro 01:00) falham com `[Market closed]` — também a
   mercado, não é da pendente.
-* **OCO na rolagem da meia-noite:** com o spread aberto as duas pernas podem executar no mesmo instante; use
-  `MaxSpread` e evite armar o bracket ali.
+* **OCO na rolagem da meia-noite:** com o spread aberto (≈ 23:56–00:05 neste servidor) as duas pernas podem
+  executar no mesmo instante (medido no GBPUSD). Duas proteções que a EA já tem: `MaxSpread` e a janela de
+  horário com `Fecharordensforadohorario=true` (cancela a pendente fora da janela — verificado no cenário
+  `g6_pregao_10_12`). Para um bracket ao vivo, termine a janela antes da rolagem (ex.: `TOD_To_Hour` ≤ 23) e
+  não arme na hora 0.
 * **Pausa da campanha:** só vale entre combos; um combo que acha candidato na rodada 1 do Estágio 1 roda até o
   fim (4–6 h).
 * **Um teste com EA velha não vale:** cada rodada de validação precisa ser posterior ao `.ex5` atual (o
   `preflight.py` compara as datas).
+
+## 8. Evidência da rodada de 29/09/2026 (build EA `0c0d23b8` / `b5c674de` / `d756d1da`)
+
+| Teste | Escopo | Resultado |
+|---|---|---|
+| Ordens pendentes (`testar_pendentes`) | 113 cenários, 3 EAs, 7.348 ordens, tick real, 4 semanas cada | 0 falhas; preço exato em 7.159, empurrado à distância mínima do corretor em 189, nenhum fora |
+| Assinatura dos sistemas (S1) | 10 sistemas × 12 arquivos (XAUUSD) + os 10 em `BOTH_MULTI` no EURUSD, 8 semanas, 20.037 posições | 0 falhas, 0 avisos: SL/TP nas ordens, classes de saída, lado do arquivo, grade com 2–5 pernas, saídas por SL classificadas em inicial (1.502) / breakeven (2.381) / arrastada (2.214) e coerentes com `AtivarBreakeven` / `AtivarTrailATR` |
+| Recuperação (S2) | Martingale e D'Alembert em 01–06 e 11, 3 EAs, XAUUSD e EURUSD, 27 cenários | 3.992 lotes de entrada recalculados com o modelo do `.mq5` (dívida por lado, passos, teto de 3R): **0 divergências**; 3.102 com dívida/passo ativo, 2.128 acima do lote base |
+| Travas de risco (S3) | perda diária do magic, proteção global diária e total, com e sem fechamento, Limit, Bollinger e Candles — 9 cenários | 0 entradas depois do estouro em todos (o controle sem trava teria 13 entradas depois do estouro diário e 88 depois do total); com `Protecao_Fecha_Posicoes=false` nenhum fechamento de emergência |
+| Bateria de lógica | 1.032 passes, 262 eixos, 4 famílias | de 32 achados (14/09) para 12: o filtro ATR deixou de zerar as entradas; os que restam são eixos condicionais por desenho (Bollinger: modo Reversal/Squeeze/filtro MTF; Ichimoku: `InpAppliedPrice` e Stochastic inertes) |
+| Biblioteca × OnInit (`validate_system_sets`) | 10.246 sets, 93 milhões de combinações de canto, esquema de cada família contra a própria EA | nenhum set alcança combinação recusada, exceto o acoplamento conhecido do 06 BOTH |
+
+O que a rodada **mudou no código**: Candles com `InpAppliedPrice` cravado em CLOSE (a EA recusa OPEN/HIGH/LOW; 43% do
+eixo eram passes recusados); a prova em % do Estágio 5 não roda mais com D'Alembert (a EA exige lote fixo); o
+Estágio 2.5 imprime o efeito da recuperação na retenção; `bateria_logica`, `validate_system_sets` e
+`testar_pendentes` ganharam as conferências acima.

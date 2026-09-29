@@ -4849,7 +4849,14 @@ def main() -> int:
     sizing_entrega = "origem"
     capital_ref = None
     if aprovado:
-        if modo_de_sizing(origem) == "3":
+        if modo_de_sizing(origem) == "3" and str(travados.get("RecoveryMode", "0")) == "2":
+            # D'Alembert exige Lote Fixo no OnInit (o Estagio 2.5 ja trocou o sizing): a
+            # prova em % seria recusada pela EA -- passe perdido, com retentativas do
+            # agente. A entrega sai no Lote Fixo com que a busca mediu.
+            print("\n  [5/5] prova em % nao se aplica: D'Alembert exige Lote Fixo "
+                  "(a EA recusa D'Alembert em Percentage); entrega no Lote Fixo.",
+                  flush=True)
+        elif modo_de_sizing(origem) == "3":
             print("\n  [5/5] prova em PERCENTUAL (tick real, juros compostos)",
                   flush=True)
             passo = dict(travados, PositionSizeMode="0", MetodoDeEntradawfo="1")

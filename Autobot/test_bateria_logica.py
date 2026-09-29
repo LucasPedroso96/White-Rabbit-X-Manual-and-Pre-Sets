@@ -86,6 +86,8 @@ regs = [
     reg("01_SLTP", "EixoGuardado", "1", 100, 1050.0), reg("01_SLTP", "EixoGuardado", "2", 100, 1050.0),
     reg("01_SLTP", "Vivo", "1", 100, 1050.0), reg("01_SLTP", "Vivo", "2", 90, 1010.0),
     reg("01_SLTP", "Mudo", "1", 100, 1000.0), reg("01_SLTP", "Mudo", "2", 100, 900.0, c=100, v=0),
+    reg("01_SLTP", "Poucos", "1", 100, 1000.0),
+    reg("01_SLTP", "Poucos", "2", 1, 999.0, c=0, v=1),
     reg("01_SLTP", "Zero", "1", 100, 1000.0), reg("01_SLTP", "Zero", "2", 0, 1000.0, c=0, v=0),
     reg("01_SLTP", "Recusa", "1", 100, 1000.0),
     reg("01_SLTP", "Recusa", "2", None, None, c=0, v=0, recusado=True,
@@ -102,6 +104,7 @@ checar("analise: eixo morto Y aparece como SEM_EFEITO [Y]",
 checar("analise: eixo guardado aparece como [N]", "EixoGuardado" in txt and "[N] 2 valores" in txt, True)
 checar("analise: eixo que muda o resultado nao e achado", "Vivo" in txt, False)
 checar("analise: lado mudo", "LADO_MUDO" in txt and "Mudo" in txt, True)
+checar("analise: 1 trade so nao e lado mudo", "Poucos" in txt, False)
 checar("analise: valor morto", "VALOR_MORTO" in txt and "Zero" in txt, True)
 checar("analise: recusa com o motivo", "RECUSA" in txt and "exit requires bilateral" in txt, True)
 checar("analise: erro de runtime", "ERRO" in txt and "array out of range" in txt, True)

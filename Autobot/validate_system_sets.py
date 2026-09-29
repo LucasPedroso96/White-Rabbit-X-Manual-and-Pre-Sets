@@ -16,7 +16,18 @@ import wrx_paths
 
 TERMINAL = wrx_paths.data_dir() / "MQL5"
 EA = TERMINAL / "Experts" / "White Rabbit X (Global Multi-Indicator).mq5"
+# Cada familia tem a PROPRIA EA (schema de inputs diferente): o sufixo do arquivo escolhe qual.
+EA_POR_FAMILIA = {
+    "BOLLINGER": TERMINAL / "Experts" / "White Rabbit X (Global -  Bolinger Bands).mq5",
+    "CANDLES": TERMINAL / "Experts" / "White Rabbit (Candles Entry).mq5",
+}
 ROOT = TERMINAL / "Profiles" / "Tester" / "White_Rabbit_X_Sets_templates"
+# Combinacoes que a EA recusa mas o template alcanca por ACOPLAMENTO entre eixos
+# independentes (nao e set quebrado): modo 1 do 06 BOTH exige Hedging=true e os dois eixos
+# variam sozinhos, entao ~1/4 das combinacoes e recusada no OnInit (genetico perde passes).
+ACOPLAMENTOS_CONHECIDOS = {
+    "saida por ordem oposta sem hedging bilateral": "06_REVERSAL_EXIT/BOTH_",
+}
 
 # Eixos cujo cruzamento o OnInit avalia. Expandidos por produto cartesiano.
 CROSS = [
@@ -26,7 +37,23 @@ CROSS = [
     "BreakevenDistancia", "Stop", "Take", "AtivarTrailATR", "Trail",
     "EntryIndicator", "Fast_EMA", "Slow_EMA", "MACD_SMA", "PeriodoATR",
     "AtivarFiltroMTF", "TradeCapitalPercentage", "MaxSlippage",
+    "EntryOrderType", "PendingGatilho", "PendingHoraSessao", "PendingFaixaBarras",
+    "PendingExpiracaoBarras", "PendingDistanciaATR",
 ]
+
+
+# Eixo que a familia NAO tem (Bollinger/Candles nao tem indicador plugavel nem periodos
+# EMA): entra com valor neutro, que nunca dispara regra.
+NEUTRO = {
+    "PositionSizeMode": 3, "AtivarStop": 1, "AtivarTake": 1, "GridMode": 0, "RecoveryMode": 0,
+    "MaxLongTrades": 1, "MaxShortTrades": 1, "Hedging": 0, "DistanciaMinima": 1,
+    "Multiplicador": 1, "DAlembertStep": 0.01, "ReversalExitMode": 0, "AtivarBreakeven": 0,
+    "BreakevenDistancia": 1, "Stop": 1, "Take": 1, "AtivarTrailATR": 0, "Trail": 1,
+    "EntryIndicator": -1, "Fast_EMA": 1, "Slow_EMA": 2, "MACD_SMA": 3, "PeriodoATR": 14,
+    "AtivarFiltroMTF": 0, "TradeCapitalPercentage": 100, "MaxSlippage": 0,
+    "EntryOrderType": 0, "PendingGatilho": 0, "PendingHoraSessao": 8, "PendingFaixaBarras": 4,
+    "PendingExpiracaoBarras": 3, "PendingDistanciaATR": 0.5,
+}
 
 
 def parse(value: str):
@@ -57,6 +84,7 @@ def num(token: str) -> float:
 
 def check(v: dict[str, float]) -> str | None:
     """Reimplementa as rejeicoes do OnInit. Retorna a causa ou None."""
+    v = {**NEUTRO, **v}
     percentage = v["PositionSizeMode"] == 0
     monetary = v["PositionSizeMode"] == 1
     fixed_lot = v["PositionSizeMode"] == 2
@@ -134,13 +162,28 @@ def check(v: dict[str, float]) -> str | None:
             v["Hedging"] == 0 or v["MaxLongTrades"] == 0 or
             v["MaxShortTrades"] == 0 or grid):
         return "saida por ordem oposta sem hedging bilateral"
+    # Entrada pendente (OnInit: "Invalid session trigger" / "Invalid pending entry")
+    if "PendingGatilho" in v:
+        if v["PendingGatilho"] == 1 and (
+                v["EntryOrderType"] == 0 or not 0 <= v["PendingHoraSessao"] <= 23
+                or v["PendingFaixaBarras"] < 1):
+            return "gatilho por sessao sem pendente / hora fora de 0-23 / faixa < 1"
+        if v["EntryOrderType"] != 0 and (
+                v["PendingExpiracaoBarras"] < 1 or v["PendingDistanciaATR"] < 0):
+            return "pendente com expiracao < 1 ou distancia < 0"
     return None
 
 
 def main() -> int:
-    ea_inputs = re.findall(
-        r"^\s*input\s+(?!group\b)[A-Za-z_][A-Za-z0-9_]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*=",
-        EA.read_text(encoding="utf-8", errors="replace"), re.MULTILINE)
+    def inputs_da(caminho: Path) -> list[str]:
+        return re.findall(
+            r"^\s*input\s+(?!group\b)[A-Za-z_][A-Za-z0-9_]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*=",
+            caminho.read_text(encoding="utf-8", errors="replace"), re.MULTILINE)
+
+    esquemas = {"MULTI": inputs_da(EA)}
+    for fam, caminho in EA_POR_FAMILIA.items():
+        if caminho.exists():
+            esquemas[fam] = inputs_da(caminho)
 
     files = sorted(ROOT.rglob("*.set"))
     if not files:
@@ -148,6 +191,7 @@ def main() -> int:
         return 1
 
     errors: list[str] = []
+    avisos: list[str] = []
     combos_checked = 0
     biggest = (0, "")
 
@@ -177,8 +221,12 @@ def main() -> int:
             if name in CROSS:
                 axes[name] = values
 
-        if order != ea_inputs:
-            errors.append(f"{rel}: schema divergente do EA")
+        familia = next((f for f in EA_POR_FAMILIA if path.stem.endswith(f"_{f}")), "MULTI")
+        if familia not in esquemas:
+            errors.append(f"{rel}: EA da familia {familia} nao encontrada")
+            continue
+        if order != esquemas[familia]:
+            errors.append(f"{rel}: schema divergente da EA {familia}")
             continue
         if flags == 0:
             errors.append(f"{rel}: nenhum eixo Y")
@@ -194,19 +242,28 @@ def main() -> int:
             combos_checked += 1
             why = check(dict(zip(names, combo)))
             if why:
-                errors.append(f"{rel}: {why}")
+                if why in ACOPLAMENTOS_CONHECIDOS and ACOPLAMENTOS_CONHECIDOS[why] in rel:
+                    avisos.append(f"{rel}: {why}")
+                else:
+                    errors.append(f"{rel}: {why}")
                 break
 
     print(f"Sets validados: {len(files)}")
     print(f"Combinacoes cruzadas testadas: {combos_checked:,}".replace(",", "."))
     print(f"Maior espaco: {biggest[0]:,}".replace(",", ".") + f"  ({biggest[1]})")
+    if avisos:
+        print(f"\nAVISOS (acoplamento conhecido, nao e set quebrado): {len(avisos)}")
+        for a in avisos[:3]:
+            print(f"  - {a}")
+        print("    ... o modo 1 (ordem oposta) do 06 BOTH exige Hedging=true; os dois eixos "
+              "variam sozinhos e ~1/4 das combinacoes e recusada no OnInit.")
     if errors:
         print(f"\nERROS: {len(errors)}")
         for err in errors[:25]:
             print(f"  - {err}")
         return 1
-    print("\nOK: schema bate com o EA e nenhuma combinacao dispara "
-          "INIT_PARAMETERS_INCORRECT.")
+    print("\nOK: schema bate com a EA de cada familia e nenhuma combinacao dispara "
+          "INIT_PARAMETERS_INCORRECT (fora os avisos acima).")
     return 0
 
 

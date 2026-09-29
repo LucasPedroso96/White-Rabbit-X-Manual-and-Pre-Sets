@@ -54,3 +54,4 @@ auditoria_eventos.offset
 
 # Saida da matriz de testes das ordens pendentes (relatorios do tester, barras) -- dado local
 _pendentes_teste/
+_sistemas_teste/

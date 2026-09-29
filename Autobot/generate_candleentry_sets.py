@@ -101,7 +101,13 @@ def apply_core_candles(p: Profile, ac: AssetClass, grid: bool = False) -> None:
     identico ao slot 2 valor-a-valor) -- 4 slots so inflava graus de
     liberdade sem info nova.
     """
-    p.opt("InpAppliedPrice", 1, 1, 1, 7)
+    # CLOSE cravado (2026-09-29). A direcao da vela e "preco aplicado > open" e a EA
+    # RECUSA OPEN/HIGH/LOW no OnInit (medido 14/09: HIGH so comprava, LOW so vendia e
+    # ainda fechava melhor que o CLOSE). A faixa 1-7 de antes deixava 3 dos 7 valores
+    # (43%) virarem passe recusado no genetico; os legais {1,5,6,7} nao cabem numa
+    # faixa contigua, e MEDIAN/TYPICAL/WEIGHTED contra o open nao sao "direcao da
+    # vela" -- so o CLOSE e a definicao da referencia (3 condicoes Close-vs-Open).
+    p.fix("InpAppliedPrice", 1)
 
     # 3 slots, todos OBRIGATORIOS, sempre abertos desde a fase 1 (sem gate --
     # HasRawBuyIndicatorSignal() os exige incondicionalmente, ver .mq5).

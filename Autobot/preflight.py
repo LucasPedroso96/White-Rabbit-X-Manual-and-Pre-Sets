@@ -11,6 +11,7 @@ uma dessas coisas vira uma linha OK / ALERTA / FALHA, em segundos, sem MT5:
   processos   nada de fila/campanha/teste rodando; pausa armada ou nao
   validacoes  testar_pendentes / testar_sistemas / bateria_logica: feitas DEPOIS do
               build atual da EA e sem FALHA
+  biblioteca  validate_system_sets.py: nenhum set alcanca combinacao que o OnInit recuse
   testes      bateria de testes offline (pule com --rapido)
   git         commits sem push / atras da main
 
@@ -180,6 +181,24 @@ def checar_validacoes(build_mais_novo: float) -> list[Linha]:
     return linhas
 
 
+def checar_biblioteca_oninit(rapido: bool) -> list[Linha]:
+    """validate_system_sets.py: schema de cada familia contra a SUA EA e nenhuma combinacao
+    alcancavel que o OnInit recuse (fora o acoplamento conhecido do 06 BOTH)."""
+    if rapido:
+        return [("alerta", "biblioteca x OnInit", "pulada (--rapido)")]
+    r = subprocess.run([sys.executable, str(AQUI / "validate_system_sets.py")], cwd=AQUI,
+                       capture_output=True, text=True, timeout=900)
+    saida = r.stdout
+    m_sets = re.search(r"Sets validados: (\d+)", saida)
+    m_av = re.search(r"AVISOS \(acoplamento conhecido[^)]*\): (\d+)", saida)
+    if r.returncode != 0:
+        m_err = re.search(r"ERROS: (\d+)", saida)
+        return [("falha", "biblioteca x OnInit", f"{m_err.group(1) if m_err else '?'} sets que a EA "
+                 "recusa (rode validate_system_sets.py)")]
+    extra = f", {m_av.group(1)} com acoplamento conhecido (06 BOTH)" if m_av else ""
+    return [("ok", "biblioteca x OnInit", f"{m_sets.group(1) if m_sets else '?'} sets validados{extra}")]
+
+
 def checar_testes(rapido: bool) -> list[Linha]:
     if rapido:
         return [("alerta", "testes offline", "pulados (--rapido)")]
@@ -234,6 +253,7 @@ def main() -> int:
     linhas += checar_templates(dirs)
     linhas += checar_processos()
     linhas += checar_validacoes(build)
+    linhas += checar_biblioteca_oninit(args.rapido)
     linhas += checar_testes(args.rapido)
     linhas += checar_git()
     marca = {"ok": "OK    ", "alerta": "ALERTA", "falha": "FALHA "}

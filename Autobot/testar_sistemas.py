@@ -31,6 +31,7 @@ import math
 import re
 import sys
 from collections import Counter, deque
+from datetime import datetime, time as hora, timedelta
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -346,6 +347,16 @@ def passos_dalembert(ops: list[dict], max_passos: int) -> int:
     return n
 
 
+def valor_r(params: dict) -> float:
+    """1R em moeda, como o OnInit da EA congela: PositionSizeValue% do capital base
+    (CapitalBaseR, ou o saldo se 0), reduzido por TradeCapitalPercentage quando em (0,100]."""
+    base = _flt(params, "CapitalBaseR") or _flt(params, "_deposito")
+    pct = _flt(params, "TradeCapitalPercentage", 100.0)
+    if 0 < pct <= 100:
+        base *= pct / 100.0
+    return _flt(params, "PositionSizeValue") / 100.0 * base
+
+
 def _piso(valor: float, passo: float) -> float:
     return math.floor(valor / passo + 1e-9) * passo
 
@@ -397,8 +408,7 @@ def lotes_possiveis(p: dict, ops_antes: list[dict], ops_lado_incl: list[dict],
             continue
         if modo != 3:
             continue                                     # outros modos nao sao cobertos
-        r = _flt(params, "PositionSizeValue") / 100.0 * (
-            _flt(params, "CapitalBaseR") or _flt(params, "_deposito"))
+        r = valor_r(params)
         cap = _flt(params, "MaxRiscoTradeR")
         dist_sl = abs(p["preco"] - p["sl"])
         if dist_sl <= 0:
@@ -479,8 +489,7 @@ def checar_recuperacao(sistema: str, params: dict, ordens: list[dict], deals: li
         res.aviso("amostra", "D'Alembert nunca subiu o lote acima da base")
     teto_r = _flt(params, "MaxRiscoTradeR")
     if modo == 3 and teto_r > 0:
-        r = _flt(params, "PositionSizeValue") / 100.0 * (_flt(params, "CapitalBaseR")
-                                                          or _flt(params, "_deposito"))
+        r = valor_r(params)
         contrato = info.get("contrato") or 100.0
         vmin = info.get("vol_min") or passo
         # folga de um passo: o lote base promovido ao minimo do corretor pode passar do teto
@@ -495,6 +504,110 @@ def checar_recuperacao(sistema: str, params: dict, ordens: list[dict], deals: li
         if estouro:
             res.falha("teto_r", f"{len(estouro)} entradas arriscam mais que {teto_r:g}R "
                       f"(ex.: ordem {estouro[0]['ordem']})")
+
+
+# ---------------------------------------------------------------------------
+# S3: travas de risco da conta
+# ---------------------------------------------------------------------------
+
+FOLGA_TRAVA = 1.05          # a ancora da EA e o equity do 1o tick do dia; o saldo pode diferir um pouco
+
+
+def saldo_por_fechamento(fechadas: list[dict], deposito: float) -> list[tuple[datetime, float]]:
+    """[(hora do fechamento, saldo depois)] em ordem de fechamento."""
+    saldo = deposito
+    saida = []
+    for p in sorted(fechadas, key=lambda x: x["t_out"]):
+        saldo += p["net"]
+        saida.append((p["t_out"], saldo))
+    return saida
+
+
+def violacoes_trava_diaria(fechadas: list[dict], todas: list[dict], deposito: float,
+                           limite_pct: float) -> tuple[int, int]:
+    """(dias em que a perda REALIZADA do dia passou o limite, entradas abertas depois disso
+    no mesmo dia). A EA bloqueia por equity (que inclui o flutuante), entao ela bloqueia
+    antes ou junto da perda realizada, nunca depois: entrada depois do estouro realizado
+    e violacao. Dia que comeca com posicao aberta e pulado (ancora com flutuante)."""
+    dias_estouro = violacoes = 0
+    for dia in sorted({p["t_out"].date() for p in fechadas}):
+        inicio = datetime.combine(dia, hora.min)
+        if any(p["t_in"] < inicio <= p["t_out"] for p in fechadas):
+            continue
+        ancora = deposito + sum(p["net"] for p in fechadas if p["t_out"] < inicio)
+        acumulado, t_estouro = 0.0, None
+        for p in sorted((x for x in fechadas if x["t_out"].date() == dia), key=lambda x: x["t_out"]):
+            acumulado += p["net"]
+            if acumulado <= -limite_pct / 100.0 * ancora * FOLGA_TRAVA:
+                t_estouro = p["t_out"]
+                break
+        if t_estouro is None:
+            continue
+        dias_estouro += 1
+        violacoes += sum(1 for p in todas
+                         if p["t_in"].date() == dia and p["t_in"] > t_estouro + timedelta(seconds=1))
+    return dias_estouro, violacoes
+
+
+def violacoes_trava_total(fechadas: list[dict], todas: list[dict], deposito: float,
+                          limite_pct: float) -> tuple[datetime | None, int]:
+    """(hora do estouro, entradas depois dele). A trava total e PERMANENTE."""
+    piso = deposito * (1.0 - limite_pct / 100.0)
+    for quando, saldo in saldo_por_fechamento(fechadas, deposito):
+        if saldo <= piso:
+            return quando, sum(1 for p in todas if p["t_in"] > quando + timedelta(seconds=1))
+    return None, 0
+
+
+def checar_travas(params: dict, ordens: list[dict], deals: list[dict], log: str,
+                  res: Resultado) -> None:
+    fechadas, abertas = operacoes(ordens, deals)
+    todas = fechadas + abertas
+    deposito = _flt(params, "_deposito")
+    fecha = _bool(params, "Protecao_Fecha_Posicoes")
+    perda_magic = _flt(params, "DailyLossLimitPercent")
+    gp_dia = _flt(params, "Trava_Diaria_Percent")
+    gp_total = _flt(params, "Trava_Total_Percent")
+    res.metricas.update({"entradas": len(todas), "fechadas": len(fechadas)})
+    if len(todas) < 5:
+        res.aviso("amostra", f"so {len(todas)} entradas: evidencia fraca")
+        return
+    if not deposito:
+        res.aviso("info", "sem deposito no registro: a trava nao pode ser conferida")
+        return
+    for rotulo, limite in (("perda diaria (magic)", perda_magic), ("trava diaria global", gp_dia)):
+        if limite <= 0:
+            continue
+        dias, viol = violacoes_trava_diaria(fechadas, todas, deposito, limite)
+        res.metricas[f"dias_estouro_{'magic' if 'magic' in rotulo else 'gp'}"] = dias
+        res.metricas[f"entradas_apos_estouro_{'magic' if 'magic' in rotulo else 'gp'}"] = viol
+        if viol:
+            res.falha("trava", f"{rotulo} de {limite:g}%: {viol} entrada(s) abertas DEPOIS de a perda "
+                      f"do dia passar o limite ({dias} dia(s) com estouro)")
+        elif dias < 3:
+            res.aviso("amostra", f"{rotulo}: so {dias} dia(s) com estouro -- a trava quase nao foi "
+                      "exercitada")
+    if gp_total > 0:
+        quando, viol = violacoes_trava_total(fechadas, todas, deposito, gp_total)
+        res.metricas["estouro_total"] = None if quando is None else f"{quando:%m.%d %H:%M:%S}"
+        res.metricas["entradas_apos_estouro_total"] = viol
+        if quando is None:
+            res.aviso("amostra", f"trava total de {gp_total:g}% nunca foi rompida nesta janela")
+        elif viol:
+            res.falha("trava", f"trava TOTAL de {gp_total:g}% rompida em {quando:%m.%d %H:%M:%S} e "
+                      f"{viol} entrada(s) depois (a trava e permanente)")
+    if gp_dia > 0 or gp_total > 0:
+        fechamentos = sum(1 for p in fechadas if p["classe"] == "vazio")
+        res.metricas["fechamentos_da_protecao"] = fechamentos
+        if not fecha and fechamentos:
+            res.falha("trava", f"Protecao_Fecha_Posicoes=false e {fechamentos} posicao(oes) fechadas "
+                      "sem SL/TP/saida da estrategia (a protecao so deveria BLOQUEAR entradas)")
+        if fecha and not fechamentos:
+            res.aviso("trava", "Protecao_Fecha_Posicoes=true e nenhum fechamento de emergencia "
+                      "(nenhuma posicao estava aberta quando a trava rompeu?)")
+        if "Protecao Global" not in log and (res.metricas.get("dias_estouro_gp")
+                                             or res.metricas.get("estouro_total")):
+            res.aviso("log", "trava rompida mas sem a linha '[Protecao Global]' no log")
 
 
 # ---------------------------------------------------------------------------
@@ -560,6 +673,27 @@ def catalogo(existe=None) -> list[CenarioS]:
             {"RecoveryMode": "1", "MaxMartingaleSteps": "3"})
         rec(f"dal_04_both_{fam.lower()}", "04_SLTP_TRAIL", f"BOTH_{fam}", dict(dal))
 
+    # S3: travas de risco da conta (o dono pode liga-las ao vivo). 04 BUY (uma posicao por vez,
+    # entao o saldo realizado vale como prova), limites apertados pra estourar varias vezes.
+    def trava(nome: str, extra: dict, var: str = "BUY_MULTI") -> None:
+        cs.append(CenarioS(f"s3_{nome}", "04_SLTP_TRAIL", var, extra, simbolo=SIMBOLO,
+                           inicio=JANELA[0], fim=JANELA[1], grupo="s3"))
+
+    limit = {"EntryOrderType": "2", "PendingReferencia": "0", "PendingDistanciaATR": "0.5",
+             "PendingExpiracaoBarras": "8"}
+    trava("perda_diaria", {"DailyLossLimitPercent": "0.5"})
+    trava("gp_diaria_fecha", {"Trava_Diaria_Percent": "0.5", "Protecao_Fecha_Posicoes": "true"})
+    trava("gp_diaria_bloqueia", {"Trava_Diaria_Percent": "0.5", "Protecao_Fecha_Posicoes": "false"})
+    trava("gp_total_fecha", {"Trava_Total_Percent": "3", "Protecao_Fecha_Posicoes": "true"})
+    trava("gp_total_bloqueia", {"Trava_Total_Percent": "3", "Protecao_Fecha_Posicoes": "false"})
+    trava("perda_diaria_limit", {"DailyLossLimitPercent": "0.5", **limit})
+    trava("gp_diaria_limit", {"Trava_Diaria_Percent": "0.5", "Protecao_Fecha_Posicoes": "true",
+                              **limit})
+    trava("gp_diaria_bollinger", {"Trava_Diaria_Percent": "0.5", "Protecao_Fecha_Posicoes": "true"},
+          "BUY_BOLLINGER")
+    trava("gp_diaria_candles", {"Trava_Diaria_Percent": "0.5", "Protecao_Fecha_Posicoes": "true"},
+          "BUY_CANDLES")
+
     # Segundo simbolo: EURUSD (forex de 5 casas, contrato 100000, tick 0.00001) -- o ouro
     # sozinho nao prova o dimensionamento nem o tamanho do tick em outra classe de ativo
     for sis in SISTEMAS_S1:
@@ -607,6 +741,8 @@ def verificar(so: str | None = None) -> int:
                 if (SAIDA / f"{nome}.log").exists() else ""
             if c.grupo == "s1":
                 checar_assinatura(c.sistema, c.variante, ordens, deals, info, res, params)
+            elif c.grupo == "s3":
+                checar_travas(params, ordens, deals, log, res)
             else:
                 checar_recuperacao(c.sistema, params, ordens, deals, info, res)
             tp.checar_log(log, res)
@@ -633,6 +769,11 @@ def _relatorio_final(resultados: dict, total: int) -> int:
         m = r["metricas"]
         resumo = (f"entradas={m.get('entradas', '-'):>4} saidas={m.get('saidas', '')}"
                   if n.startswith("s1") else
+                  f"entradas={m.get('entradas', '-'):>4} estouros dia gp/magic="
+                  f"{m.get('dias_estouro_gp', '-')}/{m.get('dias_estouro_magic', '-')} "
+                  f"apos_estouro={m.get('entradas_apos_estouro_gp', m.get('entradas_apos_estouro_magic', m.get('entradas_apos_estouro_total', '-')))} "
+                  f"fechamentos={m.get('fechamentos_da_protecao', '-')}"
+                  if n.startswith("s3") else
                   f"entradas={m.get('entradas', '-'):>4} conferidas={m.get('conferidas', '-')} "
                   f"diverg={m.get('divergentes', '-')} com_divida={m.get('entradas_com_divida', '-')} "
                   f"acima_base={m.get('lote_acima_da_base', '-')}")

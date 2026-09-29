@@ -309,6 +309,84 @@ r = tp.Resultado()
 ts.checar_assinatura("04_SLTP_TRAIL", "BUY_MULTI", o, d, INFO, r)
 checar("SL do lado errado reprova", any("[lado_sl_tp]" in f for f in r.falhas), True)
 
+# --- S3: travas de risco da conta ------------------------------------------------------------
+D1 = datetime(2026, 8, 3)          # segunda
+
+
+def pos_dia(dia_offset, h_in, h_out, lucro, cmt="sl 3990.00", lado="buy"):
+    t_in = D1 + timedelta(days=dia_offset, hours=h_in)
+    t_out = D1 + timedelta(days=dia_offset, hours=h_out)
+    return posicao(t_in, lado, 0.1, 4000.0, 3990.0, 4020.0, t_out, 4000.0 + lucro / 10.0, lucro, cmt)
+
+
+def montar_dias(posicoes):
+    ordens, deals = [], []
+    for o, d in posicoes:
+        ordens.append(o)
+        deals += d
+    return ordens, deals
+
+
+# dia 0: perde 100 (1%) as 10h e ENTRA de novo as 12h (violacao com limite de 0.5%)
+# dia 1: perde so 30 (0.3%) e entra depois (permitido)
+# dia 2: perde 100 as 9h e nao entra mais (correto)
+posicoes = [pos_dia(0, 8, 10, -100.0), pos_dia(0, 12, 13, 50.0),
+            pos_dia(1, 8, 9, -30.0), pos_dia(1, 10, 11, 40.0),
+            pos_dia(2, 8, 9, -100.0), pos_dia(3, 8, 9, 20.0), pos_dia(4, 8, 9, 20.0)]
+o, d = montar_dias(posicoes)
+fech, ab = ts.operacoes(o, d)
+dias, viol = ts.violacoes_trava_diaria(fech, fech + ab, 10000.0, 0.5)
+checar("trava diaria: 2 dias estouraram, 1 entrada depois do estouro", (dias, viol), (2, 1))
+dias, viol = ts.violacoes_trava_diaria(fech, fech + ab, 10000.0, 5.0)
+checar("trava diaria com limite folgado (5%): nada estoura", (dias, viol), (0, 0))
+# dia que comeca com posicao aberta e pulado (a ancora inclui flutuante)
+noturna = [pos_dia(0, 20, 30, -100.0), pos_dia(1, 12, 13, 10.0)]     # fecha as 06h do dia 1
+o, d = montar_dias(noturna)
+fech, ab = ts.operacoes(o, d)
+checar("trava diaria: dia que herda posicao aberta e pulado",
+       ts.violacoes_trava_diaria(fech, fech + ab, 10000.0, 0.5), (0, 0))
+# trava total (permanente): 3 perdas de 100 num deposito de 10000 = 3%
+perdas = [pos_dia(0, 8, 9, -100.0), pos_dia(1, 8, 9, -100.0), pos_dia(2, 8, 9, -100.0),
+          pos_dia(3, 8, 9, 20.0), pos_dia(4, 8, 9, 20.0)]
+o, d = montar_dias(perdas)
+fech, ab = ts.operacoes(o, d)
+quando, viol = ts.violacoes_trava_total(fech, fech + ab, 10000.0, 3.0)
+checar("trava total: rompe na 3a perda e ha 2 entradas depois", (quando, viol),
+       (D1 + timedelta(days=2, hours=9), 2))
+checar("trava total: limite maior que a queda nunca rompe",
+       ts.violacoes_trava_total(fech, fech + ab, 10000.0, 10.0), (None, 0))
+
+PARAMS_S3 = {"_deposito": 10000.0}
+
+
+def travas(posicoes, log="", **p):
+    o, d = montar_dias(posicoes)
+    r = tp.Resultado()
+    ts.checar_travas({**PARAMS_S3, **p}, o, d, log, r)
+    return r
+
+
+r = travas(posicoes, DailyLossLimitPercent="0.5")
+checar("checar_travas: entrada apos estouro da perda diaria reprova",
+       any("[trava]" in f and "DEPOIS" in f for f in r.falhas), True)
+sem_violacao = [pos_dia(0, 8, 10, -100.0), pos_dia(1, 8, 10, -100.0), pos_dia(2, 8, 10, -100.0),
+                pos_dia(3, 8, 10, 30.0), pos_dia(4, 8, 10, -100.0), pos_dia(7, 8, 10, 30.0)]
+r = travas(sem_violacao, Trava_Diaria_Percent="0.5", Protecao_Fecha_Posicoes="false",
+           log="[Protecao Global] Trava DIARIA rompida")
+checar("checar_travas: trava respeitada nao reprova", r.falhas, [])
+r = travas(sem_violacao, Trava_Diaria_Percent="0.5", Protecao_Fecha_Posicoes="true")
+checar("checar_travas: fecha=true sem nenhum fechamento de emergencia so avisa",
+       (r.falhas, any("fechamento de emergencia" in a for a in r.avisos)), ([], True))
+com_fechamento = sem_violacao + [pos_dia(8, 8, 10, -20.0, cmt="")]
+r = travas(com_fechamento, Trava_Diaria_Percent="0.5", Protecao_Fecha_Posicoes="false")
+checar("checar_travas: fecha=false mas houve fechamento sem SL/TP reprova",
+       any("so deveria BLOQUEAR" in f for f in r.falhas), True)
+r = travas(perdas, Trava_Total_Percent="3", Protecao_Fecha_Posicoes="false")
+checar("checar_travas: trava total permanente violada reprova",
+       any("TOTAL" in f and "permanente" in f for f in r.falhas), True)
+r = travas(posicoes[:2], DailyLossLimitPercent="0.5")
+checar("checar_travas: poucas entradas so avisa", (r.falhas, len(r.avisos) >= 1), ([], True))
+
 # --- catalogo -------------------------------------------------------------------------------
 cat = ts.catalogo()
 nomes = [c.nome for c in cat]
@@ -330,6 +408,16 @@ checar("catalogo S2: D'Alembert sempre em Lote Fixo",
 checar("catalogo S2: so sistemas que a EA aceita com recuperacao",
        {c.sistema for c in s2} <= {"01_SLTP", "02_SLTP_ORGANIC", "03_TRAIL_ONLY", "04_SLTP_TRAIL",
                                    "05_BE_TRAIL", "06_REVERSAL_EXIT", "11_SIGNAL_ONLY"}, True)
+s3c = [c for c in cat if c.grupo == "s3"]
+checar("catalogo S3: travas de perda diaria, global diaria e total", (
+    any("DailyLossLimitPercent" in c.sobrepor for c in s3c),
+    any("Trava_Diaria_Percent" in c.sobrepor for c in s3c),
+    any("Trava_Total_Percent" in c.sobrepor for c in s3c)), (True, True, True))
+checar("catalogo S3: com e sem fechamento das posicoes",
+       {c.sobrepor.get("Protecao_Fecha_Posicoes") for c in s3c if "Trava_Diaria_Percent" in c.sobrepor
+        or "Trava_Total_Percent" in c.sobrepor} >= {"true", "false"}, True)
+checar("catalogo S3: as tres EAs", {c.variante.split("_")[-1] for c in s3c},
+       {"MULTI", "BOLLINGER", "CANDLES"})
 checar("catalogo: modelo OHLC (rapido)", {c.modelo for c in cat}, {1})
 checar("catalogo: sistemas do S1 = sistemas do gerador",
        set(ts.ASSINATURA) == set(ts.SISTEMAS_S1), True)

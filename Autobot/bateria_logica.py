@@ -371,7 +371,8 @@ def analisar(arquivos: list[Path]) -> str:
                                 f"{', '.join(r['erros'])}"))
         if dois_lados:
             for r in ok:
-                if (r["trades"] or 0) > 0 and (r["compras"] == 0) != (
+                # < 5 trades e filtro apertando demais (1 venda em 6 meses), nao lado mudo
+                if (r["trades"] or 0) >= 5 and (r["compras"] == 0) != (
                         r["vendas"] == 0):
                     achados.append(("2 LADO_MUDO", tag,
                                     f"{eixo}={r['valor']}: compras/vendas="
