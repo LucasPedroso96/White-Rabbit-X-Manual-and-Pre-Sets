@@ -121,6 +121,14 @@ checar("sell stop no extremo (minima - k ATR) passa", r.falhas, [])
 r = rodar(tp.checar_preco, [ordem("sell stop", 131.0, 135.0, 125.0)], sell, barras, 0.01)
 checar("sell stop acima do mercado reprova", len(r.falhas), 1)
 
+
+# --- sem M1 (janelas antigas: o terminal so guarda ~100 mil barras de M1) ---------
+barras_sem_m1 = tp.Barras({"M15": m15})
+r = rodar(tp.checar_preco, [boa], PARAMS, barras_sem_m1, 0.01)
+checar("sem M1: preco certo (k>0) passa", r.falhas, [])
+r = rodar(tp.checar_preco, [ruim_preco], PARAMS, barras_sem_m1, 0.01)
+checar("sem M1: preco errado reprova", len(r.falhas), 1)
+
 # --- SL/TP relativos ao preco DA ORDEM ---------------------------------------
 r = rodar(tp.checar_sl_tp, [boa], PARAMS, barras, 0.01)
 checar("SL/TP relativos ao preco da ordem passam", r.falhas, [])
@@ -185,6 +193,21 @@ r = rodar(tp.checar_expiracao, [apos_lacuna], PARAMS, barras_lacuna)
 checar("prazo contado em barras existentes (buraco de mercado) passa",
        (r.falhas, r.metricas["cancel_no_prazo"]), ([], 1))
 
+
+# pausa diaria do mercado: ordem colocada na ultima barra antes do buraco expira pelo
+# broker na reabertura (a EA nao acumula barras) -- nao e falha; e o comentario vira "expired [...]"
+apos_pausa = ordem("buy limit", 128.5, 124.5, 134.5, fim=lacuna.index[p_ord + 1].to_pydatetime(),
+                   estado="expired", coment="expired [2026.08.03 09:15]")
+r = rodar(tp.checar_expiracao, [apos_pausa], PARAMS, barras_lacuna)
+checar("expirada pelo broker na pausa do mercado passa",
+       (r.falhas, r.metricas["expirada_na_pausa_do_mercado"]), ([], 1))
+r = rodar(tp.checar_tipos, [apos_pausa], PARAMS)
+checar("comentario 'expired [...]' nao conta como perna sem marca", r.falhas, [])
+tarde_exp = ordem("buy limit", 128.5, 124.5, 134.5, fim=lacuna.index[p_ord + 4].to_pydatetime(),
+                  estado="expired", coment="expired [2026.08.03 12:00]")
+r = rodar(tp.checar_expiracao, [tarde_exp], PARAMS, barras_lacuna)
+checar("expirada pelo broker DEPOIS de N barras existentes reprova", len(r.falhas), 1)
+
 # --- sobreposicao -------------------------------------------------------------
 a = ordem("buy limit", 128.5, 124.5, 134.5, t=T0, fim=T0 + timedelta(minutes=45), estado="canceled", n=1)
 b = ordem("buy limit", 128.5, 124.5, 134.5, t=T0 + timedelta(minutes=15), fim=T0 + timedelta(minutes=60),
@@ -226,8 +249,14 @@ checar("bracket com irma cancelada em 1 s passa", r.falhas, [])
 venda_viva = dict(venda, estado="expired")
 r = rodar(tp.checar_oco, [compra, venda_viva], [d_compra], oco)
 checar("irma nao cancelada reprova", len(r.falhas), 1)
+# duas pernas no MESMO instante = spread que abriu (rolagem) passou a largura do bracket:
+# a EA nao tem como cancelar antes -> aviso; com segundos de diferenca o cancelamento falhou
 r = rodar(tp.checar_oco, [compra, dict(venda, ordem=11)], [d_compra, dict(d_compra, ordem=11, deal=10)], oco)
-checar("as duas pernas executadas reprova", len(r.falhas), 1)
+checar("as duas pernas no mesmo instante: aviso, nao falha",
+       (r.falhas, len(r.avisos), r.metricas["oco_duas_pernas_simultaneas"]), ([], 1, 1))
+r = rodar(tp.checar_oco, [compra, dict(venda, ordem=11)],
+          [d_compra, dict(d_compra, ordem=11, deal=10, t=d_compra["t"] + timedelta(seconds=30))], oco)
+checar("as duas pernas executadas com 30 s de diferenca reprova", len(r.falhas), 1)
 r = rodar(tp.checar_oco, [compra], [], oco)
 checar("bracket sem a outra perna reprova", len(r.falhas), 1)
 venda_lenta = dict(venda, fim=t_ordem + timedelta(minutes=5, seconds=30))
@@ -252,6 +281,61 @@ r = rodar(tp.checar_janela, [ordem("buy limit", 1, 1, 1, t=datetime(2026, 8, 3, 
 checar("dentro do pregao passa", r.falhas, [])
 r = rodar(tp.checar_janela, [ordem("buy limit", 1, 1, 1, t=datetime(2026, 8, 3, 12, 30))], jan)
 checar("fora do pregao reprova", len(r.falhas), 1)
+
+
+# --- WFO In-Sample: a pendente nao nasce nem executa no OOS ----------------------------
+LOG_WFO = "\n".join([
+    "Step 1:", "  In-Sample (IS): 2026.08.03 - 2026.08.12",
+    "  Out-Sample (OOS): 2026.08.13 - 2026.08.16",
+    "Step 2:", "  In-Sample (IS): 2026.08.17 - 2026.08.26",
+    "  Out-Sample (OOS): 2026.08.27 - 2026.08.30",
+    "  Out-Sample (OOS): 2026.08.13 - 2026.08.16"])          # repetida (outro agente)
+checar("wfo: parse das janelas OOS (sem repetir)", len(tp.parse_janelas_wfo(LOG_WFO)), 2)
+checar("wfo: OOS termina as 23:59:59 do ultimo dia",
+       tp.parse_janelas_wfo(LOG_WFO)[0], (datetime(2026, 8, 13), datetime(2026, 8, 16, 23, 59, 59)))
+wfo_p = dict(PARAMS, AtivarWFO="true", MetodoDeEntradawfo="0")
+no_is = ordem("buy limit", 1, 1, 1, t=datetime(2026, 8, 11, 10, 0), fim=datetime(2026, 8, 11, 10, 45), estado="canceled", n=1)
+r = rodar(tp.checar_wfo, [no_is], [], LOG_WFO, wfo_p)
+checar("wfo: pendente que vive e morre no IS passa", r.falhas, [])
+nasceu_no_oos = ordem("buy limit", 1, 1, 1, t=datetime(2026, 8, 14, 10, 0), fim=datetime(2026, 8, 14, 10, 45), estado="canceled", n=2)
+r = rodar(tp.checar_wfo, [nasceu_no_oos], [], LOG_WFO, wfo_p)
+checar("wfo: pendente colocada no OOS reprova", len(r.falhas), 1)
+executou_no_oos = ordem("buy limit", 1, 1, 1, t=datetime(2026, 8, 13, 23, 0), fim=datetime(2026, 8, 14, 5, 0), n=3)
+d_oos = dict(deal, ordem=3, t=datetime(2026, 8, 14, 5, 0))
+r = rodar(tp.checar_wfo, [executou_no_oos], [d_oos], LOG_WFO, wfo_p)
+checar("wfo: pendente que executa no OOS reprova", len(r.falhas), 1)
+# a EA numera as janelas a partir da 1a barra do teste (ex.: 23:00): as datas impressas tem
+# ~1 dia de folga -- a ultima hora do 'dia' de inicio do OOS ainda e IS de fato
+borda_do_dia = ordem("buy limit", 1, 1, 1, t=datetime(2026, 8, 13, 10, 0), fim=datetime(2026, 8, 13, 10, 45),
+                     estado="canceled", n=4)
+r = rodar(tp.checar_wfo, [borda_do_dia], [], LOG_WFO, wfo_p)
+checar("wfo: ordem no dia da borda impressa nao e violacao (so o interior vale)", r.falhas, [])
+r = rodar(tp.checar_wfo, [nasceu_no_oos], [], "", wfo_p)
+checar("wfo: ligado sem nenhuma janela impressa reprova", len(r.falhas), 1)
+r = rodar(tp.checar_wfo, [nasceu_no_oos], [], LOG_WFO, dict(PARAMS, AtivarWFO="false"))
+checar("wfo desligado: nada a conferir", r.falhas, [])
+
+
+# --- marca de pendente com o comentario cortado em 31 caracteres (grade/piramide) -----
+for coment, esperado_marca in (("07-MUL Buy / Grid / FixedLot/Pe", True),
+                               ("12-MUL Buy / Pyramid / FixedR/P", True),
+                               ("04-MUL Buy/RFixo/Pend", True), ("04-MUL Buy/OCO", True),
+                               ("07-MUL Buy / Grid / FixedLot", False), ("04-MUL Buy/RFixo", False)):
+    checar(f"marca de pendente em {coment!r}", bool(tp.RE_MARCA_PEND.search(coment)), esperado_marca)
+
+# --- G7: diferenca semanal Limit - mercado ------------------------------------------
+def _saida(t, lucro):
+    return {"direcao": "out", "t": t, "lucro": lucro, "comissao": -1.0, "swap": 0.0}
+
+
+sa = [_saida(datetime(2026, 8, 3, 10), 100), _saida(datetime(2026, 8, 10, 10), 50),
+      _saida(datetime(2026, 8, 17, 10), -20), _saida(datetime(2026, 8, 24, 10), 80)]
+sb = [_saida(datetime(2026, 8, 3, 10), 90), _saida(datetime(2026, 8, 10, 10), 60),
+      _saida(datetime(2026, 8, 17, 10), -30), _saida(datetime(2026, 8, 24, 10), 70)]
+c = tp.comparar_semanal(sa, sb)
+checar("g7: media/EP/t da diferenca semanal", (c["semanas"], c["media"], c["ep"], c["t"]), (4, 5.0, 5.0, 1.0))
+checar("g7: semana so com um dos lados conta zero no outro",
+       tp.comparar_semanal(sa, sb[:2])["semanas"], 4)
 
 # --- log ----------------------------------------------------------------------
 r = tp.Resultado()

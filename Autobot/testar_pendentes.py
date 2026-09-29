@@ -48,6 +48,9 @@ TIPOS_PEND = {"buy stop", "buy limit", "sell stop", "sell limit"}
 ACIMA_DO_MERCADO = {"buy stop", "sell limit"}       # os outros dois ficam abaixo
 MODOS_SIZING = {0: "Percentage", 1: "Monetary", 2: "FixedLot", 3: "FixedR"}
 RE_DATA = re.compile(r"^\d{4}\.\d{2}\.\d{2} \d{2}:\d{2}:\d{2}$")
+# O comentario da ordem e cortado em 31 caracteres pelo MT5: em grade/piramide o rotulo
+# ("07-MUL Buy / Grid / FixedLot/Pend") perde o fim -> "/Pe", "/P"...
+RE_MARCA_PEND = re.compile(r"/(?:Pend|Pen|Pe|P|OCO|OC|O)?$|/Pend|/OCO")
 
 
 # ---------------------------------------------------------------------------
@@ -165,15 +168,17 @@ class Barras:
         b0 = self.barra(tf, p0)
         pc = float(self.barra(tf, p0 - 1)["close"])
         lo_tr = abs(float(b0["open"]) - pc)
-        hi_tr = lo_tr
+        # teto seguro: o TR da barra ja FECHADA (o range parcial cabe nele)
+        hi_tr = max(float(b0["high"]), pc) - min(float(b0["low"]), pc)
         if "M1" in self.dfs:
             import pandas as pd
             m1 = self.dfs["M1"]
             ini = self.dfs[tf].index[p0]
             fim = pd.Timestamp(t).floor("min")
             trecho = m1.loc[ini:fim]
-            if len(trecho):
-                hi_tr = max(float(trecho["high"].max()), pc) - min(float(trecho["low"].min()), pc)
+            if len(trecho):        # com M1 cobrindo o instante, o teto fica mais justo
+                hi_m1 = max(float(trecho["high"].max()), pc) - min(float(trecho["low"].min()), pc)
+                hi_tr = min(hi_tr, hi_m1)
         return ((soma + lo_tr) / periodo, (soma + max(hi_tr, lo_tr)) / periodo)
 
 
@@ -244,7 +249,9 @@ def checar_tipos(ordens: list[dict], params: dict, res: Resultado) -> None:
         res.falha("tipos", "pendente de COMPRA num set sem compra (MaxLongTrades=0)")
     if _int(params, "MaxShortTrades") <= 0 and any(o["tipo"].startswith("sell") for o in pend):
         res.falha("tipos", "pendente de VENDA num set sem venda (MaxShortTrades=0)")
-    sem_marca = [o for o in pend if "/Pend" not in o["comentario"] and "/OCO" not in o["comentario"]]
+    # ordem que o broker expirou tem o comentario trocado pelo tester ("expired [data]")
+    sem_marca = [o for o in pend if not RE_MARCA_PEND.search(o["comentario"])
+                 and not (o["estado"] == "expired" and o["comentario"].startswith("expired ["))]
     if sem_marca:
         res.falha("tipos", f"{len(sem_marca)} pendentes sem a marca /Pend ou /OCO no comentario "
                   f"(perna de grade virando pendente?): {sem_marca[0]['comentario']!r}")
@@ -252,17 +259,39 @@ def checar_tipos(ordens: list[dict], params: dict, res: Resultado) -> None:
         res.falha("tipos", "nenhuma pendente foi colocada -- cenario sem evidencia")
 
 
-def _minutos_do_mercado(barras: Barras, t: datetime):
-    """(min, max) do M1 do minuto de t, ou None."""
-    if "M1" not in barras.dfs:
-        return None
+def _spread_do_mercado(barras: Barras, t: datetime, ponto: float) -> float:
+    """Spread (em preco) da barra M1 do minuto de t; 0 se as barras nao trazem spread.
+    O ASK = bid + spread, e o historico de barras e BID."""
     import pandas as pd
-    m1 = barras.dfs["M1"]
-    i = int(m1.index.searchsorted(pd.Timestamp(t).floor("min"), side="left"))
-    if i >= len(m1) or m1.index[i] != pd.Timestamp(t).floor("min"):
-        return None
-    b = m1.iloc[i]
-    return float(b["low"]), float(b["high"])
+    df = barras.dfs.get("M1")
+    if df is None or "spread" not in df.columns:
+        return 0.0
+    i = int(df.index.searchsorted(pd.Timestamp(t).floor("min"), side="left"))
+    if i >= len(df) or df.index[i] != pd.Timestamp(t).floor("min"):
+        return 0.0
+    return float(df["spread"].iloc[i]) * ponto
+
+
+def _minutos_do_mercado(barras: Barras, t: datetime):
+    """(min, max) do mercado no instante t: o M1 do minuto, ou (sem M1 naquele
+    instante) a barra do menor timeframe que o contenha."""
+    import pandas as pd
+    for tf in ("M1", "M5", "M15", "M30", "H1"):
+        df = barras.dfs.get(tf)
+        if df is None:
+            continue
+        if tf == "M1":
+            i = int(df.index.searchsorted(pd.Timestamp(t).floor("min"), side="left"))
+            if i >= len(df) or df.index[i] != pd.Timestamp(t).floor("min"):
+                continue
+            b = df.iloc[i]
+        else:
+            i = int(df.index.searchsorted(pd.Timestamp(t), side="right")) - 1
+            if i < 0 or (pd.Timestamp(t) - df.index[i]).total_seconds() >= TF_SEG[tf]:
+                continue
+            b = df.iloc[i]
+        return float(b["low"]), float(b["high"])
+    return None
 
 
 def preco_esperado(o: dict, params: dict, barras: Barras) -> dict | None:
@@ -300,6 +329,7 @@ def checar_preco(ordens: list[dict], params: dict, barras: Barras, tick: float,
                  res: Resultado) -> None:
     exatas = ajustadas = sem_dado = 0
     erros: list[str] = []
+    anomalos: list[str] = []
     for o in pendentes(ordens):
         esp = preco_esperado(o, params, barras)
         if esp is None:
@@ -313,18 +343,34 @@ def checar_preco(ordens: list[dict], params: dict, barras: Barras, tick: float,
         # A EA empurra o nivel para o lado do mercado (distancia minima do
         # broker): acima -> max(nivel, ask+min); abaixo -> min(nivel, bid-min).
         mm = _minutos_do_mercado(barras, o["abertura"])
-        folga = max(0.25 * esp["atr_hi"], 30 * tick)
+        # compra Stop / venda Limit ficam acima do ASK = bid + spread (rolagem: 10+ pips)
+        folga = max(0.25 * esp["atr_hi"], 30 * tick) + 1.5 * _spread_do_mercado(barras, o["abertura"], tick)
         if esp["acima"] and p > esp["hi"] + tol and mm and p <= mm[1] + folga:
             ajustadas += 1
         elif (not esp["acima"]) and p < esp["lo"] - tol and mm and p >= mm[0] - folga:
             ajustadas += 1
         else:
-            erros.append(f"ordem {o['ordem']} {o['tipo']} {o['abertura']:%m.%d %H:%M:%S}: "
-                         f"preco {p} fora de [{esp['lo']:.5f}, {esp['hi']:.5f}] "
-                         f"(ref {esp['ref']})")
+            msg = (f"ordem {o['ordem']} {o['tipo']} {o['abertura']:%m.%d %H:%M:%S}: "
+                   f"preco {p} fora de [{esp['lo']:.5f}, {esp['hi']:.5f}] (ref {esp['ref']})")
+            # Preco que o historico de barras NAO mostra em nenhum momento do minuto =
+            # tick anomalo nos dados do tester (a EA reagiu ao ask que o tester lhe deu):
+            # isolado e aviso, sistematico e falha.
+            if mm and ((esp["acima"] and p > mm[1] + folga) or ((not esp["acima"]) and p < mm[0] - folga)):
+                anomalos.append(msg)
+            else:
+                erros.append(msg)
     res.metricas["preco_exato"] = exatas
     res.metricas["preco_ajustado_ao_mercado"] = ajustadas
     res.metricas["preco_sem_dado"] = sem_dado
+    res.metricas["preco_tick_anomalo"] = len(anomalos)
+    if anomalos:
+        limite = max(1, int(0.02 * len(pendentes(ordens))))
+        if len(anomalos) > limite:
+            res.falha("preco", f"{len(anomalos)} pendentes a preco que o historico de barras nao mostra "
+                      f"(> {limite}); ex.: {anomalos[0]}")
+        else:
+            res.aviso("preco", f"{len(anomalos)} pendente(s) a preco que o historico de barras nao "
+                      f"mostra (tick anomalo nos dados do tester?); ex.: {anomalos[0]}")
     if erros:
         res.falha("preco", f"{len(erros)} pendentes com preco errado; ex.: {erros[0]}")
     if sem_dado and sem_dado == len(pendentes(ordens)):
@@ -379,20 +425,36 @@ def checar_lote(ordens: list[dict], params: dict, info: dict,
     vmin = info.get("vol_min") or passo
     contrato = info.get("contrato")
     valor = _flt(params, "PositionSizeValue")
+    moeda = info.get("moeda_lucro", "USD")
     erros: list[str] = []
+    if moeda != "USD" and not str(ordens[0]["simbolo"] if ordens else "").startswith("USD"):
+        contrato = None          # sem taxa de conversao pra USD: nao confere o Fixed-R exato
     for o in pendentes(ordens):
         v = o["vol"]
         if v is None:
             continue
         if modo == 2:
-            if abs(v - valor) > passo * 0.51:
+            if _int(params, "RecoveryMode") != 0:
+                # Martingale/D'Alembert somam ao lote depois de perda: o lote base e piso
+                if v < valor - passo * 0.51:
+                    erros.append(f"ordem {o['ordem']}: lote {v} abaixo do FixedLot {valor} com recuperacao")
+            elif abs(v - valor) > passo * 0.51:
                 erros.append(f"ordem {o['ordem']}: lote {v} != FixedLot {valor}")
         elif modo == 3 and contrato and o["sl"] > 0:
             r = _flt(params, "CapitalBaseR") * valor / 100.0
             dist = abs(o["preco"] - o["sl"])
-            ideal = r / (dist * contrato)
+            # USDJPY etc.: o lucro sai em JPY -> USD = JPY / preco
+            conv = 1.0 / o["preco"] if moeda != "USD" else 1.0
+            ideal = r / (dist * contrato * conv)
             esperado = max(vmin, math.floor(ideal / passo + 1e-9) * passo)
-            if abs(v - esperado) > passo * 1.01:
+            recuperacao = _int(params, "RecoveryMode") != 0
+            # Com Martingale/D'Alembert o lote cresce por passo depois de perda: o
+            # Fixed-R exato vira PISO (nunca abaixo do lote base).
+            if recuperacao:
+                if v < esperado - passo * 1.01:
+                    erros.append(f"ordem {o['ordem']}: lote {v} abaixo do lote base {esperado:.2f} "
+                                 f"(R={r:g}, SL a {dist:.5f}) com recuperacao")
+            elif abs(v - esperado) > passo * 1.01:
                 erros.append(f"ordem {o['ordem']}: lote {v} != {esperado:.2f} "
                              f"(R={r:g}, SL a {dist:.5f})")
     res.metricas["modo_sizing"] = MODOS_SIZING.get(modo, str(modo))
@@ -401,12 +463,21 @@ def checar_lote(ordens: list[dict], params: dict, info: dict,
                   f"{MODOS_SIZING.get(modo)}; ex.: {erros[0]}")
 
 
-def risco_por_ordem(ordens: list[dict], info: dict) -> list[float]:
+def risco_por_ordem(ordens: list[dict], info: dict,
+                    deals: list[dict] | None = None) -> list[float]:
+    """Risco (lote x distancia do SL x contrato) por ordem de ENTRADA. Ordem a mercado
+    vem com Preco=0 no relatorio: o preco de entrada esta no deal."""
     contrato = info.get("contrato")
     if not contrato:
         return []
-    return [o["vol"] * abs(o["preco"] - o["sl"]) * contrato for o in ordens
-            if o["vol"] and o["sl"] > 0 and o["preco"]]
+    entradas = {d["ordem"]: d["preco"] for d in (deals or [])
+                if d["direcao"] == "in" and d["ordem"] and d["preco"]}
+    saida = []
+    for o in ordens:
+        preco = o["preco"] or entradas.get(o["ordem"])
+        if o["vol"] and o["sl"] > 0 and preco:
+            saida.append(o["vol"] * abs(preco - o["sl"]) * contrato)
+    return saida
 
 
 def mediana(xs: list[float]) -> float | None:
@@ -418,12 +489,13 @@ def mediana(xs: list[float]) -> float | None:
 
 
 def comparar_controle(ordens_pend: list[dict], ordens_mercado: list[dict],
-                      info: dict, res: Resultado, tolerancia: float = 0.25) -> None:
+                      info: dict, res: Resultado, tolerancia: float = 0.25,
+                      deals_mercado: list[dict] | None = None) -> None:
     """Risco mediano por ordem (lote x distancia do SL x contrato) da pendente
     contra o controle a mercado do MESMO modo de sizing."""
     rp = mediana(risco_por_ordem(pendentes(ordens_pend), info))
     entradas_mercado = [o for o in ordens_mercado if o["tipo"] in ("buy", "sell")]
-    rm = mediana(risco_por_ordem(entradas_mercado, info))
+    rm = mediana(risco_por_ordem(entradas_mercado, info, deals_mercado))
     res.metricas["risco_mediano_pendente"] = rp
     res.metricas["risco_mediano_mercado"] = rm
     if rp is None or rm is None:
@@ -444,7 +516,9 @@ def checar_expiracao(ordens: list[dict], params: dict, barras: Barras,
     n = max(1, _int(params, "PendingExpiracaoBarras", 3))
     tf = tf_entrada(params)
     seg = TF_SEG[tf]
-    no_prazo = antes = atrasadas = expiradas_pelo_broker = 0
+    no_prazo = antes = atrasadas = expiradas_pelo_broker = expiradas_na_pausa = 0
+    cedo: list[dict] = []
+    sem_tick_n = 0
     exemplos: list[str] = []
     for o in pendentes(ordens):
         if o["estado"] not in ("canceled", "expired") or o["fim"] is None:
@@ -460,23 +534,62 @@ def checar_expiracao(ordens: list[dict], params: dict, barras: Barras,
         else:
             prazo = idx[p0].to_pydatetime() + timedelta(seconds=n * seg)
         if o["estado"] == "expired":
-            expiradas_pelo_broker += 1
+            # Pausa diaria/fim de semana: sem barras a EA nao conta prazo e a expiracao do
+            # broker (rede de seguranca) encerra a ordem -- desenho correto. Falha so se
+            # ja tinham passado N barras EXISTENTES (a EA deveria ter cancelado antes).
+            # == n e a borda: o broker expirou durante a pausa e o tick de reabertura
+            # e o mesmo em que a EA cancelaria (iBarShift chega a N) -- inofensivo.
+            p_fim = barras.pos(tf, o["fim"])
+            if p_fim is not None and p_fim - p0 > n:
+                expiradas_pelo_broker += 1
+                exemplos.append(f"ordem {o['ordem']} expirou pelo broker apos {p_fim - p0} "
+                                f"barras existentes (prazo {n})")
+            else:
+                expiradas_na_pausa += 1
+            continue
         if o["fim"] < prazo - timedelta(seconds=2):
             antes += 1
+            cedo.append(o)
         elif o["fim"] <= prazo + timedelta(seconds=150):
             no_prazo += 1
         else:
+            # Sem NENHUM tick entre o prazo e o cancelamento (rolagem da meia-noite) a EA
+            # nao roda: nao e atraso dela.
+            m1 = barras.dfs.get("M1")
+            sem_tick = (m1 is not None and len(m1.loc[prazo:o["fim"] - timedelta(seconds=60)]) == 0
+                        and prazo >= m1.index[0].to_pydatetime())
+            if sem_tick:
+                no_prazo += 1
+                sem_tick_n += 1
+                continue
             atrasadas += 1
             exemplos.append(f"ordem {o['ordem']} aberta {o['abertura']:%m.%d %H:%M:%S} "
                             f"encerrada {o['fim']:%m.%d %H:%M:%S}, prazo era {prazo:%H:%M:%S}")
     res.metricas.update(cancel_no_prazo=no_prazo, cancel_antes_do_prazo=antes,
-                        cancel_atrasado=atrasadas, expirada_pelo_broker=expiradas_pelo_broker)
+                        cancel_atrasado=atrasadas, expirada_pelo_broker=expiradas_pelo_broker,
+                        expirada_na_pausa_do_mercado=expiradas_na_pausa,
+                        cancel_apos_lacuna_de_ticks=sem_tick_n)
+    # Set nos dois lados: cancelar antes do prazo e virar de mao (sinal oposto) -- deve
+    # haver ordem do lado contrario colocada na mesma barra. Nao reprova (a entrada
+    # oposta pode estar barrada por exposicao), mas aparece como metrica/aviso.
+    if (_int(params, "MaxLongTrades") > 0 and _int(params, "MaxShortTrades") > 0 and cedo
+            and _int(params, "GridMode") == 0):
+        com_oposta = 0
+        for o in cedo:
+            lado = o["tipo"].split()[0]
+            if any(x["tipo"].split()[0] != lado and x["tipo"] in TIPOS_PEND
+                   and abs((x["abertura"] - o["fim"]).total_seconds()) <= 90 for x in ordens):
+                com_oposta += 1
+        res.metricas["cancel_antes_com_ordem_oposta"] = com_oposta
+        if com_oposta < len(cedo):
+            res.aviso("expiracao", f"{len(cedo) - com_oposta} de {len(cedo)} cancelamentos antes do "
+                      "prazo sem ordem do lado contrario na mesma barra")
     if atrasadas:
         res.falha("expiracao", f"{atrasadas} pendentes vivas alem do prazo de {n} barras "
                   f"de {tf}; ex.: {exemplos[0]}")
     if expiradas_pelo_broker:
-        res.falha("expiracao", f"{expiradas_pelo_broker} pendentes 'expired' -- a EA nao "
-                  "cancelou a tempo e o broker expirou (rede de seguranca acionada)")
+        res.falha("expiracao", f"{expiradas_pelo_broker} pendentes 'expired' fora de pausa de "
+                  f"mercado -- a EA nao cancelou a tempo; ex.: {exemplos[0]}")
 
 
 def checar_sobreposicao(ordens: list[dict], params: dict, res: Resultado) -> None:
@@ -537,14 +650,18 @@ def checar_oco(ordens: list[dict], deals: list[dict], params: dict,
     grupos: dict[datetime, list[dict]] = {}
     for o in pend:
         grupos.setdefault(o["abertura"], []).append(o)
-    incompletos = [t for t, g in grupos.items()
-                   if sorted(x["tipo"] for x in g) != ["buy stop", "sell stop"]]
+    quer_compra = _int(params, "MaxLongTrades") > 0
+    quer_venda = _int(params, "MaxShortTrades") > 0
+    esperado = sorted((["buy stop"] if quer_compra else []) + (["sell stop"] if quer_venda else []))
+    incompletos = [t for t, g in grupos.items() if sorted(x["tipo"] for x in g) != esperado]
     res.metricas["brackets"] = len(grupos)
     if incompletos:
-        res.falha("oco", f"{len(incompletos)} brackets sem o par buy stop + sell stop "
+        res.falha("oco", f"{len(incompletos)} brackets diferentes de {esperado} "
                   f"(ex.: {incompletos[0]:%m.%d %H:%M:%S})")
+    if len(esperado) < 2:
+        return                    # um lado so: nao ha irma pra cancelar nem par pra comparar
     entradas = {d["ordem"]: d for d in deals if d["direcao"] == "in" and d["ordem"]}
-    pares_ok = irma_lenta = 0
+    pares_ok = irma_lenta = simultaneas = 0
     for t, g in grupos.items():
         if len(g) != 2:
             continue
@@ -556,8 +673,16 @@ def checar_oco(ordens: list[dict], deals: list[dict], params: dict,
             return
         exec_ = [x for x in g if x["ordem"] in entradas]
         if len(exec_) == 2:
-            res.falha("oco", f"bracket {t:%m.%d %H:%M:%S}: AS DUAS pernas executaram")
-            return
+            # As duas no MESMO instante = spread que abriu (rolagem da meia-noite) e ultrapassou
+            # a largura do bracket: a EA nao tem como cancelar a irma antes. Isolado e aviso;
+            # separadas por segundos, o cancelamento falhou.
+            gap = abs((entradas[exec_[0]["ordem"]]["t"] - entradas[exec_[1]["ordem"]]["t"]).total_seconds())
+            if gap > 2:
+                res.falha("oco", f"bracket {t:%m.%d %H:%M:%S}: as duas pernas executaram com "
+                          f"{gap:.0f} s de diferenca (o cancelamento da irma falhou)")
+                return
+            simultaneas += 1
+            continue
         if len(exec_) == 1:
             outra = venda if exec_[0] is compra else compra
             t_exec = entradas[exec_[0]["ordem"]]["t"]
@@ -569,6 +694,10 @@ def checar_oco(ordens: list[dict], deals: list[dict], params: dict,
                 irma_lenta += 1
             pares_ok += 1
     res.metricas["brackets_com_execucao"] = pares_ok
+    res.metricas["oco_duas_pernas_simultaneas"] = simultaneas
+    if simultaneas:
+        res.aviso("oco", f"{simultaneas} bracket(s) com as DUAS pernas executadas no mesmo instante "
+                  "(spread aberto passou a largura do bracket -- evitar armar na rolagem / usar MaxSpread)")
     if irma_lenta:
         res.falha("oco", f"{irma_lenta} pernas irmas canceladas > 3 s depois da execucao")
 
@@ -606,6 +735,52 @@ def checar_janela(ordens: list[dict], params: dict, res: Resultado) -> None:
     res.metricas["pendentes_fora_do_pregao"] = fora
     if fora:
         res.falha("janela", f"{fora} pendentes colocadas fora do horario/dias permitidos")
+
+
+def parse_janelas_wfo(log: str) -> list[tuple[datetime, datetime]]:
+    """Janelas OOS impressas pela EA no OnInit ("Out-Sample (OOS): d1 - d2", datas
+    inclusivas: 00:00:00 do primeiro dia a 23:59:59 do ultimo)."""
+    vistas: list[tuple[datetime, datetime]] = []
+    for a, b in re.findall(r"Out-Sample \(OOS\): (\d{4}\.\d{2}\.\d{2}) - (\d{4}\.\d{2}\.\d{2})", log):
+        janela = (datetime.strptime(a, "%Y.%m.%d"),
+                  datetime.strptime(b, "%Y.%m.%d") + timedelta(days=1) - timedelta(seconds=1))
+        if janela not in vistas:
+            vistas.append(janela)
+    return vistas
+
+
+def checar_wfo(ordens: list[dict], deals: list[dict], log: str, params: dict,
+               res: Resultado, tolerancia_s: int = 120) -> None:
+    """Modo In-Sample (MetodoDeEntradawfo=0): entrada nova bloqueada no OOS. Pendente
+    nao nasce nem executa la; a que estava viva na borda e cancelada."""
+    if not _bool(params, "AtivarWFO") or _int(params, "MetodoDeEntradawfo") != 0:
+        return
+    oos = parse_janelas_wfo(log)
+    res.metricas["janelas_oos"] = len(oos)
+    if not oos:
+        res.falha("wfo", "AtivarWFO ligado mas a EA nao imprimiu nenhuma janela OOS")
+        return
+    tol = timedelta(seconds=tolerancia_s)
+    # A EA numera as janelas a partir da PRIMEIRA barra do teste (ex.: 23:00 da sexta), nao
+    # de 00:00: as datas impressas ("2026.08.10 - 2026.08.14") tem ~1 dia de folga em cada
+    # ponta. Vale so o interior: do dia seguinte ao inicio impresso ate 00:00 do fim impresso.
+    oos = [(ini + timedelta(days=1), fim.replace(hour=0, minute=0, second=0)) for ini, fim in oos]
+    nasceu = executou = viva_na_borda = cancelada_na_borda = 0
+    ex: list[str] = []
+    entradas = {d["ordem"]: d for d in deals if d["direcao"] == "in" and d["ordem"]}
+    for o in pendentes(ordens):
+        for ini, fim in oos:
+            if ini + tol <= o["abertura"] <= fim:
+                nasceu += 1
+                ex.append(f"ordem {o['ordem']} colocada em {o['abertura']:%m.%d %H:%M:%S} (OOS {ini:%m.%d}..{fim:%m.%d})")
+            d = entradas.get(o["ordem"])
+            if d and ini + tol <= d["t"] <= fim:
+                executou += 1
+                ex.append(f"ordem {o['ordem']} EXECUTOU em {d['t']:%m.%d %H:%M:%S} dentro do OOS ({ini:%m.%d}..{fim:%m.%d})")
+            # (a borda exata nao e conferida: ver o comentario acima)
+    res.metricas.update(wfo_pendentes_nascidas_no_oos=nasceu, wfo_execucoes_no_oos=executou)
+    if nasceu or executou:
+        res.falha("wfo", f"{len(ex)} violacoes do bloqueio de entrada no OOS; ex.: {ex[0]}")
 
 
 def checar_log(log: str, res: Resultado) -> None:
@@ -648,6 +823,7 @@ def conferir_cenario(nome: str, params: dict, ordens: list[dict], deals: list[di
     checar_execucao(ordens, deals, tick, res)
     checar_oco(ordens, deals, params, res)
     checar_sessao(ordens, params, res)
+    checar_wfo(ordens, deals, log, params, res)
     if esperado.get("janela"):
         checar_janela(ordens, params, res)
     checar_log(log, res)
@@ -671,7 +847,7 @@ class Cenario:
     simbolo: str = "XAUUSD"
     controle: str | None = None       # nome do cenario a mercado do mesmo modo
     esperado: dict = field(default_factory=dict)
-    inicio: str = "2026.07.01"
+    inicio: str = "2026.08.03"          # periodo CURTO (dono, 29/09): 4 semanas, segunda a segunda
     fim: str = "2026.09.01"
     origem_arquivo: str | None = None   # set pronto (ex.: o VALIDADO_ ao vivo) em vez do template
     execucao: int | None = None         # ExecutionMode do tester: -1 atraso aleatorio, >0 ms fixos
@@ -729,13 +905,18 @@ def catalogo() -> list[Cenario]:
         for tipo in (1, 2):
             cs.append(Cenario(f"g4_{sis[:2]}_{_nome_tipo(tipo)}", sis, var, pend(tipo, 1, 0.5)))
     # 09_MARTINGALE / 10_DALEMBERT viraram booster (RecoveryMode) dos sistemas normais
+    # (a EA recusa D'Alembert com Fixed-R: "an absolute volume step breaks balance
+    # independence" -- o cenario dele usa lote fixo)
     for rec, modo, extra in (("martingale", "1", {"MaxMartingaleSteps": "3"}),
-                             ("dalembert", "2", {"MaxMartingaleSteps": "3", "DAlembertStep": "1"})):
+                             ("dalembert", "2", {"MaxMartingaleSteps": "3", "DAlembertStep": "1",
+                                                 "PositionSizeMode": "2", "PositionSizeValue": "0.02",
+                                                 "CapitalBaseR": "0"})):
         for tipo in (1, 2):
             cs.append(Cenario(f"g4_rec_{rec}_{_nome_tipo(tipo)}", "04_SLTP_TRAIL", "BUY_MULTI",
                               {**pend(tipo, 1, 0.5), "RecoveryMode": modo, **extra}))
     # G5: modos de sizing (04 BUY)
-    valores = {0: "1", 1: "10000", 2: "0.05", 3: "1"}
+    # Monetary = moeda por 1.00 lote: 10000 numa conta de 10k dava 1 lote de ouro (stop out)
+    valores = {0: "1", 1: "200000", 2: "0.05", 3: "1"}
     for modo in range(4):
         base = {"PositionSizeMode": str(modo), "PositionSizeValue": valores[modo],
                 "CapitalBaseR": "10000" if modo == 3 else "0"}
@@ -758,10 +939,46 @@ def catalogo() -> list[Cenario]:
     for tipo in (1, 2):
         cs.append(Cenario(f"g6_gbpusd_{_nome_tipo(tipo)}", "04_SLTP_TRAIL", "BOTH_MULTI",
                           pend(tipo, 0, 0.5), simbolo="GBPUSD"))
+    # G9: WFO In-Sample (o genetico do Autobot roda assim): IS 10 dias / OOS 4 dias
+    wfo = {"AtivarWFO": "true", "MetodoDeEntradawfo": "0", "wfo_windowSize": "-1",
+           "wfo_customWindowSizeDays": "10", "wfo_stepSize": "-1",
+           "wfo_customStepSizePercent": "-4"}
+    cs.append(Cenario("g9_wfo_mercado", "04_SLTP_TRAIL", "BUY_MULTI", {**wfo, **pend(0, 0, 0.5)}))
+    for tipo in (1, 2):
+        cs.append(Cenario(f"g9_wfo_{_nome_tipo(tipo)}", "04_SLTP_TRAIL", "BUY_MULTI",
+                          {**wfo, **pend(tipo, 0, 0.5, 8)}))
+    cs.append(Cenario("g9_wfo_oco_sinal", "04_SLTP_TRAIL", "BOTH_MULTI",
+                      {**wfo, **pend(3, 1, 0.5, 8), "Hedging": "true"}))
+    cs.append(Cenario("g9_wfo_oco_sessao", "13_OCO_ROMPIMENTO", "BOTH_MULTI", dict(wfo)))
+
+    # G8: 13_OCO_ROMPIMENTO (bracket de rompimento armado por sessao): hora x faixa x
+    # referencia x k x expiracao, um lado so, simbolos de 2/3/5 casas
+    def s13(nome: str, extra: dict, simbolo: str = "XAUUSD") -> None:
+        cs.append(Cenario(f"g8_{nome}", "13_OCO_ROMPIMENTO", "BOTH_MULTI", extra, simbolo=simbolo))
+
+    # (ouro nao tem tick na hora 0 -- pausa diaria -- entao a hora 0 vai pro forex)
+    s13("h0_f2_extremo_k0.25", {"PendingHoraSessao": "0", "PendingFaixaBarras": "2",
+                                 "PendingReferencia": "1", "PendingDistanciaATR": "0.25"}, "GBPUSD")
+    s13("h20_f4_extremo_k0.5", {"PendingHoraSessao": "20", "PendingFaixaBarras": "4",
+                                 "PendingReferencia": "1", "PendingDistanciaATR": "0.5"})
+    s13("h8_f4_extremo_k0", {"PendingReferencia": "1", "PendingDistanciaATR": "0"})
+    s13("h8_f4_extremo_k1", {"PendingReferencia": "1", "PendingDistanciaATR": "1"})
+    s13("h8_f4_exp2", {"PendingExpiracaoBarras": "2"})
+    s13("h8_f4_exp8", {"PendingExpiracaoBarras": "8"})
+    s13("h8_f4_hedging", {"Hedging": "true"})
+    s13("h14_f8_extremo_k0.25_so_compra", {"PendingHoraSessao": "14", "PendingFaixaBarras": "8",
+                                            "MaxShortTrades": "0"})
+    s13("h14_f8_extremo_k0.25_so_venda", {"PendingHoraSessao": "14", "PendingFaixaBarras": "8",
+                                           "MaxLongTrades": "0"})
+    s13("gbpusd_h8_f4", {}, "GBPUSD")
+    s13("usdjpy_h8_f4", {}, "USDJPY")
+    s13("gbpusd_h14_f8_close_k0.5", {"PendingHoraSessao": "14", "PendingFaixaBarras": "8",
+                                      "PendingReferencia": "0", "PendingDistanciaATR": "0.5"}, "GBPUSD")
+
     # G7: o set XAUUSD 04 que vai ao ar (Limit no fechamento, 0 ATR, 1 barra) contra
     # o mesmo set a mercado, com e sem atraso de execucao, em dado que ele nunca viu.
     # Pergunta: a vantagem da Limit sobrevive a latencia de verdade?
-    janelas = {"a": ("2024.07.01", "2025.07.01"), "b": ("2026.06.28", "2026.09.28")}
+    janelas = {"a": ("2025.05.01", "2025.07.01"), "b": ("2026.07.01", "2026.09.01")}
     for jn, (ji, jf) in janelas.items():
         for exe, en in ((0, "sem_atraso"), (-1, "atraso_aleatorio"), (800, "atraso_800ms")):
             for tipo in (2, 0):
@@ -824,17 +1041,51 @@ def exportar_barras(simbolos: list[str], inicio: str, fim: str,
                     "trade_mode": s.trade_mode, "spread_pontos": s.spread}
             (BARRAS_DIR / f"{sim}_info.json").write_text(json.dumps(info, indent=1), encoding="utf-8")
             for nome, tf in tfs.items():
-                r = mt5.copy_rates_range(sim, tf, de, ate)
-                if r is None or len(r) == 0:
+                # em pedacos: o terminal recusa (Invalid params) um periodo longo em M1/M5
+                partes = []
+                ini = de
+                while ini < ate:
+                    fim_p = min(ini + timedelta(days=20), ate)
+                    r = mt5.copy_rates_range(sim, tf, ini, fim_p)
+                    if r is not None and len(r):
+                        partes.append(pd.DataFrame(r))
+                    ini = fim_p
+                if not partes:
                     print(f"{sim} {nome}: sem barras ({mt5.last_error()})")
                     continue
-                df = pd.DataFrame(r)
+                df = (pd.concat(partes).drop_duplicates("time").sort_values("time")
+                      .reset_index(drop=True))
                 df["time"] = pd.to_datetime(df["time"], unit="s")     # rotulo = hora do servidor
-                df[["time", "open", "high", "low", "close"]].to_parquet(
+                df[["time", "open", "high", "low", "close", "spread"]].to_parquet(
                     BARRAS_DIR / f"{sim}_{nome}.parquet")
                 print(f"{sim} {nome}: {len(df)} barras {df['time'].iloc[0]} .. {df['time'].iloc[-1]}")
     finally:
         mt5.shutdown()
+
+
+def _garantir_origem_extra(nome: str) -> Path:
+    """Set pronto (ex.: o VALIDADO_ ao vivo) copiado pra esta instalacao com nome
+    NEUTRO (_TESTE_ORIGEM_...): um VALIDADO_ a mais viraria linha na aba de
+    implantacao."""
+    import optimize_sets as base
+    import wrx_paths
+    destino = base.DADOS / "MQL5" / "Profiles" / "Tester" / f"_TESTE_ORIGEM_{nome}"
+    if destino.exists():
+        return destino
+    for _rotulo, pasta in wrx_paths.pastas_de_dados_do_projeto():
+        fonte = pasta / "MQL5" / "Profiles" / "Tester" / nome
+        if fonte.exists():
+            shutil.copy2(fonte, destino)
+            return destino
+    raise SystemExit(f"set {nome} nao existe em nenhuma instalacao do projeto")
+
+
+def limpar_temporarios() -> None:
+    """Tira da pasta do tester os sets de trabalho do harness."""
+    import optimize_sets as base
+    tester = base.DADOS / "MQL5" / "Profiles" / "Tester"
+    for arq in list(tester.glob("_TESTE_ORIGEM_*.set")) + [tester / "_TESTE_PENDENTES.set"]:
+        arq.unlink(missing_ok=True)
 
 
 def rodar_cenario(c: Cenario, refazer: bool = False) -> dict | None:
@@ -846,9 +1097,7 @@ def rodar_cenario(c: Cenario, refazer: bool = False) -> dict | None:
     if destino_json.exists() and not refazer:
         return None
     if c.origem_arquivo:
-        origem = base.DADOS / "MQL5" / "Profiles" / "Tester" / c.origem_arquivo
-        if not origem.exists():
-            raise SystemExit(f"{c.nome}: set {c.origem_arquivo} nao existe nesta instalacao")
+        origem = _garantir_origem_extra(c.origem_arquivo)
     else:
         origem = base.achar_set(c.simbolo, c.sistema, c.variante)
     if origem is None:
@@ -899,6 +1148,7 @@ def verificar(so: str | None = None) -> int:
     resultados: dict[str, dict] = {}
     barras_cache: dict[str, Barras | None] = {}
     ordens_cache: dict[str, list[dict]] = {}
+    deals_cache: dict[str, list[dict]] = {}
     for nome, c in cenarios.items():
         if so and so not in nome:
             continue
@@ -912,6 +1162,7 @@ def verificar(so: str | None = None) -> int:
             continue
         ordens, deals = parse_relatorio(htm)
         ordens_cache[nome] = ordens
+        deals_cache[nome] = deals
         if c.simbolo not in barras_cache:
             barras_cache[c.simbolo] = carregar_barras(c.simbolo)
         info = info_do_simbolo(c.simbolo)
@@ -920,7 +1171,8 @@ def verificar(so: str | None = None) -> int:
         res = conferir_cenario(nome, reg["params"], ordens, deals, barras_cache[c.simbolo],
                                info, log, c.esperado)
         if c.controle and c.controle in ordens_cache and _int(reg["params"], "PositionSizeMode", 2) in (0, 1):
-            comparar_controle(ordens, ordens_cache[c.controle], info, res)
+            comparar_controle(ordens, ordens_cache[c.controle], info, res,
+                              deals_mercado=deals_cache.get(c.controle))
         if c.esperado.get("parada"):
             if "Trading stopped" not in log:
                 res.aviso("parada", "a parada de emergencia nao disparou nesta janela")
@@ -930,6 +1182,33 @@ def verificar(so: str | None = None) -> int:
             res.falha("set", f"set de trabalho incompleto: {reg['params_faltando']}")
         resultados[nome] = {"falhas": res.falhas, "avisos": res.avisos, "metricas": res.metricas}
     return _relatorio_final(resultados, len(cenarios))
+
+
+def lucro_semanal(deals: list[dict]) -> dict:
+    """Lucro liquido (lucro + comissao + swap) dos deals de SAIDA, por semana ISO."""
+    semanas: dict = {}
+    for d in deals:
+        if d["direcao"] != "out":
+            continue
+        ano, sem, _ = d["t"].isocalendar()
+        semanas[(ano, sem)] = semanas.get((ano, sem), 0.0) + (d["lucro"] or 0.0) \
+            + (d["comissao"] or 0.0) + (d["swap"] or 0.0)
+    return semanas
+
+
+def comparar_semanal(deals_a: list[dict], deals_b: list[dict]) -> dict:
+    """a - b semana a semana (semana sem trade conta 0): media, erro-padrao e t."""
+    sa, sb = lucro_semanal(deals_a), lucro_semanal(deals_b)
+    todas = sorted(set(sa) | set(sb))
+    difs = [sa.get(w, 0.0) - sb.get(w, 0.0) for w in todas]
+    n = len(difs)
+    if n < 2:
+        return {"semanas": n, "media": None, "ep": None, "t": None}
+    media = sum(difs) / n
+    var = sum((x - media) ** 2 for x in difs) / (n - 1)
+    ep = math.sqrt(var / n)
+    return {"semanas": n, "lucro_a": round(sum(sa.values()), 2), "lucro_b": round(sum(sb.values()), 2),
+            "media": round(media, 2), "ep": round(ep, 2), "t": round(media / ep, 2) if ep else None}
 
 
 def _checar_parada(ordens: list[dict], deals: list[dict], log: str, res: Resultado) -> None:
@@ -977,8 +1256,21 @@ def _relatorio_final(resultados: dict, total: int) -> int:
             saldo = (reg.get("medida") or {}).get("saldo")
             lucro = None if saldo is None else round(saldo - reg["deposito"], 2)
             comp.append(f"  {n:40} lucro {lucro} | {(reg.get('medida') or {}).get('trades')} trades")
+    pares = []
+    for n in sorted(resultados):
+        if n.startswith("g7_") and "_limit_" in n:
+            m = n.replace("_limit_", "_mercado_")
+            if (SAIDA / f"{n}.htm").exists() and (SAIDA / f"{m}.htm").exists():
+                _, da = parse_relatorio(SAIDA / f"{n}.htm")
+                _, db = parse_relatorio(SAIDA / f"{m}.htm")
+                c = comparar_semanal(da, db)
+                pares.append(f"  {n.replace('g7_', '').replace('_limit', ''):32} Limit-mercado: semanas {c['semanas']} "
+                             f"| media/semana {c['media']} +- {c['ep']} (t = {c['t']}) "
+                             f"| lucro Limit {c.get('lucro_a')} x mercado {c.get('lucro_b')}")
     if comp:
         linhas += ["", "G7 -- o set ao vivo do XAUUSD, Limit x mercado, com e sem atraso de execucao:"] + comp
+    if pares:
+        linhas += ["", "G7 -- diferenca semanal Limit - mercado (|t| < 2 = indistinguivel de ruido):"] + pares
     texto = "\n".join(linhas)
     (SAIDA / "RESULTADO.md").write_text(texto, encoding="utf-8")
     print(texto)
@@ -1005,7 +1297,7 @@ def main() -> int:
     if args.exportar_barras:
         # 2024.06.15 em diante: alem da janela dos cenarios, cobre o G7 (2024-25) e o
         # ano do relatorio real do XAUUSD 04 (Limit) pra conferir o PRECO dele tambem.
-        exportar_barras(["XAUUSD", "GBPUSD"], "2024.06.15", "2026.09.05", args.terminal)
+        exportar_barras(["XAUUSD", "GBPUSD", "USDJPY"], "2024.06.15", "2026.09.05", args.terminal)
         return 0
     if args.rodar:
         i, n = (int(x) for x in args.shard.split("/"))
@@ -1016,6 +1308,7 @@ def main() -> int:
             print(f"[{idx + 1}/{len(todos)}] {c.nome}", flush=True)
             reg = rodar_cenario(c, args.refazer)
             print("   ->", "ja feito" if reg is None else reg["medida"], flush=True)
+        limpar_temporarios()
         return 0
     if args.verificar:
         return verificar(args.so or None)
