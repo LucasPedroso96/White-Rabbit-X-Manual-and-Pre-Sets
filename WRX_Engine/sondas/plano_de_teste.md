@@ -112,3 +112,4 @@ Para cada sonda: carregue o `.set`, rode o Tester (mesmo simbolo/periodo/deposit
 | `P125_news_window` | Noticias: so alto impacto, janela 30 antes / 5 depois |  | - |
 | `P123_min_free_margin` | Reserva de margem livre 50% (precisa margin_a/margin_b no spec) |  | - |
 | `P124_wfo_in_sample` | WFO 'In Sample': 122 dias IS + 61 OOS (ajuste input_end_date ao fim do teste) |  | - |
+| `P126_fitness_levain` | Fitness: selectedFormula = Levain (a simulacao nao muda; confira a linha ALL_FORMULAS) |  | - |

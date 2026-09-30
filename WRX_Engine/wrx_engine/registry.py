@@ -89,7 +89,7 @@ MaxSpread | PORTED | spread em pontos inteiros do tick
 MaxLongTrades,MaxShortTrades,Hedging | PORTED |
 ModificationSafetyPoints | PORTED |
 # ---- EA Bollinger (familia de entrada alternativa)
-BandsPeriod,BandsDeviation,InpAppliedPrice_BB | PORTED | iBands: base SMA, desvio padrao populacional
+BandsPeriod,BandsDeviation | PORTED | iBands: base SMA, desvio padrao populacional; preco = InpAppliedPrice (o mesmo input do indicador de entrada)
 BandsShift | PARTIAL | so 0 (deslocamento horizontal nao portado; o motor recusa != 0)
 BollingerEntryMode,SqueezeLookback,SqueezeTolerancePct | PORTED | 0 reversao, 1 rompimento, 2 squeeze (largura na barra 2 vs minimo de N barras)
 StopBolinger,TakeBolinger,BreakevenBolinger | PORTED | saidas alternativas por banda (Take/BE so no modo Reversal)
@@ -98,7 +98,7 @@ CandleTF1,CandleIndex1,CandleTF2,CandleIndex2,CandleTF3,CandleIndex3 | PORTED | 
 # ---- WFO / otimizacao
 AtivarWFO,MetodoDeEntradawfo | PORTED | janelas IS/OOS, bloqueio de entrada, carencia de grid, retirada do lucro; inicio = 1a barra M1 do teste (hipotese)
 input_end_date,wfo_windowSize,wfo_customWindowSizeDays,wfo_stepSize,wfo_customStepSizePercent,WFO_CarenciaPercentil | PORTED |
-selectedFormula | DEFERRED | formulas de fitness do OnTester ainda nao portadas
+selectedFormula | PORTED | so afeta o fitness (`fitness.py`: 15 formulas + ConsistencyFactor); nao altera a simulacao
 """)
 
 

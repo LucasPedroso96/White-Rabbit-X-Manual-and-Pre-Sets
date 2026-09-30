@@ -7,46 +7,45 @@ rodar a peneira de otimização fora do Strategy Tester. Mesma regra de adoção
 do Zeus: **o motor só substitui o Tester depois que a paridade trade a trade fechar contra
 rodadas reais em _Every tick based on real ticks_**. Antes disso é ferramenta de estudo.
 
-> **Estado honesto:** 93 testes passam, mas eles provam a *lógica* contra cenários construídos à mão e contra
-> laços ingênuos escritos a partir do `.mq5`. **Nada foi comparado ainda com uma saída real do MT5** — não havia
-> terminal MT5 no ambiente onde isto foi escrito. O primeiro trabalho real é a revisão desta noite (abaixo).
-> O que já foi portado está em `REVISAO_INPUTS.md`; o que falta e por quê, em `PORTING_STATUS.md`.
+> **Estado honesto:** 176 testes passam, mas eles provam a *lógica* contra cenários construídos à mão e contra
+> laços ingênuos escritos a partir do `.mq5` (mais testes de mutação manuais). **Nada foi comparado ainda com uma
+> saída real do MT5** — não havia terminal MT5 no ambiente onde isto foi escrito. O primeiro trabalho real é a
+> revisão da noite (abaixo). O que foi portado está em `PORTING_STATUS.md` e `REVISAO_INPUTS.md`.
 
-## Escopo atual
+## Escopo
 
-| Portado | Recusado (o motor levanta `UnsupportedConfig`, nunca ignora em silêncio) |
-|---|---|
-| Os **12 indicadores** de entrada (MACD, EMA, Momentum, Stochastic, TRIX, RSI, CCI, WPR, DeMarker, MFI, OsMA, Ichimoku) e os 7 `EntryMethod` | Trailing, TakeOrganico |
-| Decisão 1×/minuto no 1º tick; sinal 1×/barra do `TimeFrame`; `ATR[0]` parcial | Grid, Pirâmide, Martingale, D'Alembert |
-| SL/TP em ATR, lote **Fixed-R**, gate de risco de `myOrderSend`, piso de lote, guarda anti-oversizing | Lote Percentage / Monetary / FixedLot |
-| Breakeven (só reavaliado nas decisões) | Entradas pendentes (Stop/Limit/OCO/sessão) |
-| Filtros **MTF, MA, ADX, volatilidade ATR** | Filtro de notícias |
-| `ReversalExit` por sinal contrário, `Fecharordensforadohorario` | `ReversalExit` "OnOppositeOrder" |
-| Dias/horário/`MaxSpread`, `stops_level`, `Hedging`, `MaxLong/ShortTrades` | Travas de conta/margem (`MaxEquityDrawdownPercent`, `MinFreeMarginPercent`, `Trava_*`, `DailyLossLimitPercent`) |
-| `.set` UTF‑16 com `atual\|\|início\|\|passo\|\|fim\|\|Y` | WFO `In Sample` (bloqueia entrada fora da janela IS) |
+As três EAs estão portadas: **Multi-Indicator** (12 indicadores), **Bollinger Bands** (Reversal/Breakout/Squeeze +
+`Stop/Take/BreakevenBolinger`) e **Candles Entry** (3 slots TF+índice). Toda a gestão é compartilhada: lote (Fixed-R,
+Percentage, Monetary, FixedLot), Martingale/D'Alembert, SL/TP/BE/trailing/TakeOrganico, ReversalExit, grid clássico e
+pirâmide, entradas pendentes (Stop/Limit/OCO/sessão), travas de conta (`CheckStopTrading`, GlobalProtection,
+DailyLossLimit), filtro de notícias (CSV), janelas WFO, comissão/swap e margem opcional. Fitness do `OnTester`
+(15 fórmulas + `ConsistencyFactor`) em `fitness.py`.
+
+O motor **recusa** (nunca ignora em silêncio): inputs fora do escopo (`UnsupportedConfig`: `BandsShift≠0`,
+`EntryIndicator` inválido) e sets que o `OnInit` do EA recusaria (`InvalidConfig`, ex.: `GridMode=2`, que é aposentado —
+o set `08_GRID_UNIFIED` do repositório cai nisso).
 
 Cuidado com os **defaults do EA quando o input não está no `.set`**: `MaxEquityDrawdownPercent` vale 30 e
-`MinFreeMarginPercent` 50 — a guarda os acusa. O `01_SLTP` que vem em `Sets/` traz `AtivarWFO=true` + `In Sample`;
+`MinFreeMarginPercent` 50. O `01_SLTP` que vem em `Sets/` traz `AtivarWFO=true` + `In Sample`;
 para comparar, rode o Tester com `AtivarWFO=false` (as sondas já vêm assim).
 
-## Revisão desta noite, guiada pelos inputs
+## Revisão da noite, guiada pelos inputs
 
-```
-py -m wrx_engine.review checklist --out REVISAO_INPUTS.md      # todos os inputs: status, sondas, nota
-```
-`sondas/` já traz **62 arquivos `.set`** (baseline seguro + um recurso ligado por vez) e `sondas/plano_de_teste.md`.
-Roteiro:
+`sondas/` (Multi, 109 `.set`), `sondas_bollinger/` (17) e `sondas_candles/` (12): baseline seguro + **um** recurso ligado
+por vez, cada pasta com `plano_de_teste.md`. `REVISAO_INPUTS.md` lista os 142 inputs classificados e as sondas de cada um.
 
 1. `py tools/export_mt5_data.py --symbol EURUSD --from 2026-01-05 --to 2026-03-01 --out dados/eurusd`
-   (spec, ticks reais e M1 de aquecimento; informe `--commission-per-lot-side` se houver).
-2. No Tester (hedging para as sondas P02/P65/P66): **Every tick based on real ticks**, mesmo período/depósito para todas.
-   Para cada `sondas/Pxx_*.set`, salve o relatório como `relatorios/Pxx_*.htm`. Comece por `P00_base`: se ela não fechar,
-   nada acima dela vale.
-3. `py -m wrx_engine.review run --baseline ../Sets/01_Forex/EURUSD/01_SLTP/BUY_MULTI.set --reports relatorios --ticks dados/eurusd_ticks.csv --spec dados/eurusd_spec.json --warmup dados/eurusd_m1_warmup.csv`
-   → grava `REVISAO_INPUTS.md` com PASS/FAIL **por sonda e por input** e, nas que falham, o relatório de divergência
-   (primeira divergência, mediana/máximo de erro por campo). Sai com código 1 se algo falhar.
-4. Divergência sistemática = uma das hipóteses da tabela "Pontos a calibrar" (abaixo). Corrija uma de cada vez.
-5. `py -m wrx_engine.review sync --ea "White Rabbit X (Global Multi-Indicator).mq5"` acusa `input` novo no `.mq5` sem status.
+   (spec com tick value, margem e swap; ticks reais; M1 de aquecimento; `--commission-per-lot-side` se houver).
+2. No Tester (hedging para as sondas marcadas): **Every tick based on real ticks**, mesmo período/depósito para todas.
+   Para cada `.set`, salve o relatório como `relatorios/<id>.htm`. **Comece por `P00_base`**: se ela não fechar,
+   nada acima dela vale. Opcional: copie a última linha `ALL_FORMULAS` de `Common\Files\levain_wrx_all_formulas.txt`
+   de cada rodada para `formulas/<id>.txt`.
+3. `py -m wrx_engine.review run --baseline ../Sets/01_Forex/EURUSD/01_SLTP/BUY_MULTI.set --reports relatorios --ticks dados/eurusd_ticks.csv --spec dados/eurusd_spec.json --warmup dados/eurusd_m1_warmup.csv [--formulas formulas]`
+   grava `REVISAO_INPUTS.md` com PASS/FAIL **por sonda e por input**, a primeira divergência trade a trade, o fitness do
+   motor e (com `--formulas`) cada estatística/fórmula do motor contra o MT5. Sai com código 1 se algo falhar.
+   Para Bollinger/Candles: `--family bollinger|candles` (sem `--baseline`, use os `.set` de `sondas_<familia>/`).
+4. Divergência sistemática = uma hipótese da tabela "Pontos a calibrar". Corrija uma de cada vez.
+5. `py -m wrx_engine.review sync --ea "White Rabbit X (Global Multi-Indicator).mq5"` acusa `input` novo sem status.
 
 ## Como o EA roda (o que o motor replica)
 
@@ -82,7 +81,11 @@ Roteiro:
 | SL executa no **preço do SL** (`stop_fill="level"`); a alternativa é o tick que rompeu | `run_backtest(stop_fill=…)` / `--stop-fill` | preço de saída dos SL diferente, principalmente em gaps |
 | Barras M1 vêm do **bid** dos ticks | `bars.m1_from_ticks` | ATR parcial e sinais discordam |
 | `tick_value` constante | `SymbolSpec` | lucro diverge em cruzados/índices (o Tester converte no tempo) |
-| Sem swap, sem margem/stop‑out, execução ideal (sem atraso) | — | lucro líquido e trades finais diferem |
+| Execução ideal (sem atraso); swap só em modo pontos; sem stop‑out do corretor | `spec.py`, `sim.py` | lucro líquido e trades finais diferem |
+| Margem = lote·(margin_a·preço + margin_b), ajuste linear de `order_calc_margin` | `spec.py` | recusas de entrada por margem; `STAT_MIN_MARGINLEVEL` |
+| Fitness: Sharpe = média/desvio(n‑1) do `net` por trade; DD de equity com pico corrente (máx. em dinheiro → % do pico daquele momento); gross profit/loss por posição; `CONLOSSMAX_TRADES` = nº de trades da série de perdas de MAIOR perda em dinheiro | `fitness.compute_stats` | linha `ALL_FORMULAS` diverge (use `--formulas`) |
+| Bollinger: `iBands` com SMA somada do mais novo ao mais velho e desvio populacional; Candles: índice 0 = vela em formação (parcial) | `indicators.bands`, `signals.candles_signals` | sondas PB*/PC* |
+| Início do WFO = 1ª barra M1 do teste | `engine.run_backtest(wfo_start=)` | P75/P124 |
 | Regra `ultimaAtualizacao == TimeCurrent()` ignorada | `OnTick` | só relevante com dois minutos no mesmo segundo (raro) |
 
 Não testável com floats: o `>` estrito no cruzamento da referência (`main==0` exato). Foi copiado do fonte.
@@ -99,11 +102,9 @@ sinal, errar os shifts, usar 50 em vez de 100 barras, sinal a cada M1 com TF>M1,
 risco/intervalo mínimo, nível neutro, linha de sinal, filtros MA/MTF/ADX/volatilidade, reversal exit) — todas
 fazem algum teste falhar. Uma exceção conhecida: o `>` estrito do cruzamento da referência (ver acima).
 
-## Próximos passos (detalhe em PORTING_STATUS.md)
+## Próximos passos
 
-1. **Revisão desta noite**: `P00_base` primeiro, depois as demais sondas; cada FAIL aponta uma hipótese a calibrar.
-2. Trailing e `TakeOrganico` (`02`–`05`), lotes Percentage/Monetary/FixedLot (`11_SIGNAL_ONLY`) → recovery (`09`,`10`) →
-   grid/pirâmide (`07`,`08`,`12`), estes em tick (o OHLC subestima perda em 3,3× no trailing e 23× no grid).
-3. Entradas pendentes, travas de conta/margem, notícias, janelas WFO, swap; fórmulas de fitness do `OnTester`.
-4. Motores de entrada das EAs Bollinger e Candles Entry.
-5. Ligar como estágio alternativo do Autobot, gravando o mesmo formato que o `portfolio_builder` lê.
+1. **Revisão da noite**: `P00_base` primeiro, depois as demais; cada FAIL aponta uma hipótese a calibrar.
+2. Calibrar as hipóteses de fitness com `--formulas` (Sharpe, DD, margem mínima) — só importa se a otimização for guiada por elas.
+3. Modelar stop‑out do corretor e `tick_value` variável (cruzados/índices) se a paridade mostrar necessidade.
+4. Ligar como estágio alternativo do Autobot, gravando o mesmo formato que o `portfolio_builder` lê.

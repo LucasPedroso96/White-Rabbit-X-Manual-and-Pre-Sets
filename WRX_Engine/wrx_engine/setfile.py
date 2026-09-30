@@ -32,7 +32,7 @@ _DEFAULTS: dict[str, object] = {
     "AtivarTrailATR": False, "ReversalExitMode": 2, "ReversalExitUseEntryFilters": False,
     "PositionSizeMode": 2, "PositionSizeValue": 0.01, "TradeCapitalPercentage": 100.0,
     "CapitalBaseR": 0.0, "MaxRiscoTradeR": 0.0, "MaxRiscoRelativoAoLoteMinimo": 1.5,
-    "DailyLossLimitPercent": 0.0, "MaxEquityDrawdownPercent": 30.0, "MinFreeMarginPercent": 50.0,
+    "selectedFormula": 7, "DailyLossLimitPercent": 0.0, "MaxEquityDrawdownPercent": 30.0, "MinFreeMarginPercent": 50.0,
     "Trava_Diaria_Percent": 0.0, "Trava_Total_Percent": 0.0,
     "RecoveryMode": 0, "GridMode": 0,
     "AtivarFiltroMTF": False, "AtivarFiltroMA": False, "AtivarFiltroADX": False,

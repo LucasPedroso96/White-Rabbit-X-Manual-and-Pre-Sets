@@ -13,6 +13,9 @@ Tres comandos:
       Para cada sonda com `relatorios/<id>.htm` (relatorio do Tester), roda o motor e compara trade a trade.
       Escreve REVISAO_INPUTS.md: PASS/FAIL por sonda e o veredito consolidado POR INPUT.
 
+  (ambos aceitam --family multi|bollinger|candles; `run` aceita --formulas pasta/ com <id>.txt = linha ALL_FORMULAS do EA,
+   para comparar as estatisticas/formulas de fitness do motor com as do MT5)
+
   python -m wrx_engine.review sync --ea "White Rabbit X (Global Multi-Indicator).mq5"
       Confere os `input` do .mq5 contra o registro (rode na sua maquina; acusa input novo sem status).
 
@@ -63,10 +66,11 @@ class Probe:
     over: dict
     inputs: tuple[str, ...]
     needs_hedging: bool = False
+    family: str = "multi"
 
 
-def _p(id_, title, over, inputs=None, hedging=False) -> Probe:
-    return Probe(id_, title, over, tuple(inputs if inputs is not None else over.keys()), hedging)
+def _p(id_, title, over, inputs=None, hedging=False, family="multi") -> Probe:
+    return Probe(id_, title, over, tuple(inputs if inputs is not None else over.keys()), hedging, family)
 
 
 _IND = {1: ("EMA cruzamento", dict(Fast_EMA=9, Slow_EMA=21, MACD_SMA=5)),
@@ -226,14 +230,85 @@ PROBES += [
        wfo_customStepSizePercent=-61, WFO_CarenciaPercentil=0), ["AtivarWFO", "MetodoDeEntradawfo", "wfo_windowSize",
        "wfo_customWindowSizeDays", "wfo_stepSize", "wfo_customStepSizePercent", "WFO_CarenciaPercentil", "input_end_date"]),
 ]
-_IDS = [p.id for p in PROBES]
-assert len(_IDS) == len(set(_IDS)), "ids de sonda duplicados"
 
 
 # ------------------------------------------------------------------ geracao dos .set
+PROBES.append(_p("P126_fitness_levain", "Fitness: selectedFormula = Levain (a simulacao nao muda; confira a linha ALL_FORMULAS)",
+                 dict(selectedFormula=13)))
+
+
+# ------------------------------------------------------------------ familias Bollinger e Candles Entry
+_BB = dict(BandsPeriod=20, BandsDeviation=2.0, BandsShift=0, BollingerEntryMode=0, SqueezeLookback=20,
+           SqueezeTolerancePct=10.0, StopBolinger="false", TakeBolinger="false", BreakevenBolinger="false")
+_CD = dict(CandleTF1=0, CandleIndex1=1, CandleTF2=0, CandleIndex2=1, CandleTF3=0, CandleIndex3=1)
+FAMILY_BASE: dict[str, dict] = {"multi": BASE, "bollinger": BASE | _BB, "candles": BASE | _CD}
+
+
+def _b(id_, title, over, inputs=None, hedging=False):
+    return _p(id_, title, over, inputs, hedging, "bollinger")
+
+
+def _c(id_, title, over, inputs=None, hedging=False):
+    return _p(id_, title, over, inputs, hedging, "candles")
+
+
+_BBI = ("BandsPeriod", "BandsDeviation", "BollingerEntryMode")
+PROBES_BOLLINGER: list[Probe] = [
+    _b("PB00_reversal", "Bollinger: reversao (fecha fora da banda e volta), so compra", {}, list(_BBI) + ["BandsShift"]),
+    _b("PB01_breakout", "Bollinger: rompimento", dict(BollingerEntryMode=1)),
+    _b("PB02_squeeze", "Bollinger: squeeze (largura no minimo) + rompimento", dict(BollingerEntryMode=2),
+       ["BollingerEntryMode", "SqueezeLookback", "SqueezeTolerancePct"]),
+    _b("PB03_squeeze_params", "Squeeze: lookback 10, tolerancia 25%", dict(BollingerEntryMode=2, SqueezeLookback=10,
+       SqueezeTolerancePct=25.0)),
+    _b("PB04_period10", "Periodo 10", dict(BandsPeriod=10)),
+    _b("PB05_dev15", "Desvio 1.5", dict(BandsDeviation=1.5)),
+    _b("PB06_sell", "So venda (reversao)", dict(MaxLongTrades=0, MaxShortTrades=1)),
+    _b("PB07_both_hedge", "Compra e venda, hedging (rompimento)", dict(BollingerEntryMode=1, MaxLongTrades=1,
+       MaxShortTrades=1, Hedging="true"), hedging=True),
+    _b("PB08_tf_m5", "Bandas em M5", dict(TimeFrame=1)),
+    _b("PB09_take_bb", "TakeBolinger (reversao): fecha no lucro quando volta da banda", dict(TakeBolinger="true",
+       AtivarTake="false")),
+    _b("PB10_stop_bb_rev", "StopBolinger (reversao): fecha se perde a banda oposta", dict(StopBolinger="true",
+       AtivarStop="false", AtivarTake="true", PositionSizeMode=2, PositionSizeValue=0.05),
+       ["StopBolinger", "AtivarStop", "AtivarTake"]),
+    _b("PB11_stop_bb_breakout", "StopBolinger (rompimento): fecha quando volta da banda", dict(BollingerEntryMode=1,
+       StopBolinger="true", AtivarStop="false", PositionSizeMode=2, PositionSizeValue=0.05),
+       ["BollingerEntryMode", "StopBolinger", "AtivarStop"]),
+    _b("PB12_be_bb", "BreakevenBolinger (reversao)", dict(BreakevenBolinger="true", AtivarBreakeven="false")),
+    _b("PB13_both_sides_rev", "Reversao nos dois lados, sem hedging (um lado por vez)", dict(MaxLongTrades=1,
+       MaxShortTrades=1, Hedging="false"), ["MaxLongTrades", "MaxShortTrades", "Hedging"]),
+    _b("PB14_trail", "Bollinger + trailing ATR", dict(AtivarTrailATR="true", Trail=2, AtivarTake="false")),
+    _b("PB16_price_weighted", "Bandas sobre o preco Weighted (InpAppliedPrice)", dict(InpAppliedPrice=7)),
+    _b("PB15_vol_filter", "Bollinger + filtro de volatilidade", dict(EntradaATR="true", PeriodoBaselineATR=50,
+       MultiplicadorATR=1.2)),
+]
+
+_CDI = ("CandleTF1", "CandleIndex1")
+PROBES_CANDLES: list[Probe] = [
+    _c("PC00_one_slot", "Candles: 1 slot (M1, candle fechado 1), so compra", {}, list(_CDI) + ["CandleTF2", "CandleIndex2",
+       "CandleTF3", "CandleIndex3", "InpAppliedPrice"]),
+    _c("PC01_index0", "Slot 1 = candle em formacao (indice 0)", dict(CandleIndex1=0, CandleIndex2=0, CandleIndex3=0)),
+    _c("PC02_index2", "Slots no candle 2", dict(CandleIndex1=2, CandleIndex2=2, CandleIndex3=2)),
+    _c("PC03_mtf_slots", "Slot 2 em M5 e slot 3 em M15 (todos na mesma direcao)", dict(CandleTF2=1, CandleTF3=2)),
+    _c("PC04_tf_m5", "Slot 1 em M5", dict(CandleTF1=1, CandleTF2=1, CandleTF3=1)),
+    _c("PC05_mixed_index", "Slot 1 indice 1, slot 2 indice 2, slot 3 indice 3", dict(CandleIndex2=2, CandleIndex3=3)),
+    _c("PC06_price_weighted", "Preco aplicado = Weighted (vs abertura)", dict(InpAppliedPrice=7)),
+    _c("PC07_price_median", "Preco aplicado = Median", dict(InpAppliedPrice=5)),
+    _c("PC08_sell", "So venda", dict(MaxLongTrades=0, MaxShortTrades=1)),
+    _c("PC09_both_hedge", "Compra e venda, hedging", dict(MaxLongTrades=1, MaxShortTrades=1, Hedging="true"), hedging=True),
+    _c("PC10_breakeven", "Candles + breakeven", dict(AtivarBreakeven="true", BreakevenDistancia=1)),
+    _c("PC11_reversal_exit", "Candles + saida por sinal contrario (modo 2)", dict(ReversalExitMode=2, MaxLongTrades=1,
+       MaxShortTrades=1, Hedging="true"), hedging=True),
+]
+ALL_PROBES: list[Probe] = PROBES + PROBES_BOLLINGER + PROBES_CANDLES
+PROBE_SETS = {"multi": PROBES, "bollinger": PROBES_BOLLINGER, "candles": PROBES_CANDLES}
+_IDS = [p.id for p in ALL_PROBES]
+assert len(_IDS) == len(set(_IDS)), "ids de sonda duplicados"
+
+
 def merged(baseline: dict[str, str], probe: Probe) -> dict[str, str]:
     d = dict(baseline)
-    d.update({k: str(v) for k, v in BASE.items()})
+    d.update({k: str(v) for k, v in FAMILY_BASE[probe.family].items()})
     d.update({k: str(v) for k, v in probe.over.items()})
     return d
 
@@ -245,12 +320,13 @@ def write_set(path: Path, values: dict[str, str], title: str) -> None:
     path.write_bytes(("\r\n".join(lines) + "\r\n").encode("utf-16"))
 
 
-def make_probes(baseline_path: str | Path, out_dir: str | Path) -> list[Path]:
-    base = parse_set_text(read_set_text(baseline_path))
+def make_probes(baseline_path: str | Path | None, out_dir: str | Path, family: str = "multi") -> list[Path]:
+    """Um .set por sonda da familia. Sem baseline, parte so do baseline seguro (o EA usa o default dos demais inputs)."""
+    base = parse_set_text(read_set_text(baseline_path)) if baseline_path else {}
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     paths = []
-    for pr in PROBES:
+    for pr in PROBE_SETS[family]:
         d = merged(base, pr)
         bad = unsupported(d)
         if bad:
@@ -267,7 +343,7 @@ def make_probes(baseline_path: str | Path, out_dir: str | Path) -> list[Path]:
 # ------------------------------------------------------------------ checklist
 def probes_by_input() -> dict[str, list[str]]:
     m: dict[str, list[str]] = {}
-    for pr in PROBES:
+    for pr in ALL_PROBES:
         for i in pr.inputs:
             m.setdefault(i, []).append(pr.id)
     return m
@@ -307,7 +383,7 @@ def _header(verdicts) -> str:
            + ", ".join(f"{k} {v}" for k, v in cnt.items()) + ".\n\n")
     if verdicts:
         p = sum(v == "PASS" for v in verdicts.values())
-        txt += f"Sondas com relatorio: {len(verdicts)} ({p} PASS, {len(verdicts) - p} FAIL) de {len(PROBES)}.\n\n"
+        txt += f"Sondas com relatorio: {len(verdicts)} ({p} PASS, {len(verdicts) - p} FAIL) de {len(ALL_PROBES)}.\n\n"
     txt += ("**PORTED nao quer dizer verificado**: so a paridade com o Tester (`Veredito`) verifica. "
             "`DEFERRED` = o motor recusa o set se o input estiver ligado.\n\n")
     return txt
@@ -320,9 +396,10 @@ def _load_frame(path):
 
 
 def run_probes(baseline, ticks_path, spec_path, warmup_path=None, reports=None, out_dir=None, deposit=10_000.0,
-               news_csv=None):
+               news_csv=None, formulas_dir=None, family="multi"):
     """Roda o motor em cada sonda; se houver relatorio, compara. Devolve dict id -> dict(resumo)."""
     from .bars import Bars, Ticks
+    from . import fitness
     from .engine import load_news_csv, run_backtest
     from .parity import compare, deals_to_trades, parse_deals_html
     from .setfile import params_from_dict
@@ -331,9 +408,9 @@ def run_probes(baseline, ticks_path, spec_path, warmup_path=None, reports=None, 
     ticks = Ticks.from_frame(_load_frame(ticks_path))
     spec = SymbolSpec.from_json(spec_path)
     warm = Bars.from_frame(_load_frame(warmup_path)) if warmup_path else None
-    base = parse_set_text(read_set_text(baseline))
+    base = parse_set_text(read_set_text(baseline)) if baseline else {}
     results = {}
-    for pr in PROBES:
+    for pr in PROBE_SETS[family]:
         params = params_from_dict(merged(base, pr))
         news = load_news_csv(news_csv, params.v["NewsSomenteAltoImpacto"]) if (news_csv and params.v["AtivarFiltroNoticias"]) else None
         try:
@@ -343,6 +420,16 @@ def run_probes(baseline, ticks_path, spec_path, warmup_path=None, reports=None, 
             continue
         row = {"trades": len(res.trades) + len(res.open_positions), "net_r": float(res.trades["r"].sum()) if len(res.trades) else 0.0,
                "skipped": dict(res.skipped)}
+        try:
+            ev = fitness.evaluate(res, deposit)
+            row.update(formula=ev["name"], score=ev["score"], line=ev["line"], stats=ev["stats"])
+            ft = Path(formulas_dir) / f"{pr.id}.txt" if formulas_dir else None
+            if ft is not None and ft.exists():
+                last = [ln for ln in ft.read_text(encoding="utf-8", errors="ignore").splitlines() if "ALL_FORMULAS" in ln]
+                if last:
+                    row["formulas_cmp"] = fitness.compare_with_tester(ev["line"], last[-1])
+        except Exception as e:                       # fitness e leitura; nunca derruba a comparacao de trades
+            row["fitness_error"] = str(e)
         if reports:
             rep = next((Path(reports) / f"{pr.id}{ext}" for ext in (".htm", ".html") if (Path(reports) / f"{pr.id}{ext}").exists()), None)
             if rep is not None:
@@ -352,12 +439,12 @@ def run_probes(baseline, ticks_path, spec_path, warmup_path=None, reports=None, 
     return results
 
 
-def plan_markdown(results=None) -> str:
+def plan_markdown(results=None, family="multi") -> str:
     out = ["# Plano de teste - sondas", "",
            "Para cada sonda: carregue o `.set`, rode o Tester (mesmo simbolo/periodo/deposito, Every tick based on real ticks), "
            "salve o relatorio como `relatorios/<id>.htm`. As marcadas **hedging** exigem conta hedging.", "",
            "| Sonda | O que muda | Hedging | Motor espera (trades / R) |", "|---|---|---|---|"]
-    for pr in PROBES:
+    for pr in PROBE_SETS[family]:
         exp = "-"
         if results and pr.id in results:
             r = results[pr.id]
@@ -397,14 +484,15 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("checklist"); c.add_argument("--out")
-    pr = sub.add_parser("probes"); pr.add_argument("--baseline", required=True); pr.add_argument("--out", required=True)
+    pr = sub.add_parser("probes"); pr.add_argument("--baseline"); pr.add_argument("--family", choices=list(PROBE_SETS), default="multi"); pr.add_argument("--out", required=True)
     pr.add_argument("--ticks"); pr.add_argument("--spec"); pr.add_argument("--warmup")
     pr.add_argument("--deposit", type=float, default=10_000.0)
-    rn = sub.add_parser("run"); rn.add_argument("--baseline", required=True); rn.add_argument("--reports", required=True)
+    rn = sub.add_parser("run"); rn.add_argument("--baseline"); rn.add_argument("--family", choices=list(PROBE_SETS), default="multi"); rn.add_argument("--reports", required=True)
     rn.add_argument("--ticks", required=True); rn.add_argument("--spec", required=True); rn.add_argument("--warmup")
-    rn.add_argument("--out", default="REVISAO_INPUTS.md")
+    rn.add_argument("--out", help="default: REVISAO_INPUTS.md (multi) ou REVISAO_INPUTS_<familia>.md")
     rn.add_argument("--deposit", type=float, default=10_000.0, help="deposito do Tester")
     rn.add_argument("--news-csv", help="CSV de noticias (mesmo de Common\\Files) para a sonda P122")
+    rn.add_argument("--formulas", help="pasta com <id>.txt = linha ALL_FORMULAS gravada pelo EA em cada sonda (opcional)")
     sy = sub.add_parser("sync"); sy.add_argument("--ea", required=True)
     a = ap.parse_args(argv)
 
@@ -412,20 +500,28 @@ def main(argv=None) -> int:
         txt = _header(None) + checklist_markdown()
         Path(a.out).write_text(txt, encoding="utf-8") if a.out else print(txt)
     elif a.cmd == "probes":
-        paths = make_probes(a.baseline, a.out)
-        res = run_probes(a.baseline, a.ticks, a.spec, a.warmup, deposit=a.deposit) if a.ticks and a.spec else None
-        (Path(a.out) / "plano_de_teste.md").write_text(plan_markdown(res), encoding="utf-8")
+        paths = make_probes(a.baseline, a.out, a.family)
+        res = run_probes(a.baseline, a.ticks, a.spec, a.warmup, deposit=a.deposit, family=a.family) if a.ticks and a.spec else None
+        (Path(a.out) / "plano_de_teste.md").write_text(plan_markdown(res, a.family), encoding="utf-8")
         print(f"{len(paths)} sondas em {a.out} + plano_de_teste.md")
     elif a.cmd == "run":
-        res = run_probes(a.baseline, a.ticks, a.spec, a.warmup, a.reports, deposit=a.deposit, news_csv=a.news_csv)
+        res = run_probes(a.baseline, a.ticks, a.spec, a.warmup, a.reports, deposit=a.deposit, news_csv=a.news_csv, formulas_dir=a.formulas, family=a.family)
         verd = {k: v["verdict"] for k, v in res.items() if "verdict" in v}
         body = _header(verd) + "## Por input\n\n" + checklist_markdown(verd) + "\n\n## Por sonda\n\n"
         for k, v in res.items():
             body += f"### {k} - {v.get('verdict', 'sem relatorio')}\nmotor: {v['trades']} trades, {v['net_r']:+.1f}R; recusas {v['skipped']}\n"
+            if "score" in v:
+                body += f"fitness ({v['formula']}): {v['score']:.6g}\n"
+            bad = [r for r in v.get("formulas_cmp", []) if not r["ok"]]
+            if v.get("formulas_cmp"):
+                body += f"estatisticas/formulas vs MT5: {len(v['formulas_cmp']) - len(bad)}/{len(v['formulas_cmp'])} dentro de 2%\n"
+                for r in bad:
+                    body += f"  - {r['campo']}: motor {r['motor']:.6g} x MT5 {r['mt5']:.6g}\n"
             if "detail" in v and v["verdict"] == "FAIL":
                 body += "```\n" + v["detail"] + "\n```\n"
-        Path(a.out).write_text(body, encoding="utf-8")
-        print(f"{len(verd)} relatorios comparados; escrito {a.out}")
+        out = a.out or ("REVISAO_INPUTS.md" if a.family == "multi" else f"REVISAO_INPUTS_{a.family}.md")
+        Path(out).write_text(body, encoding="utf-8")
+        print(f"{len(verd)} relatorios comparados; escrito {out}")
         return 0 if all(x == "PASS" for x in verd.values()) else 1
     elif a.cmd == "sync":
         print(sync_report(a.ea))

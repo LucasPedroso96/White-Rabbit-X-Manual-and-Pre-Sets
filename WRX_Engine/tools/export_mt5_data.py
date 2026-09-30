@@ -10,6 +10,9 @@ Roda no MESMO terminal/conta do Tester -- spec, ticks e tick value tem que ser o
 As datas do servidor NAO sao convertidas: a API devolve o horario do servidor como se fosse UTC,
 que e o relogio que o EA enxerga em TimeCurrent().
 Comissao nao vem do SymbolInfo: informe --commission-per-lot-side (moeda da conta, por lado).
+Margem: ajuste linear por lote (margin_a*preco + margin_b) a partir de order_calc_margin em dois precos; so e USADA
+pelo motor se margin_a/margin_b != 0 (senao o motor nao modela margem). Swap: so modo em pontos (SYMBOL_SWAP_MODE_POINTS);
+outros modos geram aviso e swap 0. Confira tambem o STAT_MIN_MARGINLEVEL no relatorio.
 """
 from __future__ import annotations
 
@@ -44,11 +47,26 @@ def main() -> int:
             print("simbolo indisponivel:", a.symbol)
             return 2
         i = mt5.symbol_info(a.symbol)
+        tk = mt5.symbol_info_tick(a.symbol)
+        mid = (tk.bid + tk.ask) / 2 if tk and tk.bid > 0 else 0.0
+        margin_a = margin_b = 0.0
+        if mid > 0:
+            m1 = mt5.order_calc_margin(mt5.ORDER_TYPE_BUY, a.symbol, 1.0, mid)
+            m2 = mt5.order_calc_margin(mt5.ORDER_TYPE_BUY, a.symbol, 1.0, mid * 1.1)
+            if m1 and m2:
+                margin_a = (m2 - m1) / (mid * 0.1)
+                margin_b = m1 - margin_a * mid
+        swap_long = swap_short = 0.0
+        if i.swap_mode == mt5.SYMBOL_SWAP_MODE_POINTS:
+            swap_long, swap_short = i.swap_long, i.swap_short
+        else:
+            print("AVISO: swap_mode", i.swap_mode, "nao e 'pontos': swap sera 0 no motor (compare o Swap do relatorio)")
         SymbolSpec(symbol=a.symbol, digits=i.digits, point=i.point,
                    tick_size=i.trade_tick_size, tick_value=i.trade_tick_value,
                    volume_min=i.volume_min, volume_max=i.volume_max, volume_step=i.volume_step,
                    stops_level=i.trade_stops_level, freeze_level=i.trade_freeze_level,
-                   commission_per_lot_side=a.commission_per_lot_side).to_json(f"{a.out}_spec.json")
+                   commission_per_lot_side=a.commission_per_lot_side, margin_a=margin_a, margin_b=margin_b,
+                   swap_long=swap_long, swap_short=swap_short, swap_3days=i.swap_rollover3days).to_json(f"{a.out}_spec.json")
         t0 = datetime.fromisoformat(a.start).replace(tzinfo=timezone.utc)
         t1 = datetime.fromisoformat(a.end).replace(tzinfo=timezone.utc)
         ticks = mt5.copy_ticks_range(a.symbol, t0, t1, mt5.COPY_TICKS_ALL)
@@ -62,6 +80,7 @@ def main() -> int:
         if rates is not None and len(rates):
             pd.DataFrame(rates)[["time", "open", "high", "low", "close"]].to_csv(f"{a.out}_m1_warmup.csv", index=False)
         print(f"ok: {len(df)} ticks, spec e warmup em {a.out}_*")
+        print("margem/lote ajustada: a=%.4f b=%.4f (preco de referencia %.5f)" % (margin_a, margin_b, mid))
         print("tick_value atual:", i.trade_tick_value, "(em cruzados/indices ele varia no tempo no Tester)")
     finally:
         mt5.shutdown()

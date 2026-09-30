@@ -54,7 +54,7 @@ def test_probe_changes_only_what_it_claims(tmp_path):
 
 def test_checklist_and_sync_report(tmp_path):
     md = V.checklist_markdown()
-    assert "`EntryIndicator`" in md and "DEFERRED" in md and "SEM SONDA" not in md.split("PORTED")[0]
+    assert "`EntryIndicator`" in md and "SEM SONDA" not in md.split("PORTED")[0]
     md2 = V.checklist_markdown({"P03_breakeven": "PASS", "P00_base": "FAIL"})
     assert "FAIL" in md2 and "PASS" in md2
     ea = tmp_path / "x.mq5"
@@ -63,3 +63,58 @@ def test_checklist_and_sync_report(tmp_path):
     assert V.ea_inputs(ea) == ["Fast_EMA", "NovoInput", "myBlankSpace1"]
     rep = V.sync_report(ea)
     assert "NovoInput" in rep and "sem status" in rep
+
+
+@pytest.mark.skipif(not SAMPLE.exists(), reason="set de exemplo ausente")
+def test_run_probes_reports_fitness_and_compares_with_ea_line(tmp_path, spec):
+    import pandas as pd
+    t = build_ticks(base_path(600, seed=5, step=0.0002))
+    pd.DataFrame({"t_ms": t.t_ms, "bid": t.bid, "ask": t.ask}).to_csv(tmp_path / "ticks.csv", index=False)
+    spec.to_json(tmp_path / "spec.json")
+    fdir = tmp_path / "f"
+    fdir.mkdir()
+    (fdir / "P00_base.txt").write_text("x\nALL_FORMULAS Profit=1.000000 Trades=7 GrossProfit=2.0 GrossLoss=-1.0 "
+                                       "EquityDDPercent=1.0 Sharpe=0.1 InitialDeposit=10000.00 | ZeusScore=0.5\n")
+    res = V.run_probes(SAMPLE, tmp_path / "ticks.csv", tmp_path / "spec.json", formulas_dir=fdir)
+    r = res["P00_base"]
+    assert "fitness_error" not in r and r["line"].startswith("ALL_FORMULAS Profit=") and r["formula"]
+    cmp_ = {c["campo"]: c for c in r["formulas_cmp"]}
+    assert cmp_["Trades"]["mt5"] == 7 and cmp_["Trades"]["motor"] == r["stats"].trades
+    assert "formulas_cmp" not in res["P01_sl_only"] if "P01_sl_only" in res else True
+
+
+@pytest.mark.parametrize("family,n_min,marker", [("bollinger", 12, "BandsPeriod"), ("candles", 10, "CandleTF1")])
+def test_family_probes_generate_load_strict_and_run(tmp_path, spec, family, n_min, marker):
+    from wrx_engine.engine import run_backtest
+    from wrx_engine.setfile import load_set
+    paths = V.make_probes(None, tmp_path, family)            # sem baseline do usuario: so o baseline seguro da familia
+    assert len(paths) == len(V.PROBE_SETS[family]) >= n_min
+    ticks = build_ticks(base_path(1800, seed=31, step=0.0002))
+    for pr, p in zip(V.PROBE_SETS[family], paths):
+        params = load_set(p)
+        assert params.family == family, pr.id
+        res = run_backtest(params, spec, ticks)
+        assert res.trades is not None
+    txt = (tmp_path / paths[0].name).read_bytes().decode("utf-16")
+    assert marker in txt
+
+
+def test_family_probe_ids_unique_and_inputs_registered():
+    ids = [p.id for p in V.ALL_PROBES]
+    assert len(ids) == len(set(ids))
+    for pr in V.PROBES_BOLLINGER + V.PROBES_CANDLES:
+        for i in pr.inputs:
+            assert R.lookup(i).status in (R.PORTED, R.PARTIAL), (pr.id, i)
+    by = V.probes_by_input()
+    for k in ("BollingerEntryMode", "StopBolinger", "TakeBolinger", "BreakevenBolinger", "SqueezeLookback",
+              "SqueezeTolerancePct", "BandsPeriod", "BandsDeviation", "CandleTF1", "CandleTF3", "CandleIndex3"):
+        assert by.get(k), k
+
+
+def test_family_probes_change_only_what_they_claim():
+    b = {k: str(v) for k, v in V.FAMILY_BASE["bollinger"].items()}
+    d = V.merged({}, next(p for p in V.PROBES_BOLLINGER if p.id == "PB10_stop_bb_rev"))
+    assert {k for k in b if b[k] != d[k]} == {"StopBolinger", "AtivarStop", "PositionSizeMode", "PositionSizeValue"}
+    c = {k: str(v) for k, v in V.FAMILY_BASE["candles"].items()}
+    d = V.merged({}, next(p for p in V.PROBES_CANDLES if p.id == "PC03_mtf_slots"))
+    assert {k for k in c if c[k] != d[k]} == {"CandleTF2", "CandleTF3"}

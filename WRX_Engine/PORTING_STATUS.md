@@ -1,38 +1,42 @@
-# Estado do porte (atualizado a cada fase)
+# Estado do porte
 
-Legenda: ✅ portado e testado (fidelidade ao MT5 ainda por verificar) · 🟡 parcial · ⬜ não portado · ⛔ bloqueado (ver abaixo).
+Legenda: ✅ portado e testado contra o que o `.mq5` define (**fidelidade ao MT5 ainda não verificada**) · 🟡 parcial · ⬜ não portado.
+
+As três EAs foram lidas (`Multi-Indicator`, `Bollinger Bands`, `Candles Entry` + `WhiteRabbitDailyLoss/GlobalProtection/NewsFilter.mqh`).
+Os fontes **não** estão neste repositório (só o porte). Nada foi comparado com saída real do MT5: isso é a revisão da noite.
 
 | Bloco do `.mq5` | Estado | Onde no motor |
 |---|---|---|
-| Decisão 1×/minuto, barras/ATR parciais, `ProcessNewBar` (ordem BE → sinal → filtros → entradas) | ✅ | `engine.py`, `bars.py` |
-| 12 indicadores + linha de sinal + nuvem Ichimoku | ✅ | `indicators.py`, `signals.py` |
-| Filtros MTF/MA/ADX/volatilidade | ✅ | `filters.py` |
-| Lote Fixed-R + gate de risco + piso | ✅ | `engine.size_fixed_r`, `_open` |
-| Breakeven | ✅ | `engine._breakeven` |
-| ReversalExit (sinal contrário), Fecharordensforadohorario | ✅ | `engine.run_backtest` |
-| Registro de inputs, checklist, sondas, runner de paridade | ✅ | `registry.py`, `review.py`, `parity.py` |
-| Lote Percentage / Monetary / FixedLot | ⬜ ⛔ | `MM_Size_Buy/Sell`, `MM_SizeMonetary`, `MM_SizeFixo*` (linhas ~3245–3760) |
-| Recovery Martingale/D'Alembert | 🟡 ⛔ | histórico de ciclos já lido (`RefreshClosedOperations`, `ApplyRecoveryOperation`); faltam `ClampMartingaleLot`, `CountConsecutiveLosses`, `MM_Size*` |
-| Trailing ATR, TakeOrganico | ⬜ ⛔ | `TrailingStopSet` (~7320), `LastTradePrice` (~4399) |
-| Grid separate/unified, Pirâmide | ⬜ ⛔ | ~3814–4300, ~9516–9700, ~9931–10140 |
-| Entradas pendentes Stop/Limit/OCO/sessão | ⬜ ⛔ | ~9184–9420 |
-| Travas de conta, margem, proteção global, notícias | ⬜ ⛔ | ~7678–7890 + `Include/*.mqh` |
-| Janelas WFO, retiradas | ⬜ ⛔ | ~7501–7590, `OnInit` |
-| Fitness (`OnTester`, fórmulas Levain/Zeus/…) | ⬜ ⛔ | ~1839–2620 |
-| ReversalExit "OnOppositeOrder"; `OnTradeTransaction`/`OnTrade` | ⬜ ⛔ | ~10138–10370 |
-| Motores de entrada das EAs Bollinger e Candles Entry | ⬜ ⛔ | diferem ~700 linhas do Multi-Indicator |
-| Swap, margem/stop-out, `tick_value` variável | ⬜ | modelo de custos do motor |
+| Decisão 1×/minuto (1º tick), barras/ATR parciais, ordem completa de `ProcessNewBar` | ✅ | `sim.py`, `bars.py` |
+| 12 indicadores + linha de sinal + nuvem Ichimoku; 7 `EntryMethod` | ✅ | `indicators.py`, `signals.py` |
+| Filtros MTF / MA / ADX / volatilidade ATR | ✅ | `filters.py` |
+| Lote Fixed-R (+ gate de risco, piso, guarda anti-oversizing), Percentage, Monetary, FixedLot | ✅ | `sizing.py`, `Sim.send_order` |
+| Recovery Martingale (ciclo, `MaxMartingaleSteps`, `MaxMartingaleLot`) e D'Alembert | ✅ | `ledger.Recovery`, `sizing.py` |
+| SL/TP por tick, Breakeven, Trailing ATR, TakeOrganico, ReversalExit (modos 1/2) | ✅ | `sim.py` |
+| Grid clássico (separate/unified), Pirâmide (`GridMode=3`; `GridMode=2` é aposentado e o OnInit recusa) | ✅ | `sim.py`, `ledger.py` |
+| Entradas pendentes Stop/Limit/OCO/gatilho de sessão, expiração, cancelamento OCO | ✅ | `sim.py` |
+| `CheckStopTradingCondition`, `GlobalProtection` (diária/total), `DailyLossLimit`, filtro de notícias (CSV) | ✅ | `sim.py`, `engine.load_news_csv` |
+| Janelas WFO IS/OOS, carência de grid, dias de dívida, retirada no Tester | ✅ | `wfo.py`, `sim.wfo_step` |
+| Custos: comissão por lote/lado, swap (pontos, triplo no dia configurado) | ✅ | `spec.py`, `sim.py` |
+| Margem / `MinFreeMarginPercent` | 🟡 | só com `margin_a/margin_b` no spec (modelo linear por lote); sem stop-out do corretor |
+| Validação do `OnInit` (`InvalidConfig`) e família por chaves do `.set` | ✅ | `setfile.oninit_errors` |
+| **EA Bollinger**: 3 modos (Reversal/Breakout/Squeeze), `StopBolinger`/`TakeBolinger`/`BreakevenBolinger` | ✅ | `signals.bollinger_signals`, `sim.bollinger_exits` |
+| **EA Candles Entry**: 3 slots (TF + índice, índice 0 = vela em formação) | ✅ | `signals.candles_signals` |
+| Fitness do `OnTester`: 15 fórmulas + `ConsistencyFactor` + linha `ALL_FORMULAS` | ✅ (estatísticas do Tester reconstruídas = hipóteses) | `fitness.py` |
+| `BandsShift ≠ 0` (Bollinger) | ⬜ | o motor recusa o set |
+| Stop-out do corretor, `tick_value` variável no tempo, atraso de execução | ⬜ | hipóteses listadas no README |
+| Plugar como estágio do Autobot (mesmo formato do `portfolio_builder`) | ⬜ | depois da paridade |
 
-## ⛔ Por que parou
+## Decisões e achados a conhecer
 
-Ao tentar ler os trechos marcados ⛔ do `.mq5` (repo privado `Metatrader5EAS`) o ambiente negou a leitura,
-sem explicação. Não reli por outro caminho. Para retomar: (a) autorizar a leitura desse arquivo na sessão, ou
-(b) copiar os `.mq5`/`.mqh` para dentro deste repo (ex.: `WRX_Engine/fonte_ea/`), ou (c) colar os trechos.
-Tudo acima marcado ✅ foi portado só com o que já tinha sido lido antes do bloqueio e com o CSV público de inputs.
+- **`08_GRID_UNIFIED` usa `GridMode=2`**, que o `OnInit` do EA rejeita (aposentado). Esse set não roda no EA; o motor também recusa.
+- **Notícias** exigem o CSV exportado pelo EA (`datetime;currency;importance;event_name`); sem ele o motor recusa o set em vez de ignorar.
+- **WFO**: o início é assumido como a 1ª barra M1 do teste (`run_backtest(wfo_start=…)` sobrescreve).
+- Nada é ignorado em silêncio: input fora do escopo → `UnsupportedConfig`; set que o EA recusaria → `InvalidConfig`.
 
-## Arquitetura prevista para o que falta
+## Onde a fidelidade é só hipótese (calibrar na revisão)
 
-Entre duas decisões (barras M1) o conjunto de posições/ordens é constante, então os eventos por tick
-(SL/TP, alvo monetário de grid, trailing de cesta, gatilho de pendente, DD de equity) podem ser achados
-**vetorizados** com `numpy` sobre o trecho de ticks, tratando o mais cedo e repetindo — mantém a velocidade
-(1 ano de M1 ≈ 2 s) sem laço por tick. O `scan()` atual generaliza para isso.
+Lista completa no README ("Pontos a calibrar"). Os mais prováveis de divergir: `iATR` (SMA do TR), `iADX`, preço de execução do SL
+(`stop_fill`) e de pendentes (`pending_fill`), `tick_value` constante, e — só para o fitness — Sharpe, DD de equity e
+`STAT_CONLOSSMAX_TRADES`. A linha `ALL_FORMULAS` que o EA grava em `Common\Files\levain_wrx_all_formulas.txt` permite
+conferir isso número a número (`review run --formulas`).
