@@ -512,15 +512,26 @@ def apply_core(p: Profile, ac: AssetClass, ichimoku: bool,
     # ja esta congelado quando o sinal nasce. O rompimento de EMA_Cross e
     # Ichimoku continua medido no close (`Close[1] > MACD_Signal[1]`), o que e
     # variante deliberada, nao incoerencia.
-    p.opt("InpAppliedPrice", 1, 1, 1, 7)
+    #
+    # ICHIMOKU (2026-09-29, bateria de logica): a EA so usa o applied price nos handles de
+    # MACD/EMA/Momentum/TRIX/RSI/CCI/OsMA, e o Stochastic so no Stochastic -- iIchimoku
+    # nao usa nenhum. Com o indicador cravado em 11 esses tres eixos (7 x 4 x 4 valores)
+    # davam resultado identico e o genetico avaliava ate 112 copias de cada combinacao real.
+    if ichimoku:
+        p.fix("InpAppliedPrice", 1)
+    else:
+        p.opt("InpAppliedPrice", 1, 1, 1, 7)
 
     p.opt("EntryMethod", 1, 0, 1, 6)
     p.opt("TimeFrame", ac.timeframe, ac.tf_lo, 1, ac.tf_hi)
 
-    p.opt("StochasticSlowing", 3, 1, 2, 7)
-    p.opt("StochasticMethod", 0, 0, 1, 3)   # MODE_SMA..LWMA
     if ichimoku:
+        p.fix("StochasticSlowing", 3)
+        p.fix("StochasticMethod", 0)
         p.fix("StochasticPriceField", 0)  # STO_LOWHIGH
+    else:
+        p.opt("StochasticSlowing", 3, 1, 2, 7)
+        p.opt("StochasticMethod", 0, 0, 1, 3)   # MODE_SMA..LWMA
 
     # ATR alimenta stop, alvo e trailing. Prende-lo ao timeframe da classe de
     # ativo assume que a volatilidade de referencia mora no mesmo prazo da
