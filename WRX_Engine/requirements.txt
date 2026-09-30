@@ -1,0 +1,5 @@
+numpy
+pandas
+pytest
+# so para tools/export_mt5_data.py (Windows, terminal MT5 aberto):
+MetaTrader5
