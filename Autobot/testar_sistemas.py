@@ -805,29 +805,62 @@ def metricas_de_curva(fechadas: list[dict], deposito: float, r_valor: float | No
             "dd": round(dd, 2)}
 
 
+AMOSTRA_MIN_S5 = 10        # trades dos dois lados pra dar veredito
+MATERIAL_S5 = 0.01         # diferenca abaixo de 1% do deposito = irrelevante
+ESVAZIOU_S5 = 0.3          # variante com menos de 30% dos trades da referencia "esvaziou" a estrategia
+
+
 def tabela_ablacao(dados: dict[str, dict], chave: str | None = None) -> list[dict]:
-    """dados: variante -> {"deals": [...], "fechadas": [...], "deposito": x, "r": y}. Devolve uma
-    linha por variante, com a diferenca de lucro e a semanal (t) contra a variante de referencia."""
+    """dados: variante -> {"deals": [...], "fechadas": [...], "deposito": x, "r": y}. Uma linha por
+    variante: metricas, diferenca de lucro e semanal (t) contra a referencia, e a CLASSE da linha
+    (referencia / igual / esvaziou / pequena / irrelevante / valida)."""
     linhas = []
     for nome, d in dados.items():
         m = metricas_de_curva(d["fechadas"], d["deposito"], d.get("r"))
         ref = referencia_s5(chave, nome)
-        if nome == ref or ref not in dados:
-            comp = {"delta": None, "t": None, "ref": ref if ref in dados else None}
-        else:
-            c = tp.comparar_semanal(d["deals"], dados[ref]["deals"])
-            comp = {"delta": None if c.get("media") is None else round(c["lucro_a"] - c["lucro_b"], 2),
-                    "t": c.get("t"), "ref": ref}
-        linhas.append({"variante": nome, **m, **comp})
+        linha = {"variante": nome, **m, "deposito": d["deposito"], "ref": ref if ref in dados else None,
+                 "delta": None, "t": None, "ref_trades": None}
+        if nome != ref and ref in dados:
+            r = dados[ref]
+            mr = metricas_de_curva(r["fechadas"], r["deposito"], r.get("r"))
+            c = tp.comparar_semanal(d["deals"], r["deals"])
+            linha["delta"] = round(m["lucro"] - mr["lucro"], 2)
+            linha["t"] = c.get("t")
+            linha["ref_trades"] = mr["trades"]
+        linha["classe"] = classe_s5(linha)
+        linhas.append(linha)
     return linhas
 
 
-def veredito_s5(delta, t, dd, dd_ref) -> str:
-    if delta is None:
+def classe_s5(linha: dict) -> str:
+    if linha["ref"] is None or linha["delta"] is None:
         return "referencia"
-    if t is not None and abs(t) >= 2:
-        return "melhora (significativo)" if delta > 0 else "piora (significativo)"
-    return "melhora, mas dentro do ruido" if delta > 0 else "piora, mas dentro do ruido" if delta < 0 else "igual"
+    if linha["trades"] == linha["ref_trades"] and abs(linha["delta"]) < 0.005:
+        return "igual"                                    # o set ja tinha esse booster (ou nao mudou nada)
+    if linha["ref_trades"] and linha["trades"] < ESVAZIOU_S5 * linha["ref_trades"]:
+        return "esvaziou"
+    if min(linha["trades"], linha["ref_trades"] or 0) < AMOSTRA_MIN_S5:
+        return "pequena"
+    if abs(linha["delta"]) < MATERIAL_S5 * linha["deposito"]:
+        return "irrelevante"
+    return "valida"
+
+
+def veredito_s5(linha: dict) -> str:
+    c = linha["classe"]
+    if c == "referencia":
+        return "referencia"
+    if c == "igual":
+        return "sem efeito (a config ja era assim)"
+    if c == "esvaziou":
+        return f"esvazia a estrategia ({linha['trades']} de {linha['ref_trades']} trades)"
+    if c == "pequena":
+        return f"amostra pequena (< {AMOSTRA_MIN_S5} trades)"
+    if c == "irrelevante":
+        return f"diferenca irrelevante (< {MATERIAL_S5:.0%} do deposito)"
+    lado = "melhora" if linha["delta"] > 0 else "piora"
+    forte = linha["t"] is not None and abs(linha["t"]) >= 2
+    return f"{lado} (significativo)" if forte else f"{lado}, mas dentro do ruido"
 
 
 def prefixo_s5(janela: str) -> str:
@@ -852,16 +885,67 @@ def _dados_s5(janela: str, chave: str, sistema: str, lado_var: str, simbolo: str
 
 
 def consistencia_s5(a: dict, b: dict) -> str:
-    """Resumo de uma variante nas duas janelas: {'delta','t'} de cada uma."""
-    da, db = a.get("delta"), b.get("delta")
-    if da is None or db is None:
-        return "so numa janela" if (da is not None or db is not None) else "referencia"
-    forte = any(x is not None and abs(x) >= 2 for x in (a.get("t"), b.get("t")))
-    if da > 0 and db > 0:
-        return "CANDIDATO: melhora nas duas" + (" (significativo numa)" if forte else "")
-    if da < 0 and db < 0:
-        return "piora nas duas" + (" (significativo numa)" if forte else "")
-    return "inconsistente (muda de sinal)"
+    """Leitura de uma variante nas duas janelas (linhas de tabela_ablacao)."""
+    ca, cb = a.get("classe", "referencia"), b.get("classe", "referencia")
+    if ca == cb == "referencia":
+        return "referencia"
+    if ca == "valida" and cb == "valida":
+        forte = any(x.get("t") is not None and abs(x["t"]) >= 2 for x in (a, b))
+        if a["delta"] > 0 and b["delta"] > 0:
+            return "CANDIDATO: melhora nas duas" + (" (significativo numa)" if forte else "")
+        if a["delta"] < 0 and b["delta"] < 0:
+            return "piora nas duas" + (" (significativo numa)" if forte else "")
+        return "inconsistente (muda de sinal)"
+    if ca == "valida" or cb == "valida":
+        outra = cb if ca == "valida" else ca
+        return f"so uma janela tem base para julgar (a outra: {outra})"
+    if ca == cb == "igual":
+        return "sem efeito (a config ja era assim)"
+    return f"sem base para julgar ({ca} / {cb})"
+
+
+def teste_dos_sinais(pos: int, neg: int) -> float | None:
+    """p-valor bilateral do teste dos sinais (binomial, p = 0.5) sobre os pares que mudaram."""
+    n = pos + neg
+    if n == 0:
+        return None
+    k = min(pos, neg)
+    from math import comb
+    p_unilat = sum(comb(n, i) for i in range(k + 1)) / 2 ** n
+    return min(1.0, 2 * p_unilat)
+
+
+def placar_s5(por_par: dict[tuple, dict[str, dict]]) -> list[dict]:
+    """por_par: (base, janela) -> {variante: linha}. Junta, por variante, os pares (base x janela) em
+    que a linha e VALIDA (mesmo criterio de amostra e materialidade) e conta os sinais."""
+    acum: dict[str, dict] = {}
+    for _par, linhas in por_par.items():
+        for nome, x in linhas.items():
+            a = acum.setdefault(nome, {"variante": nome, "pares": 0, "pos": 0, "neg": 0, "esvaziou": 0,
+                                       "sem_efeito": 0, "pct": []})
+            if x["classe"] == "valida":
+                a["pares"] += 1
+                a["pct"].append(100.0 * x["delta"] / x["deposito"])
+                a["pos" if x["delta"] > 0 else "neg"] += 1
+            elif x["classe"] == "esvaziou":
+                a["esvaziou"] += 1
+            elif x["classe"] == "igual":
+                a["sem_efeito"] += 1
+    saida = []
+    for a in acum.values():
+        pcts = sorted(a["pct"])
+        mediana = None if not pcts else (pcts[len(pcts) // 2] if len(pcts) % 2 else
+                                         (pcts[len(pcts) // 2 - 1] + pcts[len(pcts) // 2]) / 2)
+        p_ = teste_dos_sinais(a["pos"], a["neg"])
+        if a["pares"] >= 5 and p_ is not None and p_ <= 0.10:
+            leitura = "tende a AJUDAR" if a["pos"] > a["neg"] else "tende a ATRAPALHAR"
+        elif a["pares"] < 5:
+            leitura = "poucos pares validos" + (" (esvazia a estrategia)" if a["esvaziou"] >= 3 else "")
+        else:
+            leitura = "sem tendencia clara" + (" (esvazia a estrategia)" if a["esvaziou"] >= 3 else "")
+        saida.append({**a, "mediana_pct": None if mediana is None else round(mediana, 2), "p": p_,
+                      "leitura": leitura})
+    return sorted(saida, key=lambda z: (z["mediana_pct"] is None, -(z["mediana_pct"] or 0)))
 
 
 def relatorio_ablacao() -> str:
@@ -869,8 +953,10 @@ def relatorio_ablacao() -> str:
     saida = ["ABLACAO DE BOOSTERS sobre sets ja otimizados da biblioteca",
              "janela a = " + " a ".join(JANELAS_S5["a"]) + " (o treino dos sets nunca viu); "
              "janela b = " + " a ".join(JANELAS_S5["b"]) + " (o treino viu a BASE; o booster nao foi ajustado)",
-             "lucro em $; R = lucro / 1R (so sets Fixed-R); t = diferenca semanal contra a referencia "
-             "(|t| < 2 = indistinguivel de ruido; poucas semanas: leia como INDICIO, nao como prova)", ""]
+             "lucro em $; R = lucro / 1R (so sets Fixed-R); t = diferenca semanal contra a referencia. "
+             f"So vira veredito a linha com >= {AMOSTRA_MIN_S5} trades nos dois lados e diferenca >= "
+             f"{MATERIAL_S5:.0%} do deposito; o resto e ruido ou config que ja era assim. INDICIO, nao prova.", ""]
+    por_par: dict[tuple, dict[str, dict]] = {}
     for chave, (arq, simbolo, sistema, lado_var) in BASES_S5.items():
         tabelas = {}
         for jn in JANELAS_S5:
@@ -879,11 +965,11 @@ def relatorio_ablacao() -> str:
                 continue
             linhas = tabela_ablacao(dados, chave)
             tabelas[jn] = {x["variante"]: x for x in linhas}
+            por_par[(chave, jn)] = tabelas[jn]
             saida.append(f"== {chave}: {sistema} {lado_var} {simbolo} | janela {jn}  "
                          f"(* = o campeao como salvo no set)")
             saida.append(f"  {'variante':14} {'trades':>6} {'lucro$':>9} {'R':>7} {'PF':>5} {'acerto%':>7} "
                          f"{'queda%':>6} {'d lucro$':>9} {'t':>6}  veredito")
-            base = tabelas[jn].get("mercado")
             campeao = CAMPEAO_S5.get(chave, "mercado")
             for x in sorted(linhas, key=lambda z: (z["variante"] != "mercado", z["variante"] != campeao,
                                                    -(z["lucro"] or 0))):
@@ -894,22 +980,30 @@ def relatorio_ablacao() -> str:
                     f"{'-' if x['pf'] is None else format(x['pf'], '.2f'):>5} "
                     f"{'-' if x['acerto'] is None else format(x['acerto'], '.0f'):>7} {x['dd']:>6.1f} "
                     f"{'-' if x['delta'] is None else format(x['delta'], '+.2f'):>9} "
-                    f"{'-' if x['t'] is None else format(x['t'], '+.2f'):>6}  "
-                    f"{veredito_s5(x['delta'], x['t'], x['dd'], base['dd'] if base else None)}"
+                    f"{'-' if x['t'] is None else format(x['t'], '+.2f'):>6}  {veredito_s5(x)}"
                     + (f" (vs {x['ref']})" if x["ref"] and x["ref"] != "mercado" else ""))
             saida.append("")
         if len(tabelas) == 2:
             saida.append(f"== {chave}: consistencia entre as duas janelas")
-            saida.append(f"  {'variante':14} {'d lucro a':>10} {'t a':>6} {'d lucro b':>10} {'t b':>6}  leitura")
+            saida.append(f"  {'variante':14} {'d lucro a':>10} {'d lucro b':>10}  leitura")
             for nome in tabelas["a"]:
-                a, b = tabelas["a"][nome], tabelas["b"].get(nome, {})
-                if a["delta"] is None and b.get("delta") is None:
+                a, b = tabelas["a"][nome], tabelas["b"].get(nome)
+                if b is None or (a["classe"] == "referencia" and b["classe"] == "referencia"):
                     continue
-                fmt = lambda v, f: "-" if v is None else format(v, f)      # noqa: E731
-                saida.append(f"  {nome:14} {fmt(a['delta'], '+.2f'):>10} {fmt(a['t'], '+.2f'):>6} "
-                             f"{fmt(b.get('delta'), '+.2f'):>10} {fmt(b.get('t'), '+.2f'):>6}  "
+                fmt = lambda v: "-" if v is None else format(v, "+.2f")      # noqa: E731
+                saida.append(f"  {nome:14} {fmt(a['delta']):>10} {fmt(b['delta']):>10}  "
                              f"{consistencia_s5(a, b)}")
             saida.append("")
+    if por_par:
+        saida.append("== PLACAR GERAL: cada booster contra a referencia, somando bases x janelas em que a linha e VALIDA")
+        saida.append(f"  {'variante':14} {'pares':>5} {'+':>3} {'-':>3} {'esvaz.':>6} {'sem efeito':>10} "
+                     f"{'mediana d%dep':>13} {'p(sinais)':>9}  leitura")
+        for x in placar_s5(por_par):
+            saida.append(f"  {x['variante']:14} {x['pares']:>5} {x['pos']:>3} {x['neg']:>3} {x['esvaziou']:>6} "
+                         f"{x['sem_efeito']:>10} "
+                         f"{'-' if x['mediana_pct'] is None else format(x['mediana_pct'], '+.2f'):>13} "
+                         f"{'-' if x['p'] is None else format(x['p'], '.2f'):>9}  {x['leitura']}")
+        saida.append("")
     texto = "\n".join(saida)
     (SAIDA / "ABLACAO.md").write_text(texto, encoding="utf-8")
     return texto

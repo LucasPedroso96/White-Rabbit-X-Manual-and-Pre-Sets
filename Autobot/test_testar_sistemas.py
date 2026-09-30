@@ -493,39 +493,94 @@ def semana(k, lucros):
     return deals_, ops_
 
 
-d_base, o_base = semana(1, [10, -20, 5, 8, -3, 12])
-d_bom, o_bom = semana(1, [30, 10, 25, 28, 15, 32])       # ganha 20 a mais TODA semana -> t enorme
-d_ruido, o_ruido = semana(1, [12, -18, 3, 9, -5, 10])     # diferenca minima e variavel
-tab = {x["variante"]: x for x in ts.tabela_ablacao({
-    "mercado": {"deals": d_base, "fechadas": o_base, "deposito": 1000.0},
-    "limit_k0": {"deals": d_bom, "fechadas": o_bom, "deposito": 1000.0},
-    "stop_k05": {"deals": d_ruido, "fechadas": o_ruido, "deposito": 1000.0}})}
-checar("tabela: a referencia nao tem delta", (tab["mercado"]["delta"], tab["mercado"]["t"]), (None, None))
-checar("tabela: variante que ganha sempre tem t alto", tab["limit_k0"]["t"] is None or abs(tab["limit_k0"]["t"]) >= 2
-       or tab["limit_k0"]["delta"] > 0, True)
+# 12 semanas: base perde/ganha pouco; "bom" ganha 60 a mais TODA semana (delta 720 = 7,2% de 10000);
+# "ruido" difere por centavos; "igual" e a propria base; "curto" so tem 4 trades
+lucros_base = [10, -20, 5, 8, -3, 12, 7, -9, 14, -4, 6, 11]
+d_base, o_base = semana(1, lucros_base)
+d_bom, o_bom = semana(1, [x + 60 for x in lucros_base])
+d_ruido, o_ruido = semana(1, [x + (0.5 if i % 2 else -0.2) for i, x in enumerate(lucros_base)])
+d_curto, o_curto = semana(1, [40, 30, 50, 60])
+DEP = 10000.0
+
+
+def dados_s5(**variantes):
+    base = {"deals": d_base, "fechadas": o_base, "deposito": DEP}
+    return {"mercado": base, **variantes}
+
+
+def var(deals_, ops_):
+    return {"deals": deals_, "fechadas": ops_, "deposito": DEP}
+
+
+tab = {x["variante"]: x for x in ts.tabela_ablacao(dados_s5(
+    limit_k0=var(d_bom, o_bom), stop_k05=var(d_ruido, o_ruido), janela_7_20=var(d_curto, o_curto),
+    filtro_ma=var(d_base, o_base)))}
+checar("tabela: a referencia nao tem delta", (tab["mercado"]["delta"], tab["mercado"]["classe"]), (None, "referencia"))
 checar("tabela: delta de lucro = lucro da variante - lucro da referencia",
-       tab["limit_k0"]["delta"], round(sum([30, 10, 25, 28, 15, 32]) - sum([10, -20, 5, 8, -3, 12]), 2))
-checar("veredito: sem delta e referencia", ts.veredito_s5(None, None, 0, 0), "referencia")
-checar("veredito: melhora significativa", ts.veredito_s5(50.0, 3.1, 1, 1), "melhora (significativo)")
-checar("veredito: piora no ruido", ts.veredito_s5(-5.0, -0.6, 1, 1), "piora, mas dentro do ruido")
+       tab["limit_k0"]["delta"], round(sum(x + 60 for x in lucros_base) - sum(lucros_base), 2))
+checar("classe: ganho material com amostra boa e VALIDA", tab["limit_k0"]["classe"], "valida")
+checar("classe: variante identica a base e 'igual' (o set ja era assim)", tab["filtro_ma"]["classe"], "igual")
+checar("classe: diferenca de centavos e irrelevante", tab["stop_k05"]["classe"], "irrelevante")
+checar("classe: 4 trades contra 12 e esvaziou (< 30%? nao: 33%) -> amostra pequena", tab["janela_7_20"]["classe"],
+       "pequena")
+tab_v = {x["variante"]: x for x in ts.tabela_ablacao(dados_s5(vazio=var([], [])))}
+checar("classe: 0 trades contra 12 esvazia a estrategia", tab_v["vazio"]["classe"], "esvaziou")
+checar("veredito: referencia", ts.veredito_s5(tab["mercado"]), "referencia")
+checar("veredito: sem efeito", ts.veredito_s5(tab["filtro_ma"]), "sem efeito (a config ja era assim)")
+checar("veredito: amostra pequena", ts.veredito_s5(tab["janela_7_20"]), "amostra pequena (< 10 trades)")
+checar("veredito: irrelevante", ts.veredito_s5(tab["stop_k05"]), "diferenca irrelevante (< 1% do deposito)")
+checar("veredito: esvazia", ts.veredito_s5(tab_v["vazio"]), "esvazia a estrategia (0 de 12 trades)")
+checar("veredito: melhora material e verdicto de melhora", ts.veredito_s5(tab["limit_k0"]).startswith("melhora"), True)
 # D'Alembert compara com o lote fixo, nao com o mercado
-tab2 = {x["variante"]: x for x in ts.tabela_ablacao({
-    "mercado": {"deals": d_base, "fechadas": o_base, "deposito": 1000.0},
-    "lote_fixo": {"deals": d_ruido, "fechadas": o_ruido, "deposito": 1000.0},
-    "dalembert": {"deals": d_bom, "fechadas": o_bom, "deposito": 1000.0}})}
+tab2 = {x["variante"]: x for x in ts.tabela_ablacao(dados_s5(
+    lote_fixo=var(d_ruido, o_ruido), dalembert=var(d_bom, o_bom)))}
 checar("D'Alembert usa lote_fixo como referencia", tab2["dalembert"]["ref"], "lote_fixo")
 
 # consistencia entre as duas janelas
 checar("prefixos das janelas", (ts.prefixo_s5("a"), ts.prefixo_s5("b")), ("s5", "s5b"))
+
+
+def lin(classe, delta=None, t_=None):
+    return {"classe": classe, "delta": delta, "t": t_}
+
+
 checar("consistencia: melhora nas duas e candidato",
-       ts.consistencia_s5({"delta": 50.0, "t": 2.4}, {"delta": 10.0, "t": 0.5}),
+       ts.consistencia_s5(lin("valida", 500.0, 2.4), lin("valida", 150.0, 0.5)),
        "CANDIDATO: melhora nas duas (significativo numa)")
-checar("consistencia: piora nas duas", ts.consistencia_s5({"delta": -5.0, "t": -0.4}, {"delta": -9.0, "t": -1.0}),
+checar("consistencia: piora nas duas", ts.consistencia_s5(lin("valida", -500.0, -0.4), lin("valida", -900.0, -1.0)),
        "piora nas duas")
 checar("consistencia: sinal muda = inconsistente",
-       ts.consistencia_s5({"delta": 30.0, "t": 1.2}, {"delta": -20.0, "t": -0.9}), "inconsistente (muda de sinal)")
-checar("consistencia: referencia", ts.consistencia_s5({"delta": None, "t": None}, {"delta": None, "t": None}),
-       "referencia")
+       ts.consistencia_s5(lin("valida", 300.0, 1.2), lin("valida", -200.0, -0.9)), "inconsistente (muda de sinal)")
+checar("consistencia: referencia", ts.consistencia_s5(lin("referencia"), lin("referencia")), "referencia")
+checar("consistencia: so uma janela valida", ts.consistencia_s5(lin("valida", 300.0, 1.2), lin("pequena", 5.0, 0.1)),
+       "so uma janela tem base para julgar (a outra: pequena)")
+checar("consistencia: duas janelas sem efeito", ts.consistencia_s5(lin("igual", 0.0), lin("igual", 0.0)),
+       "sem efeito (a config ja era assim)")
+checar("consistencia: irrelevante nas duas = sem base", ts.consistencia_s5(lin("irrelevante", 3.0), lin("pequena", 1.0)),
+       "sem base para julgar (irrelevante / pequena)")
+
+# teste dos sinais e placar
+checar("sinais: 9 a 1 -> p ~ 0.021", round(ts.teste_dos_sinais(9, 1), 3), 0.021)
+checar("sinais: 5 a 5 -> p = 1", ts.teste_dos_sinais(5, 5), 1.0)
+checar("sinais: sem pares -> None", ts.teste_dos_sinais(0, 0), None)
+
+
+def par(**v):
+    return {n: {"classe": c, "delta": d, "deposito": DEP} for n, (c, d) in v.items()}
+
+
+por_par = {(f"b{i}", "a"): par(bom=("valida", 300.0), ruim=("valida", -300.0), igual=("igual", 0.0),
+                               vazio=("esvaziou", -100.0), misto=("valida", 200.0 if i % 2 else -200.0))
+           for i in range(6)}
+pl = {x["variante"]: x for x in ts.placar_s5(por_par)}
+checar("placar: 6 pares positivos", (pl["bom"]["pares"], pl["bom"]["pos"], pl["bom"]["neg"]), (6, 6, 0))
+checar("placar: 6 a 0 tende a AJUDAR (p = 0.03)", pl["bom"]["leitura"], "tende a AJUDAR")
+checar("placar: 0 a 6 tende a ATRAPALHAR", pl["ruim"]["leitura"], "tende a ATRAPALHAR")
+checar("placar: 3 a 3 sem tendencia", pl["misto"]["leitura"], "sem tendencia clara")
+checar("placar: config igual nao conta como par", (pl["igual"]["pares"], pl["igual"]["sem_efeito"]), (0, 6))
+checar("placar: variante que esvazia e marcada", (pl["vazio"]["esvaziou"], "esvazia a estrategia" in pl["vazio"]["leitura"]),
+       (6, True))
+checar("placar: mediana em % do deposito (300 de 10000 = +3%)", pl["bom"]["mediana_pct"], 3.0)
 esperado_s5 = sum(len(ts.variantes_s5(sis, lv.split("_")[0], sim, ch))
                   for ch, (_a, sim, sis, lv) in ts.BASES_S5.items())
 checar("catalogo S5: duas janelas, mesmos nomes com prefixo diferente", (
