@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+import pandas as pd
 
 from . import indicators as ind
 from .bars import Bars
@@ -131,3 +132,78 @@ def raw_signals(p: WrxParams, tf: Bars, tick_volume: np.ndarray | None = None):
     es = build_entry_series(p, tf, tick_volume)
     rb, rs, sb_, ss, fb, fs = raw_triggers(p, es)
     return combine(p.entry_method, rb, sb_, fb), combine(p.entry_method, rs, ss, fs)
+
+
+
+# ------------------------------------------------------------------ familia Bollinger (EA "Global - Bolinger Bands")
+@dataclass
+class BollingerArrays:
+    """Series por barra FORMANDO b: valores das barras fechadas de shift 1/2 usados pelas saidas alternativas."""
+    main1: np.ndarray
+    up1: np.ndarray
+    up2: np.ndarray
+    lo1: np.ndarray
+    lo2: np.ndarray
+    c1: np.ndarray
+    c2: np.ndarray
+    o1: np.ndarray
+
+
+def bollinger_signals(p: WrxParams, tf: Bars):
+    """(buy_raw, sell_raw, BollingerArrays) por barra formando. Reversao / Rompimento / Squeeze."""
+    v = p.v
+    price = ind.applied_price(tf.open, tf.high, tf.low, tf.close, p.applied_price)
+    main, up, lo = ind.bands(price, v["BandsPeriod"], v["BandsDeviation"])
+    c, o = np.asarray(tf.close, float), np.asarray(tf.open, float)
+    m1, u1, u2, l1, l2 = _shift(main, 1), _shift(up, 1), _shift(up, 2), _shift(lo, 1), _shift(lo, 2)
+    c1, c2, o1 = _shift(c, 1), _shift(c, 2), _shift(o, 1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        rev_b = (c1 > l1) & (c2 <= l2) & (c1 > o1) & (c1 < m1)
+        rev_s = (c1 < u1) & (c2 >= u2) & (c1 < o1) & (c1 > m1)
+        brk_b = (c1 > u1) & (c2 <= u2)
+        brk_s = (c1 < l1) & (c2 >= l2)
+        width = np.where(main != 0.0, (up - lo) / main, 0.0)
+        width[np.isnan(main)] = np.nan
+        limit = min(v["SqueezeLookback"] + 2, 49)                       # ArraySize(Bands_Upper)-1 com CopyBars=50
+        w_span = max(limit - 1, 1)                                      # shifts 2..limit
+        roll_min = pd.Series(width).rolling(w_span, min_periods=w_span).min().to_numpy()
+        w2, min2 = _shift(width, 2), _shift(roll_min, 2)
+        active = w2 <= min2 * (1.0 + v["SqueezeTolerancePct"] / 100.0)
+        sqz_b, sqz_s = active & brk_b, active & brk_s
+    mode = v["BollingerEntryMode"]
+    buy = {0: rev_b, 1: brk_b, 2: sqz_b}[mode]
+    sell = {0: rev_s, 1: brk_s, 2: sqz_s}[mode]
+    return buy, sell, BollingerArrays(m1, u1, u2, l1, l2, c1, c2, o1)
+
+
+# ------------------------------------------------------------------ familia Candles (EA "Candles Entry")
+def candles_signals(p: WrxParams, m1: Bars, first_bid: np.ndarray):
+    """(buy_j, sell_j) POR BARRA M1: 3 slots (TF, indice), todos com applied price x open no mesmo sentido.
+
+    Indice >= 1: barra fechada; indice 0: barra em formacao (parcial no 1o tick do minuto)."""
+    from .bars import forming_partial, resample, tf_index_of, TF_MINUTES
+    v = p.v
+    n = len(m1)
+    buy = np.ones(n, bool)
+    sell = np.ones(n, bool)
+    for k in (1, 2, 3):
+        tfm = TF_MINUTES[v[f"CandleTF{k}"]]
+        idx = int(v[f"CandleIndex{k}"])
+        tf = resample(m1, tfm)
+        t = tf_index_of(m1, tf, tfm)
+        if idx >= 1:
+            ref = t - idx
+            ok = ref >= 0
+            r = np.maximum(ref, 0)
+            price = ind.applied_price(tf.open, tf.high, tf.low, tf.close, p.applied_price)[r]
+            opn = tf.open[r]
+        else:
+            hi, lo, cl = forming_partial(m1, tfm, first_bid)
+            ok = np.ones(n, bool)
+            opn = tf.open[t]
+            mode = p.applied_price
+            price = {7: (hi + lo + 2 * cl) / 4.0, 6: (hi + lo + cl) / 3.0, 5: (hi + lo) / 2.0}.get(mode, cl)
+        with np.errstate(invalid="ignore"):
+            buy &= ok & (price > opn)
+            sell &= ok & (price < opn)
+    return buy, sell

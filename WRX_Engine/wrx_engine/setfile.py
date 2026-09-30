@@ -56,6 +56,11 @@ _DEFAULTS: dict[str, object] = {
     "Protecao_Fecha_Posicoes": True, "MaxSlippage": 10,
     "wfo_windowSize": 360, "wfo_customWindowSizeDays": 0, "wfo_stepSize": 180, "wfo_customStepSizePercent": 0,
     "input_end_date": "2026.07.21", "WFO_CarenciaPercentil": 75,
+    # --- familias de entrada alternativas (EA Bollinger / EA Candles Entry)
+    "BandsPeriod": 20, "BandsDeviation": 2.0, "BandsShift": 0, "BollingerEntryMode": 1,
+    "SqueezeLookback": 20, "SqueezeTolerancePct": 10.0,
+    "StopBolinger": False, "TakeBolinger": False, "BreakevenBolinger": False,
+    "CandleTF1": 0, "CandleIndex1": 1, "CandleTF2": 0, "CandleIndex2": 1, "CandleTF3": 0, "CandleIndex3": 1,
 }
 
 # Nomes dos enums, so para mensagens de erro legiveis.
@@ -107,6 +112,7 @@ def parse_set_text(text: str) -> dict[str, str]:
 
 @dataclass
 class WrxParams:
+    family: str = "multi"                                  # multi | bollinger | candles
     raw: dict = field(default_factory=dict, repr=False)
     v: dict = field(default_factory=dict, repr=False)      # TODOS os inputs conhecidos, ja tipados
     # sinal
@@ -186,8 +192,11 @@ def params_from_dict(d: dict[str, str]) -> WrxParams:
     v = {k: (_coerce(dflt, d[k]) if k in d else dflt) for k, dflt in _DEFAULTS.items()}
     days = (v["TradeSunday"], v["TradeMonday"], v["TradeTuesday"], v["TradeWednesday"],
             v["TradeThursday"], v["TradeFriday"], v["TradeSaturday"])
+    family = "bollinger" if "BandsPeriod" in d else ("candles" if "CandleTF1" in d else "multi")
+    if family == "candles":
+        v["TimeFrame"] = v["CandleTF1"]                     # o TF base de cada lado e o do slot 1
     return WrxParams(
-        raw=dict(d) | {k: v[k] for k in _DEFAULTS}, v=v,
+        family=family, raw=dict(d) | {k: v[k] for k in _DEFAULTS}, v=v,
         timeframe_idx=v["TimeFrame"], atr_timeframe_idx=v["ATR_TimeFrame"],
         entry_indicator=v["EntryIndicator"], applied_price=v["InpAppliedPrice"],
         fast=v["Fast_EMA"], slow=v["Slow_EMA"], signal=v["MACD_SMA"],
@@ -221,7 +230,7 @@ class InvalidConfig(ValueError):
     """Combinacao que o EA recusa no OnInit (INIT_PARAMETERS_INCORRECT): o Tester nem abriria."""
 
 
-def oninit_errors(v: dict, *, hedging_account: bool = True) -> list[str]:
+def oninit_errors(v: dict, *, hedging_account: bool = True, family: str = "multi") -> list[str]:
     """Espelho das validacoes do OnInit(). `hedging_account`: conta do Tester e hedging?"""
     e: list[str] = []
     mode = v["PositionSizeMode"]
@@ -247,16 +256,29 @@ def oninit_errors(v: dict, *, hedging_account: bool = True) -> list[str]:
         e.append("Trava_*_Percent fora de [0,100)")
     fast, slow, sig = v["Fast_EMA"], v["Slow_EMA"], v["MACD_SMA"]
     ind = v["EntryIndicator"]
-    if fast <= 0 or sig <= 0:
-        e.append("periodos do indicador <= 0")
-    if ind in (0, 1, 10) and (slow <= 0 or fast >= slow):
-        e.append("exige Fast < Slow")
-    if v["AtivarFiltroMTF"] and (slow <= 0 or fast >= slow):
-        e.append("filtro MTF exige Fast < Slow")
-    if ind == 11 and (slow <= fast or sig <= slow):
-        e.append("Ichimoku exige Tenkan < Kijun < SenkouB")
-    if ind == 3 and v["StochasticSlowing"] <= 0:
-        e.append("Stochastic slowing <= 0")
+    if family == "multi":
+        if fast <= 0 or sig <= 0:
+            e.append("periodos do indicador <= 0")
+        if ind in (0, 1, 10) and (slow <= 0 or fast >= slow):
+            e.append("exige Fast < Slow")
+        if v["AtivarFiltroMTF"] and (slow <= 0 or fast >= slow):
+            e.append("filtro MTF exige Fast < Slow")
+        if ind == 11 and (slow <= fast or sig <= slow):
+            e.append("Ichimoku exige Tenkan < Kijun < SenkouB")
+        if ind == 3 and v["StochasticSlowing"] <= 0:
+            e.append("Stochastic slowing <= 0")
+    elif family == "bollinger":
+        if v["BandsPeriod"] <= 1:
+            e.append("Bollinger: periodo <= 1")
+        if v["BandsDeviation"] <= 0:
+            e.append("Bollinger: desvio <= 0")
+        if v["BollingerEntryMode"] == 2 and (v["SqueezeLookback"] <= 0 or v["SqueezeTolerancePct"] < 0):
+            e.append("Squeeze invalido")
+        if v["AtivarFiltroMTF"] and (slow <= 0 or fast >= slow):
+            e.append("filtro MTF exige Fast < Slow")
+    elif family == "candles":
+        if v["InpAppliedPrice"] in (2, 3, 4):
+            e.append("Candles: applied price OPEN/HIGH/LOW invalido para direcao da vela")
     if v["PeriodoATR"] <= 0:
         e.append("PeriodoATR <= 0")
     if v["EntradaATR"] and (v["PeriodoBaselineATR"] <= 0 or v["MultiplicadorATR"] <= 0):
@@ -327,8 +349,10 @@ def unsupported(d: dict[str, str]) -> list[str]:
     """O que esta LIGADO no set e o motor ainda nao porta (a lista vai encolhendo a cada fase)."""
     v = {k: (_coerce(dflt, d[k]) if k in d else dflt) for k, dflt in _DEFAULTS.items()}
     m: list[str] = []
-    if not 0 <= v["EntryIndicator"] <= 11:
+    if "BandsPeriod" not in d and "CandleTF1" not in d and not 0 <= v["EntryIndicator"] <= 11:
         m.append(f"EntryIndicator={v['EntryIndicator']} invalido")
+    if v["BandsShift"] != 0 and "BandsPeriod" in d:
+        m.append("BandsShift != 0 (deslocamento horizontal das bandas nao portado)")
     if v["ReversalExitMode"] not in (0, 1, 2):
         m.append(f"ReversalExitMode={v['ReversalExitMode']} invalido")
     return m

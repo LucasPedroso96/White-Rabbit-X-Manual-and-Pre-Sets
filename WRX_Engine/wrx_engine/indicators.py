@@ -39,7 +39,16 @@ def ema(x, n: int) -> np.ndarray:
 
 
 def sma(x, n: int) -> np.ndarray:
-    return pd.Series(np.asarray(x, float)).rolling(n, min_periods=n).mean().to_numpy()
+    """SimpleMA do MT5: soma SEQUENCIAL da barra mais nova para a mais antiga, depois / n (mesma ordem de
+    ponto flutuante do indicador -- importa em comparacoes de igualdade com precos parados)."""
+    x = np.asarray(x, float)
+    out = np.full(len(x), np.nan)
+    if len(x) >= n:
+        acc = np.zeros(len(x) - n + 1)
+        for i in range(n):
+            acc += x[n - 1 - i: len(x) - i]
+        out[n - 1:] = acc / n
+    return out
 
 
 def macd(price, fast: int, slow: int, signal: int) -> tuple[np.ndarray, np.ndarray]:
@@ -285,3 +294,20 @@ def adx(h, l, c, n: int):
         for arr in (out, pdi, ndi):
             arr[0] = np.nan
     return out, pdi, ndi
+
+
+def bands(price, period: int, deviation: float):
+    """iBands (Bands.mq5): base = SimpleMA; desvio padrao populacional somado na mesma ordem do indicador.
+    Devolve (base, superior, inferior). Na barra period-1 o desvio e 0 (o indicador so o calcula a partir de `period`)."""
+    x = np.asarray(price, float)
+    main = sma(x, period)
+    std = np.full(len(x), np.nan)
+    if len(x) >= period:
+        acc = np.zeros(len(x) - period + 1)
+        m = main[period - 1:]
+        for i in range(period):
+            d = x[period - 1 - i: len(x) - i] - m
+            acc += d * d
+        std[period - 1:] = np.sqrt(acc / period)
+        std[period - 1] = 0.0
+    return main, main + deviation * std, main - deviation * std

@@ -73,6 +73,10 @@ class Pre:
     f_high: np.ndarray
     f_low: np.ndarray
     f_close: np.ndarray
+    family: str = "multi"
+    bb: object = None                      # BollingerArrays (familia Bollinger)
+    buy_j: np.ndarray | None = None        # sinal POR BARRA M1 (familia Candles)
+    sell_j: np.ndarray | None = None
 
     def atr_at(self, idx: int, j: int) -> float:
         """SafeIndex(ATR, idx): 0 = barra em formacao (parcial); k>=1 = k-esima barra fechada."""
@@ -121,7 +125,14 @@ def _prepare(params: WrxParams, ticks: Ticks, warmup_m1: Bars | None) -> Pre:
     atr_tf = sig_tf if params.atr_tf_min == params.tf_min else resample(m1, params.atr_tf_min)
     sb = tf_index_of(m1, sig_tf, params.tf_min)
     ab = tf_index_of(m1, atr_tf, params.atr_tf_min)
-    buy_raw, sell_raw = signals.raw_signals(params, sig_tf, sig_tf.volume)
+    bb = buy_j = sell_j = None
+    if params.family == "bollinger":
+        buy_raw, sell_raw, bb = signals.bollinger_signals(params, sig_tf)
+    elif params.family == "candles":
+        buy_j, sell_j = signals.candles_signals(params, m1, first_bid)
+        buy_raw = sell_raw = np.zeros(len(sig_tf), bool)
+    else:
+        buy_raw, sell_raw = signals.raw_signals(params, sig_tf, sig_tf.volume)
     atr_c, tr_c = ind.atr(atr_tf.high, atr_tf.low, atr_tf.close, params.period_atr)
     hi, lo, cl = forming_partial(m1, params.atr_tf_min, first_bid)
     with np.errstate(invalid="ignore"):
@@ -136,7 +147,7 @@ def _prepare(params: WrxParams, ticks: Ticks, warmup_m1: Bars | None) -> Pre:
     f_hi, f_lo, f_cl = forming_partial(m1, params.tf_min, first_bid)
     first_tick_of = np.concatenate((np.full(nw, -1, dtype=np.int64), first_idx))
     return Pre(m1, nw, n_m1, first_tick_of, first_bid, sig_tf, sb, ab, buy_raw, sell_raw, atr_c, atr0, copy_atr,
-               flt, sig_tf.open[sb], f_hi, f_lo, f_cl)
+               flt, sig_tf.open[sb], f_hi, f_lo, f_cl, params.family, bb, buy_j, sell_j)
 
 
 def news_currencies(params: WrxParams, symbol: str) -> list[str]:
@@ -190,7 +201,7 @@ def run_backtest(params: WrxParams, spec: SymbolSpec, ticks: Ticks, *,
     if bad:
         raise UnsupportedConfig(bad)
     if validate:
-        errs = oninit_errors(params.v, hedging_account=hedging_account)
+        errs = oninit_errors(params.v, hedging_account=hedging_account, family=params.family)
         if errs:
             raise InvalidConfig("o EA recusaria no OnInit: " + "; ".join(errs))
     if len(ticks) == 0:

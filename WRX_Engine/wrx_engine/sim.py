@@ -827,6 +827,49 @@ class Sim:
             if worth:
                 self.modify_sl(pos, price, k)
 
+    def apply_bollinger_be(self, side: int, b: int, k: int) -> None:
+        """ApplyBollingerBreakevenForSide(): so no modo Reversal; fecha de volta na base da banda -> SL = abertura."""
+        bb, v = self.pre.bb, self.p.v
+        if v["BollingerEntryMode"] != 0:
+            return
+        crossed = (bb.c1[b] >= bb.main1[b]) if side > 0 else (bb.c1[b] <= bb.main1[b])
+        if not crossed:
+            return
+        spec = self.spec
+        for pos in list(self.L.of_side(side)):
+            if pos.sl > 0 and (round(pos.sl, spec.digits) >= round(pos.open_price, spec.digits) if side > 0
+                               else round(pos.sl, spec.digits) <= round(pos.open_price, spec.digits)):
+                continue
+            self.modify_sl(pos, pos.open_price, k)
+
+    def bollinger_exits(self, side: int, b: int, k: int) -> None:
+        """TakeBolinger / StopBolinger (geometria depende do modo de entrada)."""
+        bb, v, L = self.pre.bb, self.p.v, self.L
+        last = L.last_trade(side)
+        if last is None:
+            return
+        c1, c2, o1 = bb.c1[b], bb.c2[b], bb.o1[b]
+        reversal = v["BollingerEntryMode"] == 0
+        take, stop = v["TakeBolinger"], v["StopBolinger"]
+        if side > 0:
+            if reversal:
+                if take and c1 < bb.up1[b] and c2 >= bb.up2[b] and c1 < o1 and c1 > last.open_price:
+                    self.close_side(1, k, "bollinger_take")
+                    return
+                if stop and c1 < bb.lo1[b] and c1 < last.open_price:
+                    self.close_side(1, k, "bollinger_stop")
+            elif stop and c1 < bb.up1[b] and c2 >= bb.up2[b] and c1 < o1:
+                self.close_side(1, k, "bollinger_stop")
+        else:
+            if reversal:
+                if take and c1 > bb.lo1[b] and c2 <= bb.lo2[b] and c1 > o1 and c1 < last.open_price:
+                    self.close_side(-1, k, "bollinger_take")
+                    return
+                if stop and c1 > bb.up1[b] and c1 > last.open_price:
+                    self.close_side(-1, k, "bollinger_stop")
+            elif stop and c1 > bb.lo1[b] and c2 <= bb.lo2[b] and c1 > o1:
+                self.close_side(-1, k, "bollinger_stop")
+
     def check_daily_loss(self, k: int) -> bool:
         """CheckDailyLossLimit(): pior caso do dia (fechado desde a ancora + SL das abertas)."""
         lim = self.p.v["DailyLossLimitPercent"]
@@ -1062,6 +1105,8 @@ class Sim:
         for side in (1, -1):
             if p.use_breakeven and L.positions:
                 self.apply_breakeven(side, j, k)
+            if pre.family == "bollinger" and v["BreakevenBolinger"]:
+                self.apply_bollinger_be(side, b, k)
             if v["AtivarTrailATR"]:
                 bar = int(pre.sig_tf.time[b])
                 if bar != self.last_trail_bar[side]:
@@ -1075,6 +1120,8 @@ class Sim:
                     d = self.atr_snap(p.vela_take) * p.take
                     if (side > 0 and bid > last.open_price + d) or (side < 0 and bid < last.open_price - d):
                         self.close_side(side, k, "take_organico")
+            if pre.family == "bollinger":
+                self.bollinger_exits(side, b, k)
 
         # 5) contagens e ancoras do grid
         long_trades, short_trades = L.count(1), L.count(-1)
@@ -1087,6 +1134,8 @@ class Sim:
         new_bar = int(pre.sig_tf.time[b]) != self.last_proc_bar
         if self.hook is not None:
             rb, rs = self.hook(j, b)
+        elif pre.buy_j is not None:
+            rb, rs = bool(pre.buy_j[j]), bool(pre.sell_j[j])
         else:
             rb, rs = bool(pre.buy_raw[b]), bool(pre.sell_raw[b])
         raw_buy, raw_sell = new_bar and rb, new_bar and rs
