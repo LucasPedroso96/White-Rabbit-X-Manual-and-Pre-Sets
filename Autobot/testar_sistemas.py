@@ -15,10 +15,16 @@ lote como o codigo diz. Os validadores estaticos (validate_system_sets) olham o
   S2 recuperacao  Martingale / D'Alembert: o lote de CADA entrada bate com o
                   modelo do codigo da EA (divida por lado, passos, teto de R),
                   refeito so com o historico do proprio relatorio
+  S3 travas       perda diaria / protecao global: nenhuma entrada depois do estouro
+  S4 filtros      janela de horario, dias da semana e spread maximo
+  S5 ablacao      um booster por vez sobre sets ja otimizados (--ablacao)
+  S6 OCO          13_OCO_ROMPIMENTO x filtros, timeframe, lote e um indice: o modelo da
+                  EA (gatilho gasto no 1o tick da hora) contra o que o tester mede (--oco)
 
     python testar_sistemas.py --listar
     python testar_sistemas.py --rodar [--so texto] [--shard 1/2] [--refazer]
     python testar_sistemas.py --verificar [--so texto]
+    python testar_sistemas.py --ablacao | --oco       (tabelas do S5 e do S6, depois do --verificar)
 
 Relatorios em _sistemas_teste/ (nao vai pro git). Reusa o leitor de relatorio e
 o executor de testar_pendentes.py.
@@ -1010,6 +1016,345 @@ def relatorio_ablacao() -> str:
 
 
 # ---------------------------------------------------------------------------
+# S6: 13_OCO_ROMPIMENTO x os fatores que a matriz das pendentes (G8) nao cobre
+# ---------------------------------------------------------------------------
+# Modelo tirado do codigo da EA (SessaoDeRompimentoAgora, ExecOCOEntry, CheckMTFAlignment):
+#  1. o bracket nasce UMA vez por dia, no PRIMEIRO tick da hora PendingHoraSessao. O gatilho e
+#     gasto ali, ANTES dos filtros de dia/horario/spread que dao `return`: filtro que reprova
+#     naquele tick perde o dia inteiro (a EA nao rearma mais tarde na mesma hora);
+#  2. as DUAS pernas sao armadas se UM lado passar nos filtros (ExecOCOEntry nao olha qual
+#     lado chamou): filtro direcional (MA, MTF, ADX+DI) so VETA o dia quando os dois lados
+#     falham juntos;
+#  3. o filtro MTF compara o preco ATUAL com o open da vela ABERTA do TF superior: no primeiro
+#     tick da hora (que abre a vela de H1) preco == open, entao os dois lados reprovam;
+#  4. a EA arma UM bracket por vez: posicao ou pendente ainda viva no gatilho = dia perdido
+#     (e o gatilho tambem e gasto);
+#  5. o envio recusado pelo servidor ("Market closed" no 1o tick da abertura do pregao) tambem
+#     gasta o gatilho: a EA nao tenta de novo na mesma hora;
+#  6. o Fixed-R aborta a ordem (e o gatilho e gasto) quando o lote calculado fica abaixo do
+#     minimo do ativo: stop largo + risco pequeno = dia perdido.
+# Cada linha de S6 e uma PREVISAO desse modelo; o teste MEDE e diz se confirma ou diverge
+# (divergencia e aviso: o modelo e que estava errado, nao necessariamente a EA).
+
+CONTROLE_S6 = "s1_13_BOTH_MULTI"      # o bracket sem filtro nenhum: mesmo simbolo, janela e set
+PREVISOES_S6 = ("zero", "igual", "menos", "menos_explicado", "livre")     # + "igual_a:<cenario s6>"
+
+
+def _janela(de: str, ate: str) -> dict:
+    (h1, m1), (h2, m2) = ([int(x) for x in t.split(":")] for t in (de, ate))
+    return {"TOD_From_Hour": str(h1), "TOD_From_Min": str(m1),
+            "TOD_To_Hour": str(h2), "TOD_To_Min": str(m2)}
+
+
+def _lote(modo: int) -> dict:
+    valores = {0: "1", 1: "200000", 2: "0.05"}          # os mesmos do G5 de testar_pendentes
+    return {"PositionSizeMode": str(modo), "PositionSizeValue": valores[modo], "CapitalBaseR": "0"}
+
+
+def _s6(nome: str, sobrepor: dict, previsao: str, porque: str, simbolo: str = SIMBOLO) -> tuple:
+    return (nome, sobrepor, previsao, porque, simbolo)
+
+
+# (nome, sobrepor, previsao, porque, simbolo). previsao: zero | igual | menos | menos_explicado |
+#   livre | igual_a:<nome>. zero = nenhum bracket na janela; igual = os mesmos dias do controle;
+#   menos = menos dias que ele; menos_explicado = menos dias E todo dia perdido tem um motivo
+#   estrutural (posicao aberta, lote abaixo do minimo, envio recusado) -- nenhum some sem motivo
+S6 = [
+    # -- janela de horario x gatilho da sessao (a sessao padrao e 08h) --
+    _s6("janela_sem_a_hora", _janela("10:00", "12:00"), "zero",
+        "a janela nao contem 08h: o gatilho e gasto fora dela"),
+    _s6("janela_abre_apos_a_hora", _janela("08:30", "20:00"), "zero",
+        "abre 08:30, mas o gatilho e gasto no 1o tick de 08h, fora dela"),
+    _s6("janela_com_a_hora", _janela("06:00", "12:00"), "igual",
+        "a janela contem 08h: nada muda"),
+    _s6("janela_noturna_com_a_hora", _janela("22:00", "10:00"), "igual",
+        "janela que atravessa a meia-noite e contem 08h: nada muda"),
+    _s6("janela_fecha_no_meio", {**_janela("00:00", "08:30"), "Fecharordensforadohorario": "true"},
+        "igual", "arma as 08h; as 08:30 cancela a pendente viva e fecha a posicao"),
+    # -- dias da semana --
+    _s6("sem_sexta", {"TradeFriday": "false"}, "menos", "nenhum bracket na sexta"),
+    _s6("so_quarta", {"TradeMonday": "false", "TradeTuesday": "false", "TradeThursday": "false",
+                      "TradeFriday": "false"}, "menos", "bracket so na quarta"),
+    # -- spread maximo: o teto vale no tick que gasta o gatilho --
+    _s6("spread_8", {"MaxSpread": "8"}, "livre", "spread alto no 1o tick da hora perde o dia"),
+    _s6("spread_12", {"MaxSpread": "12"}, "livre", "idem, teto mais folgado"),
+    # -- filtros de entrada (boosters) sobre o bracket --
+    _s6("ma_so_preco", {"AtivarFiltroMA": "true", "MetodoMA": "0"}, "igual",
+        "preco acima OU abaixo da MA: um dos lados sempre passa e o bracket arma as duas pernas"),
+    _s6("ma_preco_e_inclinacao", {"AtivarFiltroMA": "true", "MetodoMA": "2"}, "igual",
+        "MA exponencial (o padrao): ema1-ema2 = alfa*(fechamento-ema2), entao a inclinacao e o preco "
+        "acima/abaixo da MA dizem a mesma coisa e o E nunca veta"),
+    _s6("ma_sma_preco_e_inclinacao", {"AtivarFiltroMA": "true", "MetodoMA": "2", "MA_Method": "0",
+                                      "MA_Period": "10", "MA_TimeFrame": "1", "MA_SlopeLookback": "5"},
+        "menos", "MA simples (10 em M5, inclinacao de 5 barras): preco e inclinacao discordam em 12 dos "
+        "41 dias (conferido nas barras) e o filtro veta esses dias"),
+    _s6("mtf_qualquer", {"AtivarFiltroMTF": "true", "MTF_RequererAmbos": "false"}, "zero",
+        "no 1o tick da hora o preco e igual ao open da vela de H1: nenhum lado alinha"),
+    _s6("mtf_ambos", {"AtivarFiltroMTF": "true", "MTF_RequererAmbos": "true"}, "zero",
+        "idem, exigindo os dois TFs superiores"),
+    _s6("adx_forca", {"AtivarFiltroADX": "true", "MetodoADX": "0"}, "menos",
+        "ADX abaixo do limiar veta os dois lados"),
+    _s6("adx_forca_di", {"AtivarFiltroADX": "true", "MetodoADX": "1"}, "igual_a:adx_forca",
+        "+DI ou -DI sempre domina: com a forca ok, um lado passa e o bracket arma"),
+    _s6("atr_alta_vol", {"EntradaATR": "true"}, "menos",
+        "ATR[0] e ATR[1] acima de 1,5x a media: raro"),
+    # -- um bracket por vez: SL/TP largos e sem trailing seguram a posicao por dias --
+    _s6("posicao_carregada", {"Stop": "20", "Take": "20", "AtivarTrailATR": "false", **_lote(2)},
+        "menos_explicado", "posicao aberta no gatilho do dia seguinte: a EA nao arma o bracket"),
+    _s6("stop_largo_lote_minimo", {"Stop": "20", "Take": "20", "AtivarTrailATR": "false"},
+        "menos_explicado", "Fixed-R com stop largo: lote calculado < minimo aborta a ordem e gasta o gatilho"),
+    # -- timeframe do bracket (faixa = ultimas N barras do TF de entrada) --
+    _s6("tf_h1", {"TimeFrame": "4"}, "livre", "faixa de 4 barras de H1 (4 horas)"),
+    _s6("tf_m5_faixa12", {"TimeFrame": "1", "PendingFaixaBarras": "12"}, "livre",
+        "faixa de 12 barras de M5 (1 hora)"),
+    # -- dimensionamento: muda o lote, nao os dias --
+    _s6("lote_pct", _lote(0), "igual", "risco em % do saldo"),
+    _s6("lote_monetario", _lote(1), "igual", "risco em moeda"),
+    _s6("lote_fixo", _lote(2), "igual", "lote fixo"),
+    # -- outra classe de ativo: indice (tick, contrato e pregao diferentes) --
+    _s6("de40_h10", {"PendingHoraSessao": "10"}, "livre", "abertura do DAX no horario do servidor",
+        ".DE40Cash"),
+    _s6("de40_h9_f8", {"PendingHoraSessao": "9", "PendingFaixaBarras": "8"}, "zero",
+        "09h e a abertura do pregao: a ordem do 1o tick volta \"Market closed\" e o gatilho nao rearma",
+        ".DE40Cash"),
+]
+PREVISAO_S6 = {f"s6_{n}": p for n, _e, p, _w, _s in S6}
+
+
+def dias_com_bracket(ordens: list[dict]) -> set:
+    """Dias em que a EA armou um bracket (ordens pendentes de entrada)."""
+    return {o["abertura"].date() for o in tp.pendentes(ordens)}
+
+
+def julgar_previsao(previsao: str, dias: set, dias_ref: set | None,
+                    dias_outro: set | None = None) -> tuple[str, str]:
+    """('confirma' | 'diverge' | 'sem previsao', detalhe): os dias medidos contra o modelo."""
+    if previsao == "livre":
+        return "sem previsao", ""
+    if previsao == "zero":
+        return ("confirma", "nenhum bracket") if not dias else \
+            ("diverge", f"{len(dias)} dias com bracket (previsto 0)")
+    if previsao.startswith("igual_a:"):
+        ref, alvo = dias_outro, previsao.split(":", 1)[1]
+    else:
+        ref, alvo = dias_ref, "o controle"
+    if ref is None:
+        return "sem previsao", f"sem {alvo} pra comparar"
+    a_mais, a_menos = sorted(dias - ref), sorted(ref - dias)
+    if previsao in ("menos", "menos_explicado"):
+        if len(dias) < len(ref):
+            return "confirma", f"{len(dias)} de {len(ref)} dias"
+        return "diverge", f"{len(dias)} dias e o controle tem {len(ref)} (previsto: menos)"
+    # igual / igual_a: 1 dia de diferenca e aceito (posicao de um dia bloqueando o bracket do seguinte)
+    if len(a_mais) + len(a_menos) <= 1:
+        return "confirma", f"{len(dias)} dias, iguais a {alvo}" + (" (+-1 dia)" if a_mais or a_menos else "")
+    return "diverge", f"{len(a_mais)} dias a mais e {len(a_menos)} a menos que {alvo}"
+
+
+def checar_fim_da_janela(params: dict, ordens: list[dict], deals: list[dict], res: Resultado) -> None:
+    """Fecharordensforadohorario: nem pendente viva nem posicao aberta pode passar do fim da janela
+    do MESMO dia (a EA confere uma vez por barra M1: folga de 2 minutos)."""
+    fim = _int(params, "TOD_To_Hour") * 60 + _int(params, "TOD_To_Min")
+    folga = timedelta(minutes=2)
+    vivas = 0
+    for o in tp.pendentes(ordens):
+        if o["fim"] is None:
+            continue
+        limite = datetime.combine(o["abertura"].date(), hora(fim // 60, fim % 60)) + folga
+        if o["fim"] > limite:
+            vivas += 1
+    fechadas, abertas = operacoes(ordens, deals)
+    posicoes = 0
+    for p in fechadas:
+        limite = datetime.combine(p["t_in"].date(), hora(fim // 60, fim % 60)) + folga
+        if p["t_out"] > limite:
+            posicoes += 1
+    res.metricas["pendentes_vivas_apos_a_janela"] = vivas
+    res.metricas["posicoes_abertas_apos_a_janela"] = posicoes + len(abertas)
+    res.metricas["fechadas_fora_do_horario"] = sum(
+        1 for p in fechadas if "outside" in (p.get("cmt_out") or "").lower())
+    if vivas:
+        res.falha("janela", f"{vivas} pendentes vivas depois do fim da janela "
+                  f"({fim // 60:02d}:{fim % 60:02d}) com Fecharordensforadohorario ligado")
+    if posicoes + len(abertas):
+        res.falha("janela", f"{posicoes + len(abertas)} posicoes abertas depois do fim da janela "
+                  "com Fecharordensforadohorario ligado")
+
+
+def analisar_spread_no_gatilho(params: dict, dias: set, dias_ref: set, barras, res: Resultado) -> None:
+    """Dias que o controle armou e este cenario nao: quantos se explicam pelo spread do 1o minuto
+    da hora acima do teto (e abaixo dele logo depois = o gatilho gasto que nao rearma)."""
+    limite = _flt(params, "MaxSpread")
+    m1 = barras.dfs.get("M1") if barras is not None else None
+    if limite <= 0 or m1 is None or "spread" not in m1.columns:
+        return
+    import pandas as pd
+    h = _int(params, "PendingHoraSessao", 8)
+    perdidos = por_gatilho = sem_explicacao = 0
+    for d in sorted(dias_ref - dias):
+        t0 = pd.Timestamp(datetime.combine(d, hora(h, 0)))
+        s0 = m1["spread"].get(t0)
+        if s0 is None:
+            continue                       # sem barra no 1o minuto da hora: nao da pra julgar
+        perdidos += 1
+        if float(s0) > limite:
+            depois = m1["spread"].loc[t0 + pd.Timedelta(minutes=1):t0 + pd.Timedelta(minutes=59)]
+            if len(depois) and bool((depois <= limite).any()):
+                por_gatilho += 1
+        else:
+            sem_explicacao += 1
+    res.metricas["dias_perdidos_vs_controle"] = perdidos
+    res.metricas["dias_perdidos_por_gatilho_gasto"] = por_gatilho
+    res.metricas["dias_perdidos_sem_explicacao_de_spread"] = sem_explicacao
+    if por_gatilho:
+        res.aviso("gatilho", f"{por_gatilho} dia(s) sem bracket com o spread do 1o minuto da hora acima de "
+                  f"{limite:g} e abaixo dele logo depois: a EA gasta o gatilho no 1o tick e nao rearma")
+
+
+RE_ENVIO_RECUSADO = re.compile(
+    r"(\d{4}\.\d{2}\.\d{2}) \d{2}:\d{2}:\d{2}\s+failed (?:buy|sell) stop[^\[\r\n]*\[([^\]\r\n]+)\]")
+
+
+def envios_recusados_por_dia(log: str) -> dict:
+    """Dia -> motivos ("Market closed"...) dos envios de bracket que o servidor recusou."""
+    por_dia: dict = {}
+    for dia, motivo in RE_ENVIO_RECUSADO.findall(log or ""):
+        por_dia.setdefault(datetime.strptime(dia, "%Y.%m.%d").date(), set()).add(motivo.strip())
+    return por_dia
+
+
+RE_LOTE_MINIMO = re.compile(r"(\d{4}\.\d{2}\.\d{2}) \d{2}:\d{2}:\d{2}\s+MM_Size_R: calculated volume "
+                            r"[\d.]+ < minimum [\d.]+ - order aborted")
+
+
+def lotes_abaixo_do_minimo_por_dia(log: str) -> set:
+    """Dias em que o Fixed-R abortou a ordem porque o lote calculado ficou abaixo do minimo."""
+    return {datetime.strptime(d, "%Y.%m.%d").date() for d in RE_LOTE_MINIMO.findall(log or "")}
+
+
+def dias_com_pregao_na_hora(barras, hora_sessao: int, inicio, fim) -> list:
+    """Dias de [inicio, fim) com barra M1 dentro da hora da sessao (o mercado estava aberto)."""
+    m1 = barras.dfs.get("M1") if barras is not None else None
+    if m1 is None:
+        return []
+    idx = m1.index
+    return sorted({t.date() for t in idx[idx.hour == hora_sessao] if inicio <= t.date() < fim})
+
+
+def classificar_perdas(perdidos: list, hora_sessao: int, ordens: list[dict], deals: list[dict],
+                       recusados: dict, lote_minimo: set | None = None) -> dict:
+    """Por que cada dia de pregao ficou sem bracket: 'envio' (o servidor recusou a ordem),
+    'posicao' (posicao ou pendente ainda viva no gatilho: a EA arma UM bracket por vez),
+    'lote' (Fixed-R abortou: lote calculado abaixo do minimo) ou 'outras' (filtro de entrada,
+    janela, dia, spread -- ou nada que se explique)."""
+    fechadas, abertas = operacoes(ordens, deals)
+    pend = tp.pendentes(ordens)
+    lote_minimo = lote_minimo or set()
+    r: dict = {"envio": [], "posicao": [], "lote": [], "outras": []}
+    for d in perdidos:
+        t0 = datetime.combine(d, hora(hora_sessao, 0))
+        if d in recusados:
+            r["envio"].append(d)
+        elif (any(p["t_in"] <= t0 and (p.get("t_out") is None or p["t_out"] > t0)
+                  for p in fechadas + abertas)
+              or any(o["abertura"] <= t0 and (o["fim"] is None or o["fim"] > t0) for o in pend)):
+            r["posicao"].append(d)
+        elif d in lote_minimo:
+            r["lote"].append(d)
+        else:
+            r["outras"].append(d)
+    return r
+
+
+def _data(texto: str):
+    return datetime.strptime(texto, "%Y.%m.%d").date()
+
+
+def checar_oco_fatores(previsao: str, params: dict, ordens: list[dict], deals: list[dict],
+                       controle: dict | None, dias_outro: set | None, barras, res: Resultado,
+                       log: str = "", janela: tuple | None = None) -> None:
+    dias = dias_com_bracket(ordens)
+    dias_ref = dias_com_bracket(controle["ordens"]) if controle else None
+    veredito, detalhe = julgar_previsao(previsao, dias, dias_ref, dias_outro)
+    # -- por que faltou bracket em cada dia de pregao (posicao aberta, envio recusado, filtro) --
+    perdas = None
+    if janela is not None and barras is not None:
+        h = _int(params, "PendingHoraSessao", 8)
+        pregao = dias_com_pregao_na_hora(barras, h, *janela)
+        recusados = envios_recusados_por_dia(log)
+        perdas = classificar_perdas([d for d in pregao if d not in dias], h, ordens, deals, recusados,
+                                    lotes_abaixo_do_minimo_por_dia(log))
+        motivos = sorted({m for d in perdas["envio"] for m in recusados.get(d, ())})
+        res.metricas.update(dias_de_pregao=len(pregao), dias_sem_bracket=len(pregao) - len(dias & set(pregao)),
+                            perdas_por_posicao_aberta=len(perdas["posicao"]),
+                            perdas_por_envio_recusado=len(perdas["envio"]),
+                            perdas_por_lote_minimo=len(perdas["lote"]),
+                            perdas_outras=len(perdas["outras"]), motivos_de_envio_recusado=motivos)
+    if previsao == "menos_explicado" and veredito == "confirma":
+        if perdas is None:
+            veredito, detalhe = "sem previsao", "sem barras M1 pra explicar os dias perdidos"
+        elif perdas["outras"]:
+            veredito = "diverge"
+            detalhe = f"{len(perdas['outras'])} dias perdidos sem motivo estrutural"
+        else:
+            detalhe += (f"; todos os dias perdidos se explicam: {len(perdas['posicao'])} com posicao aberta, "
+                        f"{len(perdas['lote'])} com lote abaixo do minimo, {len(perdas['envio'])} com envio recusado")
+    res.metricas.update(dias_com_bracket=len(dias), dias_controle=None if dias_ref is None else len(dias_ref),
+                        previsao=previsao, veredito=veredito, detalhe=detalhe)
+    if veredito == "diverge":
+        res.aviso("modelo", f"diverge da previsao '{previsao}': {detalhe}")
+    if dias:
+        checar_filtros_execucao(params, ordens, deals, barras, res)        # janela, dia e spread (S4)
+    elif veredito == "confirma":
+        # zero bracket era o que o modelo previa: nao e "cenario sem evidencia", e o resultado
+        res.falhas[:] = [f for f in res.falhas if "nenhuma pendente foi colocada" not in f]
+        res.aviso("amostra", "nenhum bracket, como o modelo previa: a janela/filtro mata a estrategia aqui")
+    if _bool(params, "Fecharordensforadohorario"):
+        checar_fim_da_janela(params, ordens, deals, res)
+    if dias_ref is not None:
+        analisar_spread_no_gatilho(params, dias, dias_ref, barras, res)
+
+
+def _ler_relatorio_s6(nome: str) -> dict | None:
+    htm = SAIDA / f"{nome}.htm"
+    if not htm.exists():
+        return None
+    ordens, deals = parse_relatorio(htm)
+    return {"ordens": ordens, "deals": deals}
+
+
+def relatorio_oco() -> str:
+    """Tabela do S6 (previsao do modelo x medido) a partir do ultimo resultado.json."""
+    p = SAIDA / "resultado.json"
+    if not p.exists():
+        return "sem resultado.json: rode --verificar antes"
+    dados = json.loads(p.read_text(encoding="utf-8"))
+    linhas = ["OCO por sessao (13) x fatores -- dias com bracket: medido x controle, previsao do modelo:",
+              "", f"  {'cenario':28} {'ativo':10} {'dias':>4} {'ctrl':>4}  {'previsao':<18} veredito"]
+    for nome, _e, previsao, porque, simbolo in S6:
+        r = dados.get(f"s6_{nome}")
+        if r is None:
+            linhas.append(f"  {nome:28} {simbolo:10} (nao rodou)")
+            continue
+        m = r["metricas"]
+        marca = "FALHA " if r["falhas"] else ""
+        linhas.append(f"  {nome:28} {simbolo:10} {str(m.get('dias_com_bracket', '-')):>4} "
+                      f"{str(m.get('dias_controle', '-')):>4}  {previsao:<18} {marca}"
+                      f"{m.get('veredito', '-')}" + (f" ({m['detalhe']})" if m.get("detalhe") else ""))
+        if m.get("dias_sem_bracket"):
+            motivos = ", ".join(m.get("motivos_de_envio_recusado") or []) or "-"
+            linhas.append(f"      sem bracket em {m['dias_sem_bracket']} de {m.get('dias_de_pregao')} dias de "
+                          f"pregao: {m.get('perdas_por_posicao_aberta', 0)} com posicao/pendente aberta, "
+                          f"{m.get('perdas_por_lote_minimo', 0)} com lote < minimo, "
+                          f"{m.get('perdas_por_envio_recusado', 0)} com envio recusado ({motivos}), "
+                          f"{m.get('perdas_outras', 0)} por filtro/janela/dia")
+        if m.get("dias_perdidos_por_gatilho_gasto"):
+            linhas.append(f"      {m['dias_perdidos_por_gatilho_gasto']} dia(s) perdidos por gatilho gasto no 1o "
+                          f"tick (de {m.get('dias_perdidos_vs_controle')} perdidos)")
+    return "\n".join(linhas)
+
+
+# ---------------------------------------------------------------------------
 # Cenarios
 # ---------------------------------------------------------------------------
 
@@ -1121,6 +1466,11 @@ def catalogo(existe=None) -> list[CenarioS]:
                                    simbolo=simbolo, inicio=j_ini, fim=j_fim, origem_arquivo=arq,
                                    grupo="s5"))
 
+    # S6: OCO por sessao (13) x filtros, timeframe, lote e um indice (ver S6 acima)
+    for nome, extra, _previsao, _porque, simbolo in S6:
+        cs.append(CenarioS(f"s6_{nome}", "13_OCO_ROMPIMENTO", "BOTH_MULTI", extra, simbolo=simbolo,
+                           inicio=JANELA[0], fim=JANELA[1], grupo="s6"))
+
     # Segundo simbolo: EURUSD (forex de 5 casas, contrato 100000, tick 0.00001) -- o ouro
     # sozinho nao prova o dimensionamento nem o tamanho do tick em outra classe de ativo
     for sis in SISTEMAS_S1:
@@ -1148,6 +1498,7 @@ def verificar(so: str | None = None) -> int:
     _preparar()
     cenarios = {c.nome: c for c in catalogo()}
     resultados: dict[str, dict] = {}
+    controle_s6 = _ler_relatorio_s6(CONTROLE_S6)
     for nome, c in cenarios.items():
         if so and so not in nome:
             continue
@@ -1177,9 +1528,21 @@ def verificar(so: str | None = None) -> int:
                 res.metricas["entradas"] = len(fech_s5) + len(ab_s5)
                 if not fech_s5 and not ab_s5:
                     res.aviso("amostra", "0 trades na janela: variante sem evidencia")
+            elif c.grupo == "s6":
+                barras_s6 = tp.carregar_barras(c.simbolo)
+                previsao = PREVISAO_S6.get(nome, "livre")
+                outro = _ler_relatorio_s6(f"s6_{previsao.split(':', 1)[1]}") \
+                    if previsao.startswith("igual_a:") else None
+                res = tp.conferir_cenario(nome, params, ordens, deals, barras_s6, info, log,
+                                          {"min_pendentes": 0})
+                checar_oco_fatores(previsao, params, ordens, deals,
+                                   controle_s6 if c.simbolo == SIMBOLO else None,
+                                   dias_com_bracket(outro["ordens"]) if outro else None, barras_s6, res,
+                                   log, (_data(c.inicio), _data(c.fim)))
             else:
                 checar_recuperacao(c.sistema, params, ordens, deals, info, res)
-            tp.checar_log(log, res)
+            if c.grupo != "s6":
+                tp.checar_log(log, res)
             if RECUSA.search(log):
                 motivo = MOTIVO.search(log)
                 res.falha("recusa", "a EA recusou o set no OnInit: "
@@ -1212,6 +1575,10 @@ def _relatorio_final(resultados: dict, total: int) -> int:
                   f"{m.get('fora_da_janela', '-')} em dia proibido={m.get('em_dia_proibido', '-')} "
                   f"acima do spread={m.get('acima_do_spread', '-')}/{m.get('spread_medidas', '-')}"
                   if n.startswith("s4") else
+                  f"dias com bracket={m.get('dias_com_bracket', '-'):>3} (controle "
+                  f"{m.get('dias_controle', '-')}) previsao={m.get('previsao', '-')} -> "
+                  f"{m.get('veredito', '-')}"
+                  if n.startswith("s6") else
                   f"entradas={m.get('entradas', '-'):>4}"
                   if n.startswith("s5") else
                   f"entradas={m.get('entradas', '-'):>4} conferidas={m.get('conferidas', '-')} "
@@ -1242,9 +1609,14 @@ def main() -> int:
                          "dividem o trabalho sem shard fixo e se encontram no meio")
     ap.add_argument("--ablacao", action="store_true",
                     help="tabela dos boosters (S5) sobre os sets ja otimizados")
+    ap.add_argument("--oco", action="store_true",
+                    help="tabela do S6 (OCO por sessao x fatores): previsao do modelo x medido")
     args = ap.parse_args()
     if args.ablacao:
         print(relatorio_ablacao())
+        return 0
+    if args.oco:
+        print(relatorio_oco())
         return 0
     if args.listar:
         for c in catalogo():

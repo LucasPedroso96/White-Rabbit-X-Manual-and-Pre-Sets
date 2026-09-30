@@ -624,6 +624,198 @@ with tempfile.TemporaryDirectory() as tmp:
     atual.write_text("EntryOrderType=2||2||0||2||N\r\nStop=4||4||1||4||N\r\n", encoding="utf-16")
     checar("migracao: set que ja tem o input passa direto", tp.migrar_para_template(atual, template), atual)
 
+# --- S6: OCO por sessao x fatores -----------------------------------------------------------
+from datetime import date
+
+import json
+import tempfile
+import pandas as pd
+
+
+def bracket(dia, hh=8, mm=0, dur_min=60):
+    """As duas pernas de um bracket armado em 2026-07-<dia> hh:mm:01."""
+    t0 = datetime(2026, 7, dia, hh, mm, 1)
+    a = ordem(t0, "buy stop", 0.1, 0.0, 0.0, "13-MUL Buy/OCO", "canceled")
+    b = ordem(t0, "sell stop", 0.1, 0.0, 0.0, "13-MUL Sell/OCO", "canceled")
+    a["fim"] = b["fim"] = t0 + timedelta(minutes=dur_min)
+    return [a, b]
+
+
+ctrl6 = bracket(6) + bracket(7) + bracket(8) + bracket(9)
+d_ctrl = ts.dias_com_bracket(ctrl6)
+checar("S6 dias: as duas pernas do mesmo dia contam 1", d_ctrl,
+       {date(2026, 7, 6), date(2026, 7, 7), date(2026, 7, 8), date(2026, 7, 9)})
+checar("S6 dias: ordens a mercado nao contam",
+       ts.dias_com_bracket([ordem(T0, "buy", 0.1, 0.0, 0.0)]), set())
+
+checar("S6 previsao zero: sem bracket confirma", ts.julgar_previsao("zero", set(), d_ctrl)[0], "confirma")
+checar("S6 previsao zero: com bracket diverge", ts.julgar_previsao("zero", {date(2026, 7, 6)}, d_ctrl)[0],
+       "diverge")
+checar("S6 previsao igual: mesmos dias confirma", ts.julgar_previsao("igual", set(d_ctrl), d_ctrl)[0], "confirma")
+um_a_menos = set(d_ctrl) - {date(2026, 7, 9)}
+checar("S6 previsao igual: 1 dia de diferenca ainda confirma (posicao aberta bloqueando o seguinte)",
+       ts.julgar_previsao("igual", um_a_menos, d_ctrl)[0], "confirma")
+dois_a_menos = um_a_menos - {date(2026, 7, 8)}
+checar("S6 previsao igual: 2 dias de diferenca diverge",
+       ts.julgar_previsao("igual", dois_a_menos, d_ctrl)[0], "diverge")
+checar("S6 previsao menos: menos dias confirma", ts.julgar_previsao("menos", um_a_menos, d_ctrl)[0], "confirma")
+checar("S6 previsao menos: os mesmos dias diverge (o filtro nao vetou nada)",
+       ts.julgar_previsao("menos", set(d_ctrl), d_ctrl)[0], "diverge")
+checar("S6 previsao igual_a: compara com o outro cenario",
+       (ts.julgar_previsao("igual_a:adx_forca", um_a_menos, d_ctrl, um_a_menos)[0],
+        ts.julgar_previsao("igual_a:adx_forca", set(d_ctrl), d_ctrl, dois_a_menos)[0]), ("confirma", "diverge"))
+checar("S6 previsao igual_a: sem o outro cenario nao julga",
+       ts.julgar_previsao("igual_a:adx_forca", um_a_menos, d_ctrl, None)[0], "sem previsao")
+checar("S6 previsao: livre nao julga", ts.julgar_previsao("livre", set(), d_ctrl)[0], "sem previsao")
+checar("S6 previsao: sem controle nao julga", ts.julgar_previsao("igual", set(d_ctrl), None)[0], "sem previsao")
+
+# Fecharordensforadohorario: janela 00:00-08:30
+par6 = {"TOD_To_Hour": "8", "TOD_To_Min": "30", "Fecharordensforadohorario": "true"}
+r = tp.Resultado()
+ts.checar_fim_da_janela(par6, bracket(6, dur_min=29) + bracket(7, dur_min=12), [], r)
+checar("S6 fim da janela: pendentes canceladas a tempo, sem falha", (r.falhas, r.metricas["pendentes_vivas_apos_a_janela"]),
+       ([], 0))
+r = tp.Resultado()
+ts.checar_fim_da_janela(par6, bracket(6, dur_min=29) + bracket(7, dur_min=60), [], r)
+checar("S6 fim da janela: pendente viva depois das 08:30 reprova",
+       (len(r.falhas), r.metricas["pendentes_vivas_apos_a_janela"]), (1, 2))
+o1, d1 = posicao(datetime(2026, 7, 6, 8, 10), "buy", 0.1, 100.0, 90.0, 120.0, datetime(2026, 7, 6, 8, 30, 20),
+                 101.0, 10.0, "Outside trading session")
+o2, d2 = posicao(datetime(2026, 7, 7, 8, 10), "buy", 0.1, 100.0, 90.0, 120.0, datetime(2026, 7, 7, 11, 0, 0),
+                 101.0, 10.0, "sl 90")
+r = tp.Resultado()
+ts.checar_fim_da_janela(par6, [o1], d1, r)
+checar("S6 fim da janela: posicao fechada as 08:30 pela EA passa e e contada",
+       (r.falhas, r.metricas["fechadas_fora_do_horario"]), ([], 1))
+r = tp.Resultado()
+ts.checar_fim_da_janela(par6, [o2], d2, r)
+checar("S6 fim da janela: posicao aberta ate as 11h reprova", len(r.falhas), 1)
+
+
+class _Barras:
+    def __init__(self, dfs):
+        self.dfs = dfs
+
+
+def m1_spread(por_dia: dict):
+    """M1 de 07:59 a 09:00 de cada dia; `por_dia[dia] = (spread das 08:00, spread do resto da hora)`."""
+    linhas = []
+    for dia, (s_ini, s_resto) in por_dia.items():
+        for i, minuto in enumerate(pd.date_range(f"2026-07-{dia:02d} 07:59", f"2026-07-{dia:02d} 09:00", freq="min")):
+            linhas.append((minuto, s_ini if (minuto.hour, minuto.minute) == (8, 0) else s_resto))
+    df = pd.DataFrame(linhas, columns=["time", "spread"]).set_index("time")
+    return _Barras({"M1": df})
+
+
+bm1 = m1_spread({6: (20, 5), 7: (5, 5), 8: (20, 20), 9: (5, 5)})
+r = tp.Resultado()
+ts.analisar_spread_no_gatilho({"MaxSpread": "12", "PendingHoraSessao": "8"},
+                              {date(2026, 7, 7)}, set(d_ctrl), bm1, r)
+checar("S6 gatilho: 3 dias perdidos; 1 por gatilho gasto (spread alto so no 1o minuto); 1 sem explicacao de spread",
+       (r.metricas["dias_perdidos_vs_controle"], r.metricas["dias_perdidos_por_gatilho_gasto"],
+        r.metricas["dias_perdidos_sem_explicacao_de_spread"]), (3, 1, 1))
+checar("S6 gatilho: o dia do gatilho gasto vira aviso", any("[gatilho]" in a for a in r.avisos), True)
+r = tp.Resultado()
+ts.analisar_spread_no_gatilho({"MaxSpread": "0", "PendingHoraSessao": "8"}, set(), set(d_ctrl), bm1, r)
+checar("S6 gatilho: sem teto de spread nao analisa", r.metricas, {})
+
+# --- S6: por que faltou bracket (posicao aberta, envio recusado) ------------------------------
+LOG_DE40 = (
+    "RP\t2\t22:24:13.513\tCore 01\t2026.07.06 09:00:00   failed buy stop 0.15 .DE40Cash at 25848.3 "
+    "sl: 25709.1 tp: 25987.5 [Market closed]\n"
+    "ON\t2\t22:24:13.513\tCore 01\t2026.07.06 09:00:00   failed sell stop 0.15 .DE40Cash at 25802.0 "
+    "sl: 25941.2 tp: 25662.8 [Market closed]\n"
+    "QF\t2\t22:24:13.513\tCore 01\t2026.07.07 09:00:00   failed buy stop 0.13 .DE40Cash at 25856.3 "
+    "sl: 25699.6 tp: 26013.0 [Invalid stops]\n")
+checar("S6 envios recusados: dia e motivo", ts.envios_recusados_por_dia(LOG_DE40),
+       {date(2026, 7, 6): {"Market closed"}, date(2026, 7, 7): {"Invalid stops"}})
+checar("S6 envios recusados: log sem falha", ts.envios_recusados_por_dia("nada aqui"), {})
+checar("S6 dias de pregao na hora: fim exclusivo",
+       ts.dias_com_pregao_na_hora(bm1, 8, date(2026, 7, 6), date(2026, 7, 9)),
+       [date(2026, 7, 6), date(2026, 7, 7), date(2026, 7, 8)])
+checar("S6 dias de pregao na hora: sem barras nao inventa dia",
+       ts.dias_com_pregao_na_hora(None, 8, date(2026, 7, 6), date(2026, 7, 9)), [])
+
+pos7, d_pos7 = posicao(datetime(2026, 7, 6, 15, 0), "buy", 0.1, 100.0, 90.0, 120.0,
+                       datetime(2026, 7, 7, 9, 30), 101.0, 5.0, "sl 90")
+pos9, d_pos9 = posicao(datetime(2026, 7, 8, 15, 0), "buy", 0.1, 100.0, 90.0, 120.0,
+                       datetime(2026, 7, 9, 9, 30), 101.0, 5.0, "sl 90")
+viva8 = bracket(8, 7, 45, 30)                 # pendente das 07:45 ainda viva as 08:00
+perdas = ts.classificar_perdas([date(2026, 7, 6), date(2026, 7, 7), date(2026, 7, 8), date(2026, 7, 9),
+                                date(2026, 7, 10)], 8,
+                               [pos7] + viva8, d_pos7, {date(2026, 7, 6): {"Market closed"}},
+                               {date(2026, 7, 10)})
+checar("S6 perdas: envio recusado / posicao aberta / pendente viva / lote abaixo do minimo / sem explicacao",
+       {k: [d.day for d in v] for k, v in perdas.items()},
+       {"envio": [6], "posicao": [7, 8], "lote": [10], "outras": [9]})
+LOG_LOTE = ("CO\t0\t22:31:34.685\tCore 01\t2026.07.09 08:00:00   MM_Size_R: calculated volume 0.0000 < "
+            "minimum 0.01 - order aborted to preserve the configured R risk\n"
+            "OJ\t0\t22:31:34.685\tCore 01\t2026.07.09 08:00:00   MM_Size_R: calculated volume 0.0000 < "
+            "minimum 0.01 - order aborted to preserve the configured R risk\n")
+checar("S6 lote abaixo do minimo: um dia mesmo com as duas linhas (compra e venda)",
+       ts.lotes_abaixo_do_minimo_por_dia(LOG_LOTE), {date(2026, 7, 9)})
+checar("S6 lote abaixo do minimo: log sem a linha", ts.lotes_abaixo_do_minimo_por_dia("nada"), set())
+
+# menos_explicado: o scenario armou 6 e 8; 7 e 9 tinham posicao aberta no gatilho
+jan = (date(2026, 7, 6), date(2026, 7, 10))
+par8 = {"PendingHoraSessao": "8"}
+ords = bracket(6) + bracket(8) + [pos7, pos9]
+r = tp.Resultado()
+ts.checar_oco_fatores("menos_explicado", par8, ords, d_pos7 + d_pos9, {"ordens": ctrl6, "deals": []}, None,
+                      bm1, r, "", jan)
+checar("S6 menos_explicado: todo dia perdido tinha posicao aberta -> confirma",
+       (r.metricas["veredito"], r.metricas["perdas_por_posicao_aberta"], r.metricas["perdas_outras"],
+        r.metricas["dias_sem_bracket"], r.metricas["dias_de_pregao"]), ("confirma", 2, 0, 2, 4))
+r = tp.Resultado()
+ts.checar_oco_fatores("menos_explicado", par8, bracket(6) + bracket(8) + [pos7], d_pos7,
+                      {"ordens": ctrl6, "deals": []}, None, bm1, r, "", jan)
+checar("S6 menos_explicado: um dia perdido sem motivo -> diverge e avisa",
+       (r.metricas["veredito"], r.metricas["perdas_outras"], any("[modelo]" in a for a in r.avisos)),
+       ("diverge", 1, True))
+r = tp.Resultado()
+ts.checar_oco_fatores("menos_explicado", par8, bracket(6) + bracket(8) + [pos7], d_pos7,
+                      {"ordens": ctrl6, "deals": []}, None, bm1, r, LOG_LOTE, jan)
+checar("S6 menos_explicado: o dia sem posicao tem o lote abortado no log -> confirma",
+       (r.metricas["veredito"], r.metricas["perdas_por_posicao_aberta"], r.metricas["perdas_por_lote_minimo"],
+        r.metricas["perdas_outras"]), ("confirma", 1, 1, 0))
+r = tp.Resultado()
+ts.checar_oco_fatores("livre", {"PendingHoraSessao": "9"}, [], [], None, None, bm1, r, LOG_DE40,
+                      (date(2026, 7, 6), date(2026, 7, 8)))
+checar("S6 perdas: envio recusado aparece com os motivos (2 dias de pregao, os dois recusados)",
+       (r.metricas["perdas_por_envio_recusado"], r.metricas["motivos_de_envio_recusado"]),
+       (2, ["Invalid stops", "Market closed"]))
+
+# zero previsto e medido: "cenario sem evidencia" deixa de ser falha
+r = tp.Resultado()
+r.falha("tipos", "nenhuma pendente foi colocada -- cenario sem evidencia")
+ts.checar_oco_fatores("zero", par8, [], [], {"ordens": ctrl6, "deals": []}, None, None, r)
+checar("S6 zero previsto e medido: 'sem evidencia' vira aviso, nao falha",
+       (r.falhas, any("[amostra]" in a for a in r.avisos), r.metricas["veredito"]), ([], True, "confirma"))
+r = tp.Resultado()
+r.falha("tipos", "nenhuma pendente foi colocada -- cenario sem evidencia")
+ts.checar_oco_fatores("livre", par8, [], [], None, None, None, r)
+checar("S6 zero sem previsao: continua falha (sem evidencia)", len(r.falhas), 1)
+
+# checar_oco_fatores de ponta a ponta (previsao zero, mas a EA armou brackets)
+r = tp.Resultado()
+ts.checar_oco_fatores("zero", {"PendingHoraSessao": "8"}, bracket(6), [], {"ordens": ctrl6, "deals": []}, None, None, r)
+checar("S6 oco_fatores: previsao zero desmentida vira aviso 'modelo'",
+       (r.metricas["veredito"], any("[modelo]" in a for a in r.avisos)), ("diverge", True))
+
+# tabela
+_saida = ts.SAIDA
+with tempfile.TemporaryDirectory() as _d:
+    ts.SAIDA = Path(_d)
+    checar("relatorio_oco: sem resultado.json avisa", "rode --verificar" in ts.relatorio_oco(), True)
+    (Path(_d) / "resultado.json").write_text(json.dumps({"s6_janela_sem_a_hora": {
+        "falhas": [], "avisos": [], "metricas": {"dias_com_bracket": 0, "dias_controle": 40,
+                                                 "veredito": "confirma", "detalhe": "nenhum bracket"}}}),
+                                             encoding="utf-8")
+    _txt = ts.relatorio_oco()
+ts.SAIDA = _saida
+checar("relatorio_oco: mostra o veredito medido e marca o que nao rodou",
+       ("confirma" in _txt, "nao rodou" in _txt), (True, True))
+
 # --- catalogo -------------------------------------------------------------------------------
 cat = ts.catalogo()
 nomes = [c.nome for c in cat]
@@ -668,6 +860,51 @@ checar("catalogo S5: todo cenario parte de um set pronto da biblioteca", all(c.o
 checar("catalogo S5: 5 bases (2 campeoes + 3 reprovados otimizados)", len({c.origem_arquivo for c in s5c}), 5)
 checar("catalogo S5: toda base tem a variante de referencia a mercado", all(
     any(c.nome == f"s5_{k}_mercado" for c in s5c) for k in ts.BASES_S5), True)
+s6c = [c for c in cat if c.grupo == "s6"]
+checar("catalogo S6: um cenario por linha da tabela", len(s6c), len(ts.S6))
+checar("catalogo S6: sempre o 13 em BOTH_MULTI", {(c.sistema, c.variante) for c in s6c},
+       {("13_OCO_ROMPIMENTO", "BOTH_MULTI")})
+checar("catalogo S6: previsoes validas", all(p in ts.PREVISOES_S6 or p.startswith("igual_a:")
+                                             for _n, _e, p, _w, _s in ts.S6), True)
+checar("catalogo S6: igual_a aponta pra cenario que existe", all(
+    p.split(":", 1)[1] in {n for n, *_ in ts.S6} for _n, _e, p, _w, _s in ts.S6 if p.startswith("igual_a:")), True)
+checar("catalogo S6: cobre janela, dias, spread, MA, MTF, ADX, ATR, timeframe, lote e indice", (
+    any("TOD_From_Hour" in c.sobrepor for c in s6c), any("TradeFriday" in c.sobrepor for c in s6c),
+    any("MaxSpread" in c.sobrepor for c in s6c), any("AtivarFiltroMA" in c.sobrepor for c in s6c),
+    any("AtivarFiltroMTF" in c.sobrepor for c in s6c), any("AtivarFiltroADX" in c.sobrepor for c in s6c),
+    any("EntradaATR" in c.sobrepor for c in s6c), any("TimeFrame" in c.sobrepor for c in s6c),
+    any("PositionSizeMode" in c.sobrepor for c in s6c), any(c.simbolo == ".DE40Cash" for c in s6c)),
+    (True,) * 10)
+checar("catalogo S6: MA curta, posicao carregada e DE40 na abertura", (
+    any(c.sobrepor.get("MA_Period") == "10" for c in s6c),
+    any(c.nome == "s6_posicao_carregada" for c in s6c) and any(c.nome == "s6_stop_largo_lote_minimo" for c in s6c),
+    ts.PREVISAO_S6["s6_de40_h9_f8"]), (True, True, "zero"))
+checar("catalogo S6: o controle (S1 do 13, ouro) existe", ts.CONTROLE_S6 in nomes, True)
+
+
+def perfil(sistema: str):
+    ac = gss.CLASSES["05_Metals"]
+    p_ = gss.Profile()
+    gss.apply_defaults(p_, ac, "BOTH", 1, "x")
+    gss.apply_core(p_, ac, False, grid=False)
+    gss.apply_system(p_, sistema, ac, "BOTH")
+    if sistema == "13_OCO_ROMPIMENTO":
+        gss.aplicar_oco_sessao(p_)
+    gss.apply_sizing_and_formula(p_, sistema, ac)
+    p_.desativar_inertes()
+    return p_.values
+
+
+v13, v04_ = perfil("13_OCO_ROMPIMENTO"), perfil("04_SLTP_TRAIL")
+checar("gerador do 13: MTF cravado em false (morto no gatilho da sessao) e o dependente em N",
+       (v13["AtivarFiltroMTF"].split("||")[4], v13["AtivarFiltroMTF"].split("||")[0],
+        v13["MTF_RequererAmbos"].split("||")[4]), ("N", "false", "N"))
+checar("gerador do 13: os outros filtros e a hora da sessao continuam eixos",
+       (v13["AtivarFiltroMA"].split("||")[4], v13["AtivarFiltroADX"].split("||")[4],
+        v13["PendingHoraSessao"].split("||")[4]), ("Y", "Y", "Y"))
+checar("gerador do 04: o MTF continua eixo", v04_["AtivarFiltroMTF"].split("||")[4], "Y")
+checar("catalogo S6: mesma janela do controle",
+       {(c.inicio, c.fim) for c in s6c} == {(c.inicio, c.fim) for c in cat if c.nome == ts.CONTROLE_S6}, True)
 checar("catalogo: modelo OHLC (rapido)", {c.modelo for c in cat}, {1})
 checar("catalogo: sistemas do S1 = sistemas do gerador",
        set(ts.ASSINATURA) == set(ts.SISTEMAS_S1), True)

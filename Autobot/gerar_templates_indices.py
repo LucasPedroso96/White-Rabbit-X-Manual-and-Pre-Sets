@@ -41,6 +41,8 @@ def gerar(dry: bool) -> list[dict]:
     manifest: list[dict] = []
     for asset in NOVOS_INDICES:
         for system in g.SYSTEMS:
+            if system.code in g.SO_BOTH_MULTI:
+                continue        # o 13 tem gerador proprio (aplicar_oco_sessao): sai do main() do gerador
             lados = ("BUY", "SELL", "BOTH") if system.code in g.BILATERAL \
                 else ("BUY", "SELL")
             for side in lados:

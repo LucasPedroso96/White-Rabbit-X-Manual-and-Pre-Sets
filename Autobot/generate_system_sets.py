@@ -1281,6 +1281,11 @@ def aplicar_oco_sessao(p: Profile) -> None:
     p.opt("PendingFaixaBarras", 4, 1, 1, 12)
     p.opt("PendingDistanciaATR", 0.25, 0.0, 0.25, 1.5)
     p.opt("PendingExpiracaoBarras", 4, 1, 1, 12)
+    # Filtro MTF MORTO no bracket por sessao (testar_sistemas S6, 2026-09-30): o gatilho e o 1o tick
+    # da hora, que abre a vela de H1/H4, e o MTF compara o preco atual com o open dessa vela
+    # (preco == open) -> nenhum lado alinha e o bracket nunca e armado (0 trades em 41 de 41 dias,
+    # com e sem MTF_RequererAmbos). Aberto, metade da populacao do genetico nascia sem trade.
+    p.fix("AtivarFiltroMTF", "false")
     for nome in ("EntryIndicator", "EntryMethod", "Fast_EMA", "Slow_EMA",
                  "MACD_SMA", "StochasticSlowing", "StochasticMethod",
                  "StochasticPriceField", "InpAppliedPrice"):

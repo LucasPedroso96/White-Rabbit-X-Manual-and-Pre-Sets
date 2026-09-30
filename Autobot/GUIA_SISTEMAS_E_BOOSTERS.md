@@ -110,6 +110,7 @@ Ou seja: o circuito completo da metodologia atual (janela por trades, holdout la
 | Offline | `test_*.py` (39 arquivos) | regras, parsers, modelos, sem MT5 |
 | Pendentes | `testar_pendentes.py --rodar` / `--verificar` | preço, SL/TP, lote, expiração, OCO, WFO de cada ordem pendente contra as barras do terminal |
 | Sistemas e recuperação | `testar_sistemas.py --rodar` / `--verificar` | cada sistema sai como o nome diz; o lote de cada entrada bate com o modelo do `.mq5` |
+| OCO por sessão (13) × fatores | `testar_sistemas.py --rodar --so s6_` / `--verificar` / `--oco` | filtros, horário, timeframe, lote e um índice contra o modelo do código da EA: a tabela diz se cada previsão confirma ou diverge |
 | Lógica dos inputs | `bateria_logica.py --parte i/n --saida bateria_logica/AAAA-MM-DD/x.jsonl` | cada eixo do template muda o resultado e nada é recusado sem motivo (pasta nova sempre que a EA muda) |
 | Pipeline | `optimize_two_stage.py … --calibracao` em janela curta | o circuito inteiro roda para o sistema, sem tocar o ledger |
 | Antes de subir fila | `preflight.py` | nada velho, nada rodando, tudo com o build atual |
@@ -123,6 +124,10 @@ Ou seja: o circuito completo da metodologia atual (janela por trades, holdout la
   horário com `Fecharordensforadohorario=true` (cancela a pendente fora da janela — verificado no cenário
   `g6_pregao_10_12`). Para um bracket ao vivo, termine a janela antes da rolagem (ex.: `TOD_To_Hour` ≤ 23) e
   não arme na hora 0.
+* **13 — o gatilho é gasto no 1º tick da hora:** filtro de horário que não contém o começo da hora (ou abre depois dele),
+  spread acima do teto naquele tick, ordem recusada (`[Market closed]` na abertura do pregão) ou lote abaixo do mínimo
+  no Fixed-R perdem o **dia inteiro** — a EA não rearma na mesma hora. Ver seção 10.
+* **13 — um bracket por vez:** posição ou pendente da véspera ainda viva no gatilho = sem bracket naquele dia.
 * **Pausa da campanha:** só vale entre combos; um combo que acha candidato na rodada 1 do Estágio 1 roda até o
   fim (4–6 h).
 * **Um teste com EA velha não vale:** cada rodada de validação precisa ser posterior ao `.ex5` atual (o
@@ -140,6 +145,7 @@ Ou seja: o circuito completo da metodologia atual (janela por trades, holdout la
 | Pipeline completo, sistema 13 (smoke) | `optimize_two_stage --calibracao`, XAUUSD, treino de 109 dias | os 5 estágios, holdout, WFA e decisão rodaram sem erro; o candidato foi REPROVADO (queda de 99% em 3 anos), como o esperado de um treino tão curto — o teste é do encanamento, não da vantagem |
 | Pipeline com recuperação (smoke) | idem, 04 BUY com `--recuperacao martingale` | Estágio 2.5 rodou de ponta a ponta e imprimiu o efeito (retenção 45,7% → 60,1%); os 4 valores de `MaxMartingaleSteps` deram o mesmo resultado (a sequência de perdas nunca passou do limite); reprovado por queda de 75% em 3 anos |
 | Ablação de boosters (S5) | 5 sets já otimizados × 83 variantes × 2 janelas de 90 dias = 166 cenários | ver seção 9 |
+| OCO por sessão × fatores (S6) | sistema 13, 26 cenários: horário, dias, spread, MA, MTF, ADX, ATR, timeframe, lote, posição carregada, stop largo, DAX | 0 falhas; 21 previsões do modelo do código confirmadas + 5 medições sem previsão; o modelo errou em 2 pontos na 1ª versão (MA exponencial, lote mínimo do Fixed-R) e foi corrigido com a medição; MA por SMA previu 29 dias e mediu 29; ver seção 10 |
 | Bateria de lógica | 1.032 passes, 262 eixos, 4 famílias | de 32 achados (14/09) para 12: o filtro ATR deixou de zerar as entradas; os que restam são eixos condicionais por desenho (Bollinger: modo Reversal/Squeeze/filtro MTF). Os eixos inertes do Ichimoku (`InpAppliedPrice`, Stochastic) foram corrigidos depois, em 29/09 (ver abaixo); a contagem de 12 é anterior a essa correção e a bateria não foi refeita |
 | Biblioteca × OnInit (`validate_system_sets`) | 10.246 sets, 93 milhões de combinações de canto, esquema de cada família contra a própria EA | nenhum set alcança combinação recusada, exceto o acoplamento conhecido do 06 BOTH |
 
@@ -150,7 +156,9 @@ neles), com a biblioteca inteira regenerada nas duas
 instalações e conferida arquivo a arquivo contra o backup (só o Ichimoku mudou; 27 cenários do S1 deram resultado
 idêntico antes e depois); a prova em % do Estágio 5 não roda mais com D'Alembert (a EA exige lote fixo); o
 Estágio 2.5 imprime o efeito da recuperação na retenção; `bateria_logica`, `validate_system_sets` e
-`testar_pendentes` ganharam as conferências acima.
+`testar_pendentes` ganharam as conferências acima; o gerador do 13 crava `AtivarFiltroMTF=false` (filtro morto no bracket por
+sessão — seção 10), biblioteca regenerada nas duas instalações e conferida contra o backup (só as duas linhas do MTF nos 94
+arquivos `13_OCO_ROMPIMENTO/BOTH_MULTI` mudaram, fora a data de `input_end_date`).
 
 ## 9. Que combinações rendem: o que o circuito extraiu e o que a ablação mostra
 
@@ -196,3 +204,46 @@ booster que ele *reduza risco* ou *prove ganho em dado não visto*, não só que
 
 Limites: OHLC (não tick real), 90 dias, poucas dezenas de trades por linha, cinco bases. É indício para priorizar o que testar
 em tick real, não prova.
+
+## 10. O sistema 13 (OCO de rompimento por sessão): o que foi medido
+
+**Como funciona (código da EA):** 1×/dia, no **primeiro tick** da hora `PendingHoraSessao` (hora do servidor), arma compra stop
+acima da máxima e venda stop abaixo da mínima das últimas `PendingFaixaBarras` barras do TF de entrada, ± `PendingDistanciaATR`×ATR;
+executou uma perna, a EA cancela a outra; saída do 04 (SL/TP/trailing em ATR). O indicador de entrada não arma nada.
+
+**Medido no tester** (XAUUSD, 8 semanas, OHLC de 1 minuto, controle = 41 dias de pregão com bracket; `testar_sistemas.py --oco`):
+
+| Fator | Dias com bracket | Leitura |
+|---|---|---|
+| Janela de horário que **não contém** a hora da sessão | 0 de 41 | o gatilho é gasto fora dela |
+| Janela que **abre depois** do começo da hora (08:30 com sessão às 08h) | 0 de 41 | idem: o gatilho não espera a janela abrir |
+| Janela que contém a hora (comum ou atravessando a meia-noite) | 41 | não muda nada |
+| Janela que fecha às 08:30 + `Fecharordensforadohorario` | 41 | a pendente viva é cancelada e a posição fechada às 08:30, sem sobra |
+| Sem sexta / só quarta | 33 / 8 | filtro de dia funciona |
+| `MaxSpread` 8 ou 12 pontos | 40 | 1 dia perdido: spread acima do teto no 1º minuto da hora e abaixo logo depois — a EA não rearma |
+| Filtro MA só preço | 41 | **não veta**: o bracket arma as duas pernas se *um* lado passa, e preço acima ou abaixo da MA sempre deixa um passar |
+| Filtro MA preço+inclinação, MA exponencial (padrão) | 41 | com EMA, inclinação e preço acima/abaixo dizem a mesma coisa (ema1−ema2 = α·(fechamento−ema2)): o "E" nunca veta |
+| Filtro MA preço+inclinação, MA simples (10 em M5, 5 barras) | **29** | veta os 12 dias em que preço e inclinação discordam (12 previstos contando nas barras) |
+| Filtro MTF (qualquer ou exigindo os dois TFs) | **0** | **filtro morto**: no 1º tick da hora o preço é igual ao open da vela de H1/H4 recém-aberta, nenhum lado "alinha" |
+| Filtro ADX (força) / força + DI | 30 / 30 | veta ADX abaixo do limiar; o DI não muda nada (sempre um domina) |
+| Filtro ATR "alta volatilidade" padrão | 0 | esvazia, como nos outros sistemas |
+| TF do bracket H1 (faixa de 4 h) e M5 (faixa de 12 barras) | 41 / 41 | níveis, expiração e lote conferidos contra as barras: 0 falhas |
+| Lote em % / monetário / fixo | 41 | muda o lote, não os dias |
+| Stop/take 20×ATR sem trailing, lote fixo | 14 | os 27 dias perdidos tinham posição aberta no gatilho (**um bracket por vez**) |
+| Idem em Fixed-R | 10 | 25 por posição aberta + 6 porque o lote calculado ficou abaixo do mínimo e a EA aborta a ordem (o gatilho também é gasto) |
+| DAX (`.DE40Cash`), sessão às 10h | 35 de 41 | os 6 perdidos: posição da véspera aberta (carregada da noite/fim de semana) |
+| DAX, sessão às **09h** (abertura do pregão) | **0** | 41 dias de envio recusado `[Market closed]` no 1º tick: sessão na abertura exata é inviável; use a hora seguinte |
+
+**Consequências para a campanha:**
+
+* O genético não gasta mais metade da população em candidatos sem trade: `AtivarFiltroMTF` está cravado em `false` nos 94
+  arquivos do 13 (gerador + biblioteca regenerada).
+* No 13 os filtros que de fato cortam dias são ADX, ATR, MA com regra "preço E inclinação" em MA simples, dia da semana e
+  spread; a janela de horário só existe para matar (ou não mudar) — não melhora nada.
+* Stop/take largos sem trailing seguram a posição por dias e comem os brackets seguintes; o Estágio 2 vai enxergar isso no
+  número de trades, não como erro.
+* Índices que abrem numa hora cheia: o piloto/genético vai achar a hora 9 do DAX com 0 trade e descartá-la sozinho.
+
+**Melhorias possíveis na EA (não feitas — mudam o build e exigem revalidar tudo):** (1) rearmar o gatilho dentro da hora até o
+bracket sair (resolve spread no 1º tick e `[Market closed]` na abertura); (2) armar só as pernas cujos filtros direcionais
+passam (daria sentido a MA/MTF/ADX+DI no bracket); (3) granularidade de minuto na hora da sessão (abertura + N minutos).
