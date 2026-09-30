@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 TF_MINUTES = (1, 5, 15, 30, 60, 240, 1440, 10080)  # ENUM_ALLOWED_TIMEFRAMES: M1..W1
+MN1 = 43200                                        # so aparece como TF superior do filtro MTF
 _WEEK = 7 * 86400
 _WEEK_OFFSET = 4 * 86400  # 1970-01-01 e quinta; barra semanal do MT5 abre no domingo
 
@@ -47,19 +48,23 @@ class Bars:
     high: np.ndarray
     low: np.ndarray
     close: np.ndarray
+    volume: np.ndarray | None = None      # volume de ticks (MFI)
 
     def __len__(self) -> int:
         return len(self.time)
 
     @classmethod
     def from_frame(cls, df: pd.DataFrame) -> "Bars":
+        vol = df["tick_volume"].to_numpy(float) if "tick_volume" in df.columns else None
         return cls(df["time"].to_numpy(dtype=np.int64), df["open"].to_numpy(float),
                    df["high"].to_numpy(float), df["low"].to_numpy(float),
-                   df["close"].to_numpy(float))
+                   df["close"].to_numpy(float), vol)
 
 
 def floor_tf(t_sec: np.ndarray, tf_min: int) -> np.ndarray:
     t = np.asarray(t_sec, dtype=np.int64)
+    if tf_min == MN1:
+        return t.astype("datetime64[s]").astype("datetime64[M]").astype("datetime64[s]").astype(np.int64)
     if tf_min == 10080:
         return ((t + _WEEK_OFFSET) // _WEEK) * _WEEK - _WEEK_OFFSET
     step = tf_min * 60
@@ -77,11 +82,13 @@ def m1_from_ticks(ticks: Ticks) -> tuple[Bars, np.ndarray]:
     keys = floor_tf(ticks.t_ms // 1000, 1)
     starts = _group_starts(keys)
     bid = ticks.bid
+    counts = np.diff(np.append(starts, len(bid))).astype(float)
     bars = Bars(time=keys[starts],
                 open=bid[starts],
                 high=np.maximum.reduceat(bid, starts),
                 low=np.minimum.reduceat(bid, starts),
-                close=bid[np.append(starts[1:] - 1, len(bid) - 1)])
+                close=bid[np.append(starts[1:] - 1, len(bid) - 1)],
+                volume=counts)
     return bars, starts.astype(np.int64)
 
 
@@ -91,10 +98,11 @@ def resample(m1: Bars, tf_min: int) -> Bars:
     keys = floor_tf(m1.time, tf_min)
     starts = _group_starts(keys)
     ends = np.append(starts[1:] - 1, len(keys) - 1)
+    vol = np.add.reduceat(m1.volume, starts) if m1.volume is not None else None
     return Bars(time=keys[starts], open=m1.open[starts],
                 high=np.maximum.reduceat(m1.high, starts),
                 low=np.minimum.reduceat(m1.low, starts),
-                close=m1.close[ends])
+                close=m1.close[ends], volume=vol)
 
 
 def tf_index_of(m1: Bars, tf: Bars, tf_min: int) -> np.ndarray:

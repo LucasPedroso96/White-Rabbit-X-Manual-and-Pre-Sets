@@ -282,3 +282,55 @@ def test_higher_signal_timeframe_decides_only_on_first_minute_of_each_bar(spec):
     res1 = run_backtest(make_params(TimeFrame=0, EntryMethod=6, Stop=3.0, Take=3.0), spec, build_ticks(mb))
     m1 = (res1.trades.open_ms // 1000 - T0) // 60
     assert ((T0 // 60 + m1) % 5 != 0).any()          # em M1 as entradas nao ficam presas a multiplos de 5
+
+
+def test_reversal_exit_closes_on_opposite_signal_at_market(spec):
+    # compra em j0; no minuto j0+3 o sinal CONTRARIO (venda) chega -> fecha no bid, sem tocar SL/TP
+    mb, j0 = scenario(lambda e: [[e + 0.0001] * 4] * 6)
+    ticks = build_ticks(mb)
+    hook = lambda j, b: (j == j0, j == j0 + 3)
+    off = run_backtest(make_params(MaxShortTrades=0), spec, ticks, signal_hook=hook)
+    on = run_backtest(make_params(MaxShortTrades=0, ReversalExitMode=2), spec, ticks, signal_hook=hook)
+    assert len(off.trades) == 0 and len(off.open_positions) == 1        # sem a saida, segue aberta
+    t = on.trades.iloc[0]
+    assert t.reason == "reversal" and t.close_ms == (T0 + 60 * (j0 + 3)) * 1000
+    assert t.close_price == round(mb[j0 + 3][0], 5)                      # bid do 1o tick do minuto
+    assert t.gross == pytest.approx(spec.profit(True, t.volume, t.open_price, t.close_price))
+
+
+def test_reversal_exit_entry_filters_flag_and_same_tick_reentry(spec, monkeypatch):
+    import numpy as np
+    from wrx_engine import engine
+    from wrx_engine.filters import FilterArrays
+    mb, j0 = scenario(lambda e: [[e + 0.0001] * 4] * 6)
+    ticks = build_ticks(mb)
+    hook = lambda j, b: (j == j0, j == j0 + 3)
+    real = engine.compute_filters
+
+    def only_buy_passes(*a, **k):                       # filtro que barra o lado SELL, libera o BUY
+        f = real(*a, **k)
+        n = len(f.ready)
+        return FilterArrays(np.ones(n, bool), np.ones(n, bool), np.zeros(n, bool))
+    monkeypatch.setattr(engine, "compute_filters", only_buy_passes)
+    kept = run_backtest(make_params(MaxShortTrades=1, ReversalExitMode=2, ReversalExitUseEntryFilters="true"),
+                        spec, ticks, signal_hook=hook)
+    assert len(kept.trades) == 0 and len(kept.open_positions) == 1 and kept.open_positions[0]["is_buy"]
+    free = run_backtest(make_params(MaxShortTrades=1, ReversalExitMode=2, ReversalExitUseEntryFilters="false"),
+                        spec, ticks, signal_hook=hook)
+    assert free.trades.iloc[0].reason == "reversal"       # sem a flag, o filtro nao impede a saida
+    # saida sem filtros + SELL liberado: fecha o BUY e abre o SELL no mesmo tick (60 s depois da entrada)
+    monkeypatch.setattr(engine, "compute_filters", real)
+    both = run_backtest(make_params(MaxShortTrades=1, ReversalExitMode=2), spec, ticks, signal_hook=hook)
+    assert both.trades.iloc[0].reason == "reversal"
+    assert len(both.open_positions) == 1 and not both.open_positions[0]["is_buy"]
+
+
+def test_close_outside_trading_hours(spec):
+    # janela 09:00-11:10 (servidor); entrada em ~11:10-11:11 -> fecha a posicao ao sair da janela
+    mb, j0 = scenario(lambda e: [[e + 0.0001] * 4] * 10)
+    ticks = build_ticks(mb)
+    entry_minute = 9 * 60 + j0
+    p_out = make_params(Fecharordensforadohorario="true", TOD_From_Hour=0, TOD_To_Hour=(entry_minute // 60), TOD_To_Min=entry_minute % 60 + 3)
+    res = run_backtest(p_out, spec, ticks, signal_hook=lambda j, b: (j == j0, False))
+    t = res.trades.iloc[0]
+    assert t.reason == "outside_hours" and t.close_ms == (T0 + 60 * (j0 + 3)) * 1000

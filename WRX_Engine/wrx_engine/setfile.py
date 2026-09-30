@@ -20,10 +20,16 @@ _DEFAULTS: dict[str, object] = {
     "TimeFrame": 0, "ATR_TimeFrame": 0, "EntryIndicator": 0, "InpAppliedPrice": 1,
     "Fast_EMA": 12, "Slow_EMA": 26, "MACD_SMA": 9, "EntryMethod": 6,
     "PeriodoATR": 14, "PeriodoBaselineATR": 100,
+    "StochasticSlowing": 3, "StochasticMethod": 0, "StochasticPriceField": 0,
+    "IchimokuUseKumo": True, "IchimokuChikouFilter": False,
+    "MTF_RequererAmbos": False, "MA_TimeFrame": 0, "MA_Period": 200, "MA_Method": 1, "MA_AppliedPrice": 1,
+    "MetodoMA": 2, "SentidoMA": 0, "MA_SlopeLookback": 3,
+    "ADX_TimeFrame": 0, "ADX_Period": 14, "ADX_Limiar": 25.0, "MetodoADX": 0,
+    "VolatilityFilter": 1, "MultiplicadorATR": 1.5,
     "AtivarStop": True, "VelaStop": 0, "Stop": 3.0,
     "TakeOrganico": False, "AtivarTake": True, "VelaTake": 0, "Take": 3.0,
     "AtivarBreakeven": True, "BreakevenDistancia": 0.5,
-    "AtivarTrailATR": False, "ReversalExitMode": 2,
+    "AtivarTrailATR": False, "ReversalExitMode": 2, "ReversalExitUseEntryFilters": False,
     "PositionSizeMode": 2, "PositionSizeValue": 0.01, "TradeCapitalPercentage": 100.0,
     "CapitalBaseR": 0.0, "MaxRiscoTradeR": 0.0, "MaxRiscoRelativoAoLoteMinimo": 1.5,
     "DailyLossLimitPercent": 0.0, "MaxEquityDrawdownPercent": 30.0, "MinFreeMarginPercent": 50.0,
@@ -101,6 +107,30 @@ class WrxParams:
     entry_method: int = 6
     period_atr: int = 14
     period_baseline_atr: int = 100
+    stoch_slowing: int = 3
+    stoch_method: int = 0
+    stoch_price_field: int = 0          # 0 = Low/High, 1 = Close/Close
+    ichimoku_use_kumo: bool = True
+    ichimoku_chikou: bool = False
+    # filtros
+    use_mtf: bool = False
+    mtf_both: bool = False
+    use_ma: bool = False
+    ma_tf_idx: int = 0
+    ma_period: int = 200
+    ma_method: int = 1
+    ma_applied_price: int = 1
+    ma_rule: int = 2
+    ma_reversal: bool = False
+    ma_slope_lookback: int = 3
+    use_adx: bool = False
+    adx_tf_idx: int = 0
+    adx_period: int = 14
+    adx_limit: float = 25.0
+    adx_with_di: bool = False
+    use_vol: bool = False
+    vol_high: bool = True
+    vol_mult: float = 1.5
     # saidas
     use_stop: bool = True
     vela_stop: int = 0
@@ -126,6 +156,9 @@ class WrxParams:
     max_short: int = 1
     hedging: bool = False
     safety_points: int = 0
+    reversal_exit_mode: int = 0        # 0 = off, 2 = fecha no sinal contrario completo
+    reversal_use_filters: bool = False
+    close_outside_hours: bool = False
 
     @property
     def tf_min(self) -> int:
@@ -147,6 +180,15 @@ def params_from_dict(d: dict[str, str]) -> WrxParams:
         fast=v["Fast_EMA"], slow=v["Slow_EMA"], signal=v["MACD_SMA"],
         entry_method=v["EntryMethod"], period_atr=v["PeriodoATR"],
         period_baseline_atr=v["PeriodoBaselineATR"],
+        stoch_slowing=v["StochasticSlowing"], stoch_method=v["StochasticMethod"],
+        stoch_price_field=v["StochasticPriceField"], ichimoku_use_kumo=v["IchimokuUseKumo"],
+        ichimoku_chikou=v["IchimokuChikouFilter"],
+        use_mtf=v["AtivarFiltroMTF"], mtf_both=v["MTF_RequererAmbos"], use_ma=v["AtivarFiltroMA"],
+        ma_tf_idx=v["MA_TimeFrame"], ma_period=v["MA_Period"], ma_method=v["MA_Method"],
+        ma_applied_price=v["MA_AppliedPrice"], ma_rule=v["MetodoMA"], ma_reversal=v["SentidoMA"] == 1,
+        ma_slope_lookback=v["MA_SlopeLookback"], use_adx=v["AtivarFiltroADX"], adx_tf_idx=v["ADX_TimeFrame"],
+        adx_period=v["ADX_Period"], adx_limit=v["ADX_Limiar"], adx_with_di=v["MetodoADX"] == 1,
+        use_vol=v["EntradaATR"], vol_high=v["VolatilityFilter"] == 1, vol_mult=v["MultiplicadorATR"],
         use_stop=v["AtivarStop"], vela_stop=v["VelaStop"], stop=v["Stop"],
         use_take=v["AtivarTake"], vela_take=v["VelaTake"], take=v["Take"],
         use_breakeven=v["AtivarBreakeven"], breakeven_dist=v["BreakevenDistancia"],
@@ -157,6 +199,8 @@ def params_from_dict(d: dict[str, str]) -> WrxParams:
         tod_to=v["TOD_To_Hour"] * 60 + v["TOD_To_Min"], days=days,
         max_spread=v["MaxSpread"], max_long=v["MaxLongTrades"], max_short=v["MaxShortTrades"],
         hedging=v["Hedging"], safety_points=v["ModificationSafetyPoints"],
+        reversal_exit_mode=v["ReversalExitMode"], reversal_use_filters=v["ReversalExitUseEntryFilters"],
+        close_outside_hours=v["Fecharordensforadohorario"],
     )
 
 
@@ -164,8 +208,8 @@ def unsupported(d: dict[str, str]) -> list[str]:
     """Tudo que esta LIGADO no set e o motor (passo 1: 01_SLTP + MACD, Fixed-R) nao porta."""
     v = {k: (_coerce(dflt, d[k]) if k in d else dflt) for k, dflt in _DEFAULTS.items()}
     m: list[str] = []
-    if v["EntryIndicator"] != 0:
-        m.append(f"EntryIndicator={_ENTRY_INDICATOR[v['EntryIndicator']]} (so MACD)")
+    if not 0 <= v["EntryIndicator"] <= 11:
+        m.append(f"EntryIndicator={v['EntryIndicator']} invalido")
     if v["PositionSizeMode"] != 3:
         m.append(f"PositionSizeMode={_SIZE_MODE[v['PositionSizeMode']]} (so FixedR)")
     if v["PositionSizeMode"] == 3 and not v["AtivarStop"]:
@@ -178,10 +222,11 @@ def unsupported(d: dict[str, str]) -> list[str]:
         m.append("AtivarTrailATR (trailing)")
     if v["TakeOrganico"]:
         m.append("TakeOrganico")
-    if v["ReversalExitMode"] != 0:
-        m.append("ReversalExitMode != Disabled")
-    for k in ("AtivarFiltroMTF", "AtivarFiltroMA", "AtivarFiltroADX", "EntradaATR",
-              "AtivarFiltroNoticias", "Fecharordensforadohorario"):
+    if v["ReversalExitMode"] == 1:
+        m.append("ReversalExitMode=OnOppositeOrder (fecha ao abrir posicao oposta; exige conta hedge)")
+    elif v["ReversalExitMode"] not in (0, 2):
+        m.append(f"ReversalExitMode={v['ReversalExitMode']} invalido")
+    for k in ("AtivarFiltroNoticias",):
         if v[k]:
             m.append(f"{k}=true")
     for k in ("DailyLossLimitPercent", "MaxEquityDrawdownPercent", "MinFreeMarginPercent",

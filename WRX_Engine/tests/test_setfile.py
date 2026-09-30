@@ -14,18 +14,18 @@ def test_current_value_is_the_token_before_the_first_pipe():
 
 def test_missing_inputs_take_the_ea_default_not_ours():
     base = "PositionSizeMode=3\nMaxEquityDrawdownPercent=0\nMinFreeMarginPercent=0"
-    # o default do EA para ReversalExitMode e 2 (fecha no sinal contrario): o motor ainda nao porta
-    with pytest.raises(UnsupportedConfig, match="ReversalExitMode"):
-        params_from_text(base)
-    p = params_from_text(base + "\nReversalExitMode=0")
+    p = params_from_text(base)
+    assert p.reversal_exit_mode == 2                       # default do EA: fecha no sinal contrario (agora portado)
+    with pytest.raises(UnsupportedConfig, match="OnOppositeOrder"):
+        params_from_text(base + "\nReversalExitMode=1")
     assert p.max_risco_rel_min == 1.5 and p.fast == 12 and p.slow == 26 and p.stop == 3.0
 
 
 def test_guard_refuses_what_the_engine_does_not_port():
     with pytest.raises(UnsupportedConfig) as e:
-        params_from_text("EntryIndicator=5\nPositionSizeMode=2\nGridMode=1\nAtivarTrailATR=true")
+        params_from_text("EntryOrderType=1\nPositionSizeMode=2\nGridMode=1\nAtivarTrailATR=true")
     txt = str(e.value)
-    assert "EntryIndicator=RSI" in txt and "FixedLot" in txt and "GridMode" in txt and "trailing" in txt
+    assert "entrada pendente" in txt and "FixedLot" in txt and "GridMode" in txt and "trailing" in txt
 
 
 def test_ea_defaults_that_would_silently_change_results_are_flagged():

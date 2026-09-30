@@ -21,7 +21,9 @@ import numpy as np
 import pandas as pd
 
 from . import indicators as ind
+from . import signals
 from .bars import Bars, Ticks, forming_partial, m1_from_ticks, resample, tf_index_of
+from .filters import compute_filters
 from .setfile import UnsupportedConfig, WrxParams
 from .spec import SymbolSpec
 
@@ -113,26 +115,13 @@ def _min_distance_modify(spec: SymbolSpec, params: WrxParams, bid: float, ask: f
 
 
 def _signal_arrays(params: WrxParams, sig_tf: Bars):
-    price = ind.applied_price(sig_tf.open, sig_tf.high, sig_tf.low, sig_tf.close, params.applied_price)
-    main, sig = ind.macd(price, params.fast, params.slow, params.signal)
-    n = len(main)
-
-    def sh(a, k):
-        out = np.full(n, np.nan)
-        if n > k:
-            out[k:] = a[:-k]
-        return out
-
-    m1, m2, m3, s1, s2 = sh(main, 1), sh(main, 2), sh(main, 3), sh(sig, 1), sh(sig, 2)
-    with np.errstate(invalid="ignore"):
-        rev_b, rev_s = (m1 > m2) & (m2 < m3), (m1 < m2) & (m2 > m3)
-        sig_b, sig_s = (m1 > s1) & (m2 < s2), (m1 < s1) & (m2 > s2)
-        ref_b, ref_s = (m1 > 0.0) & (m2 < 0.0), (m1 < 0.0) & (m2 > 0.0)
-    return rev_b, rev_s, sig_b, sig_s, ref_b, ref_s
+    """Compat: gatilhos brutos (rev, sig, ref) por lado -- ver signals.raw_triggers."""
+    es = signals.build_entry_series(params, sig_tf, sig_tf.volume)
+    return signals.raw_triggers(params, es)
 
 
 def _combine(method: int, rev, sg, ref):
-    return {0: rev, 1: sg, 2: ref, 3: rev & sg, 4: rev & ref, 5: sg & ref, 6: rev | sg | ref}[method]
+    return signals.combine(method, rev, sg, ref)
 
 
 # ---------------------------------------------------------------- motor
@@ -147,8 +136,8 @@ def run_backtest(params: WrxParams, spec: SymbolSpec, ticks: Ticks, *,
       E um ponto a CALIBRAR contra o Tester -- a paridade mostra qual bate.
     signal_hook: (j, b) -> (buy_raw, sell_raw); so para testes.
     """
-    if params.entry_indicator != 0 or params.size_mode != 3:
-        raise UnsupportedConfig(["motor do passo 1 so porta MACD + FixedR"])
+    if params.size_mode != 3:
+        raise UnsupportedConfig(["por enquanto o motor so porta FixedR"])
     if stop_fill not in ("level", "tick"):
         raise ValueError("stop_fill deve ser 'level' ou 'tick'")
     if len(ticks) == 0:
@@ -158,9 +147,14 @@ def run_backtest(params: WrxParams, spec: SymbolSpec, ticks: Ticks, *,
     nw = 0
     if warmup_m1 is not None and len(warmup_m1):
         keep = warmup_m1.time < m1_t.time[0]
-        w = Bars(*(getattr(warmup_m1, f)[keep] for f in ("time", "open", "high", "low", "close")))
+        w = Bars(*(getattr(warmup_m1, f)[keep] for f in ("time", "open", "high", "low", "close")),
+                 volume=None if warmup_m1.volume is None else warmup_m1.volume[keep])
         nw = len(w)
         m1 = Bars(*(np.concatenate((getattr(w, f), getattr(m1_t, f))) for f in ("time", "open", "high", "low", "close")))
+        if w.volume is not None and m1_t.volume is not None:
+            m1.volume = np.concatenate((w.volume, m1_t.volume))
+        else:
+            m1.volume = None
     else:
         m1 = m1_t
     n_m1 = len(m1)
@@ -171,9 +165,7 @@ def run_backtest(params: WrxParams, spec: SymbolSpec, ticks: Ticks, *,
     sb = tf_index_of(m1, sig_tf, params.tf_min)
     ab = tf_index_of(m1, atr_tf, params.atr_tf_min)
 
-    rev_b, rev_s, sig_b, sig_s, ref_b, ref_s = _signal_arrays(params, sig_tf)
-    buy_raw_b = _combine(params.entry_method, rev_b, sig_b, ref_b)
-    sell_raw_b = _combine(params.entry_method, rev_s, sig_s, ref_s)
+    buy_raw_b, sell_raw_b = signals.raw_signals(params, sig_tf, sig_tf.volume)
 
     atr_c, tr_c = ind.atr(atr_tf.high, atr_tf.low, atr_tf.close, params.period_atr)
     hi, lo, cl = forming_partial(m1, params.atr_tf_min, first_bid)
@@ -185,6 +177,7 @@ def run_backtest(params: WrxParams, spec: SymbolSpec, ticks: Ticks, *,
         atr_prev = np.where(ab >= 1, atr_c[np.maximum(ab - 1, 0)], np.nan)
         atr0 = atr_prev + (tr0 - tr_back) / params.period_atr
     copy_atr = max(COPY_BARS, params.period_baseline_atr)
+    flt = compute_filters(params, m1, first_bid, atr_c, atr0, ab)
 
     def atr_at(idx: int, j: int) -> float:
         if idx < 0 or idx >= copy_atr:
@@ -248,8 +241,14 @@ def run_backtest(params: WrxParams, spec: SymbolSpec, ticks: Ticks, *,
         b_now, a_now = float(bid[k]), float(ask[k])
         b = int(sb[j])
 
+        # ---- Fecharordensforadohorario: 1o comando de ProcessNewBar, roda mesmo sem dados prontos
+        if params.close_outside_hours and positions and not _in_window(t_s, params):
+            for p_ in list(positions):
+                close_pos(p_, k, "outside_hours", b_now if p_.is_buy else a_now)
+                positions.remove(p_)
+
         # ---- dados prontos? (CopyBuffer/CopyClose < bars => ProcessNewBar retorna)
-        if not (b + 1 >= COPY_BARS and ab[j] + 1 >= copy_atr):
+        if not (b + 1 >= COPY_BARS and ab[j] + 1 >= copy_atr and flt.ready[j]):
             scan(k + 1, (int(first_tick_of[j + 1]) if j + 1 < n_m1 else n_t - 1))
             continue
 
@@ -266,16 +265,26 @@ def run_backtest(params: WrxParams, spec: SymbolSpec, ticks: Ticks, *,
         raw_buy, raw_sell = new_bar and rb, new_bar and rs
         if new_bar:
             last_proc_bar = int(sig_tf.time[b])
+        entry_buy, entry_sell = raw_buy and flt.cond_buy[j], raw_sell and flt.cond_sell[j]
+
+        # ---- ReversalExit_OnIndicatorSignal: sinal CONTRARIO completo fecha a posicao (antes dos filtros de dia/hora)
+        if params.reversal_exit_mode == 2 and positions:
+            buy_exit = raw_sell and (not params.reversal_use_filters or flt.cond_sell[j])
+            sell_exit = raw_buy and (not params.reversal_use_filters or flt.cond_buy[j])
+            for p_ in list(positions):
+                if (p_.is_buy and buy_exit) or (not p_.is_buy and sell_exit):
+                    close_pos(p_, k, "reversal", b_now if p_.is_buy else a_now)
+                    positions.remove(p_)
 
         if _filters_pass(t_s, a_now, b_now, params, spec):
             n_long = sum(p.is_buy for p in positions)
             n_short = len(positions) - n_long
             buy_exposure = (not params.hedging and n_short == 0) or params.hedging
             sell_exposure = (not params.hedging and n_long == 0) or params.hedging
-            if raw_buy and buy_exposure and n_long < params.max_long:
+            if entry_buy and buy_exposure and n_long < params.max_long:
                 last_open_s = _open(True, positions, params, spec, atr_at, j, b_now, a_now,
                                     t_now_ms, valor_r, last_open_s, skipped)
-            if raw_sell and sell_exposure and n_short < params.max_short:
+            if entry_sell and sell_exposure and n_short < params.max_short:
                 last_open_s = _open(False, positions, params, spec, atr_at, j, b_now, a_now,
                                     t_now_ms, valor_r, last_open_s, skipped)
 
@@ -294,14 +303,18 @@ def _trades_frame(rows: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=cols).sort_values(["close_ms", "open_ms"]).reset_index(drop=True)
 
 
+def _in_window(t_s: int, params: WrxParams) -> bool:
+    """inTimeInterval() do EA (janela de horario do servidor)."""
+    minutes = (t_s % 86400) // 60
+    a, z = params.tod_from, params.tod_to
+    return True if a == z else (a <= minutes < z if a < z else (minutes >= a or minutes < z))
+
+
 def _filters_pass(t_s: int, ask_: float, bid_: float, params: WrxParams, spec: SymbolSpec) -> bool:
     dow = (t_s // 86400 + 4) % 7                       # MQL: 0=domingo (1970-01-01 foi quinta)
     if not params.days[dow]:
         return False
-    minutes = (t_s % 86400) // 60
-    a, z = params.tod_from, params.tod_to
-    in_window = True if a == z else (a <= minutes < z if a < z else (minutes >= a or minutes < z))
-    if not in_window:
+    if not _in_window(t_s, params):
         return False
     if params.max_spread > 0 and round((ask_ - bid_) / spec.point) > params.max_spread:
         return False
