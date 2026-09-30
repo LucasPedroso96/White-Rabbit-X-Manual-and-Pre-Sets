@@ -155,7 +155,7 @@ um sistema, escolhidas juntas pela otimização para aquele ativo:
 
 | Combo | Base (sistema + entrada) | Boosters empilhados pelo circuito | Dado nunca visto (período anterior ao treino + holdout lacrado de 90 dias) |
 |---|---|---|---|
-| XAUUSD 04 BUY | CCI M15 (método "qualquer gatilho"), SL 4,0 / TP 6,0 / trailing 3,0 ATR só no lucro, sem breakeven | Limit no fechamento (k = 0, 1 barra) + filtros MA, ADX e MTF + janela 12:00–08:55 + teto de spread 100 pts | **+359 em 281 trades** (anterior +570/257; holdout lacrado **−211/24**); queda em 3 anos 18,5% |
+| XAUUSD 04 BUY | CCI M15 (método "qualquer gatilho"), SL 4,0 / TP 6,0 / trailing 3,0 ATR só no lucro, sem breakeven | Limit no fechamento (k = 0, 1 barra) + filtros MA, ADX e MTF + janela 12:00–08:55 + teto de spread 100 pts | **+359 em 281 trades** (anterior +570/257; holdout lacrado **−211/24**); queda em 3 anos 18,5% no pipeline (10,1% no passe contínuo do `validar_live`) |
 | USDCAD 07 BUY | OsMA M15, ATR M30 (7), alvo 9,0 ATR, breakeven 0,35, distância mínima 2,5 (grade, lote fixo, hedge) | só a janela 06:00–04:55 | **+1.420 em 690 trades** (anterior +1.275/596; holdout +145/94); queda de 71% em 3 anos na validação pré-live (a regra não mede lote fixo: alerta de capital) |
 
 Quase-aprovado sob a mesma regra: XAUUSD 04 BUY **a mercado** — nunca visto **+928 em 134 trades**, queda em 3 anos **6,0%**
