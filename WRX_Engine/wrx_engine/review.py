@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import registry as R
-from .setfile import parse_set_text, read_set_text, unsupported
+from .setfile import oninit_errors, params_from_dict, parse_set_text, read_set_text, unsupported
 
 # ------------------------------------------------------------------ baseline seguro (tudo desligado que o motor nao porta)
 BASE: dict[str, object] = {
@@ -47,6 +47,12 @@ BASE: dict[str, object] = {
     "TradeFriday": "true", "TradeSaturday": "false", "TradeSunday": "false", "ModificationSafetyPoints": 0,
     "StochasticSlowing": 3, "StochasticMethod": 0, "StochasticPriceField": 0,
     "IchimokuUseKumo": "true", "IchimokuChikouFilter": "false",
+    "TakeOrganico": "false", "AtivarTrailATR": "false", "MetodoDeCalculo": 1, "TrailVela": 0, "Trail": 3,
+    "TrailSoLucro": "false", "Multiplicador": 1, "MaxMartingaleSteps": 0, "MaxMartingaleLot": 0,
+    "DAlembertStep": 0.01, "UsarsomenteATRGRID": "false", "DistanciaMinima": 2, "PyramidTrailSoLucro": "false",
+    "PyramidLevelOnlyInProfit": "false", "PendingReferencia": 0, "PendingDistanciaATR": 0.5,
+    "PendingExpiracaoBarras": 3, "PendingHoraSessao": 8, "PendingFaixaBarras": 4, "Protecao_Fecha_Posicoes": "true",
+    "NewsMinutosAntes": 15, "NewsMinutosDepois": 15, "NewsSomenteAltoImpacto": "false",
 }
 
 
@@ -139,6 +145,87 @@ PROBES += [
     _p("P68_safety_points", "ModificationSafetyPoints=30 (com breakeven)", dict(AtivarBreakeven="true",
        ModificationSafetyPoints=30)),
 ]
+
+_GRID = dict(GridMode=1, PositionSizeMode=2, PositionSizeValue=0.01, AtivarStop="false", AtivarTake="true",
+             Hedging="true", MaxLongTrades=6, MaxShortTrades=0, AtivarBreakeven="true", DistanciaMinima=2)
+_PYR = dict(GridMode=3, PositionSizeMode=2, PositionSizeValue=0.05, AtivarStop="true", Stop=4, AtivarTake="false",
+            AtivarTrailATR="true", Trail=2, Hedging="true", MaxLongTrades=6, MaxShortTrades=0, Multiplicador=0.7,
+            DistanciaMinima=2, AtivarBreakeven="false")
+PROBES += [
+    # ---- lote
+    _p("P80_fixed_lot", "Lote fixo 0.05 com SL/TP", dict(PositionSizeMode=2, PositionSizeValue=0.05)),
+    _p("P81_monetary", "Monetary: 1 lote por 10000 de capital inicial", dict(PositionSizeMode=1, PositionSizeValue=10000)),
+    _p("P82_percentage", "Percentage: 1% do saldo ao vivo", dict(PositionSizeMode=0, PositionSizeValue=1)),
+    _p("P83_signal_only", "Sinal puro: sem SL/TP, sai no sinal contrario (dois lados)", dict(PositionSizeMode=2,
+       PositionSizeValue=0.05, AtivarStop="false", AtivarTake="false", AtivarBreakeven="false", ReversalExitMode=2,
+       MaxLongTrades=1, MaxShortTrades=1, Hedging="true"), hedging=True),
+    # ---- recovery
+    _p("P84_martingale_fixed", "Martingale, lote fixo x2", dict(PositionSizeMode=2, PositionSizeValue=0.02,
+       RecoveryMode=1, Multiplicador=2)),
+    _p("P85_martingale_monetary", "Martingale monetario com take (recupera a divida no TP)", dict(PositionSizeMode=1,
+       PositionSizeValue=10000, RecoveryMode=1, Multiplicador=1)),
+    _p("P86_martingale_pct", "Martingale percentual", dict(PositionSizeMode=0, PositionSizeValue=1, RecoveryMode=1,
+       Multiplicador=1)),
+    _p("P87_martingale_fixedr", "Martingale em R com teto 3R", dict(PositionSizeMode=3, RecoveryMode=1, Multiplicador=1,
+       MaxRiscoTradeR=3)),
+    _p("P88_martingale_limits", "Martingale com MaxMartingaleSteps=3 e MaxMartingaleLot=0.08", dict(PositionSizeMode=2,
+       PositionSizeValue=0.02, RecoveryMode=1, Multiplicador=2, MaxMartingaleSteps=3, MaxMartingaleLot=0.08)),
+    _p("P89_dalembert", "D'Alembert passo 0.01, teto 0.06", dict(PositionSizeMode=2, PositionSizeValue=0.02,
+       RecoveryMode=2, DAlembertStep=0.01, MaxMartingaleLot=0.06)),
+    # ---- saidas
+    _p("P90_trail_close", "Trailing ATR (preco de fechamento), sem TP", dict(AtivarTrailATR="true", AtivarTake="false")),
+    _p("P91_trail_open", "Trailing sobre a abertura do candle", dict(AtivarTrailATR="true", AtivarTake="false", MetodoDeCalculo=0)),
+    _p("P92_trail_high", "Trailing sobre a maxima", dict(AtivarTrailATR="true", AtivarTake="false", MetodoDeCalculo=2)),
+    _p("P93_trail_low", "Trailing sobre a minima", dict(AtivarTrailATR="true", AtivarTake="false", MetodoDeCalculo=3)),
+    _p("P94_trail_price", "Trailing sobre o preco (bid/ask)", dict(AtivarTrailATR="true", AtivarTake="false", MetodoDeCalculo=4)),
+    _p("P95_trail_profit_only", "Trailing so no lucro", dict(AtivarTrailATR="true", AtivarTake="false", TrailSoLucro="true")),
+    _p("P96_trail_vela", "Trailing com ATR da vela 2 e Trail=2", dict(AtivarTrailATR="true", AtivarTake="false", TrailVela=2, Trail=2)),
+    _p("P97_sltp_trail", "SL + TP + trailing + breakeven", dict(AtivarTrailATR="true", AtivarTake="true", AtivarBreakeven="true")),
+    _p("P98_organic_take", "Take organico junto com TP", dict(TakeOrganico="true", AtivarTake="true")),
+    _p("P99_reversal_opposite", "Saida por ordem oposta (hedging, dois lados)", dict(ReversalExitMode=1, MaxLongTrades=1,
+       MaxShortTrades=1, Hedging="true"), hedging=True),
+    # ---- grid classico
+    _p("P100_grid_fixed", "Grid classico, lote fixo", dict(_GRID), hedging=True),
+    _p("P101_grid_monetary", "Grid classico, monetary", dict(_GRID, PositionSizeMode=1, PositionSizeValue=10000), hedging=True),
+    _p("P102_grid_atr_only", "Grid: continua so pelo ATR (sem sinal)", dict(_GRID, UsarsomenteATRGRID="true"), hedging=True),
+    _p("P103_grid_stop", "Grid com SL por perna", dict(_GRID, AtivarStop="true"), hedging=True),
+    _p("P104_grid_mult", "Grid com Multiplicador 1.5 no alvo", dict(_GRID, Multiplicador=1.5), hedging=True),
+    _p("P105_grid_distance", "Grid com DistanciaMinima=3", dict(_GRID, DistanciaMinima=3), hedging=True),
+    _p("P106_grid_both", "Grid nos dois lados", dict(_GRID, MaxLongTrades=4, MaxShortTrades=4), hedging=True),
+    # ---- piramide (12_GRID_INVERSO)
+    _p("P107_pyr_fixed", "Piramide, lote fixo", dict(_PYR), hedging=True),
+    _p("P108_pyr_fixedr", "Piramide em Fixed-R", dict(_PYR, PositionSizeMode=3, PositionSizeValue=1), hedging=True),
+    _p("P109_pyr_pct", "Piramide percentual", dict(_PYR, PositionSizeMode=0, PositionSizeValue=1), hedging=True),
+    _p("P110_pyr_level_profit", "Piramide: proximo nivel so com a ultima perna no empate", dict(_PYR,
+       PyramidLevelOnlyInProfit="true"), hedging=True),
+    _p("P111_pyr_trail_profit", "Piramide: trailing da cesta so no lucro", dict(_PYR, PyramidTrailSoLucro="true"), hedging=True),
+    # ---- entradas pendentes
+    _p("P112_pend_stop", "Entrada Stop", dict(EntryOrderType=1)),
+    _p("P113_pend_limit", "Entrada Limit", dict(EntryOrderType=2)),
+    _p("P114_pend_oco", "Entrada OCO (hedging, dois lados)", dict(EntryOrderType=3, MaxLongTrades=1, MaxShortTrades=1,
+       Hedging="true"), hedging=True),
+    _p("P115_pend_extreme", "Pendente ancorada na maxima/minima do candle, distancia 1 ATR", dict(EntryOrderType=1,
+       PendingReferencia=1, PendingDistanciaATR=1.0)),
+    _p("P116_pend_expiry", "Pendente expira em 1 barra", dict(EntryOrderType=1, PendingExpiracaoBarras=1)),
+    _p("P117_pend_session", "Rompimento por sessao as 08h, faixa de 4 barras", dict(EntryOrderType=3, PendingGatilho=1,
+       PendingHoraSessao=8, PendingFaixaBarras=4, MaxLongTrades=1, MaxShortTrades=1, Hedging="true"), hedging=True),
+    # ---- travas
+    _p("P118_daily_loss", "DailyLossLimitPercent=0.5", dict(DailyLossLimitPercent=0.5)),
+    _p("P119_equity_dd", "MaxEquityDrawdownPercent=2", dict(MaxEquityDrawdownPercent=2)),
+    _p("P120_gp_daily", "Protecao global diaria 1% (fecha tudo)", dict(Trava_Diaria_Percent=1)),
+    _p("P121_gp_total_noclose", "Protecao global total 3% sem fechar (so bloqueia)", dict(Trava_Total_Percent=3,
+       Protecao_Fecha_Posicoes="false")),
+    _p("P122_news", "Filtro de noticias USD/EUR (precisa do CSV em Common\\Files)", dict(AtivarFiltroNoticias="true",
+       NewsMoedasManual="USD,EUR")),
+    _p("P125_news_window", "Noticias: so alto impacto, janela 30 antes / 5 depois", dict(AtivarFiltroNoticias="true",
+       NewsMoedasManual="USD,EUR", NewsSomenteAltoImpacto="true", NewsMinutosAntes=30, NewsMinutosDepois=5,
+       NewsCSVFile="WhiteRabbit_News.csv")),
+    _p("P123_min_free_margin", "Reserva de margem livre 50% (precisa margin_a/margin_b no spec)", dict(MinFreeMarginPercent=50)),
+    _p("P124_wfo_in_sample", "WFO 'In Sample': 122 dias IS + 61 OOS (ajuste input_end_date ao fim do teste)", dict(
+       AtivarWFO="true", MetodoDeEntradawfo=0, wfo_windowSize=-1, wfo_customWindowSizeDays=122, wfo_stepSize=-1,
+       wfo_customStepSizePercent=-61, WFO_CarenciaPercentil=0), ["AtivarWFO", "MetodoDeEntradawfo", "wfo_windowSize",
+       "wfo_customWindowSizeDays", "wfo_stepSize", "wfo_customStepSizePercent", "WFO_CarenciaPercentil", "input_end_date"]),
+]
 _IDS = [p.id for p in PROBES]
 assert len(_IDS) == len(set(_IDS)), "ids de sonda duplicados"
 
@@ -168,6 +255,9 @@ def make_probes(baseline_path: str | Path, out_dir: str | Path) -> list[Path]:
         bad = unsupported(d)
         if bad:
             raise RuntimeError(f"sonda {pr.id} usa algo que o motor recusa: {bad}")
+        oi = oninit_errors(params_from_dict(d).v, hedging_account=True)
+        if oi:
+            raise RuntimeError(f"sonda {pr.id} seria recusada pelo OnInit do EA: {oi}")
         p = out / f"{pr.id}.set"
         write_set(p, d, pr.title)
         paths.append(p)
@@ -229,10 +319,11 @@ def _load_frame(path):
     return pd.read_parquet(path) if str(path).endswith(".parquet") else pd.read_csv(path)
 
 
-def run_probes(baseline, ticks_path, spec_path, warmup_path=None, reports=None, out_dir=None):
+def run_probes(baseline, ticks_path, spec_path, warmup_path=None, reports=None, out_dir=None, deposit=10_000.0,
+               news_csv=None):
     """Roda o motor em cada sonda; se houver relatorio, compara. Devolve dict id -> dict(resumo)."""
     from .bars import Bars, Ticks
-    from .engine import run_backtest
+    from .engine import load_news_csv, run_backtest
     from .parity import compare, deals_to_trades, parse_deals_html
     from .setfile import params_from_dict
     from .spec import SymbolSpec
@@ -244,7 +335,12 @@ def run_probes(baseline, ticks_path, spec_path, warmup_path=None, reports=None, 
     results = {}
     for pr in PROBES:
         params = params_from_dict(merged(base, pr))
-        res = run_backtest(params, spec, ticks, warmup_m1=warm)
+        news = load_news_csv(news_csv, params.v["NewsSomenteAltoImpacto"]) if (news_csv and params.v["AtivarFiltroNoticias"]) else None
+        try:
+            res = run_backtest(params, spec, ticks, warmup_m1=warm, deposit=deposit, news_events=news)
+        except Exception as e:                      # InvalidConfig etc: a sonda nao se aplica a este periodo/conta
+            results[pr.id] = {"trades": 0, "net_r": 0.0, "skipped": {}, "verdict": "N/A", "detail": str(e)}
+            continue
         row = {"trades": len(res.trades) + len(res.open_positions), "net_r": float(res.trades["r"].sum()) if len(res.trades) else 0.0,
                "skipped": dict(res.skipped)}
         if reports:
@@ -303,9 +399,12 @@ def main(argv=None) -> int:
     c = sub.add_parser("checklist"); c.add_argument("--out")
     pr = sub.add_parser("probes"); pr.add_argument("--baseline", required=True); pr.add_argument("--out", required=True)
     pr.add_argument("--ticks"); pr.add_argument("--spec"); pr.add_argument("--warmup")
+    pr.add_argument("--deposit", type=float, default=10_000.0)
     rn = sub.add_parser("run"); rn.add_argument("--baseline", required=True); rn.add_argument("--reports", required=True)
     rn.add_argument("--ticks", required=True); rn.add_argument("--spec", required=True); rn.add_argument("--warmup")
     rn.add_argument("--out", default="REVISAO_INPUTS.md")
+    rn.add_argument("--deposit", type=float, default=10_000.0, help="deposito do Tester")
+    rn.add_argument("--news-csv", help="CSV de noticias (mesmo de Common\\Files) para a sonda P122")
     sy = sub.add_parser("sync"); sy.add_argument("--ea", required=True)
     a = ap.parse_args(argv)
 
@@ -314,11 +413,11 @@ def main(argv=None) -> int:
         Path(a.out).write_text(txt, encoding="utf-8") if a.out else print(txt)
     elif a.cmd == "probes":
         paths = make_probes(a.baseline, a.out)
-        res = run_probes(a.baseline, a.ticks, a.spec, a.warmup) if a.ticks and a.spec else None
+        res = run_probes(a.baseline, a.ticks, a.spec, a.warmup, deposit=a.deposit) if a.ticks and a.spec else None
         (Path(a.out) / "plano_de_teste.md").write_text(plan_markdown(res), encoding="utf-8")
         print(f"{len(paths)} sondas em {a.out} + plano_de_teste.md")
     elif a.cmd == "run":
-        res = run_probes(a.baseline, a.ticks, a.spec, a.warmup, a.reports)
+        res = run_probes(a.baseline, a.ticks, a.spec, a.warmup, a.reports, deposit=a.deposit, news_csv=a.news_csv)
         verd = {k: v["verdict"] for k, v in res.items() if "verdict" in v}
         body = _header(verd) + "## Por input\n\n" + checklist_markdown(verd) + "\n\n## Por sonda\n\n"
         for k, v in res.items():

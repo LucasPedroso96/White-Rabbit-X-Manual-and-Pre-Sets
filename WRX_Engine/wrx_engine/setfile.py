@@ -331,8 +331,6 @@ def unsupported(d: dict[str, str]) -> list[str]:
         m.append(f"EntryIndicator={v['EntryIndicator']} invalido")
     if v["ReversalExitMode"] not in (0, 1, 2):
         m.append(f"ReversalExitMode={v['ReversalExitMode']} invalido")
-    if v["AtivarWFO"] and v["MetodoDeEntradawfo"] == 0:
-        m.append("AtivarWFO=true com 'In Sample' (janelas IS/OOS ainda nao portadas)")
     return m
 
 

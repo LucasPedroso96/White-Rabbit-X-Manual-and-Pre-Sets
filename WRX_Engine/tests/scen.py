@@ -16,7 +16,7 @@ def ref_atr0(minute_bids, upto_minute, period=14):
     return sum(tr[-period:]) / period
 
 
-def script(outcomes, side="buy", warm=WARM, gap=6, jump=0.05):
+def script(outcomes, side="buy", warm=WARM, gap=6, jump=0.05, noisy_gap=False):
     """Uma entrada por resultado ('tp' ou 'sl'); devolve (minutos, [indice do minuto de cada entrada])."""
     mb = base_path(warm, step=0.0002)
     ents = []
@@ -27,7 +27,10 @@ def script(outcomes, side="buy", warm=WARM, gap=6, jump=0.05):
         up = (o == "tp") == (side == "buy")
         mb.append([e + (jump if up else -jump)] * 4)
         mb.append([e] * 4)
-        mb.extend([[e] * 4 for _ in range(gap)])
+        if noisy_gap:
+            mb.extend(base_path(gap, seed=len(mb), step=0.0002, start=e))     # ATR nao pode zerar em intervalos longos
+        else:
+            mb.extend([[e] * 4 for _ in range(gap)])
     return mb, ents
 
 

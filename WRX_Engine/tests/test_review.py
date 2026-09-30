@@ -38,7 +38,7 @@ def test_all_probes_generate_load_strict_and_run(tmp_path, spec):
         try:
             run_backtest(params, spec, ticks)
         except InvalidConfig as e:                   # so a sonda de WFO: os dados sinteticos nao cobrem as janelas
-            assert pr.id == "P75_wfo_in_plus_out" and "WFO" in str(e)
+            assert pr.id in ("P75_wfo_in_plus_out", "P124_wfo_in_sample") and "WFO" in str(e)
         ran += 1
     assert ran == len(V.PROBES)
 

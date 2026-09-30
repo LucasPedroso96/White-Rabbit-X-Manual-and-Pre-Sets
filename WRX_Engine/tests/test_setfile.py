@@ -40,18 +40,15 @@ def test_oninit_validation_mirrors_the_ea():
     assert any("Ichimoku" in e for e in errs(EntryIndicator=11, Fast_EMA=9, Slow_EMA=26, MACD_SMA=20))
 
 
-def test_guard_lists_only_what_is_still_unported():
-    with pytest.raises(UnsupportedConfig) as e:
-        params_from_text("AtivarWFO=true\nMetodoDeEntradawfo=0")
-    assert "AtivarWFO" in str(e.value)
-    params_from_text("AtivarWFO=true\nMetodoDeEntradawfo=1")      # 'In Sample + Out Sample' nao bloqueia entradas
+def test_guard_only_flags_invalid_enums_now_that_wfo_is_ported():
+    with pytest.raises(UnsupportedConfig):
+        params_from_text("EntryIndicator=99")
+    params_from_text("AtivarWFO=true\nMetodoDeEntradawfo=0")          # WFO 'In Sample' agora e portado
 
 
 @pytest.mark.skipif(not REAL.exists(), reason="set do repo ausente")
-def test_shipped_01_sltp_set_needs_wfo_off():
-    with pytest.raises(UnsupportedConfig) as e:
-        load_set(REAL)
-    assert "AtivarWFO" in str(e.value) and len(e.value.motivos) == 1     # so o WFO barra
-    from wrx_engine.setfile import parse_set_text, read_set_text
-    d = parse_set_text(read_set_text(REAL)) | {"AtivarWFO": "false"}
-    assert unsupported(d) == []
+def test_shipped_01_sltp_set_loads_with_wfo_on():
+    p = load_set(REAL)                                     # WFO ligado ('In Sample') e suportado
+    assert p.v["AtivarWFO"] is True and p.v["MetodoDeEntradawfo"] == 0
+    from wrx_engine.setfile import oninit_errors
+    assert oninit_errors(p.v) == []

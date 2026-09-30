@@ -43,9 +43,9 @@ InterfaceLanguage,EnableChartDashboard,PlotIndicatorsOnChart,DashboardCorner,Das
 ShowClosedDealLabels,MaxVisibleDealLabels,ClosedDealLabelFontSize,ApplyEmbeddedChartTheme | UI
 ChartTheme,DASH_C_DEAL_BG,DASH_C_PANEL_BG,DashboardPanelOpacityPct | UI
 MagicNumber | INERT | so identifica ordens; o motor simula um unico magic
-MaxSlippage | INERT | Tester ideal executa sem desvio; slippage nao e modelado
+MaxSlippage | INERT | Tester ideal executa sem desvio; slippage nao e modelado (so entra na validacao do OnInit)
 # ---- Entradas
-TimeFrame | PORTED | M1..W1; sinal 1x por barra deste TF
+TimeFrame | PORTED | M1..W1; sinal 1x por barra deste TF (exige >= 50 barras do TF)
 EntryIndicator | PORTED | os 12 (MACD, EMA, Momentum, Stochastic, TRIX, RSI, CCI, WPR, DeMarker, MFI, OsMA, Ichimoku)
 InpAppliedPrice | PORTED | vale para MACD/EMA/Momentum/TRIX/RSI/CCI/OsMA
 Fast_EMA,Slow_EMA,MACD_SMA | PORTED | significado depende do indicador (ver signals.build_entry_series)
@@ -53,30 +53,33 @@ EntryMethod | PORTED | 7 metodos
 StochasticSlowing,StochasticMethod,StochasticPriceField | PORTED | HIPOTESE: slowing por soma/soma; metodo aplica ao %D
 IchimokuUseKumo,IchimokuChikouFilter | PORTED | nuvem calculada Kijun barras atras (como o comentario do .mq5)
 ATR_TimeFrame,PeriodoATR | PORTED | iATR = SMA do True Range (hipotese); ATR[0] parcial no 1o tick
-AtivarStop,VelaStop,Stop | PORTED | so com FixedR por enquanto
+AtivarStop,VelaStop,Stop | PORTED | SL por perna; o trailing cria SL em posicao sem SL
 AtivarTake,VelaTake,Take | PORTED |
-TakeOrganico | DEFERRED | depende de LastTradePrice() (nao lido): pode ancorar no trade ANTERIOR
+TakeOrganico | PORTED | fecha a mercado quando bid > abertura da posicao mais recente + ATR*Take (LastTradePrice = posicao ABERTA)
 # ---- Filtros
-AtivarFiltroMTF,MTF_RequererAmbos | PORTED | HIPOTESE: TFs superiores = GetHigherTimeframes(TimeFrame) (OnInit nao lido)
+AtivarFiltroMTF,MTF_RequererAmbos | PORTED | TFs superiores = GetHigherTimeframes(TimeFrame) (confirmado no OnInit)
 AtivarFiltroMA,MA_TimeFrame,MA_Period,MA_Method,MA_AppliedPrice,MetodoMA,SentidoMA,MA_SlopeLookback | PORTED |
 AtivarFiltroADX,ADX_TimeFrame,ADX_Period,ADX_Limiar,MetodoADX | PORTED | HIPOTESE: iADX com EMA (alpha 2/(n+1)) em +DI/-DI/DX
 EntradaATR,VolatilityFilter,MultiplicadorATR,PeriodoBaselineATR | PORTED | baseline inclui o ATR[0] parcial
-AtivarFiltroNoticias,NewsSomenteAltoImpacto,NewsMinutosAntes,NewsMinutosDepois,NewsMoedasManual,NewsCSVFile | DEFERRED | WhiteRabbitNewsFilter.mqh nao lido
+AtivarFiltroNoticias,NewsSomenteAltoImpacto,NewsMinutosAntes,NewsMinutosDepois,NewsMoedasManual,NewsCSVFile | PORTED | eventos vem de load_news_csv (mesmo CSV do exportador); moedas manuais ou base+cotacao de simbolo de 6 letras
 # ---- Saidas
 AtivarBreakeven,BreakevenDistancia | PORTED | reavaliado so nas decisoes (1x/minuto)
-AtivarTrailATR,MetodoDeCalculo,TrailVela,Trail,TrailSoLucro | DEFERRED | TrailingStopSet() nao lido
-ReversalExitMode | PARTIAL | 0 e 2 portados; 1 (OnOppositeOrder) recusado
+AtivarTrailATR,MetodoDeCalculo,TrailVela,Trail,TrailSoLucro | PORTED | TrailingStopSet 1x por barra do TF de entrada; na piramide tambem ha o trailing da cesta
+ReversalExitMode | PORTED | 0, 1 (ordem oposta, exige hedging) e 2 (sinal contrario)
 ReversalExitUseEntryFilters | PORTED |
 # ---- Risco e lote
 TradeCapitalPercentage,CapitalBaseR,MaxRiscoTradeR,MaxRiscoRelativoAoLoteMinimo | PORTED | Fixed-R
-PositionSizeMode,PositionSizeValue | PARTIAL | so FixedR; Percentage/Monetary/FixedLot adiados
-DailyLossLimitPercent,MaxEquityDrawdownPercent,MinFreeMarginPercent | DEFERRED | zere no set (os defaults do EA sao 0/30/50!)
-Trava_Diaria_Percent,Trava_Total_Percent,Protecao_Fecha_Posicoes | DEFERRED | WhiteRabbitGlobalProtection.mqh nao lido
+PositionSizeMode,PositionSizeValue | PORTED | Percentage (saldo ao vivo), Monetary (capital inicial), FixedLot, FixedR
+DailyLossLimitPercent | PORTED | pior caso do dia = fechado desde a ancora + perda no SL das abertas (bloqueia ENTRADA nova)
+MaxEquityDrawdownPercent | PORTED | trava de equity da estrategia, a cada tick; liquida e para o teste
+MinFreeMarginPercent | PARTIAL | depende da margem da corretora: preencha margin_a/margin_b no SymbolSpec (sem isso nao e modelada)
+Trava_Diaria_Percent,Trava_Total_Percent,Protecao_Fecha_Posicoes | PORTED | equity da conta (aqui = 1 simbolo); estado do GlobalVariable assumido limpo a cada teste
 # ---- Recovery / Grid
-RecoveryMode,Multiplicador,MaxMartingaleSteps,MaxMartingaleLot,DAlembertStep | DEFERRED | historico de ciclos lido; sizing de Percentage/Monetary/Fixed nao
-GridMode,UsarsomenteATRGRID,DistanciaMinima,PyramidTrailSoLucro,PyramidLevelOnlyInProfit | DEFERRED | grid/piramide nao lidos
+RecoveryMode,Multiplicador,MaxMartingaleSteps,MaxMartingaleLot,DAlembertStep | PORTED | historico de ciclos por lado (ApplyRecoveryOperation)
+GridMode,UsarsomenteATRGRID,DistanciaMinima | PORTED | 1 = grid classico (alvo monetario congelado na semente); 3 = piramide; 2 e invalido (o EA recusa)
+PyramidTrailSoLucro,PyramidLevelOnlyInProfit | PORTED |
 # ---- Entradas pendentes
-EntryOrderType,PendingReferencia,PendingDistanciaATR,PendingExpiracaoBarras,PendingGatilho,PendingHoraSessao,PendingFaixaBarras | DEFERRED |
+EntryOrderType,PendingReferencia,PendingDistanciaATR,PendingExpiracaoBarras,PendingGatilho,PendingHoraSessao,PendingFaixaBarras | PORTED | Stop/Limit/OCO/sessao; preenchimento: stop no tick, limit no preco (calibrar: pending_fill)
 # ---- Agenda
 Fecharordensforadohorario | PORTED | roda antes de checar se ha dados prontos
 TOD_From_Hour,TOD_From_Min,TOD_To_Hour,TOD_To_Min | PORTED |
@@ -86,10 +89,9 @@ MaxSpread | PORTED | spread em pontos inteiros do tick
 MaxLongTrades,MaxShortTrades,Hedging | PORTED |
 ModificationSafetyPoints | PORTED |
 # ---- WFO / otimizacao
-AtivarWFO | PARTIAL | so false, ou true com 'In Sample + Out Sample' (nao bloqueia entradas)
-MetodoDeEntradawfo | PARTIAL | 0 (In Sample) com AtivarWFO=true e recusado
-input_end_date,wfo_windowSize,wfo_customWindowSizeDays,wfo_stepSize,wfo_customStepSizePercent,WFO_CarenciaPercentil | DEFERRED | janelas IS/OOS
-selectedFormula | DEFERRED | formulas de OnTester (fitness) ainda nao portadas
+AtivarWFO,MetodoDeEntradawfo | PORTED | janelas IS/OOS, bloqueio de entrada, carencia de grid, retirada do lucro; inicio = 1a barra M1 do teste (hipotese)
+input_end_date,wfo_windowSize,wfo_customWindowSizeDays,wfo_stepSize,wfo_customStepSizePercent,WFO_CarenciaPercentil | PORTED |
+selectedFormula | DEFERRED | formulas de fitness do OnTester ainda nao portadas
 """)
 
 

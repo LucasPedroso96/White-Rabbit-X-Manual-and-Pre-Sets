@@ -66,3 +66,49 @@ Para cada sonda: carregue o `.set`, rode o Tester (mesmo simbolo/periodo/deposit
 | `P74_weekend_days` | Sabado e domingo liberados (mercado fechado: nao deve mudar nada) |  | - |
 | `P75_wfo_in_plus_out` | WFO ligado em 'In Sample + Out Sample' (nao deve bloquear entradas) |  | - |
 | `P68_safety_points` | ModificationSafetyPoints=30 (com breakeven) |  | - |
+| `P80_fixed_lot` | Lote fixo 0.05 com SL/TP |  | - |
+| `P81_monetary` | Monetary: 1 lote por 10000 de capital inicial |  | - |
+| `P82_percentage` | Percentage: 1% do saldo ao vivo |  | - |
+| `P83_signal_only` | Sinal puro: sem SL/TP, sai no sinal contrario (dois lados) | sim | - |
+| `P84_martingale_fixed` | Martingale, lote fixo x2 |  | - |
+| `P85_martingale_monetary` | Martingale monetario com take (recupera a divida no TP) |  | - |
+| `P86_martingale_pct` | Martingale percentual |  | - |
+| `P87_martingale_fixedr` | Martingale em R com teto 3R |  | - |
+| `P88_martingale_limits` | Martingale com MaxMartingaleSteps=3 e MaxMartingaleLot=0.08 |  | - |
+| `P89_dalembert` | D'Alembert passo 0.01, teto 0.06 |  | - |
+| `P90_trail_close` | Trailing ATR (preco de fechamento), sem TP |  | - |
+| `P91_trail_open` | Trailing sobre a abertura do candle |  | - |
+| `P92_trail_high` | Trailing sobre a maxima |  | - |
+| `P93_trail_low` | Trailing sobre a minima |  | - |
+| `P94_trail_price` | Trailing sobre o preco (bid/ask) |  | - |
+| `P95_trail_profit_only` | Trailing so no lucro |  | - |
+| `P96_trail_vela` | Trailing com ATR da vela 2 e Trail=2 |  | - |
+| `P97_sltp_trail` | SL + TP + trailing + breakeven |  | - |
+| `P98_organic_take` | Take organico junto com TP |  | - |
+| `P99_reversal_opposite` | Saida por ordem oposta (hedging, dois lados) | sim | - |
+| `P100_grid_fixed` | Grid classico, lote fixo | sim | - |
+| `P101_grid_monetary` | Grid classico, monetary | sim | - |
+| `P102_grid_atr_only` | Grid: continua so pelo ATR (sem sinal) | sim | - |
+| `P103_grid_stop` | Grid com SL por perna | sim | - |
+| `P104_grid_mult` | Grid com Multiplicador 1.5 no alvo | sim | - |
+| `P105_grid_distance` | Grid com DistanciaMinima=3 | sim | - |
+| `P106_grid_both` | Grid nos dois lados | sim | - |
+| `P107_pyr_fixed` | Piramide, lote fixo | sim | - |
+| `P108_pyr_fixedr` | Piramide em Fixed-R | sim | - |
+| `P109_pyr_pct` | Piramide percentual | sim | - |
+| `P110_pyr_level_profit` | Piramide: proximo nivel so com a ultima perna no empate | sim | - |
+| `P111_pyr_trail_profit` | Piramide: trailing da cesta so no lucro | sim | - |
+| `P112_pend_stop` | Entrada Stop |  | - |
+| `P113_pend_limit` | Entrada Limit |  | - |
+| `P114_pend_oco` | Entrada OCO (hedging, dois lados) | sim | - |
+| `P115_pend_extreme` | Pendente ancorada na maxima/minima do candle, distancia 1 ATR |  | - |
+| `P116_pend_expiry` | Pendente expira em 1 barra |  | - |
+| `P117_pend_session` | Rompimento por sessao as 08h, faixa de 4 barras | sim | - |
+| `P118_daily_loss` | DailyLossLimitPercent=0.5 |  | - |
+| `P119_equity_dd` | MaxEquityDrawdownPercent=2 |  | - |
+| `P120_gp_daily` | Protecao global diaria 1% (fecha tudo) |  | - |
+| `P121_gp_total_noclose` | Protecao global total 3% sem fechar (so bloqueia) |  | - |
+| `P122_news` | Filtro de noticias USD/EUR (precisa do CSV em Common\Files) |  | - |
+| `P125_news_window` | Noticias: so alto impacto, janela 30 antes / 5 depois |  | - |
+| `P123_min_free_margin` | Reserva de margem livre 50% (precisa margin_a/margin_b no spec) |  | - |
+| `P124_wfo_in_sample` | WFO 'In Sample': 122 dias IS + 61 OOS (ajuste input_end_date ao fim do teste) |  | - |

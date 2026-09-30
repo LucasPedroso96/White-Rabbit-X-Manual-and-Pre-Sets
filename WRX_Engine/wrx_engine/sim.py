@@ -495,8 +495,8 @@ class Sim:
             guard += 1
             if guard > 100000:
                 raise RuntimeError("scan: laco de eventos sem progresso")
-            srv = self._srv_events(srv0, i1) if (self.L.positions or self.L.pendings) else None
-            ea = self._ea_event(ea0, i1) if self._ea_active() else None
+            srv = self._srv_events(srv0, i1) if (srv0 <= i1 and (self.L.positions or self.L.pendings)) else None
+            ea = self._ea_event(ea0, i1) if (ea0 <= i1 and self._ea_active()) else None
             if srv is None and ea is None:
                 break
             if srv is not None and (ea is None or srv[0] <= ea):
