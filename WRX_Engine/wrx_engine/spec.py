@@ -23,6 +23,13 @@ class SymbolSpec:
     stops_level: int = 0       # SYMBOL_TRADE_STOPS_LEVEL, em pontos
     freeze_level: int = 0      # SYMBOL_TRADE_FREEZE_LEVEL, em pontos
     commission_per_lot_side: float = 0.0   # moeda da conta, cobrada na entrada E na saida
+    # margem por lote = margin_a * preco + margin_b (ajuste linear a partir de order_calc_margin; 0/0 = nao modela)
+    margin_a: float = 0.0
+    margin_b: float = 0.0
+    # swap por lote/noite em PONTOS (SYMBOL_SWAP_MODE=points); rollover triplo no dia `swap_3days` (0=dom..6=sab)
+    swap_long: float = 0.0
+    swap_short: float = 0.0
+    swap_3days: int = 3
 
     def price_to_tick(self, price: float, round_up: bool) -> float:
         """Espelho de PriceToTick() do EA."""

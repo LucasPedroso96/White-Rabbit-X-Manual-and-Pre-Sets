@@ -5,7 +5,7 @@ import pytest
 from conftest import base_path, build_ticks
 from wrx_engine import registry as R
 from wrx_engine import review as V
-from wrx_engine.setfile import params_from_dict, parse_set_text, read_set_text, unsupported
+from wrx_engine.setfile import InvalidConfig, params_from_dict, parse_set_text, read_set_text, unsupported
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLE = ROOT / "Sets" / "01_Forex" / "EURUSD" / "01_SLTP" / "BUY_MULTI.set"
@@ -35,7 +35,10 @@ def test_all_probes_generate_load_strict_and_run(tmp_path, spec):
     ran = 0
     for pr, p in zip(V.PROBES, paths):
         params = load_set(p)                         # strict: se o motor recusar, quebra aqui
-        run_backtest(params, spec, ticks)
+        try:
+            run_backtest(params, spec, ticks)
+        except InvalidConfig as e:                   # so a sonda de WFO: os dados sinteticos nao cobrem as janelas
+            assert pr.id == "P75_wfo_in_plus_out" and "WFO" in str(e)
         ran += 1
     assert ran == len(V.PROBES)
 
