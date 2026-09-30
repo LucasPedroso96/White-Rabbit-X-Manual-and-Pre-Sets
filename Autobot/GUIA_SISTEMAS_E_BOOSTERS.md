@@ -140,11 +140,15 @@ Ou seja: o circuito completo da metodologia atual (janela por trades, holdout la
 | Pipeline completo, sistema 13 (smoke) | `optimize_two_stage --calibracao`, XAUUSD, treino de 109 dias | os 5 estágios, holdout, WFA e decisão rodaram sem erro; o candidato foi REPROVADO (queda de 99% em 3 anos), como o esperado de um treino tão curto — o teste é do encanamento, não da vantagem |
 | Pipeline com recuperação (smoke) | idem, 04 BUY com `--recuperacao martingale` | Estágio 2.5 rodou de ponta a ponta e imprimiu o efeito (retenção 45,7% → 60,1%); os 4 valores de `MaxMartingaleSteps` deram o mesmo resultado (a sequência de perdas nunca passou do limite); reprovado por queda de 75% em 3 anos |
 | Ablação de boosters (S5) | 5 sets já otimizados × 83 variantes × 2 janelas de 90 dias = 166 cenários | ver seção 9 |
-| Bateria de lógica | 1.032 passes, 262 eixos, 4 famílias | de 32 achados (14/09) para 12: o filtro ATR deixou de zerar as entradas; os que restam são eixos condicionais por desenho (Bollinger: modo Reversal/Squeeze/filtro MTF; Ichimoku: `InpAppliedPrice` e Stochastic inertes) |
+| Bateria de lógica | 1.032 passes, 262 eixos, 4 famílias | de 32 achados (14/09) para 12: o filtro ATR deixou de zerar as entradas; os que restam são eixos condicionais por desenho (Bollinger: modo Reversal/Squeeze/filtro MTF). Os eixos inertes do Ichimoku (`InpAppliedPrice`, Stochastic) foram corrigidos depois, em 29/09 (ver abaixo); a contagem de 12 é anterior a essa correção e a bateria não foi refeita |
 | Biblioteca × OnInit (`validate_system_sets`) | 10.246 sets, 93 milhões de combinações de canto, esquema de cada família contra a própria EA | nenhum set alcança combinação recusada, exceto o acoplamento conhecido do 06 BOTH |
 
 O que a rodada **mudou no código**: Candles com `InpAppliedPrice` cravado em CLOSE (a EA recusa OPEN/HIGH/LOW; 43% do
-eixo eram passes recusados); a prova em % do Estágio 5 não roda mais com D'Alembert (a EA exige lote fixo); o
+eixo eram passes recusados); Ichimoku com `InpAppliedPrice` e os três parâmetros do Stochastic cravados (eram eixos
+inertes no Ichimoku — a bateria acusou que variar o valor não muda nenhuma entrada — e o genético gastava passes
+neles), com a biblioteca inteira regenerada nas duas
+instalações e conferida arquivo a arquivo contra o backup (só o Ichimoku mudou; 27 cenários do S1 deram resultado
+idêntico antes e depois); a prova em % do Estágio 5 não roda mais com D'Alembert (a EA exige lote fixo); o
 Estágio 2.5 imprime o efeito da recuperação na retenção; `bateria_logica`, `validate_system_sets` e
 `testar_pendentes` ganharam as conferências acima.
 
