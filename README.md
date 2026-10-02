@@ -1,7 +1,7 @@
 # White Rabbit X — Manuals, Set Library and Autobot
 
 Public material for **White Rabbit X**, an Expert Advisor for MetaTrader 5:
-manuals in 11 languages, the complete library of **3,916 optimization sets**
+manuals in 11 languages, the complete library of **3,738 optimization sets**
 (Multi-Indicator + Ichimoku — see **Using the library** below for Bollinger
 Bands), and the **Autobot** — the automation that generates, walk-forward-
 tests and validates every one of those sets end to end.
@@ -75,15 +75,22 @@ To find that folder: in MetaTrader, **File → Open Data Folder**, then go into
 | `05_BE_TRAIL` | Breakeven then trailing | Fixed-R |
 | `06_REVERSAL_EXIT` | Closes on the opposite signal | Fixed-R |
 | `07_GRID_SEPARATE` | Grid, one target per side | Fixed lot |
-| `12_GRID_INVERSO` | Grid, pyramids with the trend, exits by trailing ATR on the basket | Fixed lot |
+| `08_GRID_UNIFIED` | Grid, single basket target, both sides open (`BOTH_*.set`) | Fixed lot |
 | `09_MARTINGALE` | Lot grows after a loss | Fixed lot |
 | `10_DALEMBERT` | Arithmetic lot progression | Fixed lot |
 | `11_SIGNAL_ONLY` | No stop, no target — measures the raw signal | Fixed lot |
 
 Systems **01 through 06 use Fixed-R**: the lot is derived from the risk budget,
-so they adapt themselves to any account size. The rest (**07, 12, 09, 10,
+so they adapt themselves to any account size. The rest (**07, 08, 09, 10,
 11**) use a fixed lot — their risk is whatever the minimum lot costs on that
 instrument, regardless of your balance. Start with the Fixed-R ones.
+
+The EA (v1.24) already knows two more systems that are **not yet in this
+library**: `12_GRID_INVERSO` (pyramids with the trend, exits by trailing ATR
+on the basket, Fixed-R) and `13_OCO_ROMPIMENTO` (session breakout OCO, BOTH
+only, MULTI family). Their sets come out of the Autobot generator; when the
+library is regenerated the count above changes (`Autobot/sync_set_count.py`
+propagates the real number into the manuals).
 
 ---
 

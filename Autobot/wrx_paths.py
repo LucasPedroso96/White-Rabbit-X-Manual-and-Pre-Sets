@@ -226,4 +226,20 @@ def terminal_exe() -> Path:
     return exe
 
 
-TERMINAL = data_dir()
+def __getattr__(name: str):
+    """`wrx_paths.TERMINAL` resolvido no PRIMEIRO USO, nao no import (PEP 562).
+
+    Era `TERMINAL = data_dir()` no fim do modulo: numa maquina sem terminal com a EA
+    (ou sem WRX_MT5_DATA_DIR), `import wrx_paths` morria com SystemExit antes de
+    qualquer ferramenta ou teste rodar. Achado da auditoria cruzada 2026-10-02: a
+    coleta do pytest nos 40 `test_*.py` caia inteira no primeiro import indireto
+    (ready_library -> wrx_paths), e o proprio test_wrx_paths_autodetect.py -- que
+    testa justamente o caso "nenhum terminal instalado" -- nao podia rodar numa
+    maquina sem a EA. Mesmo valor e mesma mensagem de erro de antes; so muda o
+    MOMENTO: quem usa TERMINAL recebe o erro claro ao usar, quem nao usa nao paga.
+    O valor fica em cache no modulo depois da primeira resolucao, como era."""
+    if name == "TERMINAL":
+        valor = data_dir()
+        globals()["TERMINAL"] = valor
+        return valor
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
