@@ -8,11 +8,15 @@ mínima e acessibilidade.
 
 ## O que mudou no dashboard (`index.html`)
 
-- **Chassi neutro, família só no destaque.** Antes cada família (Multi-Indicator, Bollinger,
-  Ichimoku, Candle Entry) pintava a página inteira (fundo verde, azul ou marrom). Agora o
-  chassi é o grafite da Mesa nas quatro famílias e a família troca apenas `accent`/`accent2`/`gold`
-  (bone, lima, azul-céu, cobre). O verde de "aprovado" deixou de brigar com o fundo do Bollinger.
-  Para voltar ao visual antigo, restaure `PALETTES` e `getPal()` do commit anterior.
+- **Identidade por família (restaurada em 2026-10-08).** A primeira passada deixou as quatro famílias
+  no mesmo grafite. Agora cada família volta a repintar a página inteira, como no painel original:
+  Multi-Indicator verde-petróleo, Bollinger verde-floresta, Ichimoku azul-oceano, Candle Entry
+  marrom-cobre, com o halo radial no fundo, cartões em gradiente suave e botões com o gradiente da
+  família. Por cima ficam as regras da Mesa: ok/atenção/crítico com fundo próprio, texto/fundo ≥ 7:1,
+  secundário e destaques ≥ 4,5:1, borda de controle ≥ 3:1 e texto dos botões ≥ 4,5:1 (valores da
+  família ajustados só em luminosidade onde falhavam; `btnA`/`btnB` guardam o gradiente do botão).
+  Nos temas Dia e Daltônico a família também vale (Daltônico = Noite da família com status em
+  azul/amarelo/laranja).
 - **Três temas**, escolhidos no cabeçalho e lembrados (`wrx_tema`): Noite (padrão), Dia e
   Daltônico (Noite com ok/atenção/crítico em azul, amarelo e laranja). O tema Dia já existia
   nas paletas, mas não tinha botão.
@@ -31,7 +35,7 @@ mínima e acessibilidade.
 
 ## PWA (`manifest.webmanifest`)
 
-- Cores `#0b0f14`.
+- Cores `#05080b` (as do painel original).
 - `orientation: any` (era `portrait-primary`, que travava tablet e celular deitado).
 - `display_override` sem `window-controls-overlay`: o cabeçalho não trata a área da barra de
   título, então o recurso sobrepunha os botões da janela no desktop.

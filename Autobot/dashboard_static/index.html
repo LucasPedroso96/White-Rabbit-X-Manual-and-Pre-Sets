@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>White Rabbit X — Autobot</title>
 <link rel="manifest" href="/static/manifest.webmanifest">
-<meta name="theme-color" content="#0b0f14">
+<meta name="theme-color" content="#05080b">
 <meta name="description" content="White Rabbit X — operational dashboard for live campaign, portfolio, and robustness diagnostics.">
 <script src="/static/support.js"></script>
 </head>
@@ -783,28 +783,30 @@
   &quot;intervaloAtualizacaoMs&quot;: {&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:8000,&quot;min&quot;:3000,&quot;max&quot;:30000,&quot;step&quot;:1000,&quot;tsType&quot;:&quot;number&quot;,&quot;unit&quot;:&quot;ms&quot;,&quot;section&quot;:&quot;Comportamento&quot;}
 }">
 const PALETTES = {
-  // Chassi Mesa (neutro) para todas as famílias; a família só troca o destaque (accent/accent2/gold).
-  // Antes cada família pintava a página inteira (fundo verde/azul/marrom); isso brigava com ok/no.
-  // 'safe' = Noite com ok/atenção/crítico em azul/amarelo/laranja (Okabe–Ito), para daltônicos.
+  // Identidade por família (restaurada em 2026-10-08): cada família repinta a página inteira, como no
+  // painel original (Multi = verde-petróleo, Bollinger = verde-floresta, Ichimoku = azul-oceano, Candle Entry
+  // = marrom-cobre). A Mesa continua valendo por cima: estado = forma + palavra, contraste conferido
+  // (texto/fundo >= 7:1, secundário e destaque >= 4,5:1, borda de controle >= 3:1) e ok/atenção/crítico
+  // com fundo próprio. 'safe' = Noite da família com ok/atenção/crítico em azul/amarelo/laranja (Okabe-Ito).
   MULTI: {
-    dark: { bg:'#0b0f14', bg2:'#121820', bg3:'#18202a', line:'#232e3b', border:'#6b7a8d', text:'#e8ecf1', muted:'#aab4c2', ok:'#3ecf8e', no:'#ff6b5e', warn:'#f0a43a', okBg:'#10281f', noBg:'#35191b', warnBg:'#2f2310', link:'#7aa5ff', focus:'#e8ecf1', btnText:'#0b0f14', accent:'#8f8a7a', accent2:'#d9d2bf', gold:'#d9d2bf', cardTop:'#121820', cardBottom:'#121820', headerBg:'#121820', navBg:'#121820' },
-    light:{ bg:'#f3f5f8', bg2:'#ffffff', bg3:'#eceff3', line:'#dbe0e7', border:'#6f7b8a', text:'#14181d', muted:'#454f5e', ok:'#17744a', no:'#b42318', warn:'#8f5200', okBg:'#dcf2e6', noBg:'#fbe0dd', warnBg:'#faebd0', link:'#2457c5', focus:'#14181d', btnText:'#ffffff', accent:'#8f8a7a', accent2:'#5c5640', gold:'#5c5640', cardTop:'#ffffff', cardBottom:'#ffffff', headerBg:'#ffffff', navBg:'#ffffff' },
-    safe: { bg:'#0b0f14', bg2:'#121820', bg3:'#18202a', line:'#232e3b', border:'#6b7a8d', text:'#e8ecf1', muted:'#aab4c2', ok:'#56b4e9', no:'#ff8a4a', warn:'#f0e442', okBg:'#0f2433', noBg:'#33200f', warnBg:'#2b2a0c', link:'#7aa5ff', focus:'#e8ecf1', btnText:'#0b0f14', accent:'#8f8a7a', accent2:'#d9d2bf', gold:'#d9d2bf', cardTop:'#121820', cardBottom:'#121820', headerBg:'#121820', navBg:'#121820' },
+    dark: { bg:'#05080b', bg2:'#080c11', bg3:'#0c131a', line:'#1c2733', border:'#8d949c', text:'#e9edf1', muted:'#8ea0ad', ok:'#3ecf8e', no:'#ff6b5e', warn:'#f0a43a', okBg:'#0f2c23', noBg:'#321a1a', warnBg:'#2f2413', link:'#7aa5ff', focus:'#e9edf1', btnText:'#ffffff', btnA:'#2a816a', btnB:'#226763', accent:'#1b4d5c', accent2:'#37937b', gold:'#d4af37', cardTop:'#141b24', cardBottom:'#090c11', headerBg:'rgba(8,16,27,.9)', navBg:'rgba(8,16,27,.72)' },
+    light:{ bg:'#f4f7f8', bg2:'#eaf0f1', bg3:'#dfe8ea', line:'#cdd8db', border:'#68747a', text:'#16232b', muted:'#506973', ok:'#17744a', no:'#b42318', warn:'#8f5200', okBg:'#dfece6', noBg:'#f4e0df', warnBg:'#efe7db', link:'#2457c5', focus:'#16232b', btnText:'#ffffff', btnA:'#1f7a63', btnB:'#1d6460', accent:'#1b4d5c', accent2:'#1d735d', gold:'#7c621c', cardTop:'#ffffff', cardBottom:'#eef3f4', headerBg:'rgba(255,255,255,.85)', navBg:'rgba(255,255,255,.7)' },
+    safe: { bg:'#05080b', bg2:'#080c11', bg3:'#0c131a', line:'#1c2733', border:'#8d949c', text:'#e9edf1', muted:'#8ea0ad', ok:'#56b4e9', no:'#ff8a4a', warn:'#f0e442', okBg:'#142733', noBg:'#321f16', warnBg:'#2f3015', link:'#7aa5ff', focus:'#e9edf1', btnText:'#ffffff', btnA:'#2a816a', btnB:'#226763', accent:'#1b4d5c', accent2:'#37937b', gold:'#d4af37', cardTop:'#141b24', cardBottom:'#090c11', headerBg:'rgba(8,16,27,.9)', navBg:'rgba(8,16,27,.72)' },
   },
   BOLLINGER: {
-    dark: { bg:'#0b0f14', bg2:'#121820', bg3:'#18202a', line:'#232e3b', border:'#6b7a8d', text:'#e8ecf1', muted:'#aab4c2', ok:'#3ecf8e', no:'#ff6b5e', warn:'#f0a43a', okBg:'#10281f', noBg:'#35191b', warnBg:'#2f2310', link:'#7aa5ff', focus:'#e8ecf1', btnText:'#0b0f14', accent:'#5f7f2a', accent2:'#9ccc4a', gold:'#9ccc4a', cardTop:'#121820', cardBottom:'#121820', headerBg:'#121820', navBg:'#121820' },
-    light:{ bg:'#f3f5f8', bg2:'#ffffff', bg3:'#eceff3', line:'#dbe0e7', border:'#6f7b8a', text:'#14181d', muted:'#454f5e', ok:'#17744a', no:'#b42318', warn:'#8f5200', okBg:'#dcf2e6', noBg:'#fbe0dd', warnBg:'#faebd0', link:'#2457c5', focus:'#14181d', btnText:'#ffffff', accent:'#5f7f2a', accent2:'#486f12', gold:'#486f12', cardTop:'#ffffff', cardBottom:'#ffffff', headerBg:'#ffffff', navBg:'#ffffff' },
-    safe: { bg:'#0b0f14', bg2:'#121820', bg3:'#18202a', line:'#232e3b', border:'#6b7a8d', text:'#e8ecf1', muted:'#aab4c2', ok:'#56b4e9', no:'#ff8a4a', warn:'#f0e442', okBg:'#0f2433', noBg:'#33200f', warnBg:'#2b2a0c', link:'#7aa5ff', focus:'#e8ecf1', btnText:'#0b0f14', accent:'#5f7f2a', accent2:'#9ccc4a', gold:'#9ccc4a', cardTop:'#121820', cardBottom:'#121820', headerBg:'#121820', navBg:'#121820' },
+    dark: { bg:'#0d1f0a', bg2:'#16290f', bg3:'#1a2e16', line:'#2d5016', border:'#94a68e', text:'#e9edf1', muted:'#9db492', ok:'#3ecf8e', no:'#ff6b5e', warn:'#f0a43a', okBg:'#163f22', noBg:'#392d19', warnBg:'#363713', link:'#7aa5ff', focus:'#e9edf1', btnText:'#ffffff', btnA:'#38823b', btnB:'#326928', accent:'#2d5016', accent2:'#4caf50', gold:'#8bc34a', cardTop:'#1a2e16', cardBottom:'#0d1f0a', headerBg:'rgba(13,31,10,.9)', navBg:'rgba(13,31,10,.72)' },
+    light:{ bg:'#f5f8f2', bg2:'#eaf1e2', bg3:'#dfebd4', line:'#c9dcb9', border:'#69785d', text:'#1a2712', muted:'#54694b', ok:'#17744a', no:'#b42318', warn:'#8f5200', okBg:'#dfece6', noBg:'#f4e0df', warnBg:'#efe7db', link:'#2457c5', focus:'#1a2712', btnText:'#ffffff', btnA:'#2e7d32', btnB:'#2e6624', accent:'#2d5016', accent2:'#2a732e', gold:'#526e15', cardTop:'#ffffff', cardBottom:'#eef3e8', headerBg:'rgba(255,255,255,.85)', navBg:'rgba(255,255,255,.7)' },
+    safe: { bg:'#0d1f0a', bg2:'#16290f', bg3:'#1a2e16', line:'#2d5016', border:'#94a68e', text:'#e9edf1', muted:'#9db492', ok:'#56b4e9', no:'#ff8a4a', warn:'#f0e442', okBg:'#1a3a32', noBg:'#393216', warnBg:'#364214', link:'#7aa5ff', focus:'#e9edf1', btnText:'#ffffff', btnA:'#38823b', btnB:'#326928', accent:'#2d5016', accent2:'#4caf50', gold:'#8bc34a', cardTop:'#1a2e16', cardBottom:'#0d1f0a', headerBg:'rgba(13,31,10,.9)', navBg:'rgba(13,31,10,.72)' },
   },
   ICHIMOKU: {
-    dark: { bg:'#0b0f14', bg2:'#121820', bg3:'#18202a', line:'#232e3b', border:'#6b7a8d', text:'#e8ecf1', muted:'#aab4c2', ok:'#3ecf8e', no:'#ff6b5e', warn:'#f0a43a', okBg:'#10281f', noBg:'#35191b', warnBg:'#2f2310', link:'#7aa5ff', focus:'#e8ecf1', btnText:'#0b0f14', accent:'#2a7c9c', accent2:'#4fb3d9', gold:'#4fb3d9', cardTop:'#121820', cardBottom:'#121820', headerBg:'#121820', navBg:'#121820' },
-    light:{ bg:'#f3f5f8', bg2:'#ffffff', bg3:'#eceff3', line:'#dbe0e7', border:'#6f7b8a', text:'#14181d', muted:'#454f5e', ok:'#17744a', no:'#b42318', warn:'#8f5200', okBg:'#dcf2e6', noBg:'#fbe0dd', warnBg:'#faebd0', link:'#2457c5', focus:'#14181d', btnText:'#ffffff', accent:'#2a7c9c', accent2:'#0b6f94', gold:'#0b6f94', cardTop:'#ffffff', cardBottom:'#ffffff', headerBg:'#ffffff', navBg:'#ffffff' },
-    safe: { bg:'#0b0f14', bg2:'#121820', bg3:'#18202a', line:'#232e3b', border:'#6b7a8d', text:'#e8ecf1', muted:'#aab4c2', ok:'#56b4e9', no:'#ff8a4a', warn:'#f0e442', okBg:'#0f2433', noBg:'#33200f', warnBg:'#2b2a0c', link:'#7aa5ff', focus:'#e8ecf1', btnText:'#0b0f14', accent:'#2a7c9c', accent2:'#4fb3d9', gold:'#4fb3d9', cardTop:'#121820', cardBottom:'#121820', headerBg:'#121820', navBg:'#121820' },
+    dark: { bg:'#001e2b', bg2:'#00283a', bg3:'#003045', line:'#006994', border:'#80b2c7', text:'#e9edf1', muted:'#8bb0bd', ok:'#3ecf8e', no:'#ff6b5e', warn:'#f0a43a', okBg:'#0b3e3d', noBg:'#2e2c34', warnBg:'#2b362e', link:'#7aa5ff', focus:'#e9edf1', btnText:'#ffffff', btnA:'#007e99', btnB:'#007496', accent:'#006994', accent2:'#38a1b7', gold:'#87ceeb', cardTop:'#003045', cardBottom:'#001e2b', headerBg:'rgba(0,30,43,.9)', navBg:'rgba(0,30,43,.72)' },
+    light:{ bg:'#f2f8fb', bg2:'#e5f0f5', bg3:'#d8e9f0', line:'#b9d7e3', border:'#5b7581', text:'#0f2530', muted:'#476b79', ok:'#17744a', no:'#b42318', warn:'#8f5200', okBg:'#dfece6', noBg:'#f4e0df', warnBg:'#efe7db', link:'#2457c5', focus:'#0f2530', btnText:'#ffffff', btnA:'#007ea3', btnB:'#00749c', accent:'#006994', accent2:'#006c8c', gold:'#0f6e8c', cardTop:'#ffffff', cardBottom:'#eef6f9', headerBg:'rgba(255,255,255,.85)', navBg:'rgba(255,255,255,.7)' },
+    safe: { bg:'#001e2b', bg2:'#00283a', bg3:'#003045', line:'#006994', border:'#80b2c7', text:'#e9edf1', muted:'#8bb0bd', ok:'#56b4e9', no:'#ff8a4a', warn:'#f0e442', okBg:'#0f394d', noBg:'#2e3131', warnBg:'#2b422f', link:'#7aa5ff', focus:'#e9edf1', btnText:'#ffffff', btnA:'#007e99', btnB:'#007496', accent:'#006994', accent2:'#38a1b7', gold:'#87ceeb', cardTop:'#003045', cardBottom:'#001e2b', headerBg:'rgba(0,30,43,.9)', navBg:'rgba(0,30,43,.72)' },
   },
   CANDLES: {
-    dark: { bg:'#0b0f14', bg2:'#121820', bg3:'#18202a', line:'#232e3b', border:'#6b7a8d', text:'#e8ecf1', muted:'#aab4c2', ok:'#3ecf8e', no:'#ff6b5e', warn:'#f0a43a', okBg:'#10281f', noBg:'#35191b', warnBg:'#2f2310', link:'#7aa5ff', focus:'#e8ecf1', btnText:'#0b0f14', accent:'#8a5a30', accent2:'#d19a62', gold:'#d19a62', cardTop:'#121820', cardBottom:'#121820', headerBg:'#121820', navBg:'#121820' },
-    light:{ bg:'#f3f5f8', bg2:'#ffffff', bg3:'#eceff3', line:'#dbe0e7', border:'#6f7b8a', text:'#14181d', muted:'#454f5e', ok:'#17744a', no:'#b42318', warn:'#8f5200', okBg:'#dcf2e6', noBg:'#fbe0dd', warnBg:'#faebd0', link:'#2457c5', focus:'#14181d', btnText:'#ffffff', accent:'#8a5a30', accent2:'#8a5420', gold:'#8a5420', cardTop:'#ffffff', cardBottom:'#ffffff', headerBg:'#ffffff', navBg:'#ffffff' },
-    safe: { bg:'#0b0f14', bg2:'#121820', bg3:'#18202a', line:'#232e3b', border:'#6b7a8d', text:'#e8ecf1', muted:'#aab4c2', ok:'#56b4e9', no:'#ff8a4a', warn:'#f0e442', okBg:'#0f2433', noBg:'#33200f', warnBg:'#2b2a0c', link:'#7aa5ff', focus:'#e8ecf1', btnText:'#0b0f14', accent:'#8a5a30', accent2:'#d19a62', gold:'#d19a62', cardTop:'#121820', cardBottom:'#121820', headerBg:'#121820', navBg:'#121820' },
+    dark: { bg:'#1f0d0a', bg2:'#29160f', bg3:'#2e1a16', line:'#502d16', border:'#a4978e', text:'#e9edf1', muted:'#b4a292', ok:'#3ecf8e', no:'#ff6b5e', warn:'#f0a43a', okBg:'#253022', noBg:'#471e19', warnBg:'#452813', link:'#7aa5ff', focus:'#e9edf1', btnText:'#ffffff', btnA:'#966b41', btnB:'#734c2c', accent:'#502d16', accent2:'#b17f50', gold:'#e0a458', cardTop:'#2e1a16', cardBottom:'#1f0d0a', headerBg:'rgba(31,13,10,.9)', navBg:'rgba(31,13,10,.72)' },
+    light:{ bg:'#f8f4f2', bg2:'#f1e6e2', bg3:'#ebd4c9', line:'#dcb9a3', border:'#786052', text:'#27170f', muted:'#69544b', ok:'#156843', no:'#b42318', warn:'#894f00', okBg:'#deeae5', noBg:'#f4e0df', warnBg:'#eee6db', link:'#2355c1', focus:'#27170f', btnText:'#ffffff', btnA:'#7d5a2e', btnB:'#664422', accent:'#502d16', accent2:'#78562c', gold:'#755716', cardTop:'#ffffff', cardBottom:'#f3e8e0', headerBg:'rgba(255,255,255,.85)', navBg:'rgba(255,255,255,.7)' },
+    safe: { bg:'#1f0d0a', bg2:'#29160f', bg3:'#2e1a16', line:'#502d16', border:'#a4978e', text:'#e9edf1', muted:'#b4a292', ok:'#56b4e9', no:'#ff8a4a', warn:'#f0e442', okBg:'#292b32', noBg:'#472416', warnBg:'#453414', link:'#7aa5ff', focus:'#e9edf1', btnText:'#ffffff', btnA:'#966b41', btnB:'#734c2c', accent:'#502d16', accent2:'#b17f50', gold:'#e0a458', cardTop:'#2e1a16', cardBottom:'#1f0d0a', headerBg:'rgba(31,13,10,.9)', navBg:'rgba(31,13,10,.72)' },
   },
 };
 function hojeMT5() {
@@ -1220,15 +1222,16 @@ class Component extends DCLogic {
     const fam = PALETTES[this.state.familia] || PALETTES.MULTI;
     const base = fam[this.state.tema] || fam.dark;
     const dark = this.state.tema !== 'light';
-    // Mesa: sem gradiente nem sombra de cartão (a borda dá a elevação); sombra só no que flutua (modal)
+    // Identidade WRX: cartões em gradiente suave, botão com gradiente da família e fundo em halo.
+    // Mesa por cima: texto do botão conferido (>= 4,5:1), foco visível, estado por forma + palavra.
     return {
       ...base,
-      cardGradient: base.bg2,
-      boxGradient: base.bg2,
-      btnGradient: base.accent2,
-      shadowCard: 'none',
-      shadowModal: dark ? '0 8px 24px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3)' : '0 8px 24px rgba(20,24,29,.16)',
-      bodyBg: base.bg,
+      cardGradient: `linear-gradient(180deg, ${base.cardTop}, ${base.cardBottom})`,
+      boxGradient: dark ? `linear-gradient(180deg, ${base.bg3}, ${base.bg2})` : `linear-gradient(180deg, ${base.cardTop}, ${base.bg2})`,
+      btnGradient: `linear-gradient(135deg, ${base.btnA}, ${base.btnB})`,
+      shadowCard: dark ? '0 1px 2px rgba(0,0,0,.5), 0 20px 44px -26px rgba(0,0,0,.65)' : '0 1px 2px rgba(20,30,35,.06), 0 16px 36px -22px rgba(20,30,35,.18)',
+      shadowModal: dark ? '0 24px 64px rgba(0,0,0,.55)' : '0 24px 64px rgba(20,30,35,.22)',
+      bodyBg: `radial-gradient(circle at top, ${base.bg3} 0%, ${base.bg} 68%)`,
     };
   }
 
