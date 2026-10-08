@@ -8,6 +8,10 @@ export const LANGS = [
 
 export const I18N = {
   en: {
+    'theme.label': 'Theme',
+    'theme.dark': 'Night',
+    'theme.light': 'Day',
+    'theme.safe': 'Colour-blind',
     'badge.mt5': 'MT5: ',
     'badge.campaign': 'Campaign: ',
     'campaign.status-running': 'running',
@@ -150,6 +154,10 @@ export const I18N = {
     'deploy.dyn.cleared-n': 'cleared deployed flag on {n} set(s).',
   },
   pt: {
+    'theme.label': 'Tema',
+    'theme.dark': 'Noite',
+    'theme.light': 'Dia',
+    'theme.safe': 'Daltônico',
     'badge.mt5': 'MT5: ',
     'badge.campaign': 'Campanha: ',
     'campaign.status-running': 'rodando',
