@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path as _Path
@@ -133,8 +134,9 @@ with tempfile.TemporaryDirectory() as tmp:
 
 
 # --- smoke manual: relatorio real colado na conversa -------------------------
-_REAL = _Path(r"C:\Users\Lucas Pedroso\Desktop\07_GRID_SEPARATE\ReportHistory-77034660.html")
-if _REAL.is_file():
+# Opcional: aponte WRX_RELATORIO_REAL para um ReportHistory-<conta>.html seu (15 posicoes) para rodar este smoke.
+_REAL = _Path(os.environ["WRX_RELATORIO_REAL"]) if os.environ.get("WRX_RELATORIO_REAL") else None
+if _REAL is not None and _REAL.is_file():
     df_real = em_prova.ler_relatorio_historico(_REAL)
     checar("relatorio real: 15 posicoes extraidas",
            len(df_real) if df_real is not None else None, 15)

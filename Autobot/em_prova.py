@@ -70,7 +70,7 @@ def tabela_magics() -> dict[int, str]:
     magic_estavel() (mesmo loop de generate_system_sets.main(), chave
     "{classe}/{simbolo}/{sistema}/{lado}_{variante}") se o CSV nao existir
     -- confirmado 2026-08-20 que os dois batem, byte a byte, contra os 4
-    magics reais vistos ao vivo na conta 77034660.
+    magics reais vistos ao vivo na conta 770*****60.
     """
     caminho = ready_library.BIBLIOTECA / "MANIFESTO_SISTEMAS.csv"
     if caminho.is_file():
